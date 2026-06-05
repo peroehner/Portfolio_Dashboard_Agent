@@ -654,7 +654,7 @@
       } catch (error) {
         let msg = error.message;
         if (msg.includes("Unsupported file format")) {
-          msg += " — redeploy may be pending. Check /api/v1/config for importVersion: 3.";
+          msg += " — restart the server (old process still running). Check /api/v1/config for importVersion: 4.";
         }
         setStatus(msg, "error");
       }

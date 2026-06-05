@@ -6,6 +6,11 @@ from typing import Any
 from services.holdings_service import HoldingsService
 from services.portfolio_service import PortfolioService
 
+BLOCK_HEADER = re.compile(
+    r"\[TECHNICAL ANALYSIS EXPORT:\s*([A-Z][A-Z0-9.\-]+)\s*\]",
+    re.I,
+)
+PORTFOLIO_EXPORT = re.compile(r"\[PORTFOLIO EXPORT", re.I)
 SYMBOL_LINE = re.compile(
     r"^\s*(?:#{1,3}\s*|[\*\-]\s*)?(?:={2,}\s*)?"
     r"([A-Z][A-Z0-9.\-]{0,9})(?:\s*={2,})?\s*(?:[-–—].*)?$"
@@ -140,6 +145,11 @@ class ImportService:
             return self.import_payload(self._parse_structured_text(stripped))
         except ValueError:
             pass
+
+        if self._is_technical_analysis_export(stripped):
+            records = self._parse_technical_analysis_export(stripped)
+            if records:
+                return self.import_payload(records)
 
         records = self._parse_markdown_table(stripped)
         if records:
@@ -284,6 +294,42 @@ class ImportService:
                 record["sellAbove"] = sell_above
             if record:
                 records[symbol] = record
+        return records
+
+    def _is_technical_analysis_export(self, text: str) -> bool:
+        upper = text.upper()
+        return "[TECHNICAL ANALYSIS EXPORT:" in upper or PORTFOLIO_EXPORT.search(text) is not None
+
+    def _parse_technical_analysis_export(self, text: str) -> dict[str, dict[str, Any]]:
+        records: dict[str, dict[str, Any]] = {}
+        parts = BLOCK_HEADER.split(text)
+        # split returns [preamble, symbol, body, symbol, body, ...]
+        for index in range(1, len(parts), 2):
+            symbol = parts[index].upper()
+            body = parts[index + 1] if index + 1 < len(parts) else ""
+            record: dict[str, Any] = {}
+
+            current_match = re.search(r"Current Price:\s*([\d.,]+)", body, re.I)
+            if current_match:
+                record["currentPrice"] = self._clean_number(current_match.group(1))
+
+            target_match = re.search(r"1Y Mean Target estimate:\s*([\d.,]+)", body, re.I)
+            if target_match:
+                record["targetPrice"] = self._clean_number(target_match.group(1))
+
+            purchase_match = re.search(
+                r"Purchased\s+([\d.,]+)\s+shares\s+on\s+[\d-]+\s+@\s+([\d.,]+)",
+                body,
+                re.I,
+            )
+            if purchase_match:
+                record["quantity"] = self._clean_number(purchase_match.group(1))
+                record["costBasis"] = self._clean_number(purchase_match.group(2))
+
+            normalized = self._normalize_symbol_record(record)
+            if normalized:
+                records[symbol] = normalized
+
         return records
 
     def _parse_markdown_table(self, text: str) -> dict[str, dict[str, Any]]:
