@@ -81,14 +81,30 @@ def get_ngrok_authtoken():
     return token
 
 
-print(f"Repo root: {REPO_ROOT}")
+def install_deploy_deps():
+    """Install only lightweight web deps; avoid torch on every redeploy."""
+    if os.environ.get("SKIP_PIP_INSTALL", "").lower() in ("1", "true", "yes"):
+        print("Skipping pip install (SKIP_PIP_INSTALL=1)")
+        return
 
-requirements = REPO_ROOT / "requirements.txt"
-if requirements.is_file():
-    print("Installing dependencies...")
+    try:
+        import flask  # noqa: F401
+        import pyngrok  # noqa: F401
+        import yfinance  # noqa: F401
+        print("Deploy dependencies already installed.")
+        return
+    except ImportError:
+        pass
+
+    requirements = REPO_ROOT / "requirements-deploy.txt"
+    print("Installing lightweight deploy dependencies (no torch)...")
     subprocess.check_call(
-        [sys.executable, "-m", "pip", "install", "-q", "-r", str(requirements), "pyngrok"]
+        [sys.executable, "-m", "pip", "install", "-q", "-r", str(requirements)]
     )
+
+
+print(f"Repo root: {REPO_ROOT}")
+install_deploy_deps()
 
 start_server = load_start_server()
 

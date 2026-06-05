@@ -1,7 +1,6 @@
-import yfinance as yf
-import torch
-from transformers import pipeline
 import logging
+
+import yfinance as yf
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -9,15 +8,18 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 class PortfolioEngine:
     def __init__(self):
         logging.info("Initializing AI components (PyTorch & Transformers)...")
+        self.sentiment_analyzer = None
         try:
+            import torch
+            from transformers import pipeline
+
             self.sentiment_analyzer = pipeline(
-                "sentiment-analysis", 
+                "sentiment-analysis",
                 model="distilbert-base-uncased-finetuned-sst-2-english",
-                device=0 if torch.cuda.is_available() else -1
+                device=0 if torch.cuda.is_available() else -1,
             )
         except Exception as e:
-            logging.warning(f"Transformers initialization failed (running in data-only mode): {e}")
-            self.sentiment_analyzer = None
+            logging.warning(f"Transformers unavailable (running in data-only mode): {e}")
             
     def fetch_market_data(self, tickers):
         """Fetches live market data using yfinance."""
