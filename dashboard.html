@@ -222,8 +222,8 @@
     </div>
     <div class="wide-panel">
       <h2>Import Analysis File</h2>
-      <p class="empty">Upload JSON (legacy analysis export) or CSV with symbol, price, target, quantity columns.</p>
-      <input type="file" id="importFile" accept=".json,.csv,application/json,text/csv">
+      <p class="empty">Upload JSON, CSV, or TXT analysis export (symbol blocks with key: value lines).</p>
+      <input type="file" id="importFile" accept=".json,.csv,.txt,application/json,text/csv,text/plain">
       <button style="margin-top:0.75rem;" onclick="importAnalysisFile()">Import File</button>
     </div>
     <div class="wide-panel">
@@ -650,7 +650,7 @@
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Import failed");
         await loadOverview();
-        setStatus(`Imported ${data.symbolsImported} symbols and ${data.holdingsImported} holdings.`);
+        setStatus(`Imported ${data.symbolsImported} symbols and ${data.holdingsImported} holdings (${data.format || "file"}).`, "success");
       } catch (error) {
         setStatus(error.message);
       }

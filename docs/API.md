@@ -77,9 +77,28 @@ Portfolio KPIs: symbol count, holdings, total market value, cost basis, unrealiz
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/import` | JSON body (legacy analysis export format) |
-| POST | `/import/file` | Multipart upload, field name `file` (.json or .csv) |
+| POST | `/import/file` | Multipart upload, field name `file` (.json, .csv, or .txt) |
 
 Legacy route (still supported): `POST /api/state`
+
+**TXT analysis format** (symbol blocks with key: value lines):
+
+```
+AAPL
+Current Price: 170
+Target Price: 250
+Buy Below: 175
+Sell Above: 220
+Quantity: 10
+Cost Basis: 150
+
+MSFT
+Current: 420
+Target: 500
+Shares: 5
+```
+
+JSON saved as `.txt` also works.
 
 ---
 

@@ -37,7 +37,7 @@ OPENAPI_SPEC = {
             "delete": {"summary": "Delete holding"},
         },
         "/import": {"post": {"summary": "Import JSON payload"}},
-        "/import/file": {"post": {"summary": "Upload JSON or CSV file"}},
+        "/import/file": {"post": {"summary": "Upload JSON, CSV, or TXT file"}},
         "/screen": {"get": {"summary": "Multi-factor screening (query: minUpside, nearFib, belowBuy, hasAlerts)"}},
         "/fib-proximity": {"get": {"summary": "Fibonacci proximity map for all symbols"}},
         "/alerts": {"get": {"summary": "List alerts (query: symbol, status)"}},

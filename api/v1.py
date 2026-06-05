@@ -157,7 +157,7 @@ def import_payload():
 @v1_bp.route("/import/file", methods=["POST"])
 def import_file():
     if "file" not in request.files:
-        return jsonify({"error": "Upload a JSON or CSV file as 'file'."}), 400
+        return jsonify({"error": "Upload a JSON, CSV, or TXT analysis file as 'file'."}), 400
     upload = request.files["file"]
     try:
         result = import_service.import_file(upload.filename or "upload.json", upload.read())
