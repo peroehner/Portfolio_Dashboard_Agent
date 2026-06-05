@@ -72,30 +72,3 @@ if __name__ == "__main__":
     # Start the Flask web application
     print("Starting Portfolio Agent Server on http://127.0.0.1:5000")
     app.run(debug=True, port=5000, use_reloader=False)
-
-    # 1. Imports
-#from engine import run_pipeline, generate_html
-from engine import pipeline
-
-def main():
-    print("[PDA] Starting Portfolio Sync...")
-    
-    # Call the only function that exists in engine.py
-    portfolio_data = engine.pipeline()
-    
-    # 2. Run the logic
-    #portfolio_data = run_pipeline()
-    
-    # 3. Generate the static file
-    #html_output = generate_html(portfolio_data)
-    
-    #with open("dashboard.html", "w", encoding="utf-8") as f:
-    #    f.write(html_output)
-    
-    #print("[PDA] Success: dashboard.html generated.")
-
-# 4. The "Entry Point" logic
-# This ensures it runs when you execute 'python main.py' 
-# but DOES NOT run automatically when you 'import main' in Colab.
-if __name__ == "__main__":
-    main()
