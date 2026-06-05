@@ -70,5 +70,5 @@ if __name__ == "__main__":
     worker.start()
     
     # Start the Flask web application
-    print("Starting Portfolio Agent Server on http://127.0.0.1:5000")
-    app.run(debug=True, port=5000, use_reloader=False)
+    print("Starting Portfolio Agent Server on http://0.0.0.0:5000")
+    app.run(debug=True, port=5000, host='0.0.0.0', use_reloader=False)
