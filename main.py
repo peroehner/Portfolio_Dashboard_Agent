@@ -1,3 +1,6 @@
+import os
+import platform
+import subprocess
 import threading
 import time
 import logging
@@ -92,13 +95,38 @@ def serve_assets(asset_path):
         return jsonify({"status": "error", "message": "Not found"}), 404
     return send_file(file_path)
 
+def free_port(port):
+    """Best-effort release of a stale listener before redeploying."""
+    try:
+        if platform.system() == "Darwin":
+            subprocess.run(
+                ["bash", "-c", f"lsof -ti tcp:{port} | xargs kill -9 2>/dev/null || true"],
+                check=False,
+            )
+        else:
+            subprocess.run(["fuser", "-k", f"{port}/tcp"], check=False, capture_output=True)
+        time.sleep(0.5)
+        logging.info(f"Cleared stale process on port {port}")
+    except FileNotFoundError:
+        logging.warning(f"Could not auto-clear port {port}; stop the old server manually or set PORT.")
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    
+
+    port = int(os.environ.get("PORT", 5000))
+    if os.environ.get("FREE_PORT", "1").lower() in ("1", "true", "yes"):
+        free_port(port)
+
     # Start the autonomous background sync loop
     worker = threading.Thread(target=background_sync_loop, daemon=True)
     worker.start()
-    
+
     # Start the Flask web application
-    print("Starting Portfolio Agent Server on http://0.0.0.0:5000")
-    app.run(debug=True, port=5000, host="0.0.0.0", threaded=True, use_reloader=False)
+    print(f"Starting Portfolio Agent Server on http://0.0.0.0:{port}")
+    app.run(
+        debug=os.environ.get("FLASK_DEBUG", "0").lower() in ("1", "true", "yes"),
+        port=port,
+        host="0.0.0.0",
+        threaded=True,
+        use_reloader=False,
+    )
