@@ -10,13 +10,28 @@ import sys
 from pathlib import Path
 
 REPO_URL = "https://github.com/peroehner/Portfolio_Dashboard_Agent.git"
-TARGET = Path("/content/Portfolio_Dashboard_Agent")
+SAFE_CWD = Path("/content")
+TARGET = SAFE_CWD / "Portfolio_Dashboard_Agent"
 NESTED = TARGET / "Portfolio_Dashboard_Agent"
 
 
-def run_git_clone(destination: Path) -> None:
-    subprocess.check_call(["git", "clone", REPO_URL, str(destination)])
+def ensure_safe_cwd() -> None:
+    """Recover when the notebook shell cwd was deleted by rm -rf."""
+    try:
+        os.getcwd()
+    except OSError:
+        pass
+    os.chdir(SAFE_CWD)
 
+
+def run_git_clone(destination: Path) -> None:
+    subprocess.check_call(
+        ["git", "clone", REPO_URL, str(destination)],
+        cwd=str(SAFE_CWD),
+    )
+
+
+ensure_safe_cwd()
 
 if NESTED.is_dir() and (NESTED / "main.py").is_file():
     print("Flattening double-nested clone...")
