@@ -60,6 +60,27 @@ def load_start_server():
     return module.start_server
 
 
+def clean_token(token):
+    """Remove hidden newlines/spaces often pasted into Colab Secrets."""
+    return "".join(str(token).split())
+
+
+def get_ngrok_authtoken():
+    """Read ngrok token from env or Colab Secrets; ignore placeholders."""
+    token = clean_token(os.environ.get("NGROK_AUTHTOKEN", ""))
+    if not token:
+        try:
+            from google.colab import userdata
+            token = clean_token(userdata.get("NGROK_AUTHTOKEN"))
+        except Exception:
+            pass
+
+    invalid = {"", "your_token_here", "token", "none", "null", "placeholder"}
+    if token.lower() in invalid or len(token) < 20:
+        return None
+    return token
+
+
 print(f"Repo root: {REPO_ROOT}")
 
 requirements = REPO_ROOT / "requirements.txt"
@@ -75,13 +96,41 @@ PORT = int(os.environ.get("PORT", 5000))
 health_url = start_server(port=PORT, block=False)
 print(f"Local health check: {health_url}")
 
-authtoken = os.environ.get("NGROK_AUTHTOKEN", "").strip()
-if authtoken:
-    from pyngrok import ngrok
+def verify_public_tunnel(public_url):
+    """Confirm ngrok can reach Flask through the tunnel."""
+    import urllib.error
+    import urllib.request
 
-    ngrok.set_auth_token(authtoken)
-    public_url = ngrok.connect(PORT)
-    print(f"Public URL: {public_url}")
-    print(f"Health check: {public_url}/health")
+    req = urllib.request.Request(
+        f"{public_url}/health",
+        headers={"ngrok-skip-browser-warning": "true"},
+    )
+    with urllib.request.urlopen(req, timeout=10) as response:
+        body = response.read().decode()
+        print(f"Tunnel verify ({response.status}): {body}")
+
+
+authtoken = get_ngrok_authtoken()
+if authtoken:
+    try:
+        from pyngrok import ngrok
+
+        print(f"Ngrok token loaded ({len(authtoken)} chars, ends with ...{authtoken[-4:]})")
+        ngrok.kill()
+        ngrok.set_auth_token(authtoken)
+        tunnel = ngrok.connect(PORT, bind_tls=True)
+        public_url = str(tunnel.public_url)
+        print(f"Public URL: {public_url}")
+        print(f"Health check: {public_url}/health")
+        verify_public_tunnel(public_url)
+        print("Browser tip: on first visit ngrok shows a warning page — click 'Visit Site'.")
+    except Exception as exc:
+        print("Ngrok tunnel failed; Flask is still running locally.")
+        print(f"Local health check: http://127.0.0.1:{PORT}/health")
+        print(f"Error: {exc}")
+        print("Use an authtoken from https://dashboard.ngrok.com/get-started/your-authtoken")
+        print("Do not use an API key. Re-save the Colab Secret with no spaces or line breaks.")
 else:
-    print("NGROK_AUTHTOKEN not set; Flask is running locally only.")
+    print("NGROK_AUTHTOKEN not set or still a placeholder.")
+    print("Colab: add NGROK_AUTHTOKEN in Secrets (key icon), then rerun.")
+    print(f"Flask is running locally at http://127.0.0.1:{PORT}/health")
