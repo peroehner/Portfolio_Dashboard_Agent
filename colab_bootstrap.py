@@ -2,6 +2,8 @@
 
 Paste into one cell (no %run, no %cd required):
 
+    # 1) Colab sidebar -> Secrets -> add NGROK_AUTHTOKEN (real token from ngrok dashboard)
+    # 2) Run:
     import urllib.request, runpy
     urllib.request.urlretrieve(
         "https://raw.githubusercontent.com/peroehner/Portfolio_Dashboard_Agent/main/colab_bootstrap.py",

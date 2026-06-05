@@ -1,4 +1,5 @@
 import logging
+import os
 
 import yfinance as yf
 
@@ -7,8 +8,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 class PortfolioEngine:
     def __init__(self):
-        logging.info("Initializing AI components (PyTorch & Transformers)...")
         self.sentiment_analyzer = None
+        if os.environ.get("SKIP_TRANSFORMERS", "").lower() in ("1", "true", "yes"):
+            logging.info("Skipping transformers (SKIP_TRANSFORMERS=1).")
+            return
+
+        logging.info("Initializing AI components (PyTorch & Transformers)...")
         try:
             import torch
             from transformers import pipeline

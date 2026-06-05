@@ -1,0 +1,30 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Connect this repo in Render Dashboard → New → Blueprint
+services:
+  - type: web
+    name: portfolio-dashboard-agent
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-deploy.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 main:app
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: FLASK_DEBUG
+        value: "0"
+      - key: SKIP_TRANSFORMERS
+        value: "1"
+      - key: ASSESSMENT_MODE
+        value: auto
+      - key: FIB_PROXIMITY_PCT
+        value: "1.0"
+      # Optional — set in Render dashboard (never commit secrets):
+      # LLM_PROVIDER, OPENAI_API_KEY, GEMINI_API_KEY
+      # Persistent SQLite (enable a 1GB disk in Render, then uncomment):
+      # - key: DATABASE_PATH
+      #   value: /var/data/portfolio.db
+    # disk:
+    #   name: portfolio-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
