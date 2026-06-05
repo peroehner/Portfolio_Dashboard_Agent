@@ -55,6 +55,7 @@ def get_config():
         "llmConfigured": provider != "rules",
         "syncIntervalSeconds": 300,
         "fibProximityPct": float(os.environ.get("FIB_PROXIMITY_PCT", "1.0")),
+        "importVersion": 3,
         "docs": {
             "api": "/docs/api",
             "replit": "/docs/replit",
@@ -160,7 +161,11 @@ def import_file():
         return jsonify({"error": "Upload a JSON, CSV, or TXT analysis file as 'file'."}), 400
     upload = request.files["file"]
     try:
-        result = import_service.import_file(upload.filename or "upload.json", upload.read())
+        result = import_service.import_file(
+            upload.filename or "upload.txt",
+            upload.read(),
+            content_type=upload.mimetype,
+        )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"status": "success", **result})

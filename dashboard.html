@@ -652,7 +652,11 @@
         await loadOverview();
         setStatus(`Imported ${data.symbolsImported} symbols and ${data.holdingsImported} holdings (${data.format || "file"}).`, "success");
       } catch (error) {
-        setStatus(error.message);
+        let msg = error.message;
+        if (msg.includes("Unsupported file format")) {
+          msg += " — redeploy may be pending. Check /api/v1/config for importVersion: 3.";
+        }
+        setStatus(msg, "error");
       }
     }
 

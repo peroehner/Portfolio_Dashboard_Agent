@@ -115,23 +115,21 @@ class ImportService:
             "holdings": self.holdings_service.list_holdings(),
         }
 
-    def import_file(self, filename: str, raw_bytes: bytes) -> dict[str, Any]:
+    def import_file(
+        self,
+        filename: str,
+        raw_bytes: bytes,
+        content_type: str | None = None,
+    ) -> dict[str, Any]:
         text = self._decode_text(raw_bytes)
-        lower_name = filename.lower()
+        lower_name = (filename or "").lower()
+        lower_type = (content_type or "").lower()
 
-        if lower_name.endswith(".json"):
-            return self._with_format(self.import_payload(self._parse_structured_text(text)), "json")
-
-        if lower_name.endswith(".csv"):
+        if lower_name.endswith(".csv") or "csv" in lower_type:
             return self._with_format(self.import_csv(text), "csv")
 
-        if lower_name.endswith(".txt"):
-            return self._with_format(self.import_txt(text), "txt")
-
-        try:
-            return self._with_format(self.import_payload(self._parse_structured_text(text)), "json")
-        except ValueError:
-            return self._with_format(self.import_txt(text), "txt")
+        # Content-first: works for .txt, extensionless uploads, and JSON files.
+        return self._with_format(self.import_txt(text), "txt")
 
     def import_txt(self, text: str) -> dict[str, Any]:
         stripped = text.strip()
@@ -143,12 +141,18 @@ class ImportService:
         except ValueError:
             pass
 
+        records = self._parse_markdown_table(stripped)
+        if records:
+            return self.import_payload(records)
+
         if self._looks_like_csv(stripped):
             return self.import_csv(stripped)
 
         records = self._parse_txt_blocks(stripped)
         if not records:
             records = self._parse_positional_lines(stripped)
+        if not records:
+            records = self._parse_inline_assignments(stripped)
 
         if not records:
             raise ValueError(self._parse_help_message())
@@ -282,6 +286,75 @@ class ImportService:
                 records[symbol] = record
         return records
 
+    def _parse_markdown_table(self, text: str) -> dict[str, dict[str, Any]]:
+        lines = [line.strip() for line in text.splitlines() if "|" in line]
+        if len(lines) < 2:
+            return {}
+
+        rows = []
+        for line in lines:
+            if re.match(r"^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$", line):
+                continue
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            if cells:
+                rows.append(cells)
+
+        if len(rows) < 2:
+            return {}
+
+        headers = [self._normalize_field_name(cell) for cell in rows[0]]
+        symbol_idx = self._header_index(headers, ("symbol", "ticker"))
+        if symbol_idx is None:
+            return {}
+
+        records: dict[str, dict[str, Any]] = {}
+        for row in rows[1:]:
+            if symbol_idx >= len(row):
+                continue
+            symbol = row[symbol_idx].upper()
+            if not re.match(r"^[A-Z][A-Z0-9.\-]{0,9}$", symbol):
+                continue
+            payload: dict[str, Any] = {}
+            for idx, header in enumerate(headers):
+                if idx == symbol_idx or idx >= len(row):
+                    continue
+                mapped = self._map_field(header)
+                if not mapped:
+                    continue
+                value = self._clean_number(row[idx])
+                if value is not None:
+                    payload[mapped] = value
+            normalized = self._normalize_symbol_record(payload)
+            if normalized:
+                records[symbol] = normalized
+        return records
+
+    def _parse_inline_assignments(self, text: str) -> dict[str, dict[str, Any]]:
+        records: dict[str, dict[str, Any]] = {}
+        assignment = re.compile(
+            r"\b([A-Z][A-Z0-9.\-]{0,9})\b.*?((?:currentPrice|targetPrice|buyBelow|sellAbove|quantity|shares|costBasis)\s*[:=]\s*[\d.,$€£+\-]+(?:\s*,?\s*(?:currentPrice|targetPrice|buyBelow|sellAbove|quantity|shares|costBasis)\s*[:=]\s*[\d.,$€£+\-]+)*)",
+            re.I,
+        )
+        for match in assignment.finditer(text):
+            symbol = match.group(1).upper()
+            chunk = match.group(2)
+            payload: dict[str, Any] = {}
+            for part in re.finditer(
+                r"(currentPrice|targetPrice|buyBelow|sellAbove|quantity|shares|costBasis)\s*[:=]\s*([\d.,$€£+\-]+)",
+                chunk,
+                re.I,
+            ):
+                key = part.group(1)
+                if key.lower() == "shares":
+                    key = "quantity"
+                value = self._clean_number(part.group(2))
+                if value is not None:
+                    payload[key if key != "quantity" else "quantity"] = value
+            normalized = self._normalize_symbol_record(payload)
+            if normalized:
+                records[symbol] = normalized
+        return records
+
     def _normalize_symbol_record(self, details: dict[str, Any]) -> dict[str, Any]:
         normalized = {}
         mapping = {
@@ -312,7 +385,7 @@ class ImportService:
         first = lines[0].lower()
         if ":" in first and not any(sep in first for sep in (",", "\t", ";", "|")):
             return False
-        delimiter_present = any(sep in first for sep in (",", "\t", ";", "|"))
+        delimiter_present = any(sep in first for sep in (",", "\t", ";"))
         return delimiter_present and ("symbol" in first or "ticker" in first)
 
     def _decode_text(self, raw_bytes: bytes) -> str:
@@ -337,11 +410,16 @@ class ImportService:
         return None
 
     def _loads_json(self, text: str) -> dict[str, Any]:
-        fixed = re.sub(r",\s*([}\]])", r"\1", text)
+        fixed = self._fix_js_object(text)
+        fixed = re.sub(r",\s*([}\]])", r"\1", fixed)
         payload = json.loads(fixed)
         if not isinstance(payload, dict):
             raise ValueError("JSON root must be an object.")
         return payload
+
+    def _fix_js_object(self, text: str) -> str:
+        """Quote bare object keys: { AAPL: { currentPrice: 1 } }."""
+        return re.sub(r'([{\[,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:', r'\1"\2":', text)
 
     def _loads_python_literal(self, text: str) -> dict[str, Any]:
         payload = ast.literal_eval(text)
