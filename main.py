@@ -4,6 +4,8 @@ import subprocess
 import threading
 import time
 import logging
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from flask import Flask, jsonify, send_file, request
@@ -11,7 +13,14 @@ from engine import PortfolioEngine
 
 BASE_DIR = Path(__file__).resolve().parent
 app = Flask(__name__, static_folder=str(BASE_DIR))
-engine = PortfolioEngine()
+engine = None
+
+def get_engine():
+    """Load the AI engine lazily so Flask can bind before heavy model init."""
+    global engine
+    if engine is None:
+        engine = PortfolioEngine()
+    return engine
 
 # In-memory store mirroring the frontend's loaded assets
 portfolio_state = {}
@@ -24,7 +33,7 @@ def background_sync_loop():
             logging.info(f"Background Sync: Fetching data for {len(tickers)} assets.")
             
             # Fetch live prices via yfinance
-            live_prices = engine.fetch_market_data(tickers)
+            live_prices = get_engine().fetch_market_data(tickers)
             
             updated_count = 0
             for ticker, price in live_prices.items():
@@ -33,7 +42,7 @@ def background_sync_loop():
                     updated_count += 1
                     
             # AI Screener
-            alerts = engine.run_screener(portfolio_state)
+            alerts = get_engine().run_screener(portfolio_state)
             if alerts:
                 logging.info(f"AI Screener Alerts: {alerts}")
                 
@@ -69,12 +78,12 @@ def trigger_manual_sync():
         return jsonify({"status": "error", "message": "No portfolio data loaded in backend."}), 400
         
     tickers = list(portfolio_state.keys())
-    live_prices = engine.fetch_market_data(tickers)
-    
+    live_prices = get_engine().fetch_market_data(tickers)
+
     for ticker, price in live_prices.items():
         if price is not None:
             portfolio_state[ticker]["currentPrice"] = price
-            
+
     return jsonify({"status": "success", "data": portfolio_state})
 
 @app.route("/api/state", methods=["POST", "OPTIONS"])
@@ -110,23 +119,47 @@ def free_port(port):
     except FileNotFoundError:
         logging.warning(f"Could not auto-clear port {port}; stop the old server manually or set PORT.")
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+def wait_until_ready(port, timeout=120):
+    """Block until the Flask health endpoint responds locally."""
+    deadline = time.time() + timeout
+    health_url = f"http://127.0.0.1:{port}/health"
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(health_url, timeout=2) as response:
+                if response.status == 200:
+                    logging.info(f"Server ready at {health_url}")
+                    return health_url
+        except (urllib.error.URLError, TimeoutError):
+            time.sleep(1)
+    raise TimeoutError(f"Server did not become ready on port {port} within {timeout}s")
 
-    port = int(os.environ.get("PORT", 5000))
+def start_server(port=None, block=True, wait_timeout=120):
+    """Start Flask; use block=False in notebooks before opening an ngrok tunnel."""
+    logging.basicConfig(level=logging.INFO)
+    port = int(port or os.environ.get("PORT", 5000))
+
     if os.environ.get("FREE_PORT", "1").lower() in ("1", "true", "yes"):
         free_port(port)
 
-    # Start the autonomous background sync loop
     worker = threading.Thread(target=background_sync_loop, daemon=True)
     worker.start()
 
-    # Start the Flask web application
+    run_kwargs = {
+        "debug": os.environ.get("FLASK_DEBUG", "0").lower() in ("1", "true", "yes"),
+        "port": port,
+        "host": "0.0.0.0",
+        "threaded": True,
+        "use_reloader": False,
+    }
+
     print(f"Starting Portfolio Agent Server on http://0.0.0.0:{port}")
-    app.run(
-        debug=os.environ.get("FLASK_DEBUG", "0").lower() in ("1", "true", "yes"),
-        port=port,
-        host="0.0.0.0",
-        threaded=True,
-        use_reloader=False,
-    )
+    if block:
+        app.run(**run_kwargs)
+        return None
+
+    server_thread = threading.Thread(target=lambda: app.run(**run_kwargs), daemon=True)
+    server_thread.start()
+    return wait_until_ready(port, timeout=wait_timeout)
+
+if __name__ == "__main__":
+    start_server()
