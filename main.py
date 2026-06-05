@@ -9,7 +9,6 @@ import urllib.request
 from pathlib import Path
 
 from flask import Flask, jsonify, send_file, request
-from engine import PortfolioEngine
 
 BASE_DIR = Path(__file__).resolve().parent
 app = Flask(__name__, static_folder=str(BASE_DIR))
@@ -19,6 +18,7 @@ def get_engine():
     """Load the AI engine lazily so Flask can bind before heavy model init."""
     global engine
     if engine is None:
+        from engine import PortfolioEngine
         engine = PortfolioEngine()
     return engine
 

@@ -8,6 +8,7 @@ Or from shell:
     python deploy.py
 """
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -16,7 +17,27 @@ os.chdir(REPO_ROOT)
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from main import start_server
+print(f"Repo root: {REPO_ROOT}")
+
+requirements = REPO_ROOT / "requirements.txt"
+if requirements.is_file():
+    print("Installing dependencies...")
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", "-q", "-r", str(requirements), "pyngrok"]
+    )
+
+try:
+    from main import start_server
+except ImportError as exc:
+    main_file = REPO_ROOT / "main.py"
+    has_start_server = (
+        main_file.is_file() and "def start_server" in main_file.read_text(encoding="utf-8")
+    )
+    print(f"main.py found: {main_file.is_file()}")
+    print(f"start_server defined in main.py: {has_start_server}")
+    if not has_start_server:
+        print("Your copy of main.py is outdated. Run: git pull")
+    raise exc
 
 PORT = int(os.environ.get("PORT", 5000))
 health_url = start_server(port=PORT, block=False)
