@@ -1,17 +1,23 @@
 """Notebook-friendly deployment entry point.
 
-Clean Colab setup (run once):
-    %run setup_colab.py
+Preferred in Colab (works even if shell cwd is broken):
+    import runpy
+    runpy.run_path("/content/Portfolio_Dashboard_Agent/deploy.py", run_name="__main__")
 
-Deploy:
-    %cd /content/Portfolio_Dashboard_Agent
-    %run deploy.py
+Or use colab_bootstrap.py to clone + deploy in one step.
 """
 import importlib.util
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+SAFE_CWD = Path("/content")
+
+try:
+    os.getcwd()
+except OSError:
+    os.chdir(SAFE_CWD)
 
 REPO_ROOT = Path(__file__).resolve().parent
 PARENT_ROOT = REPO_ROOT.parent

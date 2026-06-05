@@ -53,4 +53,6 @@ if str(TARGET) not in sys.path:
     sys.path.insert(0, str(TARGET))
 
 print(f"Ready at: {TARGET}")
-print("Next: set NGROK_AUTHTOKEN, then run deploy.py")
+print("Next: set NGROK_AUTHTOKEN, then launch deploy with:")
+print('  import runpy')
+print(f'  runpy.run_path("{TARGET / "deploy.py"}", run_name="__main__")')
