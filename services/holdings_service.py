@@ -15,7 +15,8 @@ class HoldingsService:
             rows = conn.execute(
                 """
                 SELECT h.symbol, h.quantity, h.cost_basis, h.account_name,
-                       h.created_at, h.updated_at, s.current_price
+                       h.created_at, h.updated_at, s.current_price, s.annual_dividend,
+                       s.analyst_target_1y, s.target_price
                 FROM holdings h
                 LEFT JOIN symbols s ON s.symbol = h.symbol
                 ORDER BY h.symbol
@@ -29,7 +30,8 @@ class HoldingsService:
             row = conn.execute(
                 """
                 SELECT h.symbol, h.quantity, h.cost_basis, h.account_name,
-                       h.created_at, h.updated_at, s.current_price
+                       h.created_at, h.updated_at, s.current_price, s.annual_dividend,
+                       s.analyst_target_1y, s.target_price
                 FROM holdings h
                 LEFT JOIN symbols s ON s.symbol = h.symbol
                 WHERE h.symbol = ?
@@ -76,12 +78,41 @@ class HoldingsService:
     def _row_to_holding(self, row) -> dict[str, Any]:
         quantity = row["quantity"] or 0
         current_price = row["current_price"]
-        market_value = quantity * current_price if current_price is not None else None
+        market_value = (
+            round(quantity * current_price, 2) if current_price is not None else None
+        )
         cost_basis = row["cost_basis"]
         total_cost = quantity * cost_basis if cost_basis is not None else None
         unrealized_gain = (
-            market_value - total_cost
+            round(market_value - total_cost, 2)
             if market_value is not None and total_cost is not None
+            else None
+        )
+        gain_pct = (
+            round(unrealized_gain / total_cost * 100, 2)
+            if unrealized_gain is not None and total_cost
+            else None
+        )
+        analyst_target = row["analyst_target_1y"]
+        analyst_target_value = (
+            round(quantity * analyst_target, 2)
+            if analyst_target is not None
+            else None
+        )
+        analyst_upside_pct = (
+            round((analyst_target - current_price) / current_price * 100, 2)
+            if analyst_target is not None and current_price
+            else None
+        )
+        personal_target = row["target_price"]
+        personal_target_value = (
+            round(quantity * personal_target, 2)
+            if personal_target is not None
+            else None
+        )
+        personal_upside_pct = (
+            round((personal_target - current_price) / current_price * 100, 2)
+            if personal_target is not None and current_price
             else None
         )
         weight_pct = None
@@ -95,6 +126,14 @@ class HoldingsService:
             "marketValue": market_value,
             "totalCost": total_cost,
             "unrealizedGain": unrealized_gain,
+            "gainPct": gain_pct,
+            "annualDividend": row["annual_dividend"],
+            "analystTarget1y": analyst_target,
+            "analystTargetValue": analyst_target_value,
+            "analystUpsidePct": analyst_upside_pct,
+            "personalTarget": personal_target,
+            "personalTargetValue": personal_target_value,
+            "personalUpsidePct": personal_upside_pct,
             "weightPct": weight_pct,
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],

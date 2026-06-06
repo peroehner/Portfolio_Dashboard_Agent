@@ -120,8 +120,9 @@ def update_state():
         return "", 204
 
     state = request.get_json(silent=True) or {}
+    mode = request.args.get("mode") or state.pop("mode", None) or "merge"
     try:
-        result = import_service.import_payload(state)
+        result = import_service.import_payload(state, mode=mode)
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 400
     return jsonify({

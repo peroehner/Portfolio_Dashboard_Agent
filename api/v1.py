@@ -1,3 +1,4 @@
+import logging
 import os
 
 from flask import Blueprint, jsonify, request
@@ -55,7 +56,8 @@ def get_config():
         "llmConfigured": provider != "rules",
         "syncIntervalSeconds": 300,
         "fibProximityPct": float(os.environ.get("FIB_PROXIMITY_PCT", "1.0")),
-        "importVersion": 4,
+        "importVersion": 7,
+        "importModes": ["merge", "replace"],
         "docs": {
             "api": "/docs/api",
             "replit": "/docs/replit",
@@ -148,8 +150,11 @@ def import_payload():
     payload = request.get_json(silent=True)
     if payload is None:
         return jsonify({"error": "JSON body required."}), 400
+    mode = request.args.get("mode") or (payload.get("mode") if isinstance(payload, dict) else None) or "merge"
+    if isinstance(payload, dict):
+        payload = {k: v for k, v in payload.items() if k != "mode"}
     try:
-        result = import_service.import_payload(payload)
+        result = import_service.import_payload(payload, mode=mode)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"status": "success", **result})
@@ -160,14 +165,24 @@ def import_file():
     if "file" not in request.files:
         return jsonify({"error": "Upload a JSON, CSV, or TXT analysis file as 'file'."}), 400
     upload = request.files["file"]
+    mode = request.form.get("mode") or request.args.get("mode") or "merge"
     try:
         result = import_service.import_file(
             upload.filename or "upload.txt",
             upload.read(),
             content_type=upload.mimetype,
+            mode=mode,
         )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+    logging.info(
+        "Import file %s mode=%s cleared=%s imported=%s portfolio=%s",
+        upload.filename,
+        result.get("mode"),
+        result.get("clearedSymbols"),
+        result.get("symbolsImported"),
+        len(result.get("symbols") or []),
+    )
     return jsonify({"status": "success", **result})
 
 

@@ -28,24 +28,48 @@ class PortfolioEngine:
             
     def fetch_market_data(self, tickers):
         """Fetches live market data using yfinance."""
+        quotes = self.fetch_market_quotes(tickers)
+        return {ticker: quote.get("currentPrice") for ticker, quote in quotes.items()}
+
+    def fetch_market_quotes(self, tickers):
+        """Fetches live price and analyst 1Y mean target per ticker."""
         logging.info(f"Engine fetching yfinance data for: {tickers}")
         if not tickers:
             return {}
+
+        prices = {ticker: None for ticker in tickers}
         try:
             data = yf.download(tickers, period="1d", progress=False)
-            prices = {}
             for ticker in tickers:
                 try:
                     if len(tickers) == 1:
-                        prices[ticker] = float(data['Close'].iloc[-1])
+                        prices[ticker] = float(data["Close"].iloc[-1])
                     else:
-                        prices[ticker] = float(data['Close'][ticker].iloc[-1])
+                        prices[ticker] = float(data["Close"][ticker].iloc[-1])
                 except (KeyError, IndexError, TypeError):
                     prices[ticker] = None
-            return prices
         except Exception as e:
-            logging.error(f"Failed to fetch market data: {e}")
-            return {ticker: None for ticker in tickers}
+            logging.error(f"Failed to fetch market prices: {e}")
+
+        quotes = {}
+        for ticker in tickers:
+            analyst_target = None
+            try:
+                target_mean = yf.Ticker(ticker).info.get("targetMeanPrice")
+                if target_mean is not None:
+                    analyst_target = round(float(target_mean), 2)
+            except Exception as e:
+                logging.warning(f"Failed to fetch analyst target for {ticker}: {e}")
+
+            quotes[ticker] = {
+                "currentPrice": (
+                    round(float(prices[ticker]), 2)
+                    if prices[ticker] is not None
+                    else None
+                ),
+                "analystTarget1y": analyst_target,
+            }
+        return quotes
 
     def analyze_asset_sentiment(self, texts):
         """AI analysis of stock news or fundamental text."""
@@ -61,7 +85,7 @@ class PortfolioEngine:
         alerts = []
         for symbol, details in portfolio_data.items():
             price = details.get("currentPrice", 0)
-            target = details.get("targetPrice", 0)
+            target = details.get("analystTarget1y") or details.get("targetPrice", 0)
             if target and price:
                 upside = (target - price) / price
                 if upside > 0.30:

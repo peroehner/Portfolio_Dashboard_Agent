@@ -49,7 +49,7 @@ Runtime settings for clients (no secrets).
 | DELETE | `/symbols/{symbol}` | Remove symbol |
 | GET | `/portfolio` | Full portfolio with notes |
 
-**Symbol fields:** `currentPrice`, `targetPrice`, `buyBelow`, `sellAbove`
+**Symbol fields:** `currentPrice`, `targetPrice` (personal — from import `Personal Target:` line or UI), `analystTarget1y` (analyst mean from `1Y Mean Target estimate:` or sync), `buyBelow`, `sellAbove`, `annualDividend`
 
 ---
 
@@ -57,7 +57,7 @@ Runtime settings for clients (no secrets).
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/holdings` | Positions with market value, weight %, unrealized gain |
+| GET | `/holdings` | Positions with market value, weight %, unrealized gain, gain %, annual dividend |
 | POST | `/holdings` | `{ "symbol": "AAPL", "quantity": 10, "costBasis": 150 }` |
 | PUT | `/holdings/{symbol}` | Update position |
 | DELETE | `/holdings/{symbol}` | Remove holding |
@@ -68,7 +68,7 @@ Runtime settings for clients (no secrets).
 
 ### `GET /overview`
 
-Portfolio KPIs: symbol count, holdings, total market value, cost basis, unrealized gain, active alerts, top holdings.
+Portfolio KPIs: tracked symbols, open positions, watchlist-only count, total market value, cost basis, unrealized gain, unrealized gain %, total 1YT value, total 1YT upside %, total personal target value, total personal upside %, projected annual ROC (dividend + 1YT appreciation), total annual dividend, active alerts, and holdings table.
 
 ---
 
@@ -76,27 +76,33 @@ Portfolio KPIs: symbol count, holdings, total market value, cost basis, unrealiz
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/import` | JSON body (legacy analysis export format) |
-| POST | `/import/file` | Multipart upload, field name `file` (.json, .csv, or .txt) |
+| POST | `/import` | JSON body; optional `?mode=merge` or `?mode=replace` |
+| POST | `/import/file` | Multipart upload, field name `file`; form field `mode`: `merge` (default) or `replace` |
+
+**Import modes**
+
+| Mode | Behavior |
+|------|----------|
+| `merge` | Update existing symbols from file and add new ones; keep symbols not in file |
+| `replace` | Delete all symbols first, then import only symbols from the file |
 
 Legacy route (still supported): `POST /api/state`
 
-**TXT analysis format** (symbol blocks with key: value lines):
+**TXT analysis format** — Technical Analysis Export blocks:
 
 ```
-AAPL
-Current Price: 170
-Target Price: 250
-Buy Below: 175
-Sell Above: 220
-Quantity: 10
-Cost Basis: 150
-
-MSFT
-Current: 420
-Target: 500
-Shares: 5
+[TECHNICAL ANALYSIS EXPORT: AAPL]
+Current Price: 311.40 $
+Personal Target: 350 $ (Upside: 12.4%)
+1Y Mean Target estimate: 310.51 $ (Upside: -0.3%)
+Purchased 2750.00 shares on 2008-02-19 @ 4.50 $
+Estimate annual dividend income: 2,887.36 $
 ```
+
+- `Personal Target:` → personal `targetPrice` (optional; otherwise set via UI)
+- `1Y Mean Target estimate:` → `analystTarget1y`
+
+Generic symbol blocks with key: value lines also work (`Personal Target`, `Target Price`, `Current Price`, etc.).
 
 JSON saved as `.txt` also works.
 

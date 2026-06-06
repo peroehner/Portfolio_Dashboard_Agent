@@ -59,7 +59,7 @@ class ScreeningService:
     def _score_symbol(self, symbol_data: dict[str, Any]) -> dict[str, Any]:
         symbol = symbol_data["symbol"]
         price = symbol_data.get("currentPrice")
-        target = symbol_data.get("targetPrice")
+        target = symbol_data.get("analystTarget1y") or symbol_data.get("targetPrice")
         buy_below = symbol_data.get("buyBelow")
         sell_above = symbol_data.get("sellAbove")
         alerts = self.alerts_service.list_alerts(symbol=symbol, status="active")
@@ -106,6 +106,7 @@ class ScreeningService:
             "symbol": symbol,
             "currentPrice": price,
             "targetPrice": target,
+            "analystTarget1y": symbol_data.get("analystTarget1y"),
             "buyBelow": buy_below,
             "sellAbove": sell_above,
             "upsidePct": upside_pct,

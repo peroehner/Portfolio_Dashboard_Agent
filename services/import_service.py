@@ -39,9 +39,12 @@ FIELD_ALIASES = {
     "targetprice": "targetPrice",
     "target price": "targetPrice",
     "target": "targetPrice",
-    "1y target": "targetPrice",
-    "1y price target": "targetPrice",
-    "price target": "targetPrice",
+    "personal target": "targetPrice",
+    "1y target": "analystTarget1y",
+    "1y mean target": "analystTarget1y",
+    "1y price target": "analystTarget1y",
+    "price target": "analystTarget1y",
+    "analyst target": "analystTarget1y",
     "buybelow": "buyBelow",
     "buy below": "buyBelow",
     "buy-below": "buyBelow",
@@ -64,40 +67,51 @@ FIELD_ALIASES = {
 
 
 class ImportService:
+    VALID_MODES = ("merge", "replace")
+
     def __init__(self):
         self.portfolio_service = PortfolioService()
         self.holdings_service = HoldingsService()
 
-    def import_payload(self, payload: Any) -> dict[str, Any]:
+    def import_payload(self, payload: Any, mode: str = "merge") -> dict[str, Any]:
         if isinstance(payload, str):
             payload = self._parse_structured_text(payload)
 
         if not isinstance(payload, dict):
             raise ValueError("Import payload must be a JSON object.")
 
+        import_mode, cleared_symbols = self._prepare_import(mode)
         symbols_imported = 0
+        symbols_added = 0
+        symbols_updated = 0
+        symbols_skipped = 0
         holdings_imported = 0
+
+        def apply_symbol(symbol: str, data: dict[str, Any]) -> None:
+            nonlocal symbols_imported, symbols_added, symbols_updated, symbols_skipped, holdings_imported
+            outcome = self._import_symbol_record(symbol, data, import_mode)
+            if outcome["skipped"]:
+                symbols_skipped += 1
+                return
+            symbols_imported += 1
+            if outcome["added"]:
+                symbols_added += 1
+            if outcome["updated"]:
+                symbols_updated += 1
+            if outcome["holding"]:
+                holdings_imported += 1
 
         if "symbols" in payload and isinstance(payload["symbols"], list):
             for item in payload["symbols"]:
                 if not isinstance(item, dict) or not item.get("symbol"):
                     continue
-                symbol = item["symbol"]
-                self.portfolio_service.upsert_symbol(symbol, item)
-                symbols_imported += 1
-                if any(key in item for key in ("quantity", "shares", "costBasis", "cost_basis")):
-                    self.holdings_service.upsert_holding(symbol, item)
-                    holdings_imported += 1
+                apply_symbol(item["symbol"], item)
 
         if "holdings" in payload and isinstance(payload["holdings"], list):
             for item in payload["holdings"]:
                 if not isinstance(item, dict) or not item.get("symbol"):
                     continue
-                symbol = item["symbol"]
-                self.portfolio_service.upsert_symbol(symbol, item)
-                self.holdings_service.upsert_holding(symbol, item)
-                symbols_imported += 1
-                holdings_imported += 1
+                apply_symbol(item["symbol"], item)
 
         for symbol, details in payload.items():
             if symbol in ("symbols", "holdings", "portfolio", "metadata"):
@@ -107,56 +121,57 @@ class ImportService:
             normalized = self._normalize_symbol_record(details)
             if not normalized:
                 continue
-            self.portfolio_service.upsert_symbol(symbol, normalized)
-            symbols_imported += 1
-            if any(key in normalized for key in ("quantity", "shares", "costBasis", "cost_basis")):
-                self.holdings_service.upsert_holding(symbol, normalized)
-                holdings_imported += 1
+            apply_symbol(symbol, normalized)
 
-        return {
-            "symbolsImported": symbols_imported,
-            "holdingsImported": holdings_imported,
-            "symbols": self.portfolio_service.list_symbols(),
-            "holdings": self.holdings_service.list_holdings(),
-        }
+        return self._finalize_import(
+            {
+                "symbolsImported": symbols_imported,
+                "symbolsAdded": symbols_added,
+                "symbolsUpdated": symbols_updated,
+                "symbolsSkipped": symbols_skipped,
+                "holdingsImported": holdings_imported,
+                "clearedSymbols": cleared_symbols,
+            },
+            import_mode,
+        )
 
     def import_file(
         self,
         filename: str,
         raw_bytes: bytes,
         content_type: str | None = None,
+        mode: str = "merge",
     ) -> dict[str, Any]:
         text = self._decode_text(raw_bytes)
         lower_name = (filename or "").lower()
         lower_type = (content_type or "").lower()
 
         if lower_name.endswith(".csv") or "csv" in lower_type:
-            return self._with_format(self.import_csv(text), "csv")
+            return self._with_format(self.import_csv(text, mode=mode), "csv")
 
-        # Content-first: works for .txt, extensionless uploads, and JSON files.
-        return self._with_format(self.import_txt(text), "txt")
+        return self._with_format(self.import_txt(text, mode=mode), "txt")
 
-    def import_txt(self, text: str) -> dict[str, Any]:
+    def import_txt(self, text: str, mode: str = "merge") -> dict[str, Any]:
         stripped = text.strip()
         if not stripped:
             raise ValueError("Text file is empty.")
 
         try:
-            return self.import_payload(self._parse_structured_text(stripped))
+            return self.import_payload(self._parse_structured_text(stripped), mode=mode)
         except ValueError:
             pass
 
         if self._is_technical_analysis_export(stripped):
             records = self._parse_technical_analysis_export(stripped)
             if records:
-                return self.import_payload(records)
+                return self.import_payload(records, mode=mode)
 
         records = self._parse_markdown_table(stripped)
         if records:
-            return self.import_payload(records)
+            return self.import_payload(records, mode=mode)
 
         if self._looks_like_csv(stripped):
-            return self.import_csv(stripped)
+            return self.import_csv(stripped, mode=mode)
 
         records = self._parse_txt_blocks(stripped)
         if not records:
@@ -167,9 +182,9 @@ class ImportService:
         if not records:
             raise ValueError(self._parse_help_message())
 
-        return self.import_payload(records)
+        return self.import_payload(records, mode=mode)
 
-    def import_csv(self, text: str) -> dict[str, Any]:
+    def import_csv(self, text: str, mode: str = "merge") -> dict[str, Any]:
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         if len(lines) < 2:
             raise ValueError("CSV must include a header row and at least one data row.")
@@ -180,7 +195,15 @@ class ImportService:
         if symbol_idx is None:
             raise ValueError("CSV must include a symbol or ticker column.")
 
-        imported = {"symbolsImported": 0, "holdingsImported": 0}
+        import_mode, cleared_symbols = self._prepare_import(mode)
+        imported = {
+            "symbolsImported": 0,
+            "symbolsAdded": 0,
+            "symbolsUpdated": 0,
+            "symbolsSkipped": 0,
+            "holdingsImported": 0,
+            "clearedSymbols": cleared_symbols,
+        }
         for line in lines[1:]:
             values = [part.strip() for part in line.split(delimiter)]
             row = {headers[i]: values[i] for i in range(min(len(headers), len(values)))}
@@ -200,15 +223,19 @@ class ImportService:
             )
             if not payload:
                 continue
-            result = self.import_payload({symbol.upper(): payload})
-            imported["symbolsImported"] += result["symbolsImported"]
-            imported["holdingsImported"] += result["holdingsImported"]
+            outcome = self._import_symbol_record(symbol.upper(), payload, import_mode)
+            if outcome["skipped"]:
+                imported["symbolsSkipped"] += 1
+                continue
+            imported["symbolsImported"] += 1
+            if outcome["added"]:
+                imported["symbolsAdded"] += 1
+            if outcome["updated"]:
+                imported["symbolsUpdated"] += 1
+            if outcome["holding"]:
+                imported["holdingsImported"] += 1
 
-        return {
-            **imported,
-            "symbols": self.portfolio_service.list_symbols(),
-            "holdings": self.holdings_service.list_holdings(),
-        }
+        return self._finalize_import(imported, import_mode)
 
     def _parse_structured_text(self, text: str) -> dict[str, Any]:
         cleaned = self._strip_markdown_fences(text.strip())
@@ -313,9 +340,17 @@ class ImportService:
             if current_match:
                 record["currentPrice"] = self._clean_number(current_match.group(1))
 
+            personal_target_match = re.search(
+                r"Personal Target:\s*([\d.,]+)",
+                body,
+                re.I,
+            )
+            if personal_target_match:
+                record["targetPrice"] = self._clean_number(personal_target_match.group(1))
+
             target_match = re.search(r"1Y Mean Target estimate:\s*([\d.,]+)", body, re.I)
             if target_match:
-                record["targetPrice"] = self._clean_number(target_match.group(1))
+                record["analystTarget1y"] = self._clean_number(target_match.group(1))
 
             purchase_match = re.search(
                 r"Purchased\s+([\d.,]+)\s+shares\s+on\s+[\d-]+\s+@\s+([\d.,]+)",
@@ -325,6 +360,14 @@ class ImportService:
             if purchase_match:
                 record["quantity"] = self._clean_number(purchase_match.group(1))
                 record["costBasis"] = self._clean_number(purchase_match.group(2))
+
+            dividend_match = re.search(
+                r"Estimate annual dividend income:\s*([\d.,]+)",
+                body,
+                re.I,
+            )
+            if dividend_match:
+                record["annualDividend"] = self._clean_number(dividend_match.group(1))
 
             normalized = self._normalize_symbol_record(record)
             if normalized:
@@ -405,11 +448,13 @@ class ImportService:
         normalized = {}
         mapping = {
             "currentPrice": ("currentPrice", "current_price", "price"),
-            "targetPrice": ("targetPrice", "target_price", "target"),
+            "targetPrice": ("targetPrice", "target_price"),
+            "analystTarget1y": ("analystTarget1y", "analyst_target_1y", "target1y"),
             "buyBelow": ("buyBelow", "buy_below"),
             "sellAbove": ("sellAbove", "sell_above"),
             "quantity": ("quantity", "shares", "qty"),
             "costBasis": ("costBasis", "cost_basis", "cost"),
+            "annualDividend": ("annualDividend", "annual_dividend", "dividend"),
         }
         for target, keys in mapping.items():
             for key in keys:
@@ -513,6 +558,62 @@ class ImportService:
             if name in headers:
                 return headers.index(name)
         return None
+
+    def _import_symbol_record(
+        self,
+        symbol: str,
+        data: dict[str, Any],
+        mode: str,
+    ) -> dict[str, bool]:
+        symbol = symbol.upper()
+        existing = self.portfolio_service.get_symbol(symbol) is not None
+
+        self.portfolio_service.upsert_symbol(symbol, data)
+        holding = False
+        if any(key in data for key in ("quantity", "shares", "costBasis", "cost_basis")):
+            self.holdings_service.upsert_holding(symbol, data)
+            holding = True
+
+        return {
+            "skipped": False,
+            "added": not existing,
+            "updated": existing,
+            "holding": holding,
+        }
+
+    def _prepare_import(self, mode: str) -> tuple[str, int]:
+        import_mode = self._normalize_mode(mode)
+        cleared = 0
+        if import_mode == "replace":
+            cleared = self.portfolio_service.clear_portfolio()
+        return import_mode, cleared
+
+    def _normalize_mode(self, mode: str | None) -> str:
+        value = (mode or "merge").strip().lower()
+        aliases = {
+            "merge": "merge",
+            "update": "merge",
+            "upsert": "merge",
+            "replace": "replace",
+            "overwrite": "replace",
+            "full": "replace",
+        }
+        normalized = aliases.get(value)
+        if normalized is None:
+            raise ValueError("Import mode must be 'merge' or 'replace'.")
+        return normalized
+
+    def _finalize_import(
+        self,
+        counts: dict[str, Any],
+        mode: str,
+    ) -> dict[str, Any]:
+        return {
+            **counts,
+            "mode": mode,
+            "symbols": self.portfolio_service.list_symbols(),
+            "holdings": self.holdings_service.list_holdings(),
+        }
 
     def _with_format(self, result: dict[str, Any], fmt: str) -> dict[str, Any]:
         return {**result, "format": fmt}

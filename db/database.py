@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS symbols (
     target_price REAL,
     buy_below REAL,
     sell_above REAL,
+    annual_dividend REAL,
+    analyst_target_1y REAL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -83,7 +85,25 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def _migrate_schema(conn: sqlite3.Connection) -> None:
+    symbol_columns = {
+        row[1] for row in conn.execute("PRAGMA table_info(symbols)")
+    }
+    if "annual_dividend" not in symbol_columns:
+        conn.execute("ALTER TABLE symbols ADD COLUMN annual_dividend REAL")
+    if "analyst_target_1y" not in symbol_columns:
+        conn.execute("ALTER TABLE symbols ADD COLUMN analyst_target_1y REAL")
+        conn.execute(
+            """
+            UPDATE symbols
+            SET analyst_target_1y = target_price
+            WHERE analyst_target_1y IS NULL AND target_price IS NOT NULL
+            """
+        )
+
+
 def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(SCHEMA)
+        _migrate_schema(conn)
         conn.commit()

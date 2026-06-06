@@ -31,31 +31,46 @@ class PortfolioService:
 
         with get_connection() as conn:
             existing = conn.execute(
-                "SELECT symbol FROM symbols WHERE symbol = ?",
+                "SELECT * FROM symbols WHERE symbol = ?",
                 (symbol,),
             ).fetchone()
 
             if existing:
+                merged = {
+                    "current_price": payload.get("current_price", existing["current_price"]),
+                    "target_price": payload.get("target_price", existing["target_price"]),
+                    "buy_below": payload.get("buy_below", existing["buy_below"]),
+                    "sell_above": payload.get("sell_above", existing["sell_above"]),
+                    "annual_dividend": payload.get("annual_dividend", existing["annual_dividend"]),
+                    "analyst_target_1y": payload.get(
+                        "analyst_target_1y", existing["analyst_target_1y"]
+                    ),
+                }
                 conn.execute(
                     """
                     UPDATE symbols
                     SET current_price = ?, target_price = ?, buy_below = ?, sell_above = ?,
-                        updated_at = datetime('now')
+                        annual_dividend = ?, analyst_target_1y = ?, updated_at = datetime('now')
                     WHERE symbol = ?
                     """,
                     (
-                        payload.get("current_price"),
-                        payload.get("target_price"),
-                        payload.get("buy_below"),
-                        payload.get("sell_above"),
+                        merged["current_price"],
+                        merged["target_price"],
+                        merged["buy_below"],
+                        merged["sell_above"],
+                        merged["annual_dividend"],
+                        merged["analyst_target_1y"],
                         symbol,
                     ),
                 )
             else:
                 conn.execute(
                     """
-                    INSERT INTO symbols (symbol, current_price, target_price, buy_below, sell_above)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO symbols (
+                        symbol, current_price, target_price, buy_below, sell_above,
+                        annual_dividend, analyst_target_1y
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         symbol,
@@ -63,6 +78,8 @@ class PortfolioService:
                         payload.get("target_price"),
                         payload.get("buy_below"),
                         payload.get("sell_above"),
+                        payload.get("annual_dividend"),
+                        payload.get("analyst_target_1y"),
                     ),
                 )
             conn.commit()
@@ -81,6 +98,13 @@ class PortfolioService:
             conn.commit()
             return cursor.rowcount > 0
 
+    def clear_portfolio(self) -> int:
+        """Remove all symbols; cascades notes, alerts, assessments, and holdings."""
+        with get_connection() as conn:
+            cursor = conn.execute("DELETE FROM symbols")
+            conn.commit()
+            return cursor.rowcount
+
     def import_legacy_state(self, state: dict[str, Any]) -> list[dict[str, Any]]:
         imported = []
         for symbol, details in state.items():
@@ -95,12 +119,15 @@ class PortfolioService:
             return {"updated": 0, "symbols": []}
 
         tickers = [item["symbol"] for item in symbols]
-        live_prices = engine.fetch_market_data(tickers)
-        updated = 0
+        live_quotes = engine.fetch_market_quotes(tickers)
+        updated_prices = 0
+        updated_targets = 0
 
         with get_connection() as conn:
             for symbol in tickers:
-                price = live_prices.get(symbol)
+                quote = live_quotes.get(symbol) or {}
+                price = quote.get("currentPrice")
+                analyst_target = quote.get("analystTarget1y")
                 if price is not None:
                     conn.execute(
                         """
@@ -110,10 +137,24 @@ class PortfolioService:
                         """,
                         (price, symbol),
                     )
-                    updated += 1
+                    updated_prices += 1
+                if analyst_target is not None:
+                    conn.execute(
+                        """
+                        UPDATE symbols
+                        SET analyst_target_1y = ?, updated_at = datetime('now')
+                        WHERE symbol = ?
+                        """,
+                        (analyst_target, symbol),
+                    )
+                    updated_targets += 1
             conn.commit()
 
-        return {"updated": updated, "symbols": self.list_symbols()}
+        return {
+            "updated": updated_prices,
+            "updatedTargets": updated_targets,
+            "symbols": self.list_symbols(),
+        }
 
     def get_screener_input(self) -> dict[str, dict[str, Any]]:
         """Shape expected by PortfolioEngine.run_screener."""
@@ -122,24 +163,35 @@ class PortfolioService:
             portfolio[symbol["symbol"]] = {
                 "currentPrice": symbol.get("currentPrice"),
                 "targetPrice": symbol.get("targetPrice"),
+                "analystTarget1y": symbol.get("analystTarget1y"),
                 "buyBelow": symbol.get("buyBelow"),
                 "sellAbove": symbol.get("sellAbove"),
             }
         return portfolio
 
     def _normalize_symbol_input(self, data: dict[str, Any]) -> dict[str, float | None]:
-        mapping = {
-            "current_price": data.get("current_price", data.get("currentPrice")),
-            "target_price": data.get("target_price", data.get("targetPrice")),
-            "buy_below": data.get("buy_below", data.get("buyBelow")),
-            "sell_above": data.get("sell_above", data.get("sellAbove")),
+        normalized: dict[str, float | None] = {}
+        mappings = {
+            "current_price": ("current_price", "currentPrice", "price"),
+            "target_price": ("target_price", "targetPrice"),
+            "buy_below": ("buy_below", "buyBelow"),
+            "sell_above": ("sell_above", "sellAbove"),
+            "annual_dividend": ("annual_dividend", "annualDividend"),
+            "analyst_target_1y": (
+                "analyst_target_1y",
+                "analystTarget1y",
+                "target1y",
+                "oneYearTarget",
+            ),
         }
-        normalized = {}
-        for key, value in mapping.items():
+        for field, keys in mappings.items():
+            if not any(key in data for key in keys):
+                continue
+            value = next(data[key] for key in keys if key in data)
             if value is None or value == "":
-                normalized[key] = None
+                normalized[field] = None
             else:
-                normalized[key] = float(value)
+                normalized[field] = round(float(value), 2)
         return normalized
 
     def _row_to_symbol(self, row, include_notes: bool) -> dict[str, Any]:
@@ -147,8 +199,10 @@ class PortfolioService:
             "symbol": row["symbol"],
             "currentPrice": row["current_price"],
             "targetPrice": row["target_price"],
+            "analystTarget1y": row["analyst_target_1y"],
             "buyBelow": row["buy_below"],
             "sellAbove": row["sell_above"],
+            "annualDividend": row["annual_dividend"],
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],
         }

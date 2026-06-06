@@ -58,6 +58,7 @@
       gap: 1rem;
       padding: 1rem;
       min-height: calc(100vh - 70px);
+      align-items: start;
     }
     .panel {
       background: var(--panel);
@@ -71,6 +72,37 @@
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.04em;
+    }
+    #view-portfolio,
+    #view-inspector {
+      --portfolio-chrome: 8.75rem;
+    }
+    #view-inspector {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 1rem;
+      align-items: start;
+    }
+    .symbol-sidebar {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - var(--portfolio-chrome));
+      max-height: calc(100vh - var(--portfolio-chrome));
+    }
+    .symbol-sidebar > h2 {
+      flex-shrink: 0;
+    }
+    .symbol-list-scroll {
+      flex: 1 1 0;
+      min-height: 0;
+      overflow-y: auto;
+      margin-bottom: 0.75rem;
+      padding-right: 0.2rem;
+    }
+    .symbol-list-scroll::-webkit-scrollbar { width: 6px; }
+    .symbol-list-scroll::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 999px;
     }
     .symbol-list { list-style: none; padding: 0; margin: 0; }
     .symbol-item {
@@ -86,6 +118,19 @@
     }
     .symbol-item strong { display: block; }
     .symbol-item span { color: var(--muted); font-size: 0.85rem; }
+    #view-portfolio .panel-detail,
+    #view-inspector .panel-detail {
+      position: sticky;
+      top: 1rem;
+      max-height: calc(100vh - var(--portfolio-chrome, 8.75rem));
+      overflow-y: auto;
+    }
+    .add-symbol-form {
+      flex-shrink: 0;
+      margin-top: auto;
+      padding-top: 0.25rem;
+      border-top: 1px solid var(--border);
+    }
     label {
       display: block;
       font-size: 0.8rem;
@@ -114,6 +159,171 @@
     }
     .metric .label { color: var(--muted); font-size: 0.8rem; }
     .metric .value { font-size: 1.1rem; font-weight: 600; }
+    .metric .subvalue { font-size: 0.9rem; font-weight: 600; color: var(--accent-2); margin-top: 0.2rem; }
+    .metric .subvalue.negative { color: var(--danger); }
+    .metric-hint { color: var(--muted); font-size: 0.75rem; margin-top: 0.2rem; }
+    table.data th.sortable { cursor: pointer; user-select: none; }
+    table.data th.sortable:hover { color: var(--text); }
+    table.data th.sortable.active { color: var(--accent); }
+    table.data th .sort-indicator { font-size: 0.7rem; margin-left: 0.2rem; opacity: 0.85; }
+    .overview-visuals-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      align-items: stretch;
+    }
+    .visual-card {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+      min-height: 100%;
+    }
+    .visual-card h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1rem;
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: normal;
+    }
+    .visual-card .visual-subtitle {
+      margin: 0 0 1rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.45;
+    }
+    .allocation-chart-wrap {
+      max-width: 100%;
+      margin: 0;
+      padding: 0.25rem 0 0;
+    }
+    .allocation-chart-wrap canvas { max-height: 300px; }
+    .projection-row {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .projection-row.projected {
+      background: rgba(34, 197, 94, 0.08);
+      border-color: rgba(34, 197, 94, 0.28);
+    }
+    .projection-row.personal {
+      background: rgba(167, 139, 250, 0.08);
+      border-color: rgba(167, 139, 250, 0.28);
+    }
+    .projection-row.roc {
+      background: rgba(245, 158, 11, 0.08);
+      border-color: rgba(245, 158, 11, 0.28);
+    }
+    .projection-row-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 1rem;
+      margin-bottom: 0.65rem;
+    }
+    .projection-label {
+      font-size: 0.68rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .projection-row.projected .projection-label { color: var(--accent-2); }
+    .projection-row.personal .projection-label { color: #a78bfa; }
+    .projection-row.roc .projection-label { color: var(--warn); }
+    .projection-value { font-size: 1.15rem; font-weight: 700; white-space: nowrap; text-align: right; }
+    .projection-pct { font-size: 0.92rem; font-weight: 600; color: var(--accent-2); }
+    .projection-pct.negative { color: var(--danger); }
+    .progress-track {
+      height: 10px;
+      background: rgba(148, 163, 184, 0.18);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.35s ease;
+    }
+    .progress-fill.current { background: #64748b; }
+    .progress-fill.projected { background: var(--accent-2); }
+    .progress-fill.personal { background: #a78bfa; }
+    .progress-fill.roc { background: var(--warn); }
+    @media (max-width: 960px) {
+      .overview-visuals-grid { grid-template-columns: 1fr; }
+    }
+    #view-holdings {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+      gap: 1rem;
+      align-items: start;
+    }
+    table.data a {
+      color: #7eb6ff;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    table.data a:hover {
+      color: #a8ccff;
+      text-decoration: underline;
+    }
+    @media (max-width: 1100px) {
+      #view-holdings { grid-template-columns: 1fr; }
+    }
+    .import-bar {
+      padding: 0.85rem 1rem;
+    }
+    .import-bar h2 {
+      margin: 0 0 0.65rem;
+      font-size: 0.95rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .import-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      flex-wrap: wrap;
+    }
+    .import-mode-toggle {
+      display: inline-flex;
+      gap: 0.5rem;
+      padding: 0.2rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+    }
+    .import-mode-toggle label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin: 0;
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      color: var(--muted);
+    }
+    .import-mode-toggle input {
+      width: auto;
+      margin: 0;
+    }
+    .import-mode-toggle label:has(input:checked) {
+      background: var(--panel-2);
+      color: var(--text);
+    }
+    .import-note {
+      margin: 0.55rem 0 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .import-note.success { color: var(--accent-2); }
+    .import-note.error { color: var(--danger); }
     .chip {
       display: inline-block;
       padding: 0.15rem 0.5rem;
@@ -185,6 +395,15 @@
     button:disabled { opacity: 0.6; cursor: wait; }
     @media (max-width: 1100px) {
       main { grid-template-columns: 1fr; }
+      #view-inspector { grid-template-columns: 1fr; }
+      .symbol-sidebar {
+        height: auto;
+        max-height: none;
+      }
+      .symbol-list-scroll {
+        flex: 0 1 auto;
+        max-height: clamp(10rem, 38vh, 22rem);
+      }
     }
   </style>
 </head>
@@ -208,7 +427,8 @@
   <div id="toast" hidden></div>
 
   <nav class="tabs">
-    <button class="active" data-view="overview" onclick="showView('overview')">Overview</button>
+    <button class="active" data-view="overview" onclick="showView('overview')">Summary</button>
+    <button data-view="holdings" onclick="showView('holdings')">Holdings</button>
     <button data-view="portfolio" onclick="showView('portfolio')">Portfolio</button>
     <button data-view="screening" onclick="showView('screening')">Screening</button>
     <button data-view="fib" onclick="showView('fib')">Fib Proximity</button>
@@ -217,33 +437,66 @@
 
   <div id="view-overview" class="view">
     <div class="wide-panel">
-      <h2>Dashboard Overview</h2>
+      <h2>Portfolio Summary</h2>
       <div class="grid-2" id="overviewMetrics"></div>
     </div>
-    <div class="wide-panel">
-      <h2>Import Analysis File</h2>
-      <p class="empty">Upload JSON, CSV, or TXT analysis export (symbol blocks with key: value lines).</p>
-      <input type="file" id="importFile" accept=".json,.csv,.txt,application/json,text/csv,text/plain">
-      <button style="margin-top:0.75rem;" onclick="importAnalysisFile()">Import File</button>
+    <div class="wide-panel" id="overviewVisualsPanel" hidden>
+      <div class="overview-visuals-grid">
+        <section class="visual-card" id="allocationSection">
+          <h2>Portfolio Allocation Weight</h2>
+          <p class="visual-subtitle">Allocation weighted by total value. Top 5 assets listed; remaining assets rolled into "Others".</p>
+          <div class="allocation-chart-wrap">
+            <canvas id="allocationChart" aria-label="Portfolio allocation donut chart"></canvas>
+          </div>
+        </section>
+        <section class="visual-card" id="projectionSection">
+          <h2>Portfolio Progress and Projection</h2>
+          <p class="visual-subtitle">Current portfolio value vs projected valuations at analyst 1Y mean targets and your personal targets.</p>
+          <div id="projectionCard"></div>
+        </section>
+      </div>
     </div>
-    <div class="wide-panel">
-      <h2>Holdings</h2>
-      <div id="holdingsTable"></div>
+    <div class="wide-panel import-bar">
+      <h2>Import Analysis</h2>
+      <div class="import-controls">
+        <div class="import-mode-toggle">
+          <label><input type="radio" name="importMode" value="merge" checked> Merge</label>
+          <label><input type="radio" name="importMode" value="replace"> Replace</label>
+        </div>
+        <button type="button" onclick="pickImportFile()">Import File</button>
+        <input type="file" id="importFile" accept=".json,.csv,.txt,application/json,text/csv,text/plain" hidden>
+      </div>
+      <p class="import-note" id="importNote">Merge updates existing symbols; replace clears all, then loads file only.</p>
     </div>
   </div>
 
-  <main id="view-portfolio" class="view" hidden>
+  <main id="view-holdings" class="view" hidden>
     <section class="panel">
-      <h2>Symbols</h2>
-      <ul class="symbol-list" id="symbolList"></ul>
-      <form id="addSymbolForm" style="margin-top: 1rem;">
+      <h2>Positions (Holdings)</h2>
+      <p class="empty" style="margin-top:0;">Stocks you own with share quantity and cost basis. Click a symbol to inspect it.</p>
+      <div id="holdingsTable"></div>
+    </section>
+    <section class="panel">
+      <h2 id="holdingsInspectorTitle">Inspector</h2>
+      <div id="holdingsInspectorEmpty" class="empty">Select a symbol from the holdings table.</div>
+      <div id="holdingsInspectorPanel" hidden></div>
+    </section>
+  </main>
+
+  <main id="view-portfolio" class="view" hidden>
+    <section class="panel symbol-sidebar">
+      <h2>Tracked Symbols</h2>
+      <div class="symbol-list-scroll">
+        <ul class="symbol-list" id="symbolList"></ul>
+      </div>
+      <form id="addSymbolForm" class="add-symbol-form">
         <label>Symbol</label>
         <input name="symbol" placeholder="AAPL" required>
         <button type="submit" style="width:100%; margin-top:0.75rem;">Add Symbol</button>
       </form>
     </section>
 
-    <section class="panel">
+    <section class="panel panel-detail">
       <h2 id="detailTitle">Select a symbol</h2>
       <div id="detailEmpty" class="empty">Choose a symbol to view thresholds, notes, and recommendations.</div>
       <div id="detailPanel" hidden>
@@ -252,19 +505,19 @@
           <div class="grid-2">
             <div>
               <label>Current Price</label>
-              <input name="currentPrice" type="number" step="0.01">
+              <input name="currentPrice" type="text" inputmode="decimal" autocomplete="off">
             </div>
             <div>
-              <label>Target Price</label>
-              <input name="targetPrice" type="number" step="0.01">
+              <label>Personal Target</label>
+              <input name="targetPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="From import or enter here">
             </div>
             <div>
               <label>Buy Below</label>
-              <input name="buyBelow" type="number" step="0.01">
+              <input name="buyBelow" type="text" inputmode="decimal" autocomplete="off">
             </div>
             <div>
               <label>Sell Above</label>
-              <input name="sellAbove" type="number" step="0.01">
+              <input name="sellAbove" type="text" inputmode="decimal" autocomplete="off">
             </div>
           </div>
           <div class="actions" style="margin-top:0.75rem;">
@@ -320,19 +573,27 @@
     </div>
   </div>
 
-  <div id="view-inspector" class="view" hidden>
-    <div class="wide-panel">
-      <h2>Single-Stock Inspector</h2>
-      <p class="empty">Select a symbol from Portfolio tab first, or choose below.</p>
-      <select id="inspectorSelect" onchange="loadInspector(this.value)"></select>
-      <div id="inspectorPanel" style="margin-top:1rem;"></div>
-    </div>
-  </div>
+  <main id="view-inspector" class="view" hidden>
+    <section class="panel symbol-sidebar">
+      <h2>Symbols</h2>
+      <div class="symbol-list-scroll">
+        <ul class="symbol-list" id="inspectorSymbolList"></ul>
+      </div>
+    </section>
+    <section class="panel panel-detail">
+      <h2 id="inspectorTitle">Inspector</h2>
+      <div id="inspectorEmpty" class="empty">Choose a symbol to inspect holdings, alerts, notes, and assessments.</div>
+      <div id="inspectorPanel" hidden></div>
+    </section>
+  </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>
     const API = "/api/v1";
     let selectedSymbol = null;
     let currentView = "overview";
+    let allocationChart = null;
+    const ALLOCATION_COLORS = ["#3b82f6", "#22c55e", "#60a5fa", "#f97316", "#a78bfa", "#64748b"];
 
     async function api(path, options = {}) {
       const response = await fetch(API + path, {
@@ -372,11 +633,14 @@
       }
     }
 
+    let importVersion = null;
+
     async function loadConfig() {
       try {
         const data = await api("/config");
+        importVersion = data.importVersion;
         const badge = document.getElementById("providerBadge");
-        badge.textContent = `assess: ${data.assessmentProvider}`;
+        badge.textContent = `import v${data.importVersion} · assess: ${data.assessmentProvider}`;
         badge.classList.toggle("llm", data.llmConfigured);
       } catch (_) { /* non-fatal */ }
     }
@@ -389,40 +653,160 @@
         btn.classList.toggle("active", btn.dataset.view === name);
       });
       if (name === "overview") loadOverview();
+      if (name === "holdings") loadHoldings();
       if (name === "portfolio") loadPortfolio();
       if (name === "screening") loadScreening();
       if (name === "fib") loadFibMap();
       if (name === "inspector") loadInspectorOptions();
     }
 
-    function formatMoney(value) {
-      return value == null ? "—" : `$${Number(value).toFixed(2)}`;
+    const moneyFormatter = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const priceFormatter = new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+    const tableSortState = {};
+    const tableDataCache = {};
+
+    function formatPercent(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      return `${amount.toFixed(2)}%`;
     }
 
-    function renderSymbolList(symbols) {
-      const list = document.getElementById("symbolList");
+    function formatSignedMoney(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      const formatted = formatMoney(Math.abs(amount));
+      if (amount > 0) return `+${formatted}`;
+      if (amount < 0) return `-${formatted}`;
+      return formatted;
+    }
+
+    function formatYield(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      const sign = amount > 0 ? "+" : "";
+      return `${sign}${amount.toFixed(2)}% Yield`;
+    }
+
+    function formatUpside(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      const sign = amount > 0 ? "+" : "";
+      return `${sign}${amount.toFixed(2)}% Upside`;
+    }
+
+    function formatMoney(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      return moneyFormatter.format(amount);
+    }
+
+    function formatPriceInput(value) {
+      if (value == null || value === "") return "";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "";
+      return priceFormatter.format(amount);
+    }
+
+    function parsePrice(value) {
+      if (value == null || String(value).trim() === "") return null;
+      const amount = Number(String(value).replace(/[$,\s]/g, ""));
+      if (!Number.isFinite(amount)) return null;
+      return Math.round(amount * 100) / 100;
+    }
+
+    function todayISO() {
+      const date = new Date();
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function resetNoteForm() {
+      const form = document.getElementById("noteForm");
+      form.reset();
+      form.date.value = todayISO();
+    }
+
+    function renderSymbolNavList(listId, symbols, onSelect) {
+      const list = document.getElementById(listId);
+      if (!list) return;
       list.innerHTML = "";
       symbols.forEach((item) => {
         const li = document.createElement("li");
         li.className = "symbol-item" + (item.symbol === selectedSymbol ? " active" : "");
-        li.onclick = () => selectSymbol(item.symbol);
-        li.innerHTML = `<strong>${item.symbol}</strong><span>${formatMoney(item.currentPrice)} · target ${formatMoney(item.targetPrice)}</span>`;
+        li.onclick = () => onSelect(item.symbol);
+        li.innerHTML = `<strong>${item.symbol}</strong><span>${formatMoney(item.currentPrice)} · tgt ${formatMoney(item.targetPrice)} · 1YT ${formatMoney(item.analystTarget1y)}</span>`;
         list.appendChild(li);
       });
+      const active = list.querySelector(".symbol-item.active");
+      if (active) active.scrollIntoView({ block: "nearest" });
+    }
+
+    function renderSymbolList(symbols) {
+      renderSymbolNavList("symbolList", symbols, selectSymbol);
+    }
+
+    function renderInspectorSymbolList(symbols) {
+      renderSymbolNavList("inspectorSymbolList", symbols, loadInspector);
     }
 
     async function loadPortfolio() {
       const data = await api("/portfolio");
-      renderSymbolList(data.symbols);
-      if (!selectedSymbol && data.symbols.length) {
-        await selectSymbol(data.symbols[0].symbol);
+      const symbols = data.symbols;
+      const stillSelected = selectedSymbol && symbols.some((item) => item.symbol === selectedSymbol);
+
+      if (!stillSelected) {
+        selectedSymbol = null;
+        document.getElementById("detailTitle").textContent = "Select a symbol";
+        document.getElementById("detailEmpty").hidden = false;
+        document.getElementById("detailPanel").hidden = true;
+      }
+
+      renderSymbolList(symbols);
+
+      if (!selectedSymbol && symbols.length) {
+        await selectSymbol(symbols[0].symbol);
         return;
       }
       if (selectedSymbol) {
-        renderSymbolList(data.symbols);
+        await selectSymbol(selectedSymbol);
+        return;
       }
       await loadAlerts();
       await loadAssessments();
+    }
+
+    async function refreshAllViews(importData, mode) {
+      const importedSymbols = importData.symbols || [];
+      if (mode === "replace") {
+        selectedSymbol = importedSymbols[0]?.symbol || null;
+      } else {
+        const symbolSet = new Set(importedSymbols.map((item) => item.symbol));
+        if (!selectedSymbol || !symbolSet.has(selectedSymbol)) {
+          selectedSymbol = importedSymbols[0]?.symbol || null;
+        }
+      }
+      await loadOverview();
+      await loadHoldings();
+      await loadPortfolio();
+      await loadScreening();
+      await loadFibMap();
+      await loadInspectorOptions();
     }
 
     async function selectSymbol(symbol) {
@@ -434,18 +818,29 @@
       document.getElementById("detailEmpty").hidden = true;
       document.getElementById("detailPanel").hidden = false;
 
+      const analystUpsideClass = (item.analystTarget1y != null && item.currentPrice != null && item.analystTarget1y < item.currentPrice)
+        ? "subvalue negative" : "subvalue";
+      const analystUpside = (item.analystTarget1y != null && item.currentPrice)
+        ? formatUpside(((item.analystTarget1y - item.currentPrice) / item.currentPrice) * 100)
+        : "—";
       document.getElementById("metrics").innerHTML = `
         <div class="metric"><div class="label">Current</div><div class="value">${formatMoney(item.currentPrice)}</div></div>
-        <div class="metric"><div class="label">Target</div><div class="value">${formatMoney(item.targetPrice)}</div></div>
+        <div class="metric"><div class="label">Personal Target</div><div class="value">${formatMoney(item.targetPrice)}</div></div>
+        <div class="metric">
+          <div class="label">1YT (Analyst)</div>
+          <div class="value">${formatMoney(item.analystTarget1y)}</div>
+          <div class="${analystUpsideClass}">${analystUpside}</div>
+        </div>
         <div class="metric"><div class="label">Buy Below</div><div class="value">${formatMoney(item.buyBelow)}</div></div>
         <div class="metric"><div class="label">Sell Above</div><div class="value">${formatMoney(item.sellAbove)}</div></div>
       `;
 
       const form = document.getElementById("symbolForm");
-      form.currentPrice.value = item.currentPrice ?? "";
-      form.targetPrice.value = item.targetPrice ?? "";
-      form.buyBelow.value = item.buyBelow ?? "";
-      form.sellAbove.value = item.sellAbove ?? "";
+      form.currentPrice.value = formatPriceInput(item.currentPrice);
+      form.targetPrice.value = formatPriceInput(item.targetPrice);
+      form.buyBelow.value = formatPriceInput(item.buyBelow);
+      form.sellAbove.value = formatPriceInput(item.sellAbove);
+      resetNoteForm();
 
       document.getElementById("notesList").innerHTML = item.notes.length
         ? item.notes.map((note) => `
@@ -458,6 +853,12 @@
       document.getElementById("fibLevels").innerHTML = `<div class="empty">Click "Load Fib Levels" to compute.</div>`;
       await loadAlerts();
       setStatus(`Loaded ${symbol}.`);
+      if (currentView === "portfolio") {
+        const detailPanel = document.querySelector("#view-portfolio .panel-detail");
+        if (detailPanel && window.innerWidth <= 1100) {
+          detailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }
     }
 
     async function loadAlerts() {
@@ -526,10 +927,10 @@
         await api(`/symbols/${selectedSymbol}`, {
           method: "PUT",
           body: JSON.stringify({
-            currentPrice: form.currentPrice.value || null,
-            targetPrice: form.targetPrice.value || null,
-            buyBelow: form.buyBelow.value || null,
-            sellAbove: form.sellAbove.value || null,
+            currentPrice: parsePrice(form.currentPrice.value),
+            targetPrice: parsePrice(form.targetPrice.value),
+            buyBelow: parsePrice(form.buyBelow.value),
+            sellAbove: parsePrice(form.sellAbove.value),
           }),
         });
         await selectSymbol(selectedSymbol);
@@ -552,7 +953,7 @@
             text: form.text.value,
           }),
         });
-        form.reset();
+        resetNoteForm();
         await selectSymbol(selectedSymbol);
         setStatus("Note added.");
       } catch (error) {
@@ -617,88 +1018,442 @@
       }
     }
 
-    async function loadOverview() {
-      const data = await api("/overview");
-      document.getElementById("overviewMetrics").innerHTML = `
-        <div class="metric"><div class="label">Symbols</div><div class="value">${data.symbolCount}</div></div>
-        <div class="metric"><div class="label">Holdings</div><div class="value">${data.holdingCount}</div></div>
-        <div class="metric"><div class="label">Market Value</div><div class="value">${formatMoney(data.totalMarketValue)}</div></div>
-        <div class="metric"><div class="label">Unrealized Gain</div><div class="value">${formatMoney(data.unrealizedGain)}</div></div>
-        <div class="metric"><div class="label">Active Alerts</div><div class="value">${data.activeAlerts}</div></div>
-        <div class="metric"><div class="label">Cost Basis</div><div class="value">${formatMoney(data.totalCostBasis)}</div></div>
-      `;
-      document.getElementById("holdingsTable").innerHTML = renderHoldingsTable(data.holdings);
+    function cycleTableSort(tableId, columnKey) {
+      const current = tableSortState[tableId];
+      if (!current || current.key !== columnKey) {
+        tableSortState[tableId] = { key: columnKey, dir: "desc" };
+        return;
+      }
+      if (current.dir === "desc") {
+        tableSortState[tableId] = { key: columnKey, dir: "asc" };
+        return;
+      }
+      delete tableSortState[tableId];
     }
 
+    function sortIndicator(tableId, columnKey) {
+      const state = tableSortState[tableId];
+      if (!state || state.key !== columnKey) return "";
+      return state.dir === "desc" ? "▼" : "▲";
+    }
+
+    function compareSortValues(left, right) {
+      const a = left == null || left === "" ? null : left;
+      const b = right == null || right === "" ? null : right;
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;
+      if (b == null) return -1;
+      if (typeof a === "number" && typeof b === "number") return a - b;
+      return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+    }
+
+    function sortRows(tableId, rows, columns) {
+      const state = tableSortState[tableId];
+      if (!state) return [...rows];
+      const column = columns.find((item) => item.key === state.key);
+      if (!column) return [...rows];
+      const sorted = [...rows].sort((left, right) =>
+        compareSortValues(column.sortValue(left), column.sortValue(right))
+      );
+      return state.dir === "desc" ? sorted.reverse() : sorted;
+    }
+
+    function renderSortableTable(tableId, columns, rows, emptyMessage) {
+      tableDataCache[tableId] = rows;
+      if (!rows.length) return `<div class="empty">${emptyMessage}</div>`;
+      const sortedRows = sortRows(tableId, rows, columns);
+      const headers = columns.map((column) => {
+        const active = tableSortState[tableId]?.key === column.key ? " active" : "";
+        const indicator = sortIndicator(tableId, column.key);
+        return `<th class="sortable${active}" data-table-id="${tableId}" data-sort-key="${column.key}">${column.label}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></th>`;
+      }).join("");
+      const body = sortedRows.map((row) => `<tr>${columns.map((column) => `<td>${column.render(row)}</td>`).join("")}</tr>`).join("");
+      return `<table class="data" data-table-id="${tableId}"><thead><tr>${headers}</tr></thead><tbody>${body}</tbody></table>`;
+    }
+
+    function rerenderTable(tableId) {
+      if (tableId === "holdings") {
+        document.getElementById("holdingsTable").innerHTML = renderHoldingsTable(tableDataCache.holdings || []);
+      }
+      if (tableId === "screening") {
+        document.getElementById("screeningTable").innerHTML = renderScreeningTable(tableDataCache.screening || []);
+      }
+      if (tableId === "fib") {
+        document.getElementById("fibMapTable").innerHTML = renderFibMapTable(tableDataCache.fib || []);
+      }
+    }
+
+    function buildAllocationData(holdings) {
+      const valued = (holdings || []).filter(
+        (holding) => holding.marketValue != null && holding.marketValue > 0
+      );
+      if (!valued.length) return null;
+
+      const sorted = [...valued].sort((left, right) => right.marketValue - left.marketValue);
+      const top = sorted.slice(0, 5);
+      const othersValue = sorted.slice(5).reduce((sum, holding) => sum + holding.marketValue, 0);
+      const labels = top.map((holding) => holding.symbol);
+      const values = top.map((holding) => holding.marketValue);
+
+      if (othersValue > 0) {
+        labels.push("Others");
+        values.push(othersValue);
+      }
+
+      return { labels, values };
+    }
+
+    function formatInlinePct(value) {
+      if (value == null || value === "") return "";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "";
+      const sign = amount > 0 ? "+" : "";
+      const negativeClass = amount < 0 ? " negative" : "";
+      return `<span class="projection-pct${negativeClass}"> (${sign}${amount.toFixed(1)}%)</span>`;
+    }
+
+    function projectionValueLine(value, pct) {
+      return `${formatMoney(value)}${pct == null ? "" : formatInlinePct(pct)}`;
+    }
+
+    function projectionBarWidth(value, maxValue) {
+      if (value == null || !maxValue) return 0;
+      return Math.min(100, Math.max(0, (value / maxValue) * 100));
+    }
+
+    function renderProjectionRow(label, value, pct, barClass, barWidth) {
+      const rowClass = barClass === "projected"
+        ? " projected"
+        : barClass === "personal"
+          ? " personal"
+          : barClass === "roc"
+            ? " roc"
+            : "";
+      return `
+        <div class="projection-row${rowClass}">
+          <div class="projection-row-header">
+            <div class="projection-label">${label}</div>
+            <div class="projection-value">${projectionValueLine(value, pct)}</div>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill ${barClass}" style="width:${barWidth.toFixed(1)}%;"></div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderProjectionCard(data) {
+      const container = document.getElementById("projectionCard");
+      const current = data.totalMarketValue;
+      const analyst = data.totalAnalystTargetValue;
+      const personal = data.totalPersonalTargetValue;
+
+      if (current == null) {
+        container.innerHTML = `<div class="empty">No valued positions yet.</div>`;
+        return;
+      }
+
+      const maxValue = Math.max(current, analyst || 0, personal || 0);
+      const rows = [
+        renderProjectionRow(
+          "Current Aggregated Valuation",
+          current,
+          data.unrealizedGainPct,
+          "current",
+          projectionBarWidth(current, maxValue)
+        ),
+      ];
+
+      if (analyst != null) {
+        rows.push(renderProjectionRow(
+          "Projected 1Y Mean Target Valuation",
+          analyst,
+          data.totalAnalystUpsidePct,
+          "projected",
+          projectionBarWidth(analyst, maxValue)
+        ));
+      }
+
+      if (personal != null) {
+        rows.push(renderProjectionRow(
+          "Projected Personal Target Valuation",
+          personal,
+          data.totalPersonalUpsidePct,
+          "personal",
+          projectionBarWidth(personal, maxValue)
+        ));
+      }
+
+      if (data.totalProjectedRoc != null) {
+        const rocBarWidth = Math.min(
+          100,
+          Math.max(0, Math.abs(Number(data.totalProjectedRocPct) || 0))
+        );
+        rows.push(renderProjectionRow(
+          "Projected Annual Return on Capital (ROC)",
+          data.totalProjectedRoc,
+          data.totalProjectedRocPct,
+          "roc",
+          rocBarWidth
+        ));
+      }
+
+      const hints = [];
+      if (analyst == null) hints.push("Sync or import for 1Y mean target estimates.");
+      if (personal == null) hints.push("Set personal targets in Portfolio or import a Personal Target line.");
+
+      container.innerHTML = `${rows.join("")}${hints.length ? `<div class="empty" style="margin-top:0.5rem;">${hints.join(" ")}</div>` : ""}`;
+    }
+
+    function renderOverviewVisuals(data) {
+      const panel = document.getElementById("overviewVisualsPanel");
+      const hasValue = data.totalMarketValue != null && data.totalMarketValue > 0;
+
+      if (!hasValue) {
+        panel.hidden = true;
+        if (allocationChart) {
+          allocationChart.destroy();
+          allocationChart = null;
+        }
+        return;
+      }
+
+      panel.hidden = false;
+      renderAllocationChart(data.holdings);
+      renderProjectionCard(data);
+    }
+
+    function renderAllocationChart(holdings) {
+      const canvas = document.getElementById("allocationChart");
+      const payload = buildAllocationData(holdings);
+
+      if (!payload || typeof Chart === "undefined") {
+        if (allocationChart) {
+          allocationChart.destroy();
+          allocationChart = null;
+        }
+        return;
+      }
+
+      if (allocationChart) allocationChart.destroy();
+
+      allocationChart = new Chart(canvas, {
+        type: "doughnut",
+        data: {
+          labels: payload.labels,
+          datasets: [{
+            data: payload.values,
+            backgroundColor: ALLOCATION_COLORS.slice(0, payload.labels.length),
+            borderWidth: 2,
+            borderColor: "#1a2332",
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          cutout: "58%",
+          plugins: {
+            legend: {
+              position: "bottom",
+              labels: {
+                color: "#9aa8bc",
+                usePointStyle: true,
+                pointStyle: "rect",
+                boxWidth: 12,
+                padding: 14,
+              },
+            },
+            tooltip: {
+              callbacks: {
+                label(context) {
+                  const total = context.dataset.data.reduce((sum, value) => sum + value, 0);
+                  const pct = total ? ((context.raw / total) * 100).toFixed(1) : "0.0";
+                  return `${context.label}: ${formatMoney(context.raw)} (${pct}%)`;
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
+    async function loadOverview() {
+      const data = await api("/overview");
+      const gainYieldClass = (data.unrealizedGainPct ?? 0) < 0 ? "subvalue negative" : "subvalue";
+      const analystYieldClass = (data.totalAnalystUpsidePct ?? 0) < 0 ? "subvalue negative" : "subvalue";
+      document.getElementById("overviewMetrics").innerHTML = `
+        <div class="metric">
+          <div class="label">Tracked Symbols</div>
+          <div class="value">${data.symbolCount}</div>
+          <div class="metric-hint">Tickers with prices, targets &amp; notes</div>
+        </div>
+        <div class="metric">
+          <div class="label">Open Positions</div>
+          <div class="value">${data.holdingCount}</div>
+          <div class="metric-hint">${data.watchlistOnlyCount || 0} watchlist-only</div>
+        </div>
+        <div class="metric"><div class="label">Market Value</div><div class="value">${formatMoney(data.totalMarketValue)}</div></div>
+        <div class="metric"><div class="label">Cost Basis</div><div class="value">${formatMoney(data.totalCostBasis)}</div></div>
+        <div class="metric">
+          <div class="label">Unrealized Gain</div>
+          <div class="value">${formatMoney(data.unrealizedGain)}</div>
+          <div class="${gainYieldClass}">${formatYield(data.unrealizedGainPct)}</div>
+        </div>
+        <div class="metric">
+          <div class="label">Total 1YT Value</div>
+          <div class="value">${formatMoney(data.totalAnalystTargetValue)}</div>
+          <div class="${analystYieldClass}">${formatYield(data.totalAnalystUpsidePct)}</div>
+        </div>
+        <div class="metric">
+          <div class="label">Total Annual Dividend</div>
+          <div class="value">${formatMoney(data.totalAnnualDividend)}</div>
+        </div>
+        <div class="metric"><div class="label">Active Alerts</div><div class="value">${data.activeAlerts}</div></div>
+      `;
+      renderOverviewVisuals(data);
+    }
+
+    async function loadHoldings() {
+      const data = await api("/overview");
+      document.getElementById("holdingsTable").innerHTML = renderHoldingsTable(data.holdings);
+      if (selectedSymbol && data.holdings.some((holding) => holding.symbol === selectedSymbol)) {
+        await openHoldingsInspector(selectedSymbol, false);
+      }
+    }
+
+    const holdingsColumns = [
+      { key: "symbol", label: "Symbol", sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="openHoldingsInspector('${row.symbol}'); return false;">${row.symbol}</a>` },
+      { key: "quantity", label: "Qty", sortValue: (row) => row.quantity, render: (row) => row.quantity },
+      { key: "currentPrice", label: "Price", sortValue: (row) => row.currentPrice, render: (row) => formatMoney(row.currentPrice) },
+      { key: "marketValue", label: "Value", sortValue: (row) => row.marketValue, render: (row) => formatMoney(row.marketValue) },
+      { key: "weightPct", label: "Weight", sortValue: (row) => row.weightPct, render: (row) => row.weightPct != null ? `${row.weightPct}%` : "—" },
+      { key: "unrealizedGain", label: "Gain", sortValue: (row) => row.unrealizedGain, render: (row) => formatMoney(row.unrealizedGain) },
+      { key: "gainPct", label: "Gain %", sortValue: (row) => row.gainPct, render: (row) => formatPercent(row.gainPct) },
+      { key: "analystTarget1y", label: "1YT", sortValue: (row) => row.analystTarget1y, render: (row) => formatMoney(row.analystTarget1y) },
+      { key: "annualDividend", label: "Annual Div.", sortValue: (row) => row.annualDividend, render: (row) => formatMoney(row.annualDividend) },
+    ];
+
     function renderHoldingsTable(holdings) {
-      if (!holdings.length) return `<div class="empty">No holdings yet. Import an analysis file or add positions via API.</div>`;
-      return `<table class="data"><thead><tr>
-        <th>Symbol</th><th>Qty</th><th>Price</th><th>Value</th><th>Weight</th><th>Gain</th>
-      </tr></thead><tbody>${holdings.map((h) => `<tr>
-        <td>${h.symbol}</td><td>${h.quantity}</td><td>${formatMoney(h.currentPrice)}</td>
-        <td>${formatMoney(h.marketValue)}</td><td>${h.weightPct != null ? h.weightPct + "%" : "—"}</td>
-        <td>${formatMoney(h.unrealizedGain)}</td></tr>`).join("")}</tbody></table>`;
+      return renderSortableTable(
+        "holdings",
+        holdingsColumns,
+        holdings,
+        "No positions yet. Import an analysis file or add holdings via API."
+      );
+    }
+
+    const screeningColumns = [
+      { key: "symbol", label: "Symbol", sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
+      { key: "score", label: "Score", sortValue: (row) => row.score, render: (row) => row.score },
+      { key: "upsidePct", label: "Upside", sortValue: (row) => row.upsidePct, render: (row) => `${row.upsidePct ?? "—"}%` },
+      { key: "fibDistancePct", label: "Fib Dist", sortValue: (row) => row.fibDistancePct, render: (row) => `${row.fibDistancePct ?? "—"}%` },
+      { key: "alertCount", label: "Alerts", sortValue: (row) => row.alertCount, render: (row) => row.alertCount },
+      { key: "flags", label: "Flags", sortValue: (row) => row.flags.join(", "), render: (row) => row.flags.join(", ") },
+    ];
+
+    function renderScreeningTable(rows) {
+      return renderSortableTable(
+        "screening",
+        screeningColumns,
+        rows,
+        "No screening results."
+      );
+    }
+
+    const fibColumns = [
+      { key: "symbol", label: "Symbol", sortValue: (row) => row.symbol, render: (row) => row.symbol },
+      { key: "currentPrice", label: "Price", sortValue: (row) => row.currentPrice, render: (row) => formatMoney(row.currentPrice) },
+      { key: "nearestFibLabel", label: "Nearest Fib", sortValue: (row) => row.nearestFib?.label, render: (row) => row.nearestFib ? row.nearestFib.label : "—" },
+      { key: "nearestFibPrice", label: "Level", sortValue: (row) => row.nearestFib?.price, render: (row) => row.nearestFib ? formatMoney(row.nearestFib.price) : "—" },
+      { key: "distancePct", label: "Distance", sortValue: (row) => row.distancePct, render: (row) => `${row.distancePct ?? "—"}%` },
+      { key: "withinBand", label: "In Band", sortValue: (row) => row.withinBand ? 1 : 0, render: (row) => row.withinBand ? "Yes" : "No" },
+    ];
+
+    function renderFibMapTable(rows) {
+      return renderSortableTable(
+        "fib",
+        fibColumns,
+        rows,
+        "No symbols to map."
+      );
+    }
+
+    function pickImportFile() {
+      document.getElementById("importFile").click();
+    }
+
+    function setImportNote(message, type = "info") {
+      const note = document.getElementById("importNote");
+      note.textContent = message;
+      note.className = "import-note" + (type === "success" ? " success" : type === "error" ? " error" : "");
+    }
+
+    function summarizeImport(data, mode) {
+      const parts = [
+        `Imported ${data.symbolsImported} symbol${data.symbolsImported === 1 ? "" : "s"}`,
+        `${data.symbolsAdded || 0} new`,
+        `${data.symbolsUpdated || 0} updated`,
+      ];
+      if (data.holdingsImported) parts.push(`${data.holdingsImported} holdings`);
+      if (mode === "replace" && data.clearedSymbols != null) {
+        parts.push(`replaced portfolio (removed ${data.clearedSymbols})`);
+      }
+      return `${parts.join(" · ")}.`;
     }
 
     async function importAnalysisFile() {
       const input = document.getElementById("importFile");
-      if (!input.files.length) return setStatus("Choose a file first.");
+      if (!input.files.length) return;
+      const mode = document.querySelector('input[name="importMode"]:checked')?.value || "merge";
+      const fileName = input.files[0].name;
+      setImportNote(`Importing ${fileName}…`);
       const form = new FormData();
       form.append("file", input.files[0]);
+      form.append("mode", mode);
       try {
-        const response = await fetch(API + "/import/file", { method: "POST", body: form });
+        const response = await fetch(`${API}/import/file?mode=${encodeURIComponent(mode)}`, { method: "POST", body: form });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Import failed");
-        await loadOverview();
-        setStatus(`Imported ${data.symbolsImported} symbols and ${data.holdingsImported} holdings (${data.format || "file"}).`, "success");
+
+        if (mode === "replace") {
+          if (data.mode !== "replace") {
+            throw new Error("Server did not run replace mode. Restart python3 main.py and confirm /api/v1/config shows importVersion 7.");
+          }
+          if (data.clearedSymbols === undefined) {
+            throw new Error("Server is outdated (missing clearedSymbols). Restart python3 main.py.");
+          }
+          const portfolioCount = (data.symbols || []).length;
+          if (portfolioCount !== data.symbolsImported) {
+            throw new Error(`Replace failed: file has ${data.symbolsImported} symbol(s) but portfolio still has ${portfolioCount}. Restart the server.`);
+          }
+        }
+
+        await refreshAllViews(data, mode);
+        setImportNote(summarizeImport(data, mode), "success");
+        input.value = "";
       } catch (error) {
         let msg = error.message;
-        if (msg.includes("Unsupported file format")) {
-          msg += " — restart the server (old process still running). Check /api/v1/config for importVersion: 4.";
+        if (msg.includes("Unsupported file format") || msg.includes("importVersion")) {
+          msg += " Restart the server: python3 main.py";
         }
-        setStatus(msg, "error");
+        setImportNote(msg, "error");
+        input.value = "";
       }
     }
 
     async function loadScreening(query = "") {
       const data = await api(`/screen${query}`);
-      const rows = data.results;
-      document.getElementById("screeningTable").innerHTML = rows.length
-        ? `<table class="data"><thead><tr>
-            <th>Symbol</th><th>Score</th><th>Upside</th><th>Fib Dist</th><th>Alerts</th><th>Flags</th>
-          </tr></thead><tbody>${rows.map((r) => `<tr>
-            <td><a href="#" onclick="selectSymbol('${r.symbol}'); showView('portfolio'); return false;">${r.symbol}</a></td>
-            <td>${r.score}</td><td>${r.upsidePct ?? "—"}%</td><td>${r.fibDistancePct ?? "—"}%</td>
-            <td>${r.alertCount}</td><td>${r.flags.join(", ")}</td></tr>`).join("")}</tbody></table>`
-        : `<div class="empty">No screening results.</div>`;
+      document.getElementById("screeningTable").innerHTML = renderScreeningTable(data.results);
     }
 
     async function loadFibMap() {
       const data = await api("/fib-proximity");
-      document.getElementById("fibMapTable").innerHTML = data.results.length
-        ? `<table class="data"><thead><tr>
-            <th>Symbol</th><th>Price</th><th>Nearest Fib</th><th>Level</th><th>Distance</th><th>In Band</th>
-          </tr></thead><tbody>${data.results.map((r) => `<tr>
-            <td>${r.symbol}</td><td>${formatMoney(r.currentPrice)}</td>
-            <td>${r.nearestFib ? r.nearestFib.label : "—"}</td><td>${r.nearestFib ? formatMoney(r.nearestFib.price) : "—"}</td>
-            <td>${r.distancePct ?? "—"}%</td><td>${r.withinBand ? "Yes" : "No"}</td></tr>`).join("")}</tbody></table>`
-        : `<div class="empty">No symbols to map.</div>`;
+      document.getElementById("fibMapTable").innerHTML = renderFibMapTable(data.results);
     }
 
-    async function loadInspectorOptions() {
-      const data = await api("/portfolio");
-      const select = document.getElementById("inspectorSelect");
-      select.innerHTML = data.symbols.map((s) =>
-        `<option value="${s.symbol}" ${s.symbol === selectedSymbol ? "selected" : ""}>${s.symbol}</option>`
-      ).join("");
-      if (select.value) loadInspector(select.value);
-    }
-
-    async function loadInspector(symbol) {
-      if (!symbol) return;
-      const data = await api(`/symbols/${symbol}/inspector`);
+    function renderInspectorHtml(data) {
       const s = data.screening;
-      document.getElementById("inspectorPanel").innerHTML = `
+      return `
         <div class="grid-2">
           <div class="metric"><div class="label">Price</div><div class="value">${formatMoney(data.quote.currentPrice)}</div></div>
           <div class="metric"><div class="label">Score</div><div class="value">${s.score}</div></div>
@@ -716,7 +1471,74 @@
       `;
     }
 
+    async function loadInspector(symbol, panelId = "inspectorPanel") {
+      if (!symbol) return;
+      selectedSymbol = symbol;
+      const [data, portfolio] = await Promise.all([
+        api(`/symbols/${symbol}/inspector`),
+        api("/portfolio"),
+      ]);
+      document.getElementById(panelId).innerHTML = renderInspectorHtml(data);
+      renderSymbolList(portfolio.symbols);
+      renderInspectorSymbolList(portfolio.symbols);
+      if (panelId === "holdingsInspectorPanel") {
+        document.getElementById("holdingsInspectorEmpty").hidden = true;
+        document.getElementById("holdingsInspectorPanel").hidden = false;
+        document.getElementById("holdingsInspectorTitle").textContent = `${symbol} Inspector`;
+      }
+      if (panelId === "inspectorPanel") {
+        document.getElementById("inspectorEmpty").hidden = true;
+        document.getElementById("inspectorPanel").hidden = false;
+        document.getElementById("inspectorTitle").textContent = `${symbol} Inspector`;
+      }
+    }
+
+    async function openHoldingsInspector(symbol, switchView = false) {
+      if (switchView) showView("holdings");
+      await loadInspector(symbol, "holdingsInspectorPanel");
+    }
+
+    async function loadInspectorOptions() {
+      const data = await api("/portfolio");
+      const symbols = data.symbols;
+      renderInspectorSymbolList(symbols);
+      const stillSelected = selectedSymbol && symbols.some((item) => item.symbol === selectedSymbol);
+      if (stillSelected) {
+        await loadInspector(selectedSymbol);
+        return;
+      }
+      if (symbols.length) {
+        await loadInspector(symbols[0].symbol);
+        return;
+      }
+      document.getElementById("inspectorTitle").textContent = "Inspector";
+      document.getElementById("inspectorEmpty").hidden = false;
+      document.getElementById("inspectorPanel").hidden = true;
+    }
+
+    document.addEventListener("click", (event) => {
+      const header = event.target.closest("th.sortable");
+      if (!header) return;
+      const tableId = header.dataset.tableId;
+      const sortKey = header.dataset.sortKey;
+      if (!tableId || !sortKey) return;
+      cycleTableSort(tableId, sortKey);
+      rerenderTable(tableId);
+    });
+
+    document.getElementById("importFile").addEventListener("change", (event) => {
+      if (event.target.files.length) importAnalysisFile();
+    });
+
+    document.getElementById("symbolForm").addEventListener("focusout", (event) => {
+      const input = event.target;
+      if (!input.name || !["currentPrice", "targetPrice", "buyBelow", "sellAbove"].includes(input.name)) return;
+      const parsed = parsePrice(input.value);
+      input.value = parsed == null ? "" : formatPriceInput(parsed);
+    });
+
     loadConfig();
+    resetNoteForm();
     showView("overview");
   </script>
 </body>
