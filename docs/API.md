@@ -114,7 +114,32 @@ JSON saved as `.txt` also works.
 |--------|----------|------|
 | GET | `/symbols/{symbol}/notes` | — |
 | POST | `/symbols/{symbol}/notes` | `{ "date": "2026-06-05", "source": "Earnings", "text": "..." }` |
+| POST | `/symbols/{symbol}/notes/{id}/synthesize` | LLM synthesizes one note; result stored on the note |
+| POST | `/symbols/{symbol}/notes/synthesize` | Synthesize all notes missing synthesis (`?force=1` to re-run) |
 | DELETE | `/symbols/{symbol}/notes/{id}` | — |
+
+**Note object** includes persisted synthesis:
+
+```json
+{
+  "id": 1,
+  "symbol": "FSLY",
+  "date": "2026-Q1",
+  "source": "Earnings call",
+  "text": "Raw note text...",
+  "synthesis": {
+    "summary": "Security grew 47% YoY; targeting $200M run rate by late 2026",
+    "growthTrajectory": [{ "metric": "Security revenue", "growth": "47% YoY", "period": "Q1" }],
+    "revenueProjections": [{ "target": "$200M run rate", "timeline": "late 2026", "segments": ["security"] }],
+    "catalystsToWatch": [{ "period": "Q2 2026", "metric": "Security+other YoY", "threshold": "25%+", "significance": "..." }],
+    "sentiment": "bullish"
+  },
+  "synthesisProvider": "openai",
+  "synthesizedAt": "2026-06-06 12:00:00"
+}
+```
+
+Set `NOTE_SYNTHESIS_GUIDANCE` in env to append custom instructions to the synthesis prompt.
 
 ---
 
@@ -149,21 +174,32 @@ JSON saved as `.txt` also works.
 | POST | `/assess` | Assess all or `{ "symbols": ["AAPL", "MSFT"] }` |
 | GET | `/assessments?symbol=AAPL&limit=10` | History |
 
-**Response shape:**
+**Response shape** (combined assessment uses **stored** note syntheses, not raw notes):
 
 ```json
 {
-  "symbol": "AAPL",
-  "action": "buy",
-  "confidence": "high",
+  "symbol": "FSLY",
+  "action": "watch",
+  "confidence": "medium",
   "rationale": "...",
-  "factors": ["..."],
-  "provider": "rules",
+  "factors": ["Note synthesis: Security grew 47% YoY...", "Watch Q2 2026: ..."],
+  "noteSynthesis": {
+    "summary": "Combined from stored note syntheses",
+    "growthTrajectory": [],
+    "catalystsToWatch": [],
+    "sentiment": "bullish",
+    "sourceNoteCount": 1
+  },
+  "provider": "openai",
   "createdAt": "2026-06-05 22:00:00"
 }
 ```
 
 **Actions:** `buy` | `sell` | `hold` | `watch`
+
+**Workflow:** Synthesize notes first → then Assess. Assessment merges stored syntheses with alerts, screening, and thresholds.
+
+Set `OPENAI_API_KEY` or `GEMINI_API_KEY` with `ASSESSMENT_MODE=auto` for LLM-powered synthesis and assessment.
 
 ---
 

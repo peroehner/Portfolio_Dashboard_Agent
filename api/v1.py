@@ -56,8 +56,13 @@ def get_config():
         "llmConfigured": provider != "rules",
         "syncIntervalSeconds": 300,
         "fibProximityPct": float(os.environ.get("FIB_PROXIMITY_PCT", "1.0")),
-        "importVersion": 7,
+        "importVersion": 8,
         "importModes": ["merge", "replace"],
+        "features": {
+            "noteSynthesis": True,
+        },
+        "synthesisGuidanceFromEnv": bool(client.synthesis_guidance),
+        "geminiModel": client.gemini_model if client.active_provider() == "gemini" else None,
         "docs": {
             "api": "/docs/api",
             "replit": "/docs/replit",
@@ -125,6 +130,42 @@ def add_note(symbol):
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify(note), 201
+
+
+@v1_bp.route("/symbols/<symbol>/notes/synthesize", methods=["POST", "OPTIONS"])
+def synthesize_all_notes(symbol):
+    if request.method == "OPTIONS":
+        return "", 204
+    if portfolio_service.get_symbol(symbol) is None:
+        return jsonify({"error": f"Symbol {symbol.upper()} not found."}), 404
+    force = request.args.get("force", "").lower() in ("1", "true", "yes")
+    data = request.get_json(silent=True) or {}
+    guidance = data.get("guidance")
+    try:
+        notes = notes_service.synthesize_all_notes(symbol, force=force, guidance=guidance)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 502
+    return jsonify({"symbol": symbol.upper(), "notes": notes})
+
+
+@v1_bp.route("/symbols/<symbol>/notes/<int:note_id>/synthesize", methods=["POST", "OPTIONS"])
+def synthesize_note(symbol, note_id):
+    if request.method == "OPTIONS":
+        return "", 204
+    if portfolio_service.get_symbol(symbol) is None:
+        return jsonify({"error": f"Symbol {symbol.upper()} not found."}), 404
+    force = request.args.get("force", "").lower() in ("1", "true", "yes")
+    data = request.get_json(silent=True) or {}
+    guidance = data.get("guidance")
+    try:
+        note = notes_service.synthesize_note(symbol, note_id, force=force, guidance=guidance)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 502
+    return jsonify(note)
 
 
 @v1_bp.route("/symbols/<symbol>/notes/<int:note_id>", methods=["DELETE"])
@@ -273,6 +314,14 @@ def list_assessments():
     return jsonify({"assessments": assessment_service.list_assessments(symbol=symbol, limit=limit)})
 
 
+@v1_bp.route("/assessments/<int:assessment_id>", methods=["DELETE"])
+def delete_assessment(assessment_id):
+    symbol = request.args.get("symbol")
+    if not assessment_service.delete_assessment(assessment_id, symbol=symbol):
+        return jsonify({"error": "Assessment not found."}), 404
+    return jsonify({"status": "deleted", "id": assessment_id})
+
+
 @v1_bp.route("/assess", methods=["POST"])
 def assess_portfolio():
     data = request.get_json(silent=True) or {}
@@ -283,6 +332,8 @@ def assess_portfolio():
         assessments = assessment_service.assess_portfolio(symbols=symbols)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 404
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 502
     return jsonify({"status": "success", "assessments": assessments})
 
 
@@ -294,6 +345,8 @@ def assess_symbol(symbol):
         assessment = assessment_service.assess_symbol(symbol)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 404
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 502
     return jsonify(assessment), 201
 
 

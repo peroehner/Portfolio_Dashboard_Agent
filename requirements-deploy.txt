@@ -2,3 +2,5 @@ flask
 gunicorn
 yfinance
 pandas
+python-dotenv
+certifi

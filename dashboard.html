@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Portfolio Dashboard Agent</title>
+  <link rel="icon" href="/assets/logo.png" type="image/png">
   <style>
     :root {
       --bg: #0f1419;
@@ -39,6 +40,31 @@
       z-index: 10;
     }
     h1 { margin: 0; font-size: 1.15rem; }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      object-fit: cover;
+      object-position: 55% center;
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      box-shadow: 0 0 18px rgba(59, 130, 246, 0.18);
+      flex-shrink: 0;
+    }
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+    .brand-tagline {
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
     .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     button, .btn {
       border: none;
@@ -336,6 +362,117 @@
     .chip.sell { background: rgba(239,68,68,0.2); color: var(--danger); }
     .chip.hold { background: rgba(148,163,184,0.2); color: #cbd5e1; }
     .chip.watch { background: rgba(245,158,11,0.2); color: var(--warn); }
+    .chip.add { background: rgba(34,197,94,0.15); color: #86efac; }
+    .chip.reduce { background: rgba(239,68,68,0.15); color: #fca5a5; }
+    .synthesis, .trading-rec {
+      background: rgba(167,139,250,0.08);
+      border: 1px solid rgba(167,139,250,0.25);
+      border-radius: 8px;
+      padding: 0.65rem 0.75rem;
+      margin-top: 0.5rem;
+      font-size: 0.88rem;
+    }
+    .synthesis h4, .trading-rec h4 {
+      margin: 0 0 0.35rem;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #c4b5fd;
+    }
+    .synthesis ul, .trading-rec ul {
+      margin: 0.25rem 0 0;
+      padding-left: 1.1rem;
+    }
+    .synthesis li, .trading-rec li { margin-bottom: 0.2rem; }
+    .conditional {
+      background: rgba(245,158,11,0.08);
+      border-left: 2px solid var(--warn);
+      padding: 0.4rem 0.55rem;
+      margin-top: 0.35rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    .recommendation-card {
+      background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(167,139,250,0.1));
+      border: 1px solid rgba(96,165,250,0.35);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1rem;
+    }
+    .recommendation-card .rec-headline {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 0.5rem 0 0.65rem;
+      line-height: 1.35;
+    }
+    .recommendation-card .rec-rationale {
+      font-size: 0.92rem;
+      line-height: 1.5;
+      color: #e2e8f0;
+    }
+    .thesis-card {
+      background: rgba(34,197,94,0.06);
+      border: 1px solid rgba(34,197,94,0.22);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 1rem;
+    }
+    .thesis-card h3, .recommendation-card h3, .inspector-section h3 {
+      margin: 0 0 0.5rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .growth-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+    }
+    .growth-table th, .growth-table td {
+      text-align: left;
+      padding: 0.35rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .inspector-section {
+      margin-top: 1.25rem;
+    }
+    .inspector-section details {
+      background: var(--panel-2);
+      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+      margin-top: 0.5rem;
+    }
+    .inspector-section summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.88rem;
+      user-select: none;
+    }
+    .inspector-section details[open] summary {
+      margin-bottom: 0.6rem;
+    }
+    .watch-list {
+      margin: 0.5rem 0 0;
+      padding-left: 1.1rem;
+      font-size: 0.88rem;
+    }
+    .watch-list li { margin-bottom: 0.3rem; }
+    .inspector-item-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.35rem;
+    }
+    button.btn-danger {
+      background: rgba(239,68,68,0.15);
+      color: #fca5a5;
+      border: 1px solid rgba(239,68,68,0.35);
+      font-size: 0.75rem;
+      padding: 0.2rem 0.55rem;
+    }
     .alert, .note, .assessment, .fib {
       background: var(--panel-2);
       border-radius: 8px;
@@ -410,7 +547,13 @@
 <body>
   <header>
     <div class="meta">
-      <h1>Portfolio Dashboard Agent</h1>
+      <div class="brand">
+        <img src="/assets/logo.png" alt="Portfolio Dashboard Agent" class="brand-logo" width="44" height="44">
+        <div class="brand-text">
+          <h1>Portfolio Dashboard Agent</h1>
+          <span class="brand-tagline">Notes · Synthesis · Assessments</span>
+        </div>
+      </div>
       <span class="badge" id="providerBadge">assess: …</span>
       <span class="links">
         <a href="/docs/api" target="_blank">API</a> ·
@@ -531,6 +674,12 @@
         <div id="fibLevels" class="empty">Click "Load Fib Levels" to compute.</div>
 
         <h2 style="margin-top:1.25rem;">Personal Notes</h2>
+        <details style="margin-bottom:0.75rem;">
+          <summary style="cursor:pointer;color:var(--muted);">Synthesis prompt guidance</summary>
+          <label style="margin-top:0.5rem;display:block;">Instructions sent with each note to the LLM (saved in this browser)</label>
+          <textarea id="synthesisGuidance" rows="4" placeholder="e.g. Extract segment YoY growth rates, revenue run-rate milestones, and what to verify in the next quarter. Flag AI/edge compute momentum separately."></textarea>
+          <div class="empty" style="margin-top:0.35rem;">Also set server-wide default in <code>.env</code> as <code>NOTE_SYNTHESIS_GUIDANCE=...</code> (UI guidance overrides when filled).</div>
+        </details>
         <div id="notesList"></div>
         <form id="noteForm" style="margin-top:0.75rem;">
           <label>Date</label>
@@ -541,6 +690,10 @@
           <textarea name="text" placeholder="Your outlook, thesis, risks..." required></textarea>
           <button type="submit" style="margin-top:0.5rem;">Add Note</button>
         </form>
+        <div class="actions" style="margin-top:0.5rem;">
+          <button type="button" class="secondary" onclick="synthesizeAllNotes()">Synthesize All Notes</button>
+        </div>
+        <div id="noteSynthesisPreview"></div>
       </div>
       <div class="status" id="status"></div>
     </section>
@@ -634,14 +787,35 @@
     }
 
     let importVersion = null;
+    let noteSynthesisSupported = false;
+    const SYNTHESIS_GUIDANCE_KEY = "pda_synthesis_guidance";
+
+    function getSynthesisGuidance() {
+      const el = document.getElementById("synthesisGuidance");
+      return el ? el.value.trim() : "";
+    }
+
+    function loadSynthesisGuidance() {
+      const el = document.getElementById("synthesisGuidance");
+      if (!el) return;
+      const saved = localStorage.getItem(SYNTHESIS_GUIDANCE_KEY);
+      if (saved) el.value = saved;
+      el.addEventListener("input", () => {
+        localStorage.setItem(SYNTHESIS_GUIDANCE_KEY, el.value);
+      });
+    }
 
     async function loadConfig() {
       try {
         const data = await api("/config");
         importVersion = data.importVersion;
+        noteSynthesisSupported = !!(data.features && data.features.noteSynthesis);
         const badge = document.getElementById("providerBadge");
         badge.textContent = `import v${data.importVersion} · assess: ${data.assessmentProvider}`;
         badge.classList.toggle("llm", data.llmConfigured);
+        if (data.synthesisGuidanceFromEnv && !getSynthesisGuidance()) {
+          setStatus("Server has NOTE_SYNTHESIS_GUIDANCE in .env — add UI guidance here to override per session.");
+        }
       } catch (_) { /* non-fatal */ }
     }
 
@@ -847,11 +1021,20 @@
             <div class="note">
               <strong>${note.date || "No date"}</strong> · ${note.source || "Note"}
               <div>${note.text}</div>
+              ${note.synthesis ? renderSynthesisHtml(note.synthesis) : `<div class="empty" style="margin-top:0.35rem;">Not synthesized yet.</div>`}
+              <div class="actions" style="margin-top:0.4rem;">
+                <button type="button" class="secondary" onclick="synthesizeNote(${note.id}, ${note.synthesis ? "true" : "false"})">
+                  ${note.synthesis ? "Re-synthesize" : "Synthesize"}
+                </button>
+              </div>
             </div>`).join("")
         : `<div class="empty">No notes yet.</div>`;
 
+      document.getElementById("noteSynthesisPreview").innerHTML = "";
+
       document.getElementById("fibLevels").innerHTML = `<div class="empty">Click "Load Fib Levels" to compute.</div>`;
       await loadAlerts();
+      await loadAssessments();
       setStatus(`Loaded ${symbol}.`);
       if (currentView === "portfolio") {
         const detailPanel = document.querySelector("#view-portfolio .panel-detail");
@@ -880,15 +1063,104 @@
       const data = await api(`/assessments${query}`);
       const container = document.getElementById("assessmentsList");
       container.innerHTML = data.assessments.length
-        ? data.assessments.map((item) => `
-            <div class="assessment">
-              <strong>${item.symbol}</strong>
-              <span class="chip ${item.action}">${item.action}</span>
-              <span class="chip hold">${item.confidence}</span>
-              <div style="margin-top:0.4rem;">${item.rationale}</div>
-              <div class="empty" style="margin-top:0.35rem;">${item.createdAt} · ${item.provider}</div>
-            </div>`).join("")
+        ? data.assessments.map((item) => renderAssessmentHtml(item)).join("")
         : `<div class="empty">No assessments yet.</div>`;
+    }
+
+    function renderSynthesisHtml(synthesis) {
+      if (!synthesis || !synthesis.summary) return "";
+      const growth = (synthesis.growthTrajectory || [])
+        .map((g) => `<li><strong>${g.metric || "Growth"}:</strong> ${g.growth || ""} ${g.period ? `(${g.period})` : ""}</li>`)
+        .join("");
+      const projections = (synthesis.revenueProjections || [])
+        .map((p) => `<li>${p.target || ""} by ${p.timeline || "TBD"}</li>`)
+        .join("");
+      const catalysts = (synthesis.catalystsToWatch || [])
+        .map((c) => `<li><strong>${c.period || "Upcoming"}:</strong> ${c.metric || ""} — watch for ${c.threshold || "confirmation"}</li>`)
+        .join("");
+      return `
+        <div class="synthesis">
+          <h4>Note Synthesis · ${synthesis.sentiment || "neutral"}${synthesis.llmFallback ? " · rules fallback" : ""}</h4>
+          ${synthesis.llmFallback ? `<div class="empty" style="color:var(--warn);margin-bottom:0.35rem;">Gemini unavailable — used rules engine. ${synthesis.llmError || ""}</div>` : ""}
+          <div>${synthesis.summary}</div>
+          ${growth ? `<ul>${growth}</ul>` : ""}
+          ${projections ? `<ul>${projections}</ul>` : ""}
+          ${catalysts ? `<ul>${catalysts}</ul>` : ""}
+        </div>`;
+    }
+
+    function looksLikeIdentifier(text) {
+      if (text.includes(" ")) return false;
+      if (text.length >= 20) return false;
+      if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(text)) return false;
+      return /[A-Z]/.test(text.slice(1));
+    }
+
+    function cleanFactors(factors) {
+      return (factors || []).filter((f) => typeof f === "string" && !looksLikeIdentifier(f.trim()));
+    }
+
+    function renderAssessmentHtml(item) {
+      const factors = cleanFactors(item.factors);
+      return `
+        <div class="assessment">
+          <strong>${item.symbol}</strong>
+          <span class="chip ${item.action}">${item.action}</span>
+          <span class="chip hold">${item.confidence}</span>
+          ${item.llmFallback ? `<div class="empty" style="color:var(--warn);margin-top:0.35rem;">Gemini unavailable — rules-based assessment.</div>` : ""}
+          <div style="margin-top:0.4rem;">${item.rationale}</div>
+          ${factors.length ? `<ul style="margin:0.4rem 0 0 1.1rem;font-size:0.88rem;color:var(--muted);">${factors.map((f) => `<li>${f}</li>`).join("")}</ul>` : ""}
+          ${renderSynthesisHtml(item.noteSynthesis)}
+          <div class="empty" style="margin-top:0.35rem;">${item.createdAt} · ${item.provider}</div>
+        </div>`;
+    }
+
+    async function synthesizeNote(noteId, hasExisting) {
+      if (!selectedSymbol) return;
+      if (!noteSynthesisSupported) {
+        setStatus("Note synthesis requires a server update — restart from Portfolio_Dashboard_Agent/ and redeploy.", "error");
+        return;
+      }
+      if (hasExisting && !confirm("Re-synthesize this note? This replaces the stored synthesis.")) return;
+      try {
+        const url = `/symbols/${selectedSymbol}/notes/${noteId}/synthesize${hasExisting ? "?force=1" : ""}`;
+        const guidance = getSynthesisGuidance();
+        await api(url, {
+          method: "POST",
+          body: JSON.stringify(guidance ? { guidance } : {}),
+        });
+        await selectSymbol(selectedSymbol);
+        setStatus(`Note synthesized for ${selectedSymbol}.`);
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    async function synthesizeAllNotes() {
+      if (!selectedSymbol) return;
+      if (!noteSynthesisSupported) {
+        setStatus("Note synthesis requires a server update — restart from Portfolio_Dashboard_Agent/ and redeploy.", "error");
+        return;
+      }
+      try {
+        const guidance = getSynthesisGuidance();
+        await api(`/symbols/${selectedSymbol}/notes/synthesize`, {
+          method: "POST",
+          body: JSON.stringify(guidance ? { guidance } : {}),
+        });
+        await selectSymbol(selectedSymbol);
+        const notes = (await api(`/symbols/${selectedSymbol}`)).notes || [];
+        const fallbacks = notes.filter((n) => n.synthesis && n.synthesis.llmFallback).length;
+        const geminiOk = notes.filter((n) => n.synthesis && !n.synthesis.llmFallback && n.synthesisProvider === "gemini").length;
+        setStatus(
+          fallbacks
+            ? `Synthesized: ${geminiOk} via Gemini, ${fallbacks} rules fallback (rate limit). Click Re-synthesize on the fallback notes — or wait 1 min and retry All.`
+            : `All ${notes.length} notes synthesized via Gemini for ${selectedSymbol}.`,
+          fallbacks ? "error" : "success"
+        );
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
     }
 
     async function loadFibLevels() {
@@ -988,11 +1260,16 @@
     async function assessSelected() {
       if (!selectedSymbol) return;
       try {
-        await api(`/symbols/${selectedSymbol}/assess`, { method: "POST" });
+        const result = await api(`/symbols/${selectedSymbol}/assess`, { method: "POST" });
         await loadAssessments();
-        setStatus(`Assessment complete for ${selectedSymbol}.`);
+        setStatus(
+          result.llmFallback
+            ? `Assessment complete for ${selectedSymbol} (rules fallback — Gemini quota/network).`
+            : `Assessment complete for ${selectedSymbol}.`,
+          result.llmFallback ? "error" : "success"
+        );
       } catch (error) {
-        setStatus(error.message);
+        setStatus(error.message, "error");
       }
     }
 
@@ -1451,24 +1728,173 @@
       document.getElementById("fibMapTable").innerHTML = renderFibMapTable(data.results);
     }
 
-    function renderInspectorHtml(data) {
-      const s = data.screening;
+    function renderRecommendationCard(rec) {
+      if (!rec) return `<div class="empty">No recommendation yet — synthesize notes and run Assess Symbol.</div>`;
+      const drivers = (rec.drivers || [])
+        .map((d) => `<li>${d}</li>`)
+        .join("");
+      const watch = (rec.watchItems || [])
+        .map((w) => `<li>${w}</li>`)
+        .join("");
+      const meta = [
+        rec.assessedAt ? `Assessed ${rec.assessedAt}` : null,
+        rec.provider || null,
+        rec.upsidePct != null ? `${rec.upsidePct}% upside to target` : null,
+      ].filter(Boolean).join(" · ");
       return `
-        <div class="grid-2">
-          <div class="metric"><div class="label">Price</div><div class="value">${formatMoney(data.quote.currentPrice)}</div></div>
-          <div class="metric"><div class="label">Score</div><div class="value">${s.score}</div></div>
-          <div class="metric"><div class="label">Upside</div><div class="value">${s.upsidePct ?? "—"}%</div></div>
-          <div class="metric"><div class="label">Fib Distance</div><div class="value">${s.fibDistancePct ?? "—"}%</div></div>
+        <div class="recommendation-card">
+          <h3>Recommendation</h3>
+          <div>
+            <span class="chip ${rec.action}">${rec.action}</span>
+            <span class="chip hold">${rec.confidence}</span>
+            ${rec.sentiment ? `<span class="chip watch">${rec.sentiment}</span>` : ""}
+          </div>
+          <div class="rec-headline">${rec.headline || ""}</div>
+          <div class="rec-rationale">${rec.rationale || ""}</div>
+          ${drivers ? `<ul class="watch-list">${drivers}</ul>` : ""}
+          ${watch ? `<div style="margin-top:0.75rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;">What to watch</div><ul class="watch-list">${watch}</ul>` : ""}
+          ${meta ? `<div class="empty" style="margin-top:0.6rem;">${meta}</div>` : ""}
+        </div>`;
+    }
+
+    function renderOverallSynthesis(rec, latestAssessment) {
+      const synthesis = latestAssessment?.noteSynthesis;
+      const thesis = rec?.thesis || synthesis?.integratedSummary || synthesis?.summary || "";
+      const growth = rec?.growthHighlights?.length
+        ? rec.growthHighlights
+        : (synthesis?.growthTrajectory || []);
+      const projections = rec?.projections?.length
+        ? rec.projections
+        : (synthesis?.revenueProjections || []);
+      if (!thesis && !growth.length && !projections.length) {
+        return `<div class="empty">No synthesis yet — synthesize your notes first.</div>`;
+      }
+      const growthRows = growth
+        .slice(0, 6)
+        .map((g) => `<tr><td>${g.metric || "—"}</td><td>${g.growth || "—"}</td><td>${g.period || "—"}</td></tr>`)
+        .join("");
+      const projectionItems = projections
+        .slice(0, 3)
+        .map((p) => `<li>${p.target || "Target"} by ${p.timeline || "TBD"}</li>`)
+        .join("");
+      const sentiment = rec?.sentiment || synthesis?.sentiment;
+      return `
+        <div class="thesis-card">
+          ${sentiment ? `<div style="margin-bottom:0.4rem;"><span class="chip watch">${sentiment}</span></div>` : ""}
+          ${thesis ? `<div style="font-size:0.92rem;line-height:1.45;margin-bottom:0.5rem;">${thesis}</div>` : ""}
+          ${growthRows ? `<table class="growth-table"><thead><tr><th>Metric</th><th>Growth</th><th>Period</th></tr></thead><tbody>${growthRows}</tbody></table>` : ""}
+          ${projectionItems ? `<ul class="watch-list">${projectionItems}</ul>` : ""}
+        </div>`;
+    }
+
+    function renderInspectorNoteItem(note, { history = false, panelId = "inspectorPanel" } = {}) {
+      const syn = note.synthesis ? renderSynthesisHtml(note.synthesis) : `<div class="empty" style="margin-top:0.35rem;">Not synthesized yet.</div>`;
+      const deleteBtn = history
+        ? `<button type="button" class="btn-danger" data-delete-note="${note.id}" data-inspector-panel="${panelId}">Delete</button>`
+        : "";
+      return `
+        <div class="note">
+          <div class="inspector-item-head">
+            <div style="font-size:0.78rem;color:var(--muted);">${note.date || note.createdAt || "Note"}${note.source ? ` · ${note.source}` : ""}</div>
+            ${deleteBtn}
+          </div>
+          <div style="font-size:0.9rem;line-height:1.45;">${note.text}</div>
+          ${syn}
+        </div>`;
+    }
+
+    function renderInspectorAssessmentItem(item, { history = false, panelId = "inspectorPanel" } = {}) {
+      const factors = cleanFactors(item.factors);
+      const deleteBtn = history
+        ? `<button type="button" class="btn-danger" data-delete-assessment="${item.id}" data-inspector-panel="${panelId}">Delete</button>`
+        : "";
+      return `
+        <div class="assessment">
+          <div class="inspector-item-head">
+            <div>
+              <span class="chip ${item.action}">${item.action}</span>
+              <span class="chip hold">${item.confidence}</span>
+            </div>
+            ${deleteBtn}
+          </div>
+          ${item.llmFallback ? `<div class="empty" style="color:var(--warn);margin-top:0.35rem;">Gemini unavailable — rules-based assessment.</div>` : ""}
+          <div style="margin-top:0.4rem;">${item.rationale}</div>
+          ${factors.length ? `<ul style="margin:0.4rem 0 0 1.1rem;font-size:0.88rem;color:var(--muted);">${factors.map((f) => `<li>${f}</li>`).join("")}</ul>` : ""}
+          <div class="empty" style="margin-top:0.35rem;">${item.createdAt} · ${item.provider}</div>
+        </div>`;
+    }
+
+    function renderInspectorHtml(data, panelId = "inspectorPanel") {
+      const s = data.screening;
+      const rec = data.recommendation || {};
+      const notes = data.quote.notes || [];
+      const assessments = data.assessments || [];
+      const latestNote = notes[0];
+      const olderNotes = notes.slice(1);
+      const latestAssessment = assessments[0];
+      const olderAssessments = assessments.slice(1);
+      return `
+        ${renderRecommendationCard(rec)}
+        <div class="inspector-section">
+          <h3>Latest Overall Synthesis</h3>
+          ${renderOverallSynthesis(rec, latestAssessment)}
         </div>
-        <h2 style="margin-top:1rem;">Holding</h2>
-        <div>${data.holding ? `${data.holding.quantity} shares · ${formatMoney(data.holding.marketValue)}` : "No holding recorded."}</div>
-        <h2 style="margin-top:1rem;">Alerts</h2>
-        ${data.alerts.length ? data.alerts.map((a) => `<div class="alert">${a.message}</div>`).join("") : `<div class="empty">No active alerts.</div>`}
-        <h2 style="margin-top:1rem;">Notes</h2>
-        ${data.quote.notes.length ? data.quote.notes.map((n) => `<div class="note">${n.text}</div>`).join("") : `<div class="empty">No notes.</div>`}
-        <h2 style="margin-top:1rem;">Latest Assessment</h2>
-        ${data.assessments.length ? data.assessments.map((a) => `<div class="assessment"><span class="chip ${a.action}">${a.action}</span> ${a.rationale}</div>`).join("") : `<div class="empty">No assessments yet.</div>`}
+        <div class="inspector-section">
+          <h3>Latest Note</h3>
+          ${latestNote ? renderInspectorNoteItem(latestNote, { panelId }) : `<div class="empty">No notes yet.</div>`}
+          ${olderNotes.length ? `
+            <details>
+              <summary>Older notes (${olderNotes.length})</summary>
+              ${olderNotes.map((n) => renderInspectorNoteItem(n, { history: true, panelId })).join("")}
+            </details>` : ""}
+        </div>
+        <div class="inspector-section">
+          <h3>Latest Assessment</h3>
+          ${latestAssessment ? renderInspectorAssessmentItem(latestAssessment, { panelId }) : `<div class="empty">No assessments yet — run Assess Symbol.</div>`}
+          ${olderAssessments.length ? `
+            <details>
+              <summary>Assessment history (${olderAssessments.length})</summary>
+              ${olderAssessments.map((a) => renderInspectorAssessmentItem(a, { history: true, panelId })).join("")}
+            </details>` : ""}
+        </div>
+        <div class="inspector-section">
+          <h3>Market snapshot</h3>
+          <div class="grid-2">
+            <div class="metric"><div class="label">Price</div><div class="value">${formatMoney(data.quote.currentPrice)}</div></div>
+            <div class="metric"><div class="label">Score</div><div class="value">${s.score}</div></div>
+            <div class="metric"><div class="label">Upside</div><div class="value">${s.upsidePct ?? "—"}%</div></div>
+            <div class="metric"><div class="label">Fib Distance</div><div class="value">${s.fibDistancePct ?? "—"}%</div></div>
+          </div>
+          <div style="margin-top:0.5rem;font-size:0.88rem;">
+            ${data.holding ? `<strong>Holding:</strong> ${data.holding.quantity} shares · ${formatMoney(data.holding.marketValue)}` : "No holding recorded."}
+          </div>
+          ${data.alerts.length ? data.alerts.map((a) => `<div class="alert" style="margin-top:0.4rem;">${a.message}</div>`).join("") : ""}
+        </div>
       `;
+    }
+
+    async function deleteInspectorNote(noteId, panelId) {
+      if (!selectedSymbol) return;
+      if (!confirm("Delete this note and its synthesis?")) return;
+      try {
+        await api(`/symbols/${selectedSymbol}/notes/${noteId}`, { method: "DELETE" });
+        await loadInspector(selectedSymbol, panelId);
+        setStatus(`Note deleted for ${selectedSymbol}.`);
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    async function deleteInspectorAssessment(assessmentId, panelId) {
+      if (!selectedSymbol) return;
+      if (!confirm("Delete this assessment?")) return;
+      try {
+        await api(`/assessments/${assessmentId}?symbol=${encodeURIComponent(selectedSymbol)}`, { method: "DELETE" });
+        await loadInspector(selectedSymbol, panelId);
+        setStatus(`Assessment deleted for ${selectedSymbol}.`);
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
     }
 
     async function loadInspector(symbol, panelId = "inspectorPanel") {
@@ -1478,7 +1904,7 @@
         api(`/symbols/${symbol}/inspector`),
         api("/portfolio"),
       ]);
-      document.getElementById(panelId).innerHTML = renderInspectorHtml(data);
+      document.getElementById(panelId).innerHTML = renderInspectorHtml(data, panelId);
       renderSymbolList(portfolio.symbols);
       renderInspectorSymbolList(portfolio.symbols);
       if (panelId === "holdingsInspectorPanel") {
@@ -1517,6 +1943,22 @@
     }
 
     document.addEventListener("click", (event) => {
+      const deleteNoteBtn = event.target.closest("[data-delete-note]");
+      if (deleteNoteBtn) {
+        deleteInspectorNote(
+          Number(deleteNoteBtn.dataset.deleteNote),
+          deleteNoteBtn.dataset.inspectorPanel || "inspectorPanel"
+        );
+        return;
+      }
+      const deleteAssessmentBtn = event.target.closest("[data-delete-assessment]");
+      if (deleteAssessmentBtn) {
+        deleteInspectorAssessment(
+          Number(deleteAssessmentBtn.dataset.deleteAssessment),
+          deleteAssessmentBtn.dataset.inspectorPanel || "inspectorPanel"
+        );
+        return;
+      }
       const header = event.target.closest("th.sortable");
       if (!header) return;
       const tableId = header.dataset.tableId;
@@ -1538,6 +1980,7 @@
     });
 
     loadConfig();
+    loadSynthesisGuidance();
     resetNoteForm();
     showView("overview");
   </script>

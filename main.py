@@ -9,6 +9,31 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent
+
+
+def load_env_file() -> None:
+    """Load .env before service imports so API keys are available."""
+    env_path = BASE_DIR / ".env"
+    if not env_path.is_file():
+        return
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(env_path)
+    except ImportError:
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+load_env_file()
+
 from flask import Flask, jsonify, send_file, request
 
 from api.v1 import v1_bp
@@ -17,7 +42,6 @@ from services.alerts_service import AlertsService
 from services.import_service import ImportService
 from services.portfolio_service import PortfolioService
 
-BASE_DIR = Path(__file__).resolve().parent
 app = Flask(__name__, static_folder=str(BASE_DIR))
 app.register_blueprint(v1_bp)
 
@@ -60,6 +84,12 @@ def ensure_background_worker():
             worker = threading.Thread(target=background_sync_loop, daemon=True)
             worker.start()
             _sync_worker_started = True
+
+
+@app.before_request
+def handle_options():
+    if request.method == "OPTIONS":
+        return "", 204
 
 
 @app.before_request
@@ -191,32 +221,28 @@ def free_port(port):
 
 def resolve_port(requested=None):
     """Pick an open port; macOS AirPlay often blocks 5000."""
-    if requested:
-        return int(requested)
+    if requested is not None:
+        preferred = [int(requested)]
+    elif os.environ.get("PORT"):
+        preferred = [int(os.environ["PORT"])]
+    else:
+        preferred = [5000]
 
-    env_port = os.environ.get("PORT")
-    if env_port:
-        return int(env_port)
+    candidates = preferred + [p for p in range(5000, 5010) if p not in preferred]
 
-    preferred = 5000
     if os.environ.get("FREE_PORT", "1").lower() in ("1", "true", "yes"):
-        free_port(preferred)
+        free_port(preferred[0])
 
-    if port_is_available(preferred):
-        return preferred
-
-    for port in range(5001, 5010):
+    for port in candidates:
         if port_is_available(port):
-            if platform.system() == "Darwin":
-                logging.warning(
-                    "Port 5000 is in use (often macOS AirPlay Receiver). Using port %s instead.",
-                    port,
-                )
-            else:
-                logging.warning("Port 5000 is in use. Using port %s instead.", port)
+            if port != preferred[0]:
+                logging.warning("Port %s is in use. Using port %s instead.", preferred[0], port)
             return port
 
-    raise RuntimeError("No available port found between 5000 and 5009. Set PORT explicitly.")
+    raise RuntimeError(
+        f"No available port found (tried {candidates[0]}–{candidates[-1]}). "
+        "Stop the old server or set PORT to a free port."
+    )
 
 
 def wait_until_ready(port, timeout=120):
@@ -251,8 +277,18 @@ def start_server(port=None, block=True, wait_timeout=120):
     }
 
     print(f"Starting Portfolio Agent Server on http://0.0.0.0:{port}")
+    print(f"Dashboard: http://127.0.0.1:{port}/")
     if block:
-        app.run(**run_kwargs)
+        try:
+            app.run(**run_kwargs)
+        except OSError as exc:
+            if getattr(exc, "errno", None) != 48:
+                raise
+            fallback = resolve_port(port + 1 if port < 5009 else 5001)
+            logging.warning("Port %s failed to bind (%s). Retrying on %s.", port, exc, fallback)
+            run_kwargs["port"] = fallback
+            print(f"Retrying on http://127.0.0.1:{fallback}/")
+            app.run(**run_kwargs)
         return None
 
     server_thread = threading.Thread(target=lambda: app.run(**run_kwargs), daemon=True)

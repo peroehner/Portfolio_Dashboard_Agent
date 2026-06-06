@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS notes (
     note_date TEXT,
     source TEXT,
     text TEXT NOT NULL,
+    synthesis TEXT,
+    synthesis_provider TEXT,
+    synthesized_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (symbol) REFERENCES symbols(symbol) ON DELETE CASCADE
 );
@@ -53,6 +56,8 @@ CREATE TABLE IF NOT EXISTS assessments (
     confidence TEXT NOT NULL,
     rationale TEXT NOT NULL,
     factors TEXT,
+    note_synthesis TEXT,
+    trading_recommendation TEXT,
     provider TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (symbol) REFERENCES symbols(symbol) ON DELETE CASCADE
@@ -100,6 +105,22 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
             WHERE analyst_target_1y IS NULL AND target_price IS NOT NULL
             """
         )
+
+    assessment_columns = {
+        row[1] for row in conn.execute("PRAGMA table_info(assessments)")
+    }
+    if "note_synthesis" not in assessment_columns:
+        conn.execute("ALTER TABLE assessments ADD COLUMN note_synthesis TEXT")
+    if "trading_recommendation" not in assessment_columns:
+        conn.execute("ALTER TABLE assessments ADD COLUMN trading_recommendation TEXT")
+
+    note_columns = {row[1] for row in conn.execute("PRAGMA table_info(notes)")}
+    if "synthesis" not in note_columns:
+        conn.execute("ALTER TABLE notes ADD COLUMN synthesis TEXT")
+    if "synthesis_provider" not in note_columns:
+        conn.execute("ALTER TABLE notes ADD COLUMN synthesis_provider TEXT")
+    if "synthesized_at" not in note_columns:
+        conn.execute("ALTER TABLE notes ADD COLUMN synthesized_at TEXT")
 
 
 def init_db() -> None:
