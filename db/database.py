@@ -75,6 +75,17 @@ CREATE TABLE IF NOT EXISTS holdings (
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (symbol) REFERENCES symbols(symbol) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS symbol_technical (
+    symbol TEXT PRIMARY KEY,
+    window_start TEXT,
+    window_end TEXT,
+    fib_anchor TEXT,
+    trends_json TEXT NOT NULL DEFAULT '[]',
+    fib_levels_json TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (symbol) REFERENCES symbols(symbol) ON DELETE CASCADE
+);
 """
 
 
@@ -126,6 +137,27 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
     holding_columns = {row[1] for row in conn.execute("PRAGMA table_info(holdings)")}
     if "purchase_date" not in holding_columns:
         conn.execute("ALTER TABLE holdings ADD COLUMN purchase_date TEXT")
+
+    tables = {
+        row[0] for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        )
+    }
+    if "symbol_technical" not in tables:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS symbol_technical (
+                symbol TEXT PRIMARY KEY,
+                window_start TEXT,
+                window_end TEXT,
+                fib_anchor TEXT,
+                trends_json TEXT NOT NULL DEFAULT '[]',
+                fib_levels_json TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (symbol) REFERENCES symbols(symbol) ON DELETE CASCADE
+            );
+            """
+        )
 
 
 def init_db() -> None:

@@ -537,25 +537,152 @@
     }
     .trend-waves-row {
       display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
+      flex-direction: column;
+      gap: 0.55rem;
       margin-top: 0.85rem;
       padding-top: 0.85rem;
       border-top: 1px solid var(--border);
     }
-    .trend-wave-tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-      padding: 0.28rem 0.55rem;
-      border-radius: 999px;
+    .trend-waves-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.35rem 0.75rem;
+    }
+    .trend-waves-window {
+      font-size: 0.74rem;
+      color: var(--muted);
+    }
+    .trend-wave-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+    .trend-wave-card {
+      display: grid;
+      gap: 0.2rem;
+      padding: 0.55rem 0.7rem;
+      border-radius: 10px;
       font-size: 0.78rem;
-      font-weight: 600;
       border: 1px solid var(--border);
       background: var(--bg);
     }
-    .trend-wave-tag.up { color: var(--accent-2); border-color: rgba(34, 197, 94, 0.35); }
-    .trend-wave-tag.down { color: #fca5a5; border-color: rgba(239, 68, 68, 0.35); }
+    .trend-wave-card.up { border-color: rgba(34, 197, 94, 0.35); }
+    .trend-wave-card.down { border-color: rgba(239, 68, 68, 0.35); }
+    .trend-wave-title {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+      font-weight: 700;
+    }
+    .trend-wave-title.up { color: var(--accent-2); }
+    .trend-wave-title.down { color: #fca5a5; }
+    .trend-wave-meta,
+    .trend-wave-peaks {
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .fib-anchor-note {
+      margin-top: 0.35rem;
+      font-size: 0.74rem;
+      color: #a78bfa;
+      line-height: 1.35;
+    }
+    .fib-levels-panel {
+      margin-top: 0.75rem;
+      padding: 0.65rem 0.75rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(167, 139, 250, 0.06);
+    }
+    .fib-levels-panel h4 {
+      margin: 0 0 0.45rem;
+      font-size: 0.78rem;
+      color: #c4b5fd;
+    }
+    .fib-levels-grid {
+      display: grid;
+      gap: 0.28rem;
+    }
+    .fib-level-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.76rem;
+    }
+    .fib-level-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-weight: 600;
+    }
+    .fib-level-swatch {
+      width: 0.65rem;
+      height: 0.65rem;
+      border-radius: 999px;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+    .fib-level-price {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .fib-toggle {
+      color: inherit;
+    }
+    .inspector-chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem 0.85rem;
+      margin-top: 0.55rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .inspector-chart-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .inspector-chart-legend .legend-line {
+      width: 1.1rem;
+      height: 0;
+      border-top: 3px solid currentColor;
+      border-radius: 999px;
+    }
+    .inspector-chart-mode {
+      display: inline-flex;
+      gap: 0.35rem;
+      margin-top: 0.55rem;
+      padding: 0.2rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.35);
+    }
+    .inspector-mode-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 0.32rem 0.7rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+    }
+    .inspector-mode-btn.active {
+      color: #e9eef5;
+      background: rgba(139, 92, 246, 0.28);
+      box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.35);
+    }
+    .trend-source-note {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .trend-wave-leg-prices {
+      font-size: 0.76rem;
+      color: var(--text);
+    }
     .inspector-side-stack {
       display: flex;
       flex-direction: column;
@@ -1069,6 +1196,7 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <script>
     const API = "/api/v1";
     let selectedSymbol = null;
@@ -2264,6 +2392,9 @@
     }
 
     const inspectorCharts = {};
+    const inspectorChartData = {};
+    const inspectorChartMode = {};
+    const inspectorChartSymbol = {};
     const inspectorFibToggles = {
       high: true,
       "fib-0.382": true,
@@ -2271,6 +2402,45 @@
       "fib-0.618": true,
       base: true,
     };
+    function resolveFibLevelMeta(label, fallbackColor) {
+      const lowered = String(label || "").toLowerCase();
+      if (lowered.startsWith("0%") || (lowered.includes("0%") && lowered.includes("high"))) {
+        return { key: "high", shortLabel: "0% High", color: "#a78bfa" };
+      }
+      if (lowered.includes("38.2")) {
+        return { key: "fib-0.382", shortLabel: "38.2% Fib", color: "#3b82f6" };
+      }
+      if (lowered.includes("50.0") || lowered.includes("center")) {
+        return { key: "fib-0.5", shortLabel: "50.0% Center", color: "#f59e0b" };
+      }
+      if (lowered.includes("61.8") || lowered.includes("golden")) {
+        return { key: "fib-0.618", shortLabel: "61.8% Golden", color: "#ef4444" };
+      }
+      if (lowered.startsWith("100%") || (lowered.includes("low") && lowered.includes("base"))) {
+        return { key: "base", shortLabel: "100% Base", color: "#9aa8bc" };
+      }
+      return {
+        key: "fib-other",
+        shortLabel: label,
+        color: fallbackColor || "#9aa8bc",
+      };
+    }
+    const TREND_CHART_COLORS = {
+      up: ["#22c55e", "#4ade80", "#86efac", "#bbf7d0"],
+      down: ["#ef4444", "#f87171", "#fca5a5", "#fecaca"],
+    };
+
+    function enrichImportedFibLevels(levels) {
+      return (levels || []).map((level) => {
+        const meta = resolveFibLevelMeta(level.label, level.color);
+        return {
+          ...level,
+          key: level.key || meta.key,
+          shortLabel: level.shortLabel || meta.shortLabel,
+          color: level.color || meta.color,
+        };
+      });
+    }
 
     function buildClientFibBlueprint(fib) {
       if (!fib) return null;
@@ -2404,8 +2574,15 @@
       data._inspectorNeedsServerRefresh = (
         data.valuation.trailingPe == null
         && data.valuation.forwardPe == null
-        && !(data.trendWaves || []).length
+        && data.trendWaveSource !== "import"
       );
+      if (!data.importedFibLevels && data.technicalSnapshot?.fibLevels) {
+        data.importedFibLevels = Object.entries(data.technicalSnapshot.fibLevels).map(([label, price]) => ({
+          label,
+          price,
+        }));
+      }
+      data.importedFibLevels = enrichImportedFibLevels(data.importedFibLevels);
 
       return data;
     }
@@ -2438,16 +2615,32 @@
       const val = data.valuation || {};
       const advisory = data.technicalAdvisory || {};
       const waves = data.trendWaves || [];
+      const technical = data.technicalSnapshot || {};
       const blueprint = data.fibBlueprint;
-      const fibToggles = (blueprint?.levels || []).map((level) => `
-        <label class="fib-toggle">
+      const importedFibLevels = enrichImportedFibLevels(data.importedFibLevels || []);
+      const trendSource = data.trendWaveSource || (waves.length ? "import" : "none");
+      const chartMode = getInspectorChartMode(panelId, data);
+      const canSwitchChart = trendSource === "import" && waves.length > 0;
+      const mainTrend = waves.find((wave) => wave.label === "T1") || waves[0];
+      const fibAnchorLabel = mainTrend
+        ? `${mainTrend.label} (${mainTrend.type || "Trend"}): ${mainTrend.startDate || "—"} → ${mainTrend.endDate || "—"}`
+        : (blueprint?.anchorTrend || blueprint?.anchorNote);
+      const fibToggleLevels = importedFibLevels.length
+        ? importedFibLevels
+        : (blueprint?.levels || []).map((level) => ({
+            key: level.key,
+            shortLabel: level.label,
+            color: level.color,
+          }));
+      const fibToggles = fibToggleLevels.map((level) => `
+        <label class="fib-toggle" style="color:${level.color};">
           <input
             type="checkbox"
             data-fib-key="${level.key}"
             ${inspectorFibToggles[level.key] !== false ? "checked" : ""}
             onchange="onInspectorFibToggle(this)"
           >
-          ${level.label}
+          ${level.shortLabel || level.label}
         </label>
       `).join("");
       const stanceClass = String(advisory.stance || "neutral").toLowerCase();
@@ -2460,21 +2653,81 @@
         <div class="inspector-dashboard">
           <section class="inspector-chart-card">
             <div class="inspector-chart-head">
-              <h3>Performance Metrics & Fibonacci Blueprint</h3>
+              <div>
+                <h3>Performance Metrics & Fibonacci Blueprint</h3>
+                ${fibAnchorLabel
+                  ? `<div class="fib-anchor-note">Fibonacci levels below use <strong>T1 only</strong> — anchored to <strong>${fibAnchorLabel}</strong>.</div>`
+                  : `<div class="fib-anchor-note">Import a TA export to load Fibonacci levels tied to trend T1.</div>`}
+                ${canSwitchChart
+                  ? `<div class="inspector-chart-mode" data-panel="${panelId}">
+                      <button type="button" class="inspector-mode-btn ${chartMode === "timeline" ? "active" : ""}" data-mode="timeline" onclick="setInspectorChartMode('timeline', '${panelId}')">Timeline &amp; Trends</button>
+                      <button type="button" class="inspector-mode-btn ${chartMode === "blueprint" ? "active" : ""}" data-mode="blueprint" onclick="setInspectorChartMode('blueprint', '${panelId}')">Basis · Current · Target</button>
+                    </div>`
+                  : ""}
+              </div>
               <div class="fib-toggle-row">${fibToggles || ""}</div>
             </div>
-            <div class="inspector-chart-wrap">
-              <canvas id="inspectorChart-${panelId}" aria-label="Fibonacci blueprint chart for ${data.symbol}"></canvas>
+            ${importedFibLevels.length
+              ? `<div class="fib-levels-panel">
+                  <h4>Imported Fibonacci Levels (from T1)</h4>
+                  <div class="fib-levels-grid">
+                    ${importedFibLevels.map((level) => `
+                      <div class="fib-level-row">
+                        <span class="fib-level-label" style="color:${level.color};">
+                          <span class="fib-level-swatch" style="background:${level.color};"></span>
+                          ${level.label}
+                        </span>
+                        <strong class="fib-level-price" style="color:${level.color};">${formatMoney(level.price)}</strong>
+                      </div>
+                    `).join("")}
+                  </div>
+                </div>`
+              : ""}
+            <div class="inspector-chart-wrap" style="${chartMode === "timeline" && canSwitchChart ? "height:320px;" : ""}">
+              <canvas id="inspectorChart-${panelId}" aria-label="Fibonacci and trend timeline chart for ${data.symbol}"></canvas>
             </div>
+            ${canSwitchChart
+              ? `<div class="inspector-chart-legend" id="inspectorTrendLegend-${panelId}" ${chartMode === "timeline" ? "" : "hidden"}></div>`
+              : ""}
             <div class="trend-waves-row">
-              <strong style="font-size:0.8rem;color:var(--muted);margin-right:0.35rem;">Detected Trend Waves:</strong>
+              <div class="trend-waves-head">
+                <strong style="font-size:0.8rem;color:var(--muted);">Detected Trend Waves</strong>
+                ${technical.windowStart && technical.windowEnd
+                  ? `<span class="trend-waves-window">Time window ${technical.windowStart} → ${technical.windowEnd}</span>`
+                  : ""}
+                <span class="trend-source-note">${trendSource === "import" ? "From TA import" : "No TA import on file — re-import export"}</span>
+              </div>
               ${waves.length
-                ? waves.map((wave) => `
-                    <span class="trend-wave-tag ${wave.direction}">
-                      ${wave.label} ${wave.direction === "up" ? "↑" : "↓"} ${formatMoney(wave.price)} · ${wave.date}
-                    </span>
-                  `).join("")
-                : `<span class="empty">No trend waves detected yet.</span>`}
+                ? `<div class="trend-wave-list">${waves.map((wave) => {
+                    const moveText = wave.movePct != null ? `${Number(wave.movePct).toFixed(1)}% move` : "";
+                    const legSummary = wave.legSummary
+                      || (wave.startDate && wave.endDate
+                        ? `From ${wave.startDate} until ${wave.endDate}`
+                        : `${wave.date || "—"} · ${formatMoney(wave.price)}`);
+                    const legPrices = wave.displayLow != null && wave.displayHigh != null
+                      ? `${formatMoney(wave.displayLow)} → ${formatMoney(wave.displayHigh)}`
+                      : `${formatMoney(wave.priceStart)} → ${formatMoney(wave.priceEnd)}`;
+                    const peakText = wave.peakHigh != null && wave.peakLow != null
+                      ? `Leg peak high ${formatMoney(wave.peakHigh)} · leg low ${formatMoney(wave.peakLow)}`
+                      : "";
+                    const t1FibNote = wave.label === "T1" && importedFibLevels.length
+                      ? "Fibonacci levels use this leg (T1)."
+                      : "";
+                    return `
+                      <article class="trend-wave-card ${wave.direction || "up"}">
+                        <div class="trend-wave-title ${wave.direction || "up"}">
+                          <span>${wave.label || "T?"}</span>
+                          <span>${wave.legPattern || wave.type || ""}</span>
+                          ${moveText ? `<span>${moveText}</span>` : ""}
+                        </div>
+                        <div class="trend-wave-meta">${legSummary}</div>
+                        <div class="trend-wave-leg-prices">${legPrices}</div>
+                        ${peakText ? `<div class="trend-wave-peaks">${peakText}</div>` : ""}
+                        ${t1FibNote ? `<div class="trend-wave-peaks">${t1FibNote}</div>` : ""}
+                      </article>
+                    `;
+                  }).join("")}</div>`
+                : `<span class="empty">No imported trend waves. Use <strong>Import</strong> with your Portfolio-App TA export for this symbol.</span>`}
             </div>
           </section>
           <aside class="inspector-side-stack">
@@ -2524,21 +2777,160 @@
       });
     }
 
-    function renderInspectorChart(data, panelId) {
-      const canvas = document.getElementById(`inspectorChart-${panelId}`);
-      if (!canvas || typeof Chart === "undefined") return;
+    function inspectorChartExtents(timeline, waves) {
+      const dates = [];
+      (timeline?.points || []).forEach((point) => dates.push(point.date));
+      (waves || []).forEach((wave) => {
+        if (wave.startDate) dates.push(wave.startDate);
+        if (wave.endDate) dates.push(wave.endDate);
+      });
+      dates.sort();
+      if (!dates.length) {
+        return { min: null, max: null };
+      }
+      return { min: dates[0], max: dates[dates.length - 1] };
+    }
 
-      if (inspectorCharts[panelId]) {
-        inspectorCharts[panelId].destroy();
-        inspectorCharts[panelId] = null;
+    function trendChartColor(wave, index) {
+      const palette = wave.direction === "down" ? TREND_CHART_COLORS.down : TREND_CHART_COLORS.up;
+      return palette[index % palette.length];
+    }
+
+    function renderInspectorTrendLegend(panelId, waves) {
+      const legend = document.getElementById(`inspectorTrendLegend-${panelId}`);
+      if (!legend) return;
+      legend.innerHTML = [
+        `<span><span class="legend-line" style="color:rgba(139, 92, 246, 0.7);"></span>Window price</span>`,
+        ...waves.map((wave, index) => {
+          const color = trendChartColor(wave, index);
+          const arrow = wave.direction === "down" ? "↓" : "↑";
+          return `<span><span class="legend-line" style="color:${color};"></span>${wave.label} ${arrow} ${wave.legPattern || wave.type || ""}</span>`;
+        }),
+      ].join("");
+    }
+
+    function renderInspectorTimelineChart(canvas, panelId, data, timeline, waves, blueprint) {
+      const extents = inspectorChartExtents(timeline, waves);
+      if (!extents.min || !extents.max) return false;
+
+      const datasets = [];
+      if (timeline?.points?.length) {
+        datasets.push({
+          label: "Window price",
+          data: timeline.points.map((point) => ({ x: point.date, y: point.price })),
+          borderColor: "rgba(139, 92, 246, 0.55)",
+          backgroundColor: "rgba(139, 92, 246, 0.08)",
+          fill: true,
+          tension: 0.25,
+          pointRadius: 0,
+          borderWidth: 1.5,
+          order: 20,
+        });
       }
 
+      waves.forEach((wave, index) => {
+        if (!wave.startDate || !wave.endDate) return;
+        const color = trendChartColor(wave, index);
+        datasets.push({
+          label: `${wave.label} ${wave.legPattern || wave.type || ""}`,
+          data: [
+            { x: wave.startDate, y: wave.priceStart },
+            { x: wave.endDate, y: wave.priceEnd },
+          ],
+          borderColor: color,
+          backgroundColor: wave.direction === "down" ? "rgba(248, 113, 113, 0.12)" : "rgba(34, 197, 94, 0.12)",
+          pointRadius: 6,
+          pointHoverRadius: 7,
+          pointBackgroundColor: color,
+          borderWidth: wave.label === "T1" ? 4 : 3,
+          fill: false,
+          tension: 0,
+          order: 1 + index,
+          _trendKey: wave.label,
+        });
+      });
+
+      const fibLevels = enrichImportedFibLevels(data.importedFibLevels || []);
+      const fibSource = fibLevels.length
+        ? fibLevels
+        : (blueprint?.levels || []).map((level) => ({
+            key: level.key,
+            shortLabel: level.label,
+            color: level.color,
+            price: level.price,
+          }));
+      fibSource.forEach((level) => {
+        if (level.price == null) return;
+        datasets.push({
+          label: level.shortLabel || level.label,
+          data: [
+            { x: extents.min, y: level.price },
+            { x: extents.max, y: level.price },
+          ],
+          borderColor: level.color,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          borderWidth: 1.5,
+          fill: false,
+          order: 30,
+          _fibKey: level.key,
+          hidden: inspectorFibToggles[level.key] === false,
+        });
+      });
+
+      inspectorCharts[panelId] = new Chart(canvas, {
+        type: "line",
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "nearest", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title(items) {
+                  const raw = items[0]?.raw;
+                  if (raw && raw.x) {
+                    return new Date(raw.x).toLocaleDateString();
+                  }
+                  return items[0]?.dataset?.label || "";
+                },
+                label(context) {
+                  const raw = context.raw;
+                  if (raw?.y == null) return `${context.dataset.label}: —`;
+                  return `${context.dataset.label}: ${formatMoney(raw.y)}`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              type: "time",
+              time: { unit: "day", tooltipFormat: "yyyy-MM-dd" },
+              grid: { color: "rgba(45, 58, 79, 0.55)" },
+              ticks: { color: "#9aa8bc", maxRotation: 0, autoSkip: true },
+            },
+            y: {
+              grid: { color: "rgba(45, 58, 79, 0.55)" },
+              ticks: {
+                color: "#9aa8bc",
+                callback: (value) => formatMoney(value),
+              },
+            },
+          },
+        },
+      });
+      renderInspectorTrendLegend(panelId, waves);
+      return true;
+    }
+
+    function renderInspectorBlueprintChart(canvas, panelId, data, blueprint) {
       const points = data.chartPoints || {};
-      const blueprint = data.fibBlueprint;
       const labels = ["Basis", "Current Price", "Consensus Target"];
       const mainSeries = [points.basis, points.currentPrice, points.consensusTarget];
       if (mainSeries.every((value) => value == null)) {
-        return;
+        return false;
       }
 
       const datasets = [{
@@ -2602,6 +2994,52 @@
           },
         },
       });
+      return true;
+    }
+
+    function getInspectorChartMode(panelId, data) {
+      const hasImportTrends = data.trendWaveSource === "import" && (data.trendWaves || []).length > 0;
+      if (!inspectorChartMode[panelId]) {
+        inspectorChartMode[panelId] = hasImportTrends ? "timeline" : "blueprint";
+      }
+      return inspectorChartMode[panelId];
+    }
+
+    function setInspectorChartMode(mode, panelId) {
+      inspectorChartMode[panelId] = mode;
+      const data = inspectorChartData[panelId];
+      if (!data) return;
+      document.querySelectorAll(`.inspector-chart-mode[data-panel="${panelId}"] .inspector-mode-btn`).forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.mode === mode);
+      });
+      const legend = document.getElementById(`inspectorTrendLegend-${panelId}`);
+      if (legend) legend.hidden = mode !== "timeline";
+      const wrap = document.querySelector(`#${panelId} .inspector-chart-wrap`);
+      if (wrap) wrap.style.height = mode === "timeline" ? "320px" : "";
+      renderInspectorChart(data, panelId);
+    }
+
+    function renderInspectorChart(data, panelId) {
+      const canvas = document.getElementById(`inspectorChart-${panelId}`);
+      if (!canvas || typeof Chart === "undefined") return;
+
+      if (inspectorCharts[panelId]) {
+        inspectorCharts[panelId].destroy();
+        inspectorCharts[panelId] = null;
+      }
+
+      const blueprint = data.fibBlueprint;
+      const waves = data.trendWaves || [];
+      const timeline = data.chartTimeline;
+      const mode = getInspectorChartMode(panelId, data);
+      const useTimeline = mode === "timeline" && data.trendWaveSource === "import" && waves.length > 0;
+
+      if (useTimeline) {
+        const rendered = renderInspectorTimelineChart(canvas, panelId, data, timeline, waves, blueprint);
+        if (rendered) return;
+      }
+
+      renderInspectorBlueprintChart(canvas, panelId, data, blueprint);
     }
 
     function renderInspectorHtml(data, panelId = "inspectorPanel") {
@@ -2677,6 +3115,11 @@
         api("/portfolio"),
       ]);
       const data = normalizeInspectorData(rawData);
+      if (inspectorChartSymbol[panelId] !== symbol) {
+        delete inspectorChartMode[panelId];
+        inspectorChartSymbol[panelId] = symbol;
+      }
+      inspectorChartData[panelId] = data;
       document.getElementById(panelId).innerHTML = renderInspectorHtml(data, panelId);
       renderInspectorChart(data, panelId);
       renderSymbolList(portfolio.symbols);

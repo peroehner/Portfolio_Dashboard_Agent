@@ -5,6 +5,7 @@ from typing import Any
 
 from services.holdings_service import HoldingsService
 from services.portfolio_service import PortfolioService
+from services.technical_service import TechnicalService
 
 BLOCK_HEADER = re.compile(
     r"\[TECHNICAL ANALYSIS EXPORT:\s*([A-Z][A-Z0-9.\-]+)\s*\]",
@@ -80,6 +81,7 @@ class ImportService:
     def __init__(self):
         self.portfolio_service = PortfolioService()
         self.holdings_service = HoldingsService()
+        self.technical_service = TechnicalService()
 
     def import_payload(self, payload: Any, mode: str = "merge") -> dict[str, Any]:
         if isinstance(payload, str):
@@ -127,9 +129,9 @@ class ImportService:
             if not isinstance(details, dict):
                 continue
             normalized = self._normalize_symbol_record(details)
-            if not normalized:
+            if not normalized and "_technical" not in details:
                 continue
-            apply_symbol(symbol, normalized)
+            apply_symbol(symbol, details)
 
         return self._finalize_import(
             {
@@ -385,9 +387,16 @@ class ImportService:
             if dividend_match:
                 record["annualDividend"] = self._clean_number(dividend_match.group(1))
 
+            technical = self.technical_service.parse_export_body(body)
+            if technical:
+                record["_technical"] = technical
+
             normalized = self._normalize_symbol_record(record)
-            if normalized:
-                records[symbol] = normalized
+            if normalized or technical:
+                payload = normalized or {}
+                if technical:
+                    payload["_technical"] = technical
+                records[symbol] = payload
 
         return records
 
@@ -587,7 +596,10 @@ class ImportService:
         symbol = symbol.upper()
         existing = self.portfolio_service.get_symbol(symbol) is not None
 
+        technical = data.pop("_technical", None)
         self.portfolio_service.upsert_symbol(symbol, data)
+        if technical:
+            self.technical_service.upsert_snapshot(symbol, technical)
         holding = False
         if any(
             key in data

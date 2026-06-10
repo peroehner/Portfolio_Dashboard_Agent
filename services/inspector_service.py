@@ -9,6 +9,7 @@ from services.fib_service import FibService
 from services.holdings_service import HoldingsService
 from services.portfolio_service import PortfolioService
 from services.screening_service import ScreeningService
+from services.technical_service import TechnicalService
 
 
 class InspectorService:
@@ -19,6 +20,7 @@ class InspectorService:
         self.assessment_service = AssessmentService()
         self.fib_service = FibService()
         self.screening_service = ScreeningService()
+        self.technical_service = TechnicalService()
 
     def inspect(self, symbol: str) -> dict[str, Any] | None:
         symbol = symbol.upper()
@@ -27,7 +29,10 @@ class InspectorService:
             return None
 
         price = symbol_data.get("currentPrice")
-        fib = self.fib_service.get_levels(symbol)
+        technical_snapshot = self.technical_service.get_snapshot(symbol)
+        fib = self.technical_service.fib_from_snapshot(symbol, technical_snapshot)
+        if not fib:
+            fib = self.fib_service.get_levels(symbol)
         nearest = (
             self.fib_service.nearest_level(symbol, price, self.screening_service.fib_proximity_pct)
             if price is not None
@@ -49,14 +54,18 @@ class InspectorService:
             "holding": holding,
             "alerts": alerts,
             "fib": fib,
-            "fibBlueprint": self._build_fib_blueprint(fib),
+            "fibBlueprint": self._build_fib_blueprint(fib, technical_snapshot),
+            "technicalSnapshot": technical_snapshot,
             "nearestFib": nearest,
             "screening": screen_row,
             "assessments": assessments,
             "recommendation": recommendation,
             "positionMechanics": self._position_mechanics(holding),
             "valuation": self._valuation_metrics(symbol, symbol_data, screen_row, holding),
-            "trendWaves": self._detect_trend_waves(symbol),
+            "trendWaves": self._trend_waves(symbol, technical_snapshot),
+            "trendWaveSource": "import" if technical_snapshot and technical_snapshot.get("trends") else "none",
+            "importedFibLevels": self.technical_service.fib_levels_list(technical_snapshot),
+            "chartTimeline": self.technical_service.chart_timeline(symbol, technical_snapshot),
             "technicalAdvisory": self._technical_advisory(price, fib),
             "chartPoints": self._chart_points(symbol_data, holding, fib),
         }
@@ -196,7 +205,18 @@ class InspectorService:
             return round(rounded * 100, 1)
         return rounded
 
-    def _build_fib_blueprint(self, fib: dict[str, Any] | None) -> dict[str, Any] | None:
+    def _trend_waves(
+        self,
+        symbol: str,
+        technical_snapshot: dict[str, Any] | None,
+    ) -> list[dict[str, Any]]:
+        return self.technical_service.trend_waves_for_symbol(symbol, technical_snapshot)
+
+    def _build_fib_blueprint(
+        self,
+        fib: dict[str, Any] | None,
+        technical_snapshot: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
         if not fib:
             return None
         palette = {
@@ -241,11 +261,16 @@ class InspectorService:
                 "color": palette["100% Base"],
             }
         )
+        anchor_trend = fib.get("anchorTrend")
+        if not anchor_trend and technical_snapshot:
+            anchor_trend = self.technical_service._anchor_trend_label(technical_snapshot)
         return {
             "swingHigh": fib["swingHigh"],
             "swingLow": fib["swingLow"],
             "period": fib.get("period"),
             "levels": levels,
+            "anchorTrend": anchor_trend,
+            "anchorNote": fib.get("anchorNote"),
         }
 
     def _position_mechanics(self, holding: dict[str, Any] | None) -> dict[str, Any] | None:
