@@ -1,4 +1,7 @@
+from datetime import datetime
 from typing import Any
+
+import yfinance as yf
 
 from services.alerts_service import AlertsService
 from services.assessment_service import AssessmentService
@@ -12,6 +15,86 @@ class OverviewService:
         self.holdings_service = HoldingsService()
         self.alerts_service = AlertsService()
         self.assessment_service = AssessmentService()
+
+    def _best_performer(
+        self,
+        candidates: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        ranked = [
+            candidate
+            for candidate in candidates
+            if candidate.get("gainPct") is not None and candidate.get("symbol")
+        ]
+        if not ranked:
+            return None
+        best = max(ranked, key=lambda candidate: candidate["gainPct"])
+        return {
+            "symbol": best["symbol"],
+            "gainPct": best["gainPct"],
+            "gain": best.get("gain"),
+        }
+
+    def _year_start_prices(self, symbols: list[str]) -> dict[str, float | None]:
+        if not symbols:
+            return {}
+
+        year = datetime.now().year
+        start = f"{year}-01-01"
+        prices = {symbol: None for symbol in symbols}
+        try:
+            data = yf.download(
+                symbols,
+                start=start,
+                progress=False,
+                auto_adjust=True,
+                group_by="column",
+            )
+            if data.empty:
+                return prices
+
+            for symbol in symbols:
+                try:
+                    if len(symbols) == 1:
+                        prices[symbol] = round(float(data["Close"].iloc[0]), 2)
+                    else:
+                        prices[symbol] = round(float(data["Close"][symbol].iloc[0]), 2)
+                except (KeyError, IndexError, TypeError, ValueError):
+                    prices[symbol] = None
+        except Exception:
+            return prices
+        return prices
+
+    def _ytd_performers(
+        self,
+        holdings: list[dict[str, Any]],
+        year_start_prices: dict[str, float | None],
+    ) -> list[dict[str, Any]]:
+        performers: list[dict[str, Any]] = []
+        for holding in holdings:
+            symbol = holding["symbol"]
+            current_price = holding.get("currentPrice")
+            year_start_price = year_start_prices.get(symbol)
+            quantity = holding.get("quantity") or 0
+            if (
+                current_price is None
+                or year_start_price is None
+                or not year_start_price
+                or not quantity
+            ):
+                continue
+            gain_pct = round(
+                (current_price - year_start_price) / year_start_price * 100,
+                2,
+            )
+            gain = round(quantity * (current_price - year_start_price), 2)
+            performers.append(
+                {
+                    "symbol": symbol,
+                    "gainPct": gain_pct,
+                    "gain": gain,
+                }
+            )
+        return performers
 
     def get_overview(self) -> dict[str, Any]:
         symbols = self.portfolio_service.list_symbols()
@@ -96,6 +179,17 @@ class OverviewService:
                 2,
             )
 
+        overall_candidates = [
+            {
+                "symbol": holding["symbol"],
+                "gainPct": holding.get("gainPct"),
+                "gain": holding.get("unrealizedGain"),
+            }
+            for holding in holdings
+        ]
+        year_start_prices = self._year_start_prices([holding["symbol"] for holding in holdings])
+        ytd_candidates = self._ytd_performers(holdings, year_start_prices)
+
         return {
             "symbolCount": len(symbols),
             "holdingCount": len(holdings),
@@ -116,6 +210,8 @@ class OverviewService:
             "totalProjectedRoc": total_projected_roc,
             "totalProjectedRocPct": total_projected_roc_pct,
             "activeAlerts": len(alerts),
+            "bestPerformer": self._best_performer(overall_candidates),
+            "bestYtdPerformer": self._best_performer(ytd_candidates),
             "alerts": alerts[:5],
             "latestAssessments": assessments,
             "holdings": holdings,

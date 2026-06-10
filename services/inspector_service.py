@@ -1,6 +1,8 @@
 import re
 from typing import Any
 
+import yfinance as yf
+
 from services.alerts_service import AlertsService
 from services.assessment_service import AssessmentService
 from services.fib_service import FibService
@@ -36,6 +38,7 @@ class InspectorService:
         )
         assessments = self.assessment_service.list_assessments(symbol=symbol, limit=20)
         alerts = self.alerts_service.list_alerts(symbol=symbol, status="active")
+        holding = self.holdings_service.get_holding(symbol)
         recommendation = self._build_recommendation(
             symbol_data, assessments, alerts, screen_row, nearest
         )
@@ -43,13 +46,19 @@ class InspectorService:
         return {
             "symbol": symbol,
             "quote": symbol_data,
-            "holding": self.holdings_service.get_holding(symbol),
+            "holding": holding,
             "alerts": alerts,
             "fib": fib,
+            "fibBlueprint": self._build_fib_blueprint(fib),
             "nearestFib": nearest,
             "screening": screen_row,
             "assessments": assessments,
             "recommendation": recommendation,
+            "positionMechanics": self._position_mechanics(holding),
+            "valuation": self._valuation_metrics(symbol, symbol_data, screen_row, holding),
+            "trendWaves": self._detect_trend_waves(symbol),
+            "technicalAdvisory": self._technical_advisory(price, fib),
+            "chartPoints": self._chart_points(symbol_data, holding, fib),
         }
 
     def _build_recommendation(
@@ -168,6 +177,247 @@ class InspectorService:
         if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9]*", text):
             return False
         return any(char.isupper() for char in text[1:])
+
+    @staticmethod
+    def _safe_round(value: Any, digits: int = 2) -> float | None:
+        if value in (None, ""):
+            return None
+        try:
+            return round(float(value), digits)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _safe_pct(value: Any) -> float | None:
+        rounded = InspectorService._safe_round(value)
+        if rounded is None:
+            return None
+        if abs(rounded) <= 1:
+            return round(rounded * 100, 1)
+        return rounded
+
+    def _build_fib_blueprint(self, fib: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not fib:
+            return None
+        palette = {
+            "0% High": "#a78bfa",
+            "38.2% Fib": "#3b82f6",
+            "50.0% Center": "#f59e0b",
+            "61.8% Golden": "#ef4444",
+            "100% Base": "#9aa8bc",
+        }
+        blueprint_ratios = {
+            0.382: ("fib-0.382", "38.2% Fib"),
+            0.5: ("fib-0.5", "50.0% Center"),
+            0.618: ("fib-0.618", "61.8% Golden"),
+        }
+        levels = [
+            {
+                "key": "high",
+                "label": "0% High",
+                "price": fib["swingHigh"],
+                "color": palette["0% High"],
+            }
+        ]
+        for level in fib.get("levels", []):
+            ratio = level.get("ratio")
+            mapping = blueprint_ratios.get(ratio)
+            if not mapping:
+                continue
+            key, label = mapping
+            levels.append(
+                {
+                    "key": key,
+                    "label": label,
+                    "price": level["price"],
+                    "color": palette.get(label, "#9aa8bc"),
+                }
+            )
+        levels.append(
+            {
+                "key": "base",
+                "label": "100% Base",
+                "price": fib["swingLow"],
+                "color": palette["100% Base"],
+            }
+        )
+        return {
+            "swingHigh": fib["swingHigh"],
+            "swingLow": fib["swingLow"],
+            "period": fib.get("period"),
+            "levels": levels,
+        }
+
+    def _position_mechanics(self, holding: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not holding:
+            return None
+        entry_date = holding.get("purchaseDate") or holding.get("createdAt")
+        if isinstance(entry_date, str) and len(entry_date) >= 10:
+            entry_date = entry_date[:10]
+        return {
+            "entryDate": entry_date,
+            "purchaseDate": holding.get("purchaseDate"),
+            "sharesOwned": holding.get("quantity"),
+            "entryCapital": holding.get("totalCost"),
+            "totalGain": holding.get("unrealizedGain"),
+            "totalGainPct": holding.get("gainPct"),
+            "currentValue": holding.get("marketValue"),
+            "costBasis": holding.get("costBasis"),
+        }
+
+    def _valuation_metrics(
+        self,
+        symbol: str,
+        symbol_data: dict[str, Any],
+        screening: dict[str, Any],
+        holding: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        metrics: dict[str, Any] = {
+            "pScore": screening.get("score"),
+            "estDividend": symbol_data.get("annualDividend") or (holding or {}).get("annualDividend"),
+            "trailingPe": None,
+            "forwardPe": None,
+            "pegRatio": None,
+            "revenueGrowth": None,
+            "operatingMargin": None,
+        }
+        try:
+            info = yf.Ticker(symbol).info
+            metrics.update(
+                {
+                    "trailingPe": self._safe_round(info.get("trailingPE")),
+                    "forwardPe": self._safe_round(info.get("forwardPE")),
+                    "pegRatio": self._safe_round(info.get("pegRatio")),
+                    "revenueGrowth": self._safe_pct(info.get("revenueGrowth")),
+                    "operatingMargin": self._safe_pct(info.get("operatingMargins")),
+                }
+            )
+        except Exception:
+            pass
+        return metrics
+
+    def _detect_trend_waves(self, symbol: str) -> list[dict[str, Any]]:
+        try:
+            history = yf.Ticker(symbol).history(period="6mo", auto_adjust=True)
+        except Exception:
+            return []
+        if history.empty or len(history) < 12:
+            return []
+
+        closes = [float(value) for value in history["Close"].tolist()]
+        dates = [index.strftime("%Y-%m-%d") for index in history.index]
+        window = 3
+        pivots: list[dict[str, Any]] = []
+        for index in range(window, len(closes) - window):
+            segment = closes[index - window : index + window + 1]
+            price = closes[index]
+            if price == max(segment):
+                pivot_type = "peak"
+            elif price == min(segment):
+                pivot_type = "trough"
+            else:
+                continue
+            pivots.append(
+                {
+                    "index": index,
+                    "price": round(price, 2),
+                    "date": dates[index],
+                    "type": pivot_type,
+                }
+            )
+
+        merged: list[dict[str, Any]] = []
+        for pivot in pivots:
+            if merged and merged[-1]["type"] == pivot["type"]:
+                previous = merged[-1]
+                if pivot["type"] == "peak" and pivot["price"] > previous["price"]:
+                    merged[-1] = pivot
+                elif pivot["type"] == "trough" and pivot["price"] < previous["price"]:
+                    merged[-1] = pivot
+                continue
+            merged.append(pivot)
+
+        waves: list[dict[str, Any]] = []
+        for wave_index, pivot in enumerate(merged[:4], start=1):
+            direction = "up" if pivot["type"] == "trough" else "down"
+            if wave_index > 1:
+                previous_price = merged[wave_index - 2]["price"]
+                direction = "up" if pivot["price"] >= previous_price else "down"
+            waves.append(
+                {
+                    "label": f"T{wave_index}",
+                    "date": pivot["date"],
+                    "price": pivot["price"],
+                    "type": pivot["type"],
+                    "direction": direction,
+                }
+            )
+        return waves
+
+    def _technical_advisory(
+        self,
+        price: float | None,
+        fib: dict[str, Any] | None,
+    ) -> dict[str, str]:
+        if price is None or not fib:
+            return {
+                "stance": "Unknown",
+                "message": "Insufficient technical data to assess support positioning.",
+            }
+
+        center_level = next(
+            (level["price"] for level in fib.get("levels", []) if level.get("ratio") == 0.5),
+            None,
+        )
+        nearest = self.fib_service.closest_level(fib["symbol"], price) if fib else None
+        distance = nearest["distancePct"] if nearest else None
+
+        if center_level is not None and price >= center_level:
+            stance = "Strong"
+            message = (
+                f"Trading at ${price:,.2f}, comfortably above 50% technical support "
+                f"level (${center_level:,.2f}). Highly bullish trend baseline."
+            )
+        elif distance is not None and distance < 2:
+            stance = "Alert"
+            level_label = nearest["level"]["label"] if nearest else "Fib"
+            message = (
+                f"Trading at ${price:,.2f}, within {distance:.2f}% of Fib {level_label}. "
+                "Immediate retest or breakout setup — monitor closely."
+            )
+        elif center_level is not None:
+            stance = "Cautious"
+            message = (
+                f"Trading at ${price:,.2f}, below 50% technical support "
+                f"(${center_level:,.2f}). Watch for stabilization before adding risk."
+            )
+        else:
+            stance = "Neutral"
+            message = f"Trading at ${price:,.2f}. Monitor key Fibonacci boundaries for setup quality."
+
+        return {"stance": stance, "message": message}
+
+    def _chart_points(
+        self,
+        symbol_data: dict[str, Any],
+        holding: dict[str, Any] | None,
+        fib: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        current_price = symbol_data.get("currentPrice")
+        target_price = (
+            symbol_data.get("analystTarget1y")
+            or symbol_data.get("targetPrice")
+        )
+        basis = None
+        if holding and holding.get("costBasis") is not None:
+            basis = holding["costBasis"]
+        elif fib:
+            basis = fib.get("swingLow")
+        return {
+            "basis": basis,
+            "currentPrice": current_price,
+            "consensusTarget": target_price,
+        }
 
     @staticmethod
     def _headline_for_action(action: str, sentiment: str) -> str:

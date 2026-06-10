@@ -14,7 +14,7 @@ class HoldingsService:
         with get_connection() as conn:
             rows = conn.execute(
                 """
-                SELECT h.symbol, h.quantity, h.cost_basis, h.account_name,
+                SELECT h.symbol, h.quantity, h.cost_basis, h.purchase_date, h.account_name,
                        h.created_at, h.updated_at, s.current_price, s.annual_dividend,
                        s.analyst_target_1y, s.target_price
                 FROM holdings h
@@ -29,7 +29,7 @@ class HoldingsService:
         with get_connection() as conn:
             row = conn.execute(
                 """
-                SELECT h.symbol, h.quantity, h.cost_basis, h.account_name,
+                SELECT h.symbol, h.quantity, h.cost_basis, h.purchase_date, h.account_name,
                        h.created_at, h.updated_at, s.current_price, s.annual_dividend,
                        s.analyst_target_1y, s.target_price
                 FROM holdings h
@@ -48,19 +48,23 @@ class HoldingsService:
         cost_basis = data.get("cost_basis", data.get("costBasis"))
         cost_basis = float(cost_basis) if cost_basis not in (None, "") else None
         account_name = data.get("account_name", data.get("accountName"))
+        purchase_date = data.get("purchase_date", data.get("purchaseDate"))
+        if purchase_date is not None:
+            purchase_date = str(purchase_date).strip()[:10] or None
 
         with get_connection() as conn:
             conn.execute(
                 """
-                INSERT INTO holdings (symbol, quantity, cost_basis, account_name)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO holdings (symbol, quantity, cost_basis, purchase_date, account_name)
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(symbol) DO UPDATE SET
                     quantity = excluded.quantity,
                     cost_basis = excluded.cost_basis,
+                    purchase_date = COALESCE(excluded.purchase_date, holdings.purchase_date),
                     account_name = excluded.account_name,
                     updated_at = datetime('now')
                 """,
-                (symbol, quantity, cost_basis, account_name),
+                (symbol, quantity, cost_basis, purchase_date, account_name),
             )
             conn.commit()
 
@@ -121,6 +125,7 @@ class HoldingsService:
             "symbol": row["symbol"],
             "quantity": quantity,
             "costBasis": cost_basis,
+            "purchaseDate": row["purchase_date"],
             "accountName": row["account_name"],
             "currentPrice": current_price,
             "marketValue": market_value,

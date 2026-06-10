@@ -27,6 +27,14 @@ POSITIONAL_LINE = re.compile(
     r"^\s*([A-Z][A-Z0-9.\-]{0,9})\s*[,;\t|]\s*"
     r"([\d.,$€£+\-]+)\s*[,;\t|]?\s*([\d.,$€£+\-]*)\s*[,;\t|]?\s*([\d.,$€£+\-]*)\s*[,;\t|]?\s*([\d.,$€£+\-]*)\s*$"
 )
+PURCHASE_LINE = re.compile(
+    r"Purchased\s+([\d.,]+)\s+shares\s+on\s+([\d-]+)\s+@\s+([\d.,]+)",
+    re.I,
+)
+DIVIDEND_LINE = re.compile(
+    r"Estimate annual dividend income:\s*([\d.,]+)",
+    re.I,
+)
 
 FIELD_ALIASES = {
     "currentprice": "currentPrice",
@@ -276,6 +284,21 @@ class ImportService:
                 records.setdefault(current_symbol, {})
                 continue
 
+            purchase_match = PURCHASE_LINE.search(line)
+            if purchase_match and current_symbol:
+                record = records.setdefault(current_symbol, {})
+                record["quantity"] = self._clean_number(purchase_match.group(1))
+                record["purchaseDate"] = purchase_match.group(2)
+                record["costBasis"] = self._clean_number(purchase_match.group(3))
+                continue
+
+            dividend_match = DIVIDEND_LINE.search(line)
+            if dividend_match and current_symbol:
+                records.setdefault(current_symbol, {})["annualDividend"] = self._clean_number(
+                    dividend_match.group(1)
+                )
+                continue
+
             kv_match = KV_LINE.match(line)
             if not kv_match:
                 continue
@@ -352,20 +375,13 @@ class ImportService:
             if target_match:
                 record["analystTarget1y"] = self._clean_number(target_match.group(1))
 
-            purchase_match = re.search(
-                r"Purchased\s+([\d.,]+)\s+shares\s+on\s+[\d-]+\s+@\s+([\d.,]+)",
-                body,
-                re.I,
-            )
+            purchase_match = PURCHASE_LINE.search(body)
             if purchase_match:
                 record["quantity"] = self._clean_number(purchase_match.group(1))
-                record["costBasis"] = self._clean_number(purchase_match.group(2))
+                record["purchaseDate"] = purchase_match.group(2)
+                record["costBasis"] = self._clean_number(purchase_match.group(3))
 
-            dividend_match = re.search(
-                r"Estimate annual dividend income:\s*([\d.,]+)",
-                body,
-                re.I,
-            )
+            dividend_match = DIVIDEND_LINE.search(body)
             if dividend_match:
                 record["annualDividend"] = self._clean_number(dividend_match.group(1))
 
@@ -455,12 +471,15 @@ class ImportService:
             "quantity": ("quantity", "shares", "qty"),
             "costBasis": ("costBasis", "cost_basis", "cost"),
             "annualDividend": ("annualDividend", "annual_dividend", "dividend"),
+            "purchaseDate": ("purchaseDate", "purchase_date", "entryDate", "entry_date"),
         }
         for target, keys in mapping.items():
             for key in keys:
                 if key in details and details[key] not in (None, ""):
                     value = details[key]
-                    if isinstance(value, (int, float)):
+                    if target == "purchaseDate":
+                        normalized[target] = str(value).strip()[:10]
+                    elif isinstance(value, (int, float)):
                         normalized[target] = float(value)
                     else:
                         parsed = self._clean_number(str(value))
@@ -570,7 +589,17 @@ class ImportService:
 
         self.portfolio_service.upsert_symbol(symbol, data)
         holding = False
-        if any(key in data for key in ("quantity", "shares", "costBasis", "cost_basis")):
+        if any(
+            key in data
+            for key in (
+                "quantity",
+                "shares",
+                "costBasis",
+                "cost_basis",
+                "purchaseDate",
+                "purchase_date",
+            )
+        ):
             self.holdings_service.upsert_holding(symbol, data)
             holding = True
 

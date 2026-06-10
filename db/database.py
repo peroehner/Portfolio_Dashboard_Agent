@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS holdings (
     symbol TEXT PRIMARY KEY,
     quantity REAL NOT NULL DEFAULT 0,
     cost_basis REAL,
+    purchase_date TEXT,
     account_name TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -121,6 +122,10 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE notes ADD COLUMN synthesis_provider TEXT")
     if "synthesized_at" not in note_columns:
         conn.execute("ALTER TABLE notes ADD COLUMN synthesized_at TEXT")
+
+    holding_columns = {row[1] for row in conn.execute("PRAGMA table_info(holdings)")}
+    if "purchase_date" not in holding_columns:
+        conn.execute("ALTER TABLE holdings ADD COLUMN purchase_date TEXT")
 
 
 def init_db() -> None:

@@ -188,6 +188,53 @@
     .metric .subvalue { font-size: 0.9rem; font-weight: 600; color: var(--accent-2); margin-top: 0.2rem; }
     .metric .subvalue.negative { color: var(--danger); }
     .metric-hint { color: var(--muted); font-size: 0.75rem; margin-top: 0.2rem; }
+    .summary-strip {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: stretch;
+      gap: 0.5rem;
+      overflow-x: auto;
+      padding-bottom: 0.15rem;
+      scrollbar-width: thin;
+    }
+    .summary-strip::-webkit-scrollbar { height: 5px; }
+    .summary-strip::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 999px;
+    }
+    .summary-strip .metric {
+      flex: 1 1 0;
+      min-width: 8.5rem;
+      border: 1px solid var(--border);
+      padding: 0.85rem 0.95rem;
+    }
+    .summary-strip .metric .label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.35rem;
+    }
+    .summary-strip .metric .value {
+      font-size: 1.05rem;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    .summary-strip .metric .value-row {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .summary-strip .metric .value-note {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .summary-strip .metric .subvalue {
+      font-size: 0.82rem;
+      margin-top: 0.3rem;
+    }
     table.data th.sortable { cursor: pointer; user-select: none; }
     table.data th.sortable:hover { color: var(--text); }
     table.data th.sortable.active { color: var(--accent); }
@@ -435,6 +482,170 @@
       padding: 0.35rem 0.5rem;
       border-bottom: 1px solid var(--border);
     }
+    .inspector-dashboard {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(16rem, 0.85fr);
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .inspector-chart-card,
+    .inspector-side-card,
+    .valuation-scoring {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    .inspector-chart-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .inspector-chart-head h3,
+    .valuation-scoring h3,
+    .inspector-side-card h3 {
+      margin: 0 0 0.65rem;
+      font-size: 0.95rem;
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: normal;
+    }
+    .fib-toggle-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.75rem;
+      justify-content: flex-end;
+    }
+    .fib-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .inspector-chart-wrap {
+      position: relative;
+      height: 280px;
+    }
+    .inspector-chart-wrap canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+    .trend-waves-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.85rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid var(--border);
+    }
+    .trend-wave-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.28rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .trend-wave-tag.up { color: var(--accent-2); border-color: rgba(34, 197, 94, 0.35); }
+    .trend-wave-tag.down { color: #fca5a5; border-color: rgba(239, 68, 68, 0.35); }
+    .inspector-side-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .inspector-kv {
+      margin: 0;
+      display: grid;
+      gap: 0.55rem;
+    }
+    .inspector-kv > div {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      font-size: 0.88rem;
+    }
+    .inspector-kv dt {
+      margin: 0;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .inspector-kv dd {
+      margin: 0;
+      font-weight: 600;
+      text-align: right;
+    }
+    .gain-pos { color: var(--accent-2); }
+    .gain-neg { color: var(--danger); }
+    .inspector-side-card.advisory {
+      border-color: rgba(34, 197, 94, 0.28);
+      background: rgba(34, 197, 94, 0.08);
+    }
+    .inspector-side-card.advisory.alert {
+      border-color: rgba(239, 68, 68, 0.28);
+      background: rgba(239, 68, 68, 0.08);
+    }
+    .inspector-side-card.advisory.cautious,
+    .inspector-side-card.advisory.neutral,
+    .inspector-side-card.advisory.unknown {
+      border-color: rgba(245, 158, 11, 0.28);
+      background: rgba(245, 158, 11, 0.08);
+    }
+    .advisory-stance {
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+      font-size: 0.9rem;
+    }
+    .inspector-side-card.advisory p {
+      margin: 0;
+      font-size: 0.84rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .valuation-scoring {
+      margin-bottom: 1rem;
+    }
+    .valuation-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 0.65rem;
+    }
+    .valuation-metric {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.7rem 0.75rem;
+      min-width: 0;
+    }
+    .valuation-metric .label {
+      display: block;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 0.3rem;
+    }
+    .valuation-metric .value {
+      font-size: 0.98rem;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    @media (max-width: 1100px) {
+      .inspector-dashboard { grid-template-columns: 1fr; }
+      .valuation-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 700px) {
+      .valuation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
     .inspector-section {
       margin-top: 1.25rem;
     }
@@ -498,6 +709,101 @@
     .view { padding: 1rem; }
     .view[hidden] { display: none !important; }
     .wide-panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 1rem; }
+    .fib-map-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.25rem;
+    }
+    .fib-map-header h2 { margin: 0; }
+    .fib-legend-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin: 1rem 0;
+    }
+    .fib-legend-card {
+      border-radius: 10px;
+      padding: 0.85rem 0.95rem;
+      border: 1px solid var(--border);
+    }
+    .fib-legend-card strong {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.88rem;
+      margin-bottom: 0.3rem;
+    }
+    .fib-legend-card p {
+      margin: 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .fib-legend-card.critical {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.35);
+    }
+    .fib-legend-card.warning {
+      background: rgba(245, 158, 11, 0.1);
+      border-color: rgba(245, 158, 11, 0.35);
+    }
+    .fib-legend-card.neutral {
+      background: rgba(154, 168, 188, 0.08);
+      border-color: var(--border);
+    }
+    .fib-filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+    }
+    .fib-filter-bar .filter-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .fib-ticker-filter {
+      margin-left: auto;
+      min-width: 12rem;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.55rem 0.65rem;
+      font: inherit;
+      color: var(--text);
+    }
+    .fib-proximity-cell {
+      display: inline-block;
+      padding: 0.18rem 0.5rem;
+      border-radius: 6px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .fib-proximity-cell.fib-critical {
+      background: rgba(239, 68, 68, 0.18);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+    .fib-proximity-cell.fib-warning {
+      background: rgba(245, 158, 11, 0.18);
+      color: #fcd34d;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+    .fib-proximity-cell.fib-neutral {
+      background: rgba(154, 168, 188, 0.12);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .fib-proximity-cell.fib-unknown {
+      color: var(--muted);
+    }
+    @media (max-width: 900px) {
+      .fib-legend-grid { grid-template-columns: 1fr; }
+      .fib-ticker-filter { margin-left: 0; width: 100%; }
+    }
     table.data { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     table.data th, table.data td { text-align: left; padding: 0.55rem 0.4rem; border-bottom: 1px solid var(--border); }
     table.data th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; }
@@ -581,7 +887,7 @@
   <div id="view-overview" class="view">
     <div class="wide-panel">
       <h2>Portfolio Summary</h2>
-      <div class="grid-2" id="overviewMetrics"></div>
+      <div class="summary-strip" id="overviewMetrics"></div>
     </div>
     <div class="wide-panel" id="overviewVisualsPanel" hidden>
       <div class="overview-visuals-grid">
@@ -720,9 +1026,31 @@
 
   <div id="view-fib" class="view" hidden>
     <div class="wide-panel">
-      <h2>Fibonacci Proximity Map</h2>
-      <button class="secondary" onclick="loadFibMap()">Refresh</button>
-      <div id="fibMapTable" style="margin-top:0.75rem;"></div>
+      <div class="fib-map-header">
+        <h2>Fibonacci Proximity Map</h2>
+        <button class="secondary" onclick="loadFibMap()">Refresh</button>
+      </div>
+      <div class="fib-legend-grid">
+        <section class="fib-legend-card critical">
+          <strong><span aria-hidden="true">!</span> Critical Proximity Block (&lt;2% Dist)</strong>
+          <p>Immediate target retest or breakout setup. High alert required.</p>
+        </section>
+        <section class="fib-legend-card warning">
+          <strong><span aria-hidden="true">⚠</span> Near Support/Retest Block (2% - 5%)</strong>
+          <p>Localized consolidation building momentum. Primary watching zone.</p>
+        </section>
+        <section class="fib-legend-card neutral">
+          <strong><span aria-hidden="true">✓</span> Neutral Range (&gt;5% Dist)</strong>
+          <p>Stable range operations. Healthy distance from technical boundaries.</p>
+        </section>
+      </div>
+      <div class="fib-filter-bar">
+        <button type="button" class="secondary filter-btn active" data-fib-band="all" onclick="setFibMapBand('all')">All Levels</button>
+        <button type="button" class="secondary filter-btn" data-fib-band="critical" onclick="setFibMapBand('critical')">Critical Only (&lt;2%)</button>
+        <button type="button" class="secondary filter-btn" data-fib-band="warning" onclick="setFibMapBand('warning')">Warning Only (2%-5%)</button>
+        <input type="text" id="fibTickerFilter" class="fib-ticker-filter" placeholder="Filter by ticker..." oninput="setFibTickerFilter(this.value)">
+      </div>
+      <div id="fibMapTable"></div>
     </div>
   </div>
 
@@ -840,6 +1168,12 @@
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
+    const summaryMoneyFormatter = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
     const priceFormatter = new Intl.NumberFormat("en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
@@ -886,6 +1220,26 @@
       const amount = Number(value);
       if (!Number.isFinite(amount)) return "—";
       return moneyFormatter.format(amount);
+    }
+
+    function formatSummaryMoney(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      return summaryMoneyFormatter.format(Math.round(amount));
+    }
+
+    function renderPerformerMetric(performer) {
+      if (!performer?.symbol) {
+        return `<div class="value">—</div>`;
+      }
+      const pctClass = (performer.gainPct ?? 0) < 0 ? "subvalue negative" : "subvalue";
+      const pct = Number(performer.gainPct);
+      const sign = pct > 0 ? "+" : "";
+      return `
+        <div class="value">${performer.symbol}</div>
+        <div class="${pctClass}">${sign}${pct.toFixed(2)}% (${formatSummaryMoney(performer.gain)})</div>
+      `;
     }
 
     function formatPriceInput(value) {
@@ -1356,7 +1710,7 @@
         document.getElementById("screeningTable").innerHTML = renderScreeningTable(tableDataCache.screening || []);
       }
       if (tableId === "fib") {
-        document.getElementById("fibMapTable").innerHTML = renderFibMapTable(tableDataCache.fib || []);
+        renderFibMapView();
       }
     }
 
@@ -1558,34 +1912,52 @@
       const data = await api("/overview");
       const gainYieldClass = (data.unrealizedGainPct ?? 0) < 0 ? "subvalue negative" : "subvalue";
       const analystYieldClass = (data.totalAnalystUpsidePct ?? 0) < 0 ? "subvalue negative" : "subvalue";
+      const watchOnly = data.watchlistOnlyCount || 0;
+      const watchOnlyNote = watchOnly === 1
+        ? "(1 watch only)"
+        : `(${watchOnly} watch only)`;
       document.getElementById("overviewMetrics").innerHTML = `
         <div class="metric">
           <div class="label">Tracked Symbols</div>
-          <div class="value">${data.symbolCount}</div>
-          <div class="metric-hint">Tickers with prices, targets &amp; notes</div>
+          <div class="value-row">
+            <div class="value">${data.symbolCount}</div>
+            ${watchOnly ? `<span class="value-note">${watchOnlyNote}</span>` : ""}
+          </div>
         </div>
         <div class="metric">
-          <div class="label">Open Positions</div>
-          <div class="value">${data.holdingCount}</div>
-          <div class="metric-hint">${data.watchlistOnlyCount || 0} watchlist-only</div>
+          <div class="label">Market Value</div>
+          <div class="value">${formatSummaryMoney(data.totalMarketValue)}</div>
         </div>
-        <div class="metric"><div class="label">Market Value</div><div class="value">${formatMoney(data.totalMarketValue)}</div></div>
-        <div class="metric"><div class="label">Cost Basis</div><div class="value">${formatMoney(data.totalCostBasis)}</div></div>
+        <div class="metric">
+          <div class="label">Cost Basis</div>
+          <div class="value">${formatSummaryMoney(data.totalCostBasis)}</div>
+        </div>
         <div class="metric">
           <div class="label">Unrealized Gain</div>
-          <div class="value">${formatMoney(data.unrealizedGain)}</div>
+          <div class="value">${formatSummaryMoney(data.unrealizedGain)}</div>
           <div class="${gainYieldClass}">${formatYield(data.unrealizedGainPct)}</div>
         </div>
         <div class="metric">
           <div class="label">Total 1YT Value</div>
-          <div class="value">${formatMoney(data.totalAnalystTargetValue)}</div>
+          <div class="value">${formatSummaryMoney(data.totalAnalystTargetValue)}</div>
           <div class="${analystYieldClass}">${formatYield(data.totalAnalystUpsidePct)}</div>
         </div>
         <div class="metric">
-          <div class="label">Total Annual Dividend</div>
-          <div class="value">${formatMoney(data.totalAnnualDividend)}</div>
+          <div class="label">Annual Dividend</div>
+          <div class="value">${formatSummaryMoney(data.totalAnnualDividend)}</div>
         </div>
-        <div class="metric"><div class="label">Active Alerts</div><div class="value">${data.activeAlerts}</div></div>
+        <div class="metric">
+          <div class="label">Best Performer</div>
+          ${renderPerformerMetric(data.bestPerformer)}
+        </div>
+        <div class="metric">
+          <div class="label">Best Performer (Current Year)</div>
+          ${renderPerformerMetric(data.bestYtdPerformer)}
+        </div>
+        <div class="metric">
+          <div class="label">Alerts</div>
+          <div class="value">${data.activeAlerts}</div>
+        </div>
       `;
       renderOverviewVisuals(data);
     }
@@ -1637,22 +2009,88 @@
       );
     }
 
+    let fibMapData = [];
+    let fibMapBand = "all";
+    let fibMapTicker = "";
+
+    function fibProximityZone(distancePct) {
+      if (distancePct == null || distancePct === "") return "unknown";
+      const distance = Number(distancePct);
+      if (!Number.isFinite(distance)) return "unknown";
+      if (distance < 2) return "critical";
+      if (distance <= 5) return "warning";
+      return "neutral";
+    }
+
+    function renderFibProximityCell(row, value) {
+      const zone = fibProximityZone(row.distancePct);
+      const content = value ?? "—";
+      return `<span class="fib-proximity-cell fib-${zone}">${content}</span>`;
+    }
+
     const fibColumns = [
       { key: "symbol", label: "Symbol", sortValue: (row) => row.symbol, render: (row) => row.symbol },
       { key: "currentPrice", label: "Price", sortValue: (row) => row.currentPrice, render: (row) => formatMoney(row.currentPrice) },
-      { key: "nearestFibLabel", label: "Nearest Fib", sortValue: (row) => row.nearestFib?.label, render: (row) => row.nearestFib ? row.nearestFib.label : "—" },
+      {
+        key: "nearestFibLabel",
+        label: "Nearest Fib",
+        sortValue: (row) => row.nearestFib?.label,
+        render: (row) => renderFibProximityCell(row, row.nearestFib?.label),
+      },
       { key: "nearestFibPrice", label: "Level", sortValue: (row) => row.nearestFib?.price, render: (row) => row.nearestFib ? formatMoney(row.nearestFib.price) : "—" },
-      { key: "distancePct", label: "Distance", sortValue: (row) => row.distancePct, render: (row) => `${row.distancePct ?? "—"}%` },
+      {
+        key: "distancePct",
+        label: "Distance",
+        sortValue: (row) => row.distancePct,
+        render: (row) => renderFibProximityCell(row, row.distancePct == null ? null : `${row.distancePct}%`),
+      },
       { key: "withinBand", label: "In Band", sortValue: (row) => row.withinBand ? 1 : 0, render: (row) => row.withinBand ? "Yes" : "No" },
     ];
 
-    function renderFibMapTable(rows) {
+    function applyFibMapFilters(rows) {
+      const ticker = fibMapTicker.trim().toLowerCase();
+      return rows.filter((row) => {
+        if (ticker && !String(row.symbol || "").toLowerCase().includes(ticker)) {
+          return false;
+        }
+        const zone = fibProximityZone(row.distancePct);
+        if (fibMapBand === "critical") return zone === "critical";
+        if (fibMapBand === "warning") return zone === "warning";
+        return true;
+      });
+    }
+
+    function updateFibFilterButtons() {
+      document.querySelectorAll(".fib-filter-bar .filter-btn").forEach((button) => {
+        button.classList.toggle("active", button.dataset.fibBand === fibMapBand);
+      });
+    }
+
+    function setFibMapBand(band) {
+      fibMapBand = band;
+      updateFibFilterButtons();
+      renderFibMapView();
+    }
+
+    function setFibTickerFilter(value) {
+      fibMapTicker = value || "";
+      renderFibMapView();
+    }
+
+    function renderFibMapTable() {
+      const rows = applyFibMapFilters(fibMapData);
       return renderSortableTable(
         "fib",
         fibColumns,
         rows,
-        "No symbols to map."
+        fibMapData.length ? "No symbols match the current filters." : "No symbols to map."
       );
+    }
+
+    function renderFibMapView() {
+      tableDataCache.fib = fibMapData;
+      document.getElementById("fibMapTable").innerHTML = renderFibMapTable();
+      updateFibFilterButtons();
     }
 
     function pickImportFile() {
@@ -1725,7 +2163,8 @@
 
     async function loadFibMap() {
       const data = await api("/fib-proximity");
-      document.getElementById("fibMapTable").innerHTML = renderFibMapTable(data.results);
+      fibMapData = data.results || [];
+      renderFibMapView();
     }
 
     function renderRecommendationCard(rec) {
@@ -1824,8 +2263,348 @@
         </div>`;
     }
 
+    const inspectorCharts = {};
+    const inspectorFibToggles = {
+      high: true,
+      "fib-0.382": true,
+      "fib-0.5": false,
+      "fib-0.618": true,
+      base: true,
+    };
+
+    function buildClientFibBlueprint(fib) {
+      if (!fib) return null;
+      const palette = {
+        "0% High": "#a78bfa",
+        "38.2% Fib": "#3b82f6",
+        "50.0% Center": "#f59e0b",
+        "61.8% Golden": "#ef4444",
+        "100% Base": "#9aa8bc",
+      };
+      const blueprintRatios = {
+        0.382: ["fib-0.382", "38.2% Fib"],
+        0.5: ["fib-0.5", "50.0% Center"],
+        0.618: ["fib-0.618", "61.8% Golden"],
+      };
+      const levels = [{
+        key: "high",
+        label: "0% High",
+        price: fib.swingHigh,
+        color: palette["0% High"],
+      }];
+      (fib.levels || []).forEach((level) => {
+        const mapping = blueprintRatios[level.ratio];
+        if (!mapping) return;
+        const [key, label] = mapping;
+        levels.push({ key, label, price: level.price, color: palette[label] });
+      });
+      levels.push({
+        key: "base",
+        label: "100% Base",
+        price: fib.swingLow,
+        color: palette["100% Base"],
+      });
+      return { swingHigh: fib.swingHigh, swingLow: fib.swingLow, period: fib.period, levels };
+    }
+
+    function buildClientTechnicalAdvisory(price, fib) {
+      if (price == null || !fib) {
+        const reasons = [];
+        if (price == null) reasons.push("current price is missing (run Sync Prices)");
+        if (!fib) reasons.push("Fibonacci levels could not be computed");
+        return {
+          stance: "Unknown",
+          message: reasons.length
+            ? `Insufficient technical data: ${reasons.join("; ")}.`
+            : "Insufficient technical data to assess support positioning.",
+        };
+      }
+      const centerLevel = (fib.levels || []).find((level) => level.ratio === 0.5)?.price;
+      if (centerLevel != null && price >= centerLevel) {
+        return {
+          stance: "Strong",
+          message: `Trading at ${formatMoney(price)}, comfortably above 50% technical support level (${formatMoney(centerLevel)}). Highly bullish trend baseline.`,
+        };
+      }
+      if (centerLevel != null) {
+        return {
+          stance: "Cautious",
+          message: `Trading at ${formatMoney(price)}, below 50% technical support (${formatMoney(centerLevel)}). Watch for stabilization before adding risk.`,
+        };
+      }
+      return {
+        stance: "Neutral",
+        message: `Trading at ${formatMoney(price)}. Monitor key Fibonacci boundaries for setup quality.`,
+      };
+    }
+
+    function normalizeInspectorData(data) {
+      const quote = data.quote || {};
+      const holding = data.holding;
+      const screening = data.screening || {};
+      const fib = data.fib;
+
+      if (!data.positionMechanics && holding) {
+        const entryDate = holding.purchaseDate
+          ? String(holding.purchaseDate).slice(0, 10)
+          : holding.createdAt
+            ? String(holding.createdAt).slice(0, 10)
+            : null;
+        data.positionMechanics = {
+          entryDate,
+          purchaseDate: holding.purchaseDate ?? null,
+          sharesOwned: holding.quantity,
+          entryCapital: holding.totalCost,
+          totalGain: holding.unrealizedGain,
+          totalGainPct: holding.gainPct,
+          currentValue: holding.marketValue,
+          costBasis: holding.costBasis,
+        };
+      }
+
+      if (!data.chartPoints) {
+        data.chartPoints = {
+          basis: holding?.costBasis ?? fib?.swingLow ?? null,
+          currentPrice: quote.currentPrice ?? holding?.currentPrice ?? null,
+          consensusTarget: quote.analystTarget1y ?? quote.targetPrice ?? null,
+        };
+      }
+
+      if (!data.fibBlueprint) {
+        data.fibBlueprint = buildClientFibBlueprint(fib);
+      }
+
+      if (!data.technicalAdvisory) {
+        const price = quote.currentPrice ?? holding?.currentPrice ?? null;
+        data.technicalAdvisory = buildClientTechnicalAdvisory(price, fib);
+      }
+
+      if (!data.valuation) {
+        data.valuation = {
+          pScore: screening.score ?? null,
+          estDividend: quote.annualDividend ?? holding?.annualDividend ?? null,
+          trailingPe: null,
+          forwardPe: null,
+          pegRatio: null,
+          revenueGrowth: null,
+          operatingMargin: null,
+        };
+      } else {
+        data.valuation = {
+          pScore: data.valuation.pScore ?? screening.score ?? null,
+          estDividend: data.valuation.estDividend ?? quote.annualDividend ?? holding?.annualDividend ?? null,
+          trailingPe: data.valuation.trailingPe ?? null,
+          forwardPe: data.valuation.forwardPe ?? null,
+          pegRatio: data.valuation.pegRatio ?? null,
+          revenueGrowth: data.valuation.revenueGrowth ?? null,
+          operatingMargin: data.valuation.operatingMargin ?? null,
+        };
+      }
+
+      data._inspectorNeedsServerRefresh = (
+        data.valuation.trailingPe == null
+        && data.valuation.forwardPe == null
+        && !(data.trendWaves || []).length
+      );
+
+      return data;
+    }
+
+    function formatGainLine(gain, pct) {
+      if (gain == null && pct == null) return "—";
+      const gainText = gain != null ? formatSignedMoney(gain) : "—";
+      if (pct == null || pct === "") return gainText;
+      const amount = Number(pct);
+      const sign = amount > 0 ? "+" : "";
+      return `${gainText} (${sign}${amount.toFixed(1)}%)`;
+    }
+
+    function formatInspectorMetric(value, suffix = "") {
+      if (value == null || value === "") return "—";
+      return `${value}${suffix}`;
+    }
+
+    function renderValuationMetric(label, value, valueClass = "") {
+      return `
+        <div class="valuation-metric">
+          <span class="label">${label}</span>
+          <span class="value ${valueClass}">${value}</span>
+        </div>
+      `;
+    }
+
+    function renderInspectorDashboard(data, panelId) {
+      const pm = data.positionMechanics;
+      const val = data.valuation || {};
+      const advisory = data.technicalAdvisory || {};
+      const waves = data.trendWaves || [];
+      const blueprint = data.fibBlueprint;
+      const fibToggles = (blueprint?.levels || []).map((level) => `
+        <label class="fib-toggle">
+          <input
+            type="checkbox"
+            data-fib-key="${level.key}"
+            ${inspectorFibToggles[level.key] !== false ? "checked" : ""}
+            onchange="onInspectorFibToggle(this)"
+          >
+          ${level.label}
+        </label>
+      `).join("");
+      const stanceClass = String(advisory.stance || "neutral").toLowerCase();
+      const setupHint = data._inspectorNeedsServerRefresh
+        ? `<div class="alert" style="margin-bottom:0.85rem;">Inspector analytics are partial. Restart the server from <code>Portfolio_Dashboard_Agent</code> with <code>python3 main.py</code>, then use <strong>Sync Prices</strong> so Fib levels, valuation metrics, and trend waves can load.</div>`
+        : "";
+
+      return `
+        ${setupHint}
+        <div class="inspector-dashboard">
+          <section class="inspector-chart-card">
+            <div class="inspector-chart-head">
+              <h3>Performance Metrics & Fibonacci Blueprint</h3>
+              <div class="fib-toggle-row">${fibToggles || ""}</div>
+            </div>
+            <div class="inspector-chart-wrap">
+              <canvas id="inspectorChart-${panelId}" aria-label="Fibonacci blueprint chart for ${data.symbol}"></canvas>
+            </div>
+            <div class="trend-waves-row">
+              <strong style="font-size:0.8rem;color:var(--muted);margin-right:0.35rem;">Detected Trend Waves:</strong>
+              ${waves.length
+                ? waves.map((wave) => `
+                    <span class="trend-wave-tag ${wave.direction}">
+                      ${wave.label} ${wave.direction === "up" ? "↑" : "↓"} ${formatMoney(wave.price)} · ${wave.date}
+                    </span>
+                  `).join("")
+                : `<span class="empty">No trend waves detected yet.</span>`}
+            </div>
+          </section>
+          <aside class="inspector-side-stack">
+            <section class="inspector-side-card">
+              <h3>Position Mechanics</h3>
+              ${pm ? `
+                <dl class="inspector-kv">
+                  <div><dt>Entry Date</dt><dd>${pm.entryDate || "—"}</dd></div>
+                  <div><dt>Shares Owned</dt><dd>${pm.sharesOwned ?? "—"}</dd></div>
+                  <div><dt>Entry Capital</dt><dd>${formatMoney(pm.entryCapital)}</dd></div>
+                  <div><dt>Total Gain</dt><dd class="${(pm.totalGain ?? 0) >= 0 ? "gain-pos" : "gain-neg"}">${formatGainLine(pm.totalGain, pm.totalGainPct)}</dd></div>
+                  <div><dt>Current Value</dt><dd>${formatMoney(pm.currentValue)}</dd></div>
+                </dl>
+              ` : `<div class="empty">No holding recorded for this symbol.</div>`}
+            </section>
+            <section class="inspector-side-card advisory ${stanceClass}">
+              <h3>Technical Risk Advisory</h3>
+              <div class="advisory-stance">Technical Stance: ${advisory.stance || "Unknown"}</div>
+              <p>${advisory.message || "Insufficient technical data to assess support positioning."}</p>
+            </section>
+          </aside>
+        </div>
+        <section class="valuation-scoring">
+          <h3>Valuation & Scoring</h3>
+          <div class="valuation-grid">
+            ${renderValuationMetric("P-Score", formatInspectorMetric(val.pScore))}
+            ${renderValuationMetric("Est. Dividend", formatMoney(val.estDividend), (val.estDividend ?? 0) > 0 ? "gain-pos" : "")}
+            ${renderValuationMetric("Trailing P/E", formatInspectorMetric(val.trailingPe))}
+            ${renderValuationMetric("Forward P/E", formatInspectorMetric(val.forwardPe))}
+            ${renderValuationMetric("PEG Ratio", formatInspectorMetric(val.pegRatio))}
+            ${renderValuationMetric("Rev Growth", formatInspectorMetric(val.revenueGrowth, "%"))}
+            ${renderValuationMetric("Op Margin", formatInspectorMetric(val.operatingMargin, "%"))}
+          </div>
+        </section>
+      `;
+    }
+
+    function onInspectorFibToggle(checkbox) {
+      inspectorFibToggles[checkbox.dataset.fibKey] = checkbox.checked;
+      Object.values(inspectorCharts).forEach((chart) => {
+        if (!chart) return;
+        chart.data.datasets.forEach((dataset) => {
+          if (!dataset._fibKey) return;
+          dataset.hidden = !inspectorFibToggles[dataset._fibKey];
+        });
+        chart.update();
+      });
+    }
+
+    function renderInspectorChart(data, panelId) {
+      const canvas = document.getElementById(`inspectorChart-${panelId}`);
+      if (!canvas || typeof Chart === "undefined") return;
+
+      if (inspectorCharts[panelId]) {
+        inspectorCharts[panelId].destroy();
+        inspectorCharts[panelId] = null;
+      }
+
+      const points = data.chartPoints || {};
+      const blueprint = data.fibBlueprint;
+      const labels = ["Basis", "Current Price", "Consensus Target"];
+      const mainSeries = [points.basis, points.currentPrice, points.consensusTarget];
+      if (mainSeries.every((value) => value == null)) {
+        return;
+      }
+
+      const datasets = [{
+        label: data.symbol,
+        data: mainSeries,
+        borderColor: "#8b5cf6",
+        backgroundColor: "rgba(139, 92, 246, 0.18)",
+        fill: true,
+        tension: 0.35,
+        pointRadius: [5, 8, 8],
+        pointHoverRadius: [6, 9, 9],
+        pointBackgroundColor: "#8b5cf6",
+        spanGaps: true,
+      }];
+
+      (blueprint?.levels || []).forEach((level) => {
+        datasets.push({
+          label: level.label,
+          data: [level.price, level.price, level.price],
+          borderColor: level.color,
+          borderDash: [6, 4],
+          pointRadius: 0,
+          borderWidth: 1.5,
+          fill: false,
+          _fibKey: level.key,
+          hidden: inspectorFibToggles[level.key] === false,
+        });
+      });
+
+      inspectorCharts[panelId] = new Chart(canvas, {
+        type: "line",
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label(context) {
+                  const value = context.raw;
+                  if (value == null) return `${context.dataset.label}: —`;
+                  return `${context.dataset.label}: ${formatMoney(value)}`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              grid: { color: "rgba(45, 58, 79, 0.55)" },
+              ticks: { color: "#9aa8bc" },
+            },
+            y: {
+              grid: { color: "rgba(45, 58, 79, 0.55)" },
+              ticks: {
+                color: "#9aa8bc",
+                callback: (value) => formatMoney(value),
+              },
+            },
+          },
+        },
+      });
+    }
+
     function renderInspectorHtml(data, panelId = "inspectorPanel") {
-      const s = data.screening;
       const rec = data.recommendation || {};
       const notes = data.quote.notes || [];
       const assessments = data.assessments || [];
@@ -1834,6 +2613,7 @@
       const latestAssessment = assessments[0];
       const olderAssessments = assessments.slice(1);
       return `
+        ${renderInspectorDashboard(data, panelId)}
         ${renderRecommendationCard(rec)}
         <div class="inspector-section">
           <h3>Latest Overall Synthesis</h3>
@@ -1857,19 +2637,11 @@
               ${olderAssessments.map((a) => renderInspectorAssessmentItem(a, { history: true, panelId })).join("")}
             </details>` : ""}
         </div>
+        ${data.alerts.length ? `
         <div class="inspector-section">
-          <h3>Market snapshot</h3>
-          <div class="grid-2">
-            <div class="metric"><div class="label">Price</div><div class="value">${formatMoney(data.quote.currentPrice)}</div></div>
-            <div class="metric"><div class="label">Score</div><div class="value">${s.score}</div></div>
-            <div class="metric"><div class="label">Upside</div><div class="value">${s.upsidePct ?? "—"}%</div></div>
-            <div class="metric"><div class="label">Fib Distance</div><div class="value">${s.fibDistancePct ?? "—"}%</div></div>
-          </div>
-          <div style="margin-top:0.5rem;font-size:0.88rem;">
-            ${data.holding ? `<strong>Holding:</strong> ${data.holding.quantity} shares · ${formatMoney(data.holding.marketValue)}` : "No holding recorded."}
-          </div>
-          ${data.alerts.length ? data.alerts.map((a) => `<div class="alert" style="margin-top:0.4rem;">${a.message}</div>`).join("") : ""}
-        </div>
+          <h3>Active Alerts</h3>
+          ${data.alerts.map((a) => `<div class="alert">${a.message}</div>`).join("")}
+        </div>` : ""}
       `;
     }
 
@@ -1900,11 +2672,13 @@
     async function loadInspector(symbol, panelId = "inspectorPanel") {
       if (!symbol) return;
       selectedSymbol = symbol;
-      const [data, portfolio] = await Promise.all([
+      const [rawData, portfolio] = await Promise.all([
         api(`/symbols/${symbol}/inspector`),
         api("/portfolio"),
       ]);
+      const data = normalizeInspectorData(rawData);
       document.getElementById(panelId).innerHTML = renderInspectorHtml(data, panelId);
+      renderInspectorChart(data, panelId);
       renderSymbolList(portfolio.symbols);
       renderInspectorSymbolList(portfolio.symbols);
       if (panelId === "holdingsInspectorPanel") {

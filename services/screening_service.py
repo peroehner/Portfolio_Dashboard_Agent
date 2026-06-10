@@ -35,17 +35,18 @@ class ScreeningService:
             price = symbol_data.get("currentPrice")
             if price is None:
                 continue
-            nearest = self.fib_service.nearest_level(
-                symbol_data["symbol"], price, self.fib_proximity_pct
-            )
+            closest = self.fib_service.closest_level(symbol_data["symbol"], price)
             fib = self.fib_service.get_levels(symbol_data["symbol"])
             rows.append(
                 {
                     "symbol": symbol_data["symbol"],
                     "currentPrice": price,
-                    "nearestFib": nearest["level"] if nearest else None,
-                    "distancePct": nearest["distancePct"] if nearest else None,
-                    "withinBand": nearest is not None,
+                    "nearestFib": closest["level"] if closest else None,
+                    "distancePct": closest["distancePct"] if closest else None,
+                    "withinBand": (
+                        closest is not None
+                        and closest["distancePct"] <= self.fib_proximity_pct
+                    ),
                     "levels": fib.get("levels", []) if fib else [],
                     "swingHigh": fib.get("swingHigh") if fib else None,
                     "swingLow": fib.get("swingLow") if fib else None,
