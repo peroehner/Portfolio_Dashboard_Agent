@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from typing import Any
 
@@ -64,6 +65,50 @@ class NotesService:
         note = self.get_note(symbol, note_id)
         assert note is not None
         return note
+
+    def update_note(self, symbol: str, note_id: int, data: dict[str, Any]) -> dict[str, Any]:
+        symbol = symbol.upper()
+        note = self.get_note(symbol, note_id)
+        if note is None:
+            raise ValueError(f"Note {note_id} not found for {symbol}.")
+
+        text = (data.get("text") or "").strip()
+        if not text:
+            raise ValueError("Note text is required.")
+
+        note_date = data.get("date") or data.get("note_date")
+        source = (data.get("source") or "").strip() or None
+        content_changed = (
+            text != note["text"]
+            or (note_date or None) != (note.get("date") or None)
+            or source != (note.get("source") or None)
+        )
+
+        with get_connection() as conn:
+            if content_changed:
+                conn.execute(
+                    """
+                    UPDATE notes
+                    SET note_date = ?, source = ?, text = ?,
+                        synthesis = NULL, synthesis_provider = NULL, synthesized_at = NULL
+                    WHERE id = ? AND symbol = ?
+                    """,
+                    (note_date, source, text, note_id, symbol),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE notes
+                    SET note_date = ?, source = ?, text = ?
+                    WHERE id = ? AND symbol = ?
+                    """,
+                    (note_date, source, text, note_id, symbol),
+                )
+            conn.commit()
+
+        updated = self.get_note(symbol, note_id)
+        assert updated is not None
+        return updated
 
     def synthesize_note(
         self, symbol: str, note_id: int, force: bool = False, guidance: str | None = None

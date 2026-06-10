@@ -99,6 +99,39 @@
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
+    .panel-symbol-head {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.2rem;
+      margin: 0 0 0.85rem;
+      text-transform: none;
+      letter-spacing: normal;
+      color: inherit;
+    }
+    .panel-symbol-head .symbol-head-ticker {
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      line-height: 1.1;
+    }
+    .panel-symbol-head .symbol-head-ticker.is-active {
+      font-size: 1.75rem;
+      font-weight: 800;
+      letter-spacing: 0.07em;
+      text-transform: none;
+      color: #ddd6fe;
+      text-shadow: 0 0 28px rgba(139, 92, 246, 0.35);
+    }
+    .panel-symbol-head .symbol-head-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
     #view-portfolio,
     #view-inspector {
       --portfolio-chrome: 8.75rem;
@@ -177,6 +210,152 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 0.75rem;
+    }
+    .target-setup-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+    .target-rec-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem 1.15rem;
+      padding: 0.55rem 0.65rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.35);
+    }
+    .target-analyst-block,
+    .target-recommendation-block {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem 0.5rem;
+    }
+    .target-analyst-value {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .target-analyst-block .target-field-meta {
+      margin-top: 0;
+    }
+    .target-rec-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-right: 0.15rem;
+    }
+    .target-fields-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.65rem 0.85rem;
+    }
+    @media (max-width: 720px) {
+      .target-fields-grid { grid-template-columns: 1fr; }
+    }
+    .target-field label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin: 0 0 0.3rem;
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .target-field .field-hint {
+      font-size: 0.68rem;
+      text-transform: none;
+      letter-spacing: normal;
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .target-field input {
+      padding: 0.5rem 0.6rem;
+    }
+    .target-field-readout {
+      padding: 0.5rem 0.6rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.45);
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .target-field-meta {
+      margin-top: 0.25rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .target-field-meta.positive { color: var(--accent-2); }
+    .target-field-meta.negative { color: var(--danger); }
+    .threshold-proposal {
+      margin-top: 0.35rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem 0.5rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .threshold-proposal button {
+      border: 1px solid rgba(139, 92, 246, 0.45);
+      background: rgba(139, 92, 246, 0.12);
+      color: #c4b5fd;
+      border-radius: 999px;
+      padding: 0.15rem 0.55rem;
+      font-size: 0.68rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .threshold-proposal button:hover {
+      background: rgba(139, 92, 246, 0.22);
+    }
+    .target-fib-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      padding: 0.55rem 0.65rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(167, 139, 250, 0.05);
+    }
+    .target-fib-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.22rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      font-size: 0.72rem;
+      white-space: nowrap;
+    }
+    .target-fib-chip.near {
+      border-color: rgba(245, 158, 11, 0.55);
+      background: rgba(245, 158, 11, 0.1);
+    }
+    .target-fib-chip .fib-dot {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+    .target-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .target-notes-section {
+      margin-top: 1.25rem;
+      padding-top: 1.1rem;
+      border-top: 1px solid var(--border);
+    }
+    .target-notes-section > h3 {
+      margin: 0 0 0.75rem;
+      font-size: 0.95rem;
+      color: var(--text);
     }
     .metric {
       background: var(--panel-2);
@@ -411,6 +590,16 @@
     .chip.watch { background: rgba(245,158,11,0.2); color: var(--warn); }
     .chip.add { background: rgba(34,197,94,0.15); color: #86efac; }
     .chip.reduce { background: rgba(239,68,68,0.15); color: #fca5a5; }
+    .screening-rec-chips {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .screening-rec-chips .chip {
+      font-size: 0.72rem;
+      padding: 0.15rem 0.45rem;
+    }
     .synthesis, .trading-rec {
       background: rgba(167,139,250,0.08);
       border: 1px solid rgba(167,139,250,0.25);
@@ -483,8 +672,8 @@
       border-bottom: 1px solid var(--border);
     }
     .inspector-dashboard {
-      display: grid;
-      grid-template-columns: minmax(0, 1.45fr) minmax(16rem, 0.85fr);
+      display: flex;
+      flex-direction: column;
       gap: 1rem;
       margin-bottom: 1rem;
     }
@@ -578,16 +767,19 @@
     }
     .trend-wave-title.up { color: var(--accent-2); }
     .trend-wave-title.down { color: #fca5a5; }
-    .trend-wave-meta,
-    .trend-wave-peaks {
+    .trend-wave-detail {
       color: var(--muted);
       line-height: 1.35;
+      font-size: 0.76rem;
     }
-    .fib-anchor-note {
-      margin-top: 0.35rem;
-      font-size: 0.74rem;
-      color: #a78bfa;
-      line-height: 1.35;
+    .inspector-chart-title-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 0.75rem;
+    }
+    .inspector-chart-title-row h3 {
+      margin: 0;
     }
     .fib-levels-panel {
       margin-top: 0.75rem;
@@ -654,7 +846,7 @@
     .inspector-chart-mode {
       display: inline-flex;
       gap: 0.35rem;
-      margin-top: 0.55rem;
+      margin-top: 0;
       padding: 0.2rem;
       border-radius: 999px;
       border: 1px solid var(--border);
@@ -678,10 +870,6 @@
     .trend-source-note {
       font-size: 0.72rem;
       color: var(--muted);
-    }
-    .trend-wave-leg-prices {
-      font-size: 0.76rem;
-      color: var(--text);
     }
     .inspector-side-stack {
       display: flex;
@@ -767,7 +955,6 @@
       text-overflow: ellipsis;
     }
     @media (max-width: 1100px) {
-      .inspector-dashboard { grid-template-columns: 1fr; }
       .valuation-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     @media (max-width: 700px) {
@@ -1005,7 +1192,7 @@
   <nav class="tabs">
     <button class="active" data-view="overview" onclick="showView('overview')">Summary</button>
     <button data-view="holdings" onclick="showView('holdings')">Holdings</button>
-    <button data-view="portfolio" onclick="showView('portfolio')">Portfolio</button>
+    <button data-view="portfolio" onclick="showView('portfolio')">Target</button>
     <button data-view="screening" onclick="showView('screening')">Screening</button>
     <button data-view="fib" onclick="showView('fib')">Fib Proximity</button>
     <button data-view="inspector" onclick="showView('inspector')">Inspector</button>
@@ -1073,60 +1260,84 @@
     </section>
 
     <section class="panel panel-detail">
-      <h2 id="detailTitle">Select a symbol</h2>
+      <h2 class="panel-symbol-head" id="detailTitleHead">
+        <span class="symbol-head-ticker" id="detailSymbol">Select a symbol</span>
+      </h2>
       <div id="detailEmpty" class="empty">Choose a symbol to view thresholds, notes, and recommendations.</div>
       <div id="detailPanel" hidden>
-        <div class="grid-2" id="metrics"></div>
-        <form id="symbolForm" style="margin-top: 1rem;">
-          <div class="grid-2">
-            <div>
-              <label>Current Price</label>
-              <input name="currentPrice" type="text" inputmode="decimal" autocomplete="off">
+        <section class="target-setup-card">
+          <div class="target-rec-row" id="targetSummaryRow">
+            <div class="target-analyst-block">
+              <span class="target-rec-label">1YT Analyst</span>
+              <span class="target-analyst-value" id="analystTargetReadout">—</span>
+              <span class="target-field-meta" id="analystUpsideMeta"></span>
             </div>
-            <div>
-              <label>Personal Target</label>
-              <input name="targetPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="From import or enter here">
-            </div>
-            <div>
-              <label>Buy Below</label>
-              <input name="buyBelow" type="text" inputmode="decimal" autocomplete="off">
-            </div>
-            <div>
-              <label>Sell Above</label>
-              <input name="sellAbove" type="text" inputmode="decimal" autocomplete="off">
+            <div class="target-recommendation-block" id="targetRecommendationBlock" hidden>
+              <span class="target-rec-label">Recommendation</span>
+              <span id="targetRecommendationChips"></span>
             </div>
           </div>
-          <div class="actions" style="margin-top:0.75rem;">
-            <button type="submit">Save Thresholds</button>
-            <button type="button" class="success" onclick="assessSelected()">Assess Symbol</button>
-            <button type="button" class="secondary" onclick="loadFibLevels()">Load Fib Levels</button>
-          </div>
-        </form>
+          <form id="symbolForm">
+            <div class="target-fields-grid">
+              <div class="target-field">
+                <label>Current Price <span class="field-hint">synced</span></label>
+                <input name="currentPrice" type="text" inputmode="decimal" autocomplete="off">
+              </div>
+              <div class="target-field">
+                <label>Personal Target</label>
+                <input name="targetPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="Your price target">
+                <div class="target-field-meta" id="targetUpsideMeta"></div>
+              </div>
+              <div class="target-field">
+                <label>Buy Below</label>
+                <input name="buyBelow" type="text" inputmode="decimal" autocomplete="off" placeholder="Entry alert level">
+                <div class="threshold-proposal" id="buyBelowProposal"></div>
+              </div>
+              <div class="target-field">
+                <label>Sell Above</label>
+                <input name="sellAbove" type="text" inputmode="decimal" autocomplete="off" placeholder="Exit alert level">
+                <div class="threshold-proposal" id="sellAboveProposal"></div>
+              </div>
+            </div>
+            <div class="target-fib-strip" id="fibLevels">
+              <span class="empty" style="margin:0;">Loading Fibonacci context…</span>
+            </div>
+            <div class="target-actions" style="margin-top:0.75rem;">
+              <button type="submit">Save Settings</button>
+              <button type="button" class="success" onclick="assessSelected()">Assess Symbol</button>
+            </div>
+          </form>
+        </section>
 
-        <h2 style="margin-top:1.25rem;">Fibonacci Levels</h2>
-        <div id="fibLevels" class="empty">Click "Load Fib Levels" to compute.</div>
-
-        <h2 style="margin-top:1.25rem;">Personal Notes</h2>
-        <details style="margin-bottom:0.75rem;">
-          <summary style="cursor:pointer;color:var(--muted);">Synthesis prompt guidance</summary>
-          <label style="margin-top:0.5rem;display:block;">Instructions sent with each note to the LLM (saved in this browser)</label>
-          <textarea id="synthesisGuidance" rows="4" placeholder="e.g. Extract segment YoY growth rates, revenue run-rate milestones, and what to verify in the next quarter. Flag AI/edge compute momentum separately."></textarea>
-          <div class="empty" style="margin-top:0.35rem;">Also set server-wide default in <code>.env</code> as <code>NOTE_SYNTHESIS_GUIDANCE=...</code> (UI guidance overrides when filled).</div>
-        </details>
-        <div id="notesList"></div>
-        <form id="noteForm" style="margin-top:0.75rem;">
-          <label>Date</label>
-          <input name="date" type="date">
-          <label>Source</label>
-          <input name="source" placeholder="Q1 earnings call">
-          <label>Note</label>
-          <textarea name="text" placeholder="Your outlook, thesis, risks..." required></textarea>
-          <button type="submit" style="margin-top:0.5rem;">Add Note</button>
-        </form>
-        <div class="actions" style="margin-top:0.5rem;">
-          <button type="button" class="secondary" onclick="synthesizeAllNotes()">Synthesize All Notes</button>
-        </div>
-        <div id="noteSynthesisPreview"></div>
+        <section class="target-notes-section">
+          <h3>Personal Notes</h3>
+          <details style="margin-bottom:0.75rem;">
+            <summary style="cursor:pointer;color:var(--muted);">Synthesis prompt guidance</summary>
+            <label style="margin-top:0.5rem;display:block;">Instructions sent with each note to the LLM (saved in this browser)</label>
+            <textarea id="synthesisGuidance" rows="3" placeholder="e.g. Extract segment YoY growth rates, revenue run-rate milestones, and what to verify in the next quarter."></textarea>
+            <div class="empty" style="margin-top:0.35rem;">Also set server-wide default in <code>.env</code> as <code>NOTE_SYNTHESIS_GUIDANCE=...</code> (UI guidance overrides when filled).</div>
+          </details>
+          <div id="notesList"></div>
+          <form id="noteForm" style="margin-top:0.75rem;">
+            <div class="grid-2">
+              <div>
+                <label>Date</label>
+                <input name="date" type="date">
+              </div>
+              <div>
+                <label>Source</label>
+                <input name="source" placeholder="Q1 earnings call">
+              </div>
+            </div>
+            <label>Note</label>
+            <textarea name="text" rows="3" placeholder="Your outlook, thesis, risks..." required></textarea>
+            <div class="target-actions" style="margin-top:0.5rem;">
+              <button type="submit">Add Note</button>
+              <button type="button" class="secondary" onclick="synthesizeAllNotes()">Synthesize All Notes</button>
+            </div>
+          </form>
+          <div id="noteSynthesisPreview"></div>
+        </section>
       </div>
       <div class="status" id="status"></div>
     </section>
@@ -1143,7 +1354,7 @@
     <div class="wide-panel">
       <h2>Portfolio Screening</h2>
       <div class="actions" style="margin-bottom:0.75rem;">
-        <button class="secondary" onclick="loadScreening()">Refresh</button>
+        <button class="secondary" onclick="loadScreening('', true)">Refresh</button>
         <button class="secondary" onclick="loadScreening('?minUpside=30')">High Upside</button>
         <button class="secondary" onclick="loadScreening('?nearFib=1')">Near Fib</button>
       </div>
@@ -1155,7 +1366,7 @@
     <div class="wide-panel">
       <div class="fib-map-header">
         <h2>Fibonacci Proximity Map</h2>
-        <button class="secondary" onclick="loadFibMap()">Refresh</button>
+        <button class="secondary" onclick="loadFibMap(true)">Refresh</button>
       </div>
       <div class="fib-legend-grid">
         <section class="fib-legend-card critical">
@@ -1189,7 +1400,10 @@
       </div>
     </section>
     <section class="panel panel-detail">
-      <h2 id="inspectorTitle">Inspector</h2>
+      <h2 class="panel-symbol-head" id="inspectorTitleHead">
+        <span class="symbol-head-ticker" id="inspectorSymbol">Inspector</span>
+        <span class="symbol-head-label" id="inspectorSymbolLabel" hidden>Inspector</span>
+      </h2>
       <div id="inspectorEmpty" class="empty">Choose a symbol to inspect holdings, alerts, notes, and assessments.</div>
       <div id="inspectorPanel" hidden></div>
     </section>
@@ -1199,6 +1413,11 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <script>
     const API = "/api/v1";
+    const VIEW_CACHE_TTL_MS = 60000;
+    const viewDataCache = {
+      screening: { query: "", data: null, fetchedAt: 0 },
+      fib: { data: null, fetchedAt: 0 },
+    };
     let selectedSymbol = null;
     let currentView = "overview";
     let allocationChart = null;
@@ -1421,6 +1640,39 @@
       renderSymbolNavList("inspectorSymbolList", symbols, loadInspector);
     }
 
+    function setDetailSymbolHead(symbol) {
+      const el = document.getElementById("detailSymbol");
+      const head = document.getElementById("detailTitleHead");
+      if (!el) return;
+      if (symbol) {
+        el.textContent = symbol;
+        el.classList.add("is-active");
+        head?.classList.add("has-symbol");
+      } else {
+        el.textContent = "Select a symbol";
+        el.classList.remove("is-active");
+        head?.classList.remove("has-symbol");
+      }
+    }
+
+    function setInspectorSymbolHead(symbol) {
+      const el = document.getElementById("inspectorSymbol");
+      const label = document.getElementById("inspectorSymbolLabel");
+      const head = document.getElementById("inspectorTitleHead");
+      if (!el) return;
+      if (symbol) {
+        el.textContent = symbol;
+        el.classList.add("is-active");
+        head?.classList.add("has-symbol");
+        if (label) label.hidden = false;
+      } else {
+        el.textContent = "Inspector";
+        el.classList.remove("is-active");
+        head?.classList.remove("has-symbol");
+        if (label) label.hidden = true;
+      }
+    }
+
     async function loadPortfolio() {
       const data = await api("/portfolio");
       const symbols = data.symbols;
@@ -1428,7 +1680,7 @@
 
       if (!stillSelected) {
         selectedSymbol = null;
-        document.getElementById("detailTitle").textContent = "Select a symbol";
+        setDetailSymbolHead(null);
         document.getElementById("detailEmpty").hidden = false;
         document.getElementById("detailPanel").hidden = true;
       }
@@ -1447,7 +1699,13 @@
       await loadAssessments();
     }
 
+    function invalidateViewCaches() {
+      viewDataCache.screening = { query: "", data: null, fetchedAt: 0 };
+      viewDataCache.fib = { data: null, fetchedAt: 0 };
+    }
+
     async function refreshAllViews(importData, mode) {
+      invalidateViewCaches();
       const importedSymbols = importData.symbols || [];
       if (mode === "replace") {
         selectedSymbol = importedSymbols[0]?.symbol || null;
@@ -1465,31 +1723,186 @@
       await loadInspectorOptions();
     }
 
+    function targetFibLevels(inspector, fibApi) {
+      if (inspector?.importedFibLevels?.length) {
+        return inspector.importedFibLevels.map((level) => ({
+          label: level.label,
+          price: level.price,
+          color: level.color,
+        }));
+      }
+      const fib = fibApi || inspector?.fib;
+      if (!fib) return [];
+      const levels = [
+        { label: "Swing Low", price: fib.swingLow, color: "#9aa8bc" },
+        ...(fib.levels || []).map((level) => ({
+          label: level.label,
+          price: level.price,
+          color: "#3b82f6",
+        })),
+        { label: "Swing High", price: fib.swingHigh, color: "#a78bfa" },
+      ];
+      return levels.filter((level) => level.price != null);
+    }
+
+    function proposeThresholds(item, levels, recommendation) {
+      const price = item?.currentPrice;
+      if (!price || !levels.length) {
+        return { buy: null, sell: null, buyNote: "", sellNote: "" };
+      }
+
+      const sorted = [...levels].sort((left, right) => left.price - right.price);
+      const below = sorted.filter((level) => level.price < price);
+      const above = sorted.filter((level) => level.price > price);
+      const action = recommendation?.action || "hold";
+      const sentiment = recommendation?.sentiment || "neutral";
+
+      let buy = null;
+      let buyNote = "";
+      const support = below.find((level) => String(level.label).includes("61.8"))
+        || below.find((level) => String(level.label).includes("50"))
+        || below.find((level) => String(level.label).toLowerCase().includes("low"))
+        || below[below.length - 1];
+      if (support) {
+        buy = support.price;
+        buyNote = `${support.label} support · ${formatMoney(support.price)}`;
+        if (action === "buy") buyNote += " · Assessment: buy";
+        else if (action === "watch") buyNote += " · Assessment: watch";
+        else if (sentiment === "bullish") buyNote += " · Bullish note sentiment";
+      }
+
+      let sell = null;
+      let sellNote = "";
+      if (action === "sell") {
+        const resistance = above[0] || sorted[sorted.length - 1];
+        if (resistance && resistance.price > price) {
+          sell = resistance.price;
+          sellNote = `${resistance.label} · Assessment: sell`;
+        }
+      } else if (item.targetPrice != null && item.targetPrice > price) {
+        sell = item.targetPrice;
+        sellNote = "Personal target";
+      } else {
+        const resistance = above.find((level) => String(level.label).toLowerCase().includes("high"))
+          || above[above.length - 1];
+        if (resistance) {
+          sell = resistance.price;
+          sellNote = `${resistance.label} resistance · ${formatMoney(resistance.price)}`;
+        }
+      }
+
+      return { buy, sell, buyNote, sellNote };
+    }
+
+    function renderThresholdProposal(containerId, fieldName, proposal, note) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      if (proposal == null) {
+        container.innerHTML = `<span>No Fib/assessment proposal yet — run Assess or import TA levels.</span>`;
+        return;
+      }
+      container.innerHTML = `
+        <span>Suggested: ${note || formatMoney(proposal)}</span>
+        <button type="button" onclick="applyThresholdProposal('${fieldName}', ${proposal})">Use ${formatMoney(proposal)}</button>`;
+    }
+
+    function applyThresholdProposal(fieldName, value) {
+      const form = document.getElementById("symbolForm");
+      if (!form || !form[fieldName]) return;
+      form[fieldName].value = formatPriceInput(value);
+      setStatus(`Applied ${fieldName === "buyBelow" ? "Buy Below" : "Sell Above"} proposal.`);
+    }
+
+    function renderTargetFibStrip(levels, currentPrice) {
+      const container = document.getElementById("fibLevels");
+      if (!container) return;
+      if (!levels.length) {
+        container.innerHTML = `<span class="empty" style="margin:0;">No Fibonacci levels available — import TA export or sync prices.</span>`;
+        return;
+      }
+      container.innerHTML = levels.map((level) => {
+        const distancePct = currentPrice
+          ? Math.abs(currentPrice - level.price) / currentPrice * 100
+          : null;
+        const near = distancePct != null && distancePct <= 2;
+        return `
+          <span class="target-fib-chip ${near ? "near" : ""}" title="${distancePct != null ? `${distancePct.toFixed(1)}% from price` : ""}">
+            <span class="fib-dot" style="background:${level.color || "#9aa8bc"};"></span>
+            ${level.label} ${formatMoney(level.price)}
+          </span>`;
+      }).join("");
+    }
+
+    function renderTargetMeta(item, recommendation) {
+      const recBlock = document.getElementById("targetRecommendationBlock");
+      const recChips = document.getElementById("targetRecommendationChips");
+      if (recBlock && recChips) {
+        if (recommendation) {
+          recBlock.hidden = false;
+          recChips.innerHTML = renderRecommendationChipRow(recommendation, { bare: true });
+        } else {
+          recBlock.hidden = true;
+          recChips.innerHTML = "";
+        }
+      }
+
+      const analystReadout = document.getElementById("analystTargetReadout");
+      const analystMeta = document.getElementById("analystUpsideMeta");
+      if (analystReadout) {
+        analystReadout.textContent = formatMoney(item.analystTarget1y);
+      }
+      if (analystMeta) {
+        if (item.analystTarget1y != null && item.currentPrice) {
+          const upside = ((item.analystTarget1y - item.currentPrice) / item.currentPrice) * 100;
+          analystMeta.textContent = formatUpside(upside);
+          analystMeta.className = `target-field-meta ${upside < 0 ? "negative" : "positive"}`;
+        } else {
+          analystMeta.textContent = "";
+          analystMeta.className = "target-field-meta";
+        }
+      }
+
+      const targetMeta = document.getElementById("targetUpsideMeta");
+      if (targetMeta) {
+        if (item.targetPrice != null && item.currentPrice) {
+          const upside = ((item.targetPrice - item.currentPrice) / item.currentPrice) * 100;
+          targetMeta.textContent = `${formatUpside(upside)} to personal target`;
+          targetMeta.className = `target-field-meta ${upside < 0 ? "negative" : "positive"}`;
+        } else {
+          targetMeta.textContent = "";
+          targetMeta.className = "target-field-meta";
+        }
+      }
+    }
+
+    async function loadTargetContext(item, inspector) {
+      let fibApi = null;
+      try {
+        fibApi = await api(`/symbols/${item.symbol}/fib-levels`);
+      } catch (_) {
+        fibApi = null;
+      }
+      const levels = targetFibLevels(inspector, fibApi);
+      const recommendation = inspector?.recommendation || null;
+      const proposals = proposeThresholds(item, levels, recommendation);
+      renderTargetFibStrip(levels, item.currentPrice);
+      renderThresholdProposal("buyBelowProposal", "buyBelow", proposals.buy, proposals.buyNote);
+      renderThresholdProposal("sellAboveProposal", "sellAbove", proposals.sell, proposals.sellNote);
+      renderTargetMeta(item, recommendation);
+    }
+
     async function selectSymbol(symbol) {
       selectedSymbol = symbol;
       const portfolio = await api("/portfolio");
       renderSymbolList(portfolio.symbols);
-      const item = await api(`/symbols/${symbol}`);
-      document.getElementById("detailTitle").textContent = symbol;
+      const [item, inspector] = await Promise.all([
+        api(`/symbols/${symbol}`),
+        api(`/symbols/${symbol}/inspector`).catch(() => null),
+      ]);
+      const inspectorData = inspector ? normalizeInspectorData(inspector) : null;
+      setDetailSymbolHead(symbol);
       document.getElementById("detailEmpty").hidden = true;
       document.getElementById("detailPanel").hidden = false;
-
-      const analystUpsideClass = (item.analystTarget1y != null && item.currentPrice != null && item.analystTarget1y < item.currentPrice)
-        ? "subvalue negative" : "subvalue";
-      const analystUpside = (item.analystTarget1y != null && item.currentPrice)
-        ? formatUpside(((item.analystTarget1y - item.currentPrice) / item.currentPrice) * 100)
-        : "—";
-      document.getElementById("metrics").innerHTML = `
-        <div class="metric"><div class="label">Current</div><div class="value">${formatMoney(item.currentPrice)}</div></div>
-        <div class="metric"><div class="label">Personal Target</div><div class="value">${formatMoney(item.targetPrice)}</div></div>
-        <div class="metric">
-          <div class="label">1YT (Analyst)</div>
-          <div class="value">${formatMoney(item.analystTarget1y)}</div>
-          <div class="${analystUpsideClass}">${analystUpside}</div>
-        </div>
-        <div class="metric"><div class="label">Buy Below</div><div class="value">${formatMoney(item.buyBelow)}</div></div>
-        <div class="metric"><div class="label">Sell Above</div><div class="value">${formatMoney(item.sellAbove)}</div></div>
-      `;
 
       const form = document.getElementById("symbolForm");
       form.currentPrice.value = formatPriceInput(item.currentPrice);
@@ -1513,8 +1926,7 @@
         : `<div class="empty">No notes yet.</div>`;
 
       document.getElementById("noteSynthesisPreview").innerHTML = "";
-
-      document.getElementById("fibLevels").innerHTML = `<div class="empty">Click "Load Fib Levels" to compute.</div>`;
+      await loadTargetContext(item, inspectorData);
       await loadAlerts();
       await loadAssessments();
       setStatus(`Loaded ${symbol}.`);
@@ -1645,18 +2057,6 @@
       }
     }
 
-    async function loadFibLevels() {
-      if (!selectedSymbol) return;
-      const data = await api(`/symbols/${selectedSymbol}/fib-levels`);
-      document.getElementById("fibLevels").innerHTML = `
-        <div class="empty">Swing ${data.period}: high ${formatMoney(data.swingHigh)} · low ${formatMoney(data.swingLow)}</div>
-        ${data.levels.map((level) => `
-          <div class="fib"><strong>${level.label}</strong> · ${formatMoney(level.price)}</div>
-        `).join("")}
-      `;
-      setStatus(`Fibonacci levels loaded for ${selectedSymbol}.`);
-    }
-
     document.getElementById("addSymbolForm").onsubmit = async (event) => {
       event.preventDefault();
       const form = event.target;
@@ -1688,7 +2088,7 @@
           }),
         });
         await selectSymbol(selectedSymbol);
-        setStatus(`Saved thresholds for ${selectedSymbol}.`);
+        setStatus(`Saved settings for ${selectedSymbol}.`);
       } catch (error) {
         setStatus(error.message);
       }
@@ -1719,6 +2119,7 @@
       await withLoading("btnSync", async () => {
         try {
           const data = await api("/sync", { method: "POST" });
+          invalidateViewCaches();
           await loadPortfolio();
           setStatus(`Synced ${data.sync.updated} symbols. ${data.newAlerts.length} new alerts.`, "success");
         } catch (error) {
@@ -1744,6 +2145,11 @@
       try {
         const result = await api(`/symbols/${selectedSymbol}/assess`, { method: "POST" });
         await loadAssessments();
+        const [item, inspector] = await Promise.all([
+          api(`/symbols/${selectedSymbol}`),
+          api(`/symbols/${selectedSymbol}/inspector`).catch(() => null),
+        ]);
+        await loadTargetContext(item, inspector ? normalizeInspectorData(inspector) : null);
         setStatus(
           result.llmFallback
             ? `Assessment complete for ${selectedSymbol} (rules fallback — Gemini quota/network).`
@@ -2046,13 +2452,6 @@
         : `(${watchOnly} watch only)`;
       document.getElementById("overviewMetrics").innerHTML = `
         <div class="metric">
-          <div class="label">Tracked Symbols</div>
-          <div class="value-row">
-            <div class="value">${data.symbolCount}</div>
-            ${watchOnly ? `<span class="value-note">${watchOnlyNote}</span>` : ""}
-          </div>
-        </div>
-        <div class="metric">
           <div class="label">Market Value</div>
           <div class="value">${formatSummaryMoney(data.totalMarketValue)}</div>
         </div>
@@ -2079,12 +2478,19 @@
           ${renderPerformerMetric(data.bestPerformer)}
         </div>
         <div class="metric">
-          <div class="label">Best Performer (Current Year)</div>
+          <div class="label">Best Perform YTD</div>
           ${renderPerformerMetric(data.bestYtdPerformer)}
         </div>
         <div class="metric">
           <div class="label">Alerts</div>
           <div class="value">${data.activeAlerts}</div>
+        </div>
+        <div class="metric">
+          <div class="label">Tracked Symbols</div>
+          <div class="value-row">
+            <div class="value">${data.symbolCount}</div>
+            ${watchOnly ? `<span class="value-note">${watchOnlyNote}</span>` : ""}
+          </div>
         </div>
       `;
       renderOverviewVisuals(data);
@@ -2119,8 +2525,36 @@
       );
     }
 
+    function renderRecommendationChipRow(rec, { wrapperClass = "", bare = false } = {}) {
+      const action = rec?.action || "hold";
+      const confidence = rec?.confidence || "medium";
+      const sentiment = rec?.sentiment || "neutral";
+      const chips = `
+          <span class="chip ${action}" title="Action">${action}</span>
+          <span class="chip hold" title="Confidence Level">${confidence}</span>
+          <span class="chip watch" title="Sentiment">${sentiment}</span>`;
+      if (bare) return chips;
+      if (wrapperClass) {
+        return `<span class="${wrapperClass}">${chips}</span>`;
+      }
+      return `<div>${chips}</div>`;
+    }
+
+    function renderRecommendationChips(rec) {
+      if (!rec) {
+        return `<span class="empty" style="font-size:0.78rem;">—</span>`;
+      }
+      return renderRecommendationChipRow(rec, { wrapperClass: "screening-rec-chips" });
+    }
+
     const screeningColumns = [
       { key: "symbol", label: "Symbol", sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
+      {
+        key: "recommendation",
+        label: "Recommendation",
+        sortValue: (row) => `${row.recommendation?.action || ""}|${row.recommendation?.confidence || ""}|${row.recommendation?.sentiment || ""}`,
+        render: (row) => renderRecommendationChips(row.recommendation),
+      },
       { key: "score", label: "Score", sortValue: (row) => row.score, render: (row) => row.score },
       { key: "upsidePct", label: "Upside", sortValue: (row) => row.upsidePct, render: (row) => `${row.upsidePct ?? "—"}%` },
       { key: "fibDistancePct", label: "Fib Dist", sortValue: (row) => row.fibDistancePct, render: (row) => `${row.fibDistancePct ?? "—"}%` },
@@ -2141,6 +2575,26 @@
     let fibMapBand = "all";
     let fibMapTicker = "";
 
+    function fibLevelKind(level) {
+      if (!level) return null;
+      const ratio = level.ratio;
+      if (ratio === 0.618) return "Golden Pocket";
+      if (ratio === 0.5) return "Center Line";
+      if (ratio === 0.382 || ratio === 0.236 || ratio === 0.786) return "Retracement";
+      const label = String(level.label || "").toLowerCase();
+      if (label.includes("golden")) return "Golden Pocket";
+      if (label.includes("center")) return "Center Line";
+      if (label.includes("retracement")) return "Retracement";
+      return null;
+    }
+
+    function formatNearestFibDisplay(level) {
+      if (!level) return null;
+      const kind = fibLevelKind(level);
+      const base = level.label || "—";
+      return kind ? `${base} · ${kind}` : base;
+    }
+
     function fibProximityZone(distancePct) {
       if (distancePct == null || distancePct === "") return "unknown";
       const distance = Number(distancePct);
@@ -2157,13 +2611,18 @@
     }
 
     const fibColumns = [
-      { key: "symbol", label: "Symbol", sortValue: (row) => row.symbol, render: (row) => row.symbol },
+      {
+        key: "symbol",
+        label: "Symbol",
+        sortValue: (row) => row.symbol,
+        render: (row) => `<a href="#" onclick="openInspectorSymbol('${row.symbol}'); return false;">${row.symbol}</a>`,
+      },
       { key: "currentPrice", label: "Price", sortValue: (row) => row.currentPrice, render: (row) => formatMoney(row.currentPrice) },
       {
         key: "nearestFibLabel",
         label: "Nearest Fib",
         sortValue: (row) => row.nearestFib?.label,
-        render: (row) => renderFibProximityCell(row, row.nearestFib?.label),
+        render: (row) => renderFibProximityCell(row, formatNearestFibDisplay(row.nearestFib)),
       },
       { key: "nearestFibPrice", label: "Level", sortValue: (row) => row.nearestFib?.price, render: (row) => row.nearestFib ? formatMoney(row.nearestFib.price) : "—" },
       {
@@ -2284,14 +2743,37 @@
       }
     }
 
-    async function loadScreening(query = "") {
+    async function loadScreening(query = "", force = false) {
+      const cache = viewDataCache.screening;
+      const now = Date.now();
+      if (
+        !force
+        && cache.data
+        && cache.query === query
+        && now - cache.fetchedAt < VIEW_CACHE_TTL_MS
+      ) {
+        document.getElementById("screeningTable").innerHTML = renderScreeningTable(cache.data);
+        return;
+      }
       const data = await api(`/screen${query}`);
+      cache.query = query;
+      cache.data = data.results;
+      cache.fetchedAt = now;
       document.getElementById("screeningTable").innerHTML = renderScreeningTable(data.results);
     }
 
-    async function loadFibMap() {
+    async function loadFibMap(force = false) {
+      const cache = viewDataCache.fib;
+      const now = Date.now();
+      if (!force && cache.data && now - cache.fetchedAt < VIEW_CACHE_TTL_MS) {
+        fibMapData = cache.data;
+        renderFibMapView();
+        return;
+      }
       const data = await api("/fib-proximity");
       fibMapData = data.results || [];
+      cache.data = fibMapData;
+      cache.fetchedAt = now;
       renderFibMapView();
     }
 
@@ -2311,11 +2793,7 @@
       return `
         <div class="recommendation-card">
           <h3>Recommendation</h3>
-          <div>
-            <span class="chip ${rec.action}">${rec.action}</span>
-            <span class="chip hold">${rec.confidence}</span>
-            ${rec.sentiment ? `<span class="chip watch">${rec.sentiment}</span>` : ""}
-          </div>
+          ${renderRecommendationChipRow(rec)}
           <div class="rec-headline">${rec.headline || ""}</div>
           <div class="rec-rationale">${rec.rationale || ""}</div>
           ${drivers ? `<ul class="watch-list">${drivers}</ul>` : ""}
@@ -2610,7 +3088,12 @@
       `;
     }
 
+    function isHoldingsInspectorPanel(panelId) {
+      return panelId === "holdingsInspectorPanel";
+    }
+
     function renderInspectorDashboard(data, panelId) {
+      const isHoldingsPreview = isHoldingsInspectorPanel(panelId);
       const pm = data.positionMechanics;
       const val = data.valuation || {};
       const advisory = data.technicalAdvisory || {};
@@ -2619,12 +3102,11 @@
       const blueprint = data.fibBlueprint;
       const importedFibLevels = enrichImportedFibLevels(data.importedFibLevels || []);
       const trendSource = data.trendWaveSource || (waves.length ? "import" : "none");
+      const hasTimeline = (data.chartTimeline?.points || []).length > 0;
       const chartMode = getInspectorChartMode(panelId, data);
-      const canSwitchChart = trendSource === "import" && waves.length > 0;
-      const mainTrend = waves.find((wave) => wave.label === "T1") || waves[0];
-      const fibAnchorLabel = mainTrend
-        ? `${mainTrend.label} (${mainTrend.type || "Trend"}): ${mainTrend.startDate || "—"} → ${mainTrend.endDate || "—"}`
-        : (blueprint?.anchorTrend || blueprint?.anchorNote);
+      const canSwitchChart = isHoldingsPreview
+        ? hasTimeline
+        : trendSource === "import" && waves.length > 0;
       const fibToggleLevels = importedFibLevels.length
         ? importedFibLevels
         : (blueprint?.levels || []).map((level) => ({
@@ -2651,13 +3133,27 @@
       return `
         ${setupHint}
         <div class="inspector-dashboard">
+          <section class="inspector-side-card advisory ${stanceClass}">
+            <h3>Technical Risk Advisory</h3>
+            <div class="advisory-stance">Technical Stance: ${advisory.stance || "Unknown"}</div>
+            <p>${advisory.message || "Insufficient technical data to assess support positioning."}</p>
+          </section>
+          <section class="valuation-scoring">
+            <h3>Valuation & Scoring</h3>
+            <div class="valuation-grid">
+              ${isHoldingsPreview ? "" : renderValuationMetric("P-Score", formatInspectorMetric(val.pScore))}
+              ${isHoldingsPreview ? "" : renderValuationMetric("Est. Dividend", formatMoney(val.estDividend), (val.estDividend ?? 0) > 0 ? "gain-pos" : "")}
+              ${renderValuationMetric("Trailing P/E", formatInspectorMetric(val.trailingPe))}
+              ${renderValuationMetric("Forward P/E", formatInspectorMetric(val.forwardPe))}
+              ${renderValuationMetric("PEG Ratio", formatInspectorMetric(val.pegRatio))}
+              ${renderValuationMetric("Rev Growth", formatInspectorMetric(val.revenueGrowth, "%"))}
+              ${renderValuationMetric("Op Margin", formatInspectorMetric(val.operatingMargin, "%"))}
+            </div>
+          </section>
           <section class="inspector-chart-card">
             <div class="inspector-chart-head">
-              <div>
-                <h3>Performance Metrics & Fibonacci Blueprint</h3>
-                ${fibAnchorLabel
-                  ? `<div class="fib-anchor-note">Fibonacci levels below use <strong>T1 only</strong> — anchored to <strong>${fibAnchorLabel}</strong>.</div>`
-                  : `<div class="fib-anchor-note">Import a TA export to load Fibonacci levels tied to trend T1.</div>`}
+              <div class="inspector-chart-title-row">
+                <h3>Performance &amp; Fibonacci</h3>
                 ${canSwitchChart
                   ? `<div class="inspector-chart-mode" data-panel="${panelId}">
                       <button type="button" class="inspector-mode-btn ${chartMode === "timeline" ? "active" : ""}" data-mode="timeline" onclick="setInspectorChartMode('timeline', '${panelId}')">Timeline &amp; Trends</button>
@@ -2686,9 +3182,10 @@
             <div class="inspector-chart-wrap" style="${chartMode === "timeline" && canSwitchChart ? "height:320px;" : ""}">
               <canvas id="inspectorChart-${panelId}" aria-label="Fibonacci and trend timeline chart for ${data.symbol}"></canvas>
             </div>
-            ${canSwitchChart
+            ${canSwitchChart && !isHoldingsPreview
               ? `<div class="inspector-chart-legend" id="inspectorTrendLegend-${panelId}" ${chartMode === "timeline" ? "" : "hidden"}></div>`
               : ""}
+            ${isHoldingsPreview ? "" : `
             <div class="trend-waves-row">
               <div class="trend-waves-head">
                 <strong style="font-size:0.8rem;color:var(--muted);">Detected Trend Waves</strong>
@@ -2699,69 +3196,50 @@
               </div>
               ${waves.length
                 ? `<div class="trend-wave-list">${waves.map((wave) => {
-                    const moveText = wave.movePct != null ? `${Number(wave.movePct).toFixed(1)}% move` : "";
-                    const legSummary = wave.legSummary
-                      || (wave.startDate && wave.endDate
-                        ? `From ${wave.startDate} until ${wave.endDate}`
-                        : `${wave.date || "—"} · ${formatMoney(wave.price)}`);
+                    const moveText = wave.movePct != null ? `${Number(wave.movePct).toFixed(1)}%` : "";
+                    const dateRange = wave.startDate && wave.endDate
+                      ? `${wave.startDate} → ${wave.endDate}`
+                      : (wave.date || "—");
+                    const headline = [
+                      wave.label || "T?",
+                      wave.legPattern || wave.type || "",
+                      moveText,
+                      dateRange,
+                    ].filter(Boolean).join(" · ");
                     const legPrices = wave.displayLow != null && wave.displayHigh != null
                       ? `${formatMoney(wave.displayLow)} → ${formatMoney(wave.displayHigh)}`
                       : `${formatMoney(wave.priceStart)} → ${formatMoney(wave.priceEnd)}`;
-                    const peakText = wave.peakHigh != null && wave.peakLow != null
-                      ? `Leg peak high ${formatMoney(wave.peakHigh)} · leg low ${formatMoney(wave.peakLow)}`
-                      : "";
-                    const t1FibNote = wave.label === "T1" && importedFibLevels.length
-                      ? "Fibonacci levels use this leg (T1)."
-                      : "";
+                    const detailParts = [legPrices];
+                    if (wave.peakHigh != null && wave.peakLow != null) {
+                      detailParts.push(`High ${formatMoney(wave.peakHigh)} · Low ${formatMoney(wave.peakLow)}`);
+                    }
+                    if (wave.label === "T1" && importedFibLevels.length) {
+                      detailParts.push("Fib levels use T1");
+                    }
                     return `
                       <article class="trend-wave-card ${wave.direction || "up"}">
-                        <div class="trend-wave-title ${wave.direction || "up"}">
-                          <span>${wave.label || "T?"}</span>
-                          <span>${wave.legPattern || wave.type || ""}</span>
-                          ${moveText ? `<span>${moveText}</span>` : ""}
-                        </div>
-                        <div class="trend-wave-meta">${legSummary}</div>
-                        <div class="trend-wave-leg-prices">${legPrices}</div>
-                        ${peakText ? `<div class="trend-wave-peaks">${peakText}</div>` : ""}
-                        ${t1FibNote ? `<div class="trend-wave-peaks">${t1FibNote}</div>` : ""}
+                        <div class="trend-wave-title ${wave.direction || "up"}">${headline}</div>
+                        <div class="trend-wave-detail">${detailParts.join(" · ")}</div>
                       </article>
                     `;
                   }).join("")}</div>`
                 : `<span class="empty">No imported trend waves. Use <strong>Import</strong> with your Portfolio-App TA export for this symbol.</span>`}
-            </div>
+            </div>`}
           </section>
-          <aside class="inspector-side-stack">
-            <section class="inspector-side-card">
-              <h3>Position Mechanics</h3>
-              ${pm ? `
-                <dl class="inspector-kv">
-                  <div><dt>Entry Date</dt><dd>${pm.entryDate || "—"}</dd></div>
-                  <div><dt>Shares Owned</dt><dd>${pm.sharesOwned ?? "—"}</dd></div>
-                  <div><dt>Entry Capital</dt><dd>${formatMoney(pm.entryCapital)}</dd></div>
-                  <div><dt>Total Gain</dt><dd class="${(pm.totalGain ?? 0) >= 0 ? "gain-pos" : "gain-neg"}">${formatGainLine(pm.totalGain, pm.totalGainPct)}</dd></div>
-                  <div><dt>Current Value</dt><dd>${formatMoney(pm.currentValue)}</dd></div>
-                </dl>
-              ` : `<div class="empty">No holding recorded for this symbol.</div>`}
-            </section>
-            <section class="inspector-side-card advisory ${stanceClass}">
-              <h3>Technical Risk Advisory</h3>
-              <div class="advisory-stance">Technical Stance: ${advisory.stance || "Unknown"}</div>
-              <p>${advisory.message || "Insufficient technical data to assess support positioning."}</p>
-            </section>
-          </aside>
+          ${isHoldingsPreview ? "" : `
+          <section class="inspector-side-card">
+            <h3>Position Mechanics</h3>
+            ${pm ? `
+              <dl class="inspector-kv">
+                <div><dt>Entry Date</dt><dd>${pm.entryDate || "—"}</dd></div>
+                <div><dt>Shares Owned</dt><dd>${pm.sharesOwned ?? "—"}</dd></div>
+                <div><dt>Entry Capital</dt><dd>${formatMoney(pm.entryCapital)}</dd></div>
+                <div><dt>Total Gain</dt><dd class="${(pm.totalGain ?? 0) >= 0 ? "gain-pos" : "gain-neg"}">${formatGainLine(pm.totalGain, pm.totalGainPct)}</dd></div>
+                <div><dt>Current Value</dt><dd>${formatMoney(pm.currentValue)}</dd></div>
+              </dl>
+            ` : `<div class="empty">No holding recorded for this symbol.</div>`}
+          </section>`}
         </div>
-        <section class="valuation-scoring">
-          <h3>Valuation & Scoring</h3>
-          <div class="valuation-grid">
-            ${renderValuationMetric("P-Score", formatInspectorMetric(val.pScore))}
-            ${renderValuationMetric("Est. Dividend", formatMoney(val.estDividend), (val.estDividend ?? 0) > 0 ? "gain-pos" : "")}
-            ${renderValuationMetric("Trailing P/E", formatInspectorMetric(val.trailingPe))}
-            ${renderValuationMetric("Forward P/E", formatInspectorMetric(val.forwardPe))}
-            ${renderValuationMetric("PEG Ratio", formatInspectorMetric(val.pegRatio))}
-            ${renderValuationMetric("Rev Growth", formatInspectorMetric(val.revenueGrowth, "%"))}
-            ${renderValuationMetric("Op Margin", formatInspectorMetric(val.operatingMargin, "%"))}
-          </div>
-        </section>
       `;
     }
 
@@ -2998,9 +3476,12 @@
     }
 
     function getInspectorChartMode(panelId, data) {
+      const isHoldingsPreview = isHoldingsInspectorPanel(panelId);
       const hasImportTrends = data.trendWaveSource === "import" && (data.trendWaves || []).length > 0;
+      const hasTimeline = (data.chartTimeline?.points || []).length > 0;
+      const preferTimeline = isHoldingsPreview ? hasTimeline : hasImportTrends;
       if (!inspectorChartMode[panelId]) {
-        inspectorChartMode[panelId] = hasImportTrends ? "timeline" : "blueprint";
+        inspectorChartMode[panelId] = preferTimeline ? "timeline" : "blueprint";
       }
       return inspectorChartMode[panelId];
     }
@@ -3029,10 +3510,14 @@
       }
 
       const blueprint = data.fibBlueprint;
-      const waves = data.trendWaves || [];
+      const isHoldingsPreview = isHoldingsInspectorPanel(panelId);
+      const waves = isHoldingsPreview ? [] : (data.trendWaves || []);
       const timeline = data.chartTimeline;
       const mode = getInspectorChartMode(panelId, data);
-      const useTimeline = mode === "timeline" && data.trendWaveSource === "import" && waves.length > 0;
+      const hasTimeline = (timeline?.points || []).length > 0;
+      const useTimeline = mode === "timeline" && (
+        isHoldingsPreview ? hasTimeline : data.trendWaveSource === "import" && waves.length > 0
+      );
 
       if (useTimeline) {
         const rendered = renderInspectorTimelineChart(canvas, panelId, data, timeline, waves, blueprint);
@@ -3043,6 +3528,9 @@
     }
 
     function renderInspectorHtml(data, panelId = "inspectorPanel") {
+      if (isHoldingsInspectorPanel(panelId)) {
+        return renderInspectorDashboard(data, panelId);
+      }
       const rec = data.recommendation || {};
       const notes = data.quote.notes || [];
       const assessments = data.assessments || [];
@@ -3052,6 +3540,11 @@
       const olderAssessments = assessments.slice(1);
       return `
         ${renderInspectorDashboard(data, panelId)}
+        ${data.alerts.length ? `
+        <div class="inspector-section">
+          <h3>Active Alerts</h3>
+          ${data.alerts.map((a) => `<div class="alert">${a.message}</div>`).join("")}
+        </div>` : ""}
         ${renderRecommendationCard(rec)}
         <div class="inspector-section">
           <h3>Latest Overall Synthesis</h3>
@@ -3075,11 +3568,6 @@
               ${olderAssessments.map((a) => renderInspectorAssessmentItem(a, { history: true, panelId })).join("")}
             </details>` : ""}
         </div>
-        ${data.alerts.length ? `
-        <div class="inspector-section">
-          <h3>Active Alerts</h3>
-          ${data.alerts.map((a) => `<div class="alert">${a.message}</div>`).join("")}
-        </div>` : ""}
       `;
     }
 
@@ -3132,13 +3620,18 @@
       if (panelId === "inspectorPanel") {
         document.getElementById("inspectorEmpty").hidden = true;
         document.getElementById("inspectorPanel").hidden = false;
-        document.getElementById("inspectorTitle").textContent = `${symbol} Inspector`;
+        setInspectorSymbolHead(symbol);
       }
     }
 
     async function openHoldingsInspector(symbol, switchView = false) {
       if (switchView) showView("holdings");
       await loadInspector(symbol, "holdingsInspectorPanel");
+    }
+
+    async function openInspectorSymbol(symbol) {
+      showView("inspector");
+      await loadInspector(symbol, "inspectorPanel");
     }
 
     async function loadInspectorOptions() {
@@ -3154,7 +3647,7 @@
         await loadInspector(symbols[0].symbol);
         return;
       }
-      document.getElementById("inspectorTitle").textContent = "Inspector";
+      setInspectorSymbolHead(null);
       document.getElementById("inspectorEmpty").hidden = false;
       document.getElementById("inspectorPanel").hidden = true;
     }
@@ -3187,6 +3680,19 @@
 
     document.getElementById("importFile").addEventListener("change", (event) => {
       if (event.target.files.length) importAnalysisFile();
+    });
+
+    document.getElementById("symbolForm").addEventListener("input", (event) => {
+      const input = event.target;
+      if (input.name !== "targetPrice") return;
+      const form = event.target.form;
+      const price = parsePrice(form.currentPrice.value);
+      const target = parsePrice(form.targetPrice.value);
+      const targetMeta = document.getElementById("targetUpsideMeta");
+      if (!targetMeta || price == null || target == null) return;
+      const upside = ((target - price) / price) * 100;
+      targetMeta.textContent = `${formatUpside(upside)} to personal target`;
+      targetMeta.className = `target-field-meta ${upside < 0 ? "negative" : "positive"}`;
     });
 
     document.getElementById("symbolForm").addEventListener("focusout", (event) => {

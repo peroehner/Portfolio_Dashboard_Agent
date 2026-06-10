@@ -16,11 +16,39 @@ class ScreeningService:
         self.fib_proximity_pct = float(os.environ.get("FIB_PROXIMITY_PCT", "1.0"))
 
     def run_screen(self, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        from services.assessment_service import AssessmentService
+        from services.inspector_service import InspectorService
+
         filters = filters or {}
         results = []
+        inspector = InspectorService()
+        assessment_service = AssessmentService()
 
         for symbol_data in self.portfolio_service.list_symbols():
+            symbol = symbol_data["symbol"]
             row = self._score_symbol(symbol_data)
+            fib_closest = row.pop("_fibClosest", None)
+            full_symbol = self.portfolio_service.get_symbol(symbol)
+            assessments = assessment_service.list_assessments(symbol, limit=20)
+            alerts = self.alerts_service.list_alerts(symbol=symbol, status="active")
+            nearest = None
+            if (
+                fib_closest is not None
+                and fib_closest["distancePct"] <= self.fib_proximity_pct
+            ):
+                nearest = fib_closest
+            rec = inspector._build_recommendation(
+                full_symbol or symbol_data,
+                assessments,
+                alerts,
+                row,
+                nearest,
+            )
+            row["recommendation"] = {
+                "action": rec.get("action") or "hold",
+                "confidence": rec.get("confidence") or "medium",
+                "sentiment": rec.get("sentiment") or "neutral",
+            }
             if self._passes_filters(row, filters):
                 results.append(row)
 
@@ -35,11 +63,12 @@ class ScreeningService:
             price = symbol_data.get("currentPrice")
             if price is None:
                 continue
-            closest = self.fib_service.closest_level(symbol_data["symbol"], price)
-            fib = self.fib_service.get_levels(symbol_data["symbol"])
+            symbol = symbol_data["symbol"]
+            closest = self.fib_service.closest_level(symbol, price)
+            fib = closest["fib"] if closest else self.fib_service.get_levels(symbol)
             rows.append(
                 {
-                    "symbol": symbol_data["symbol"],
+                    "symbol": symbol,
                     "currentPrice": price,
                     "nearestFib": closest["level"] if closest else None,
                     "distancePct": closest["distancePct"] if closest else None,
@@ -78,12 +107,15 @@ class ScreeningService:
         if price and sell_above and price > 0:
             sell_distance_pct = round((sell_above - price) / price * 100, 2)
 
+        fib_closest = None
         nearest = None
         fib_distance = None
         if price is not None:
-            nearest = self.fib_service.nearest_level(symbol, price, self.fib_proximity_pct * 3)
-            if nearest:
-                fib_distance = nearest["distancePct"]
+            fib_closest = self.fib_service.closest_level(symbol, price)
+            if fib_closest:
+                fib_distance = fib_closest["distancePct"]
+                if fib_distance <= self.fib_proximity_pct * 3:
+                    nearest = fib_closest
 
         score = 0.0
         flags = []
@@ -119,6 +151,7 @@ class ScreeningService:
             "holding": holding,
             "flags": flags,
             "score": round(score, 2),
+            "_fibClosest": fib_closest,
         }
 
     def _passes_filters(self, row: dict[str, Any], filters: dict[str, Any]) -> bool:

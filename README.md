@@ -55,6 +55,75 @@ See [.env.example](.env.example). Key settings:
 
 Full reference: [docs/API.md](docs/API.md)
 
+## Data & persistence
+
+The server stores durable portfolio state in **SQLite** (`data/portfolio.db` by default, or `DATABASE_PATH`). The browser is a client: it loads and edits via the REST API. Uploaded analyst/import files are **parsed once** — the raw file is not kept on disk.
+
+> **Maintenance:** When you change persistence (schema, import modes, sync behavior, or client-side storage), update this section and [docs/DATA.md](docs/DATA.md). Trigger files: `db/database.py`, `services/import_service.py`, `services/portfolio_service.py`, `main.py` (background sync), `dashboard.html` (`localStorage`).
+
+Canonical detail: [docs/DATA.md](docs/DATA.md)
+
+### Architecture
+
+```
+Import file / UI edits  →  REST API  →  SQLite (source of truth)
+                              ↓
+                         yfinance (live quotes + on-demand enrichment)
+```
+
+### What is persisted (SQLite)
+
+| Table | Contents | Typical source |
+|-------|----------|----------------|
+| `symbols` | Current price, personal target, buy-below / sell-above, annual dividend, analyst 1Y target | Import, manual edits, background price sync |
+| `holdings` | Quantity, cost basis, purchase date, account | Import, API |
+| `notes` | Note text + LLM synthesis (JSON), provider, timestamps | UI / API |
+| `assessments` | Action, confidence, rationale, factors, note synthesis snapshot | Assess Symbol runs |
+| `alerts` | Threshold, Fib proximity, screener alerts (`active` / `dismissed`) | Auto-created during sync |
+| `symbol_technical` | TA import: time window, fib anchor, trend waves, fib levels (JSON) | Portfolio-App TA export |
+
+Deleting a symbol cascades to its notes, alerts, assessments, holdings, and technical snapshot (`db/database.py`).
+
+### Import behavior
+
+- **Merge** (default): upserts symbols, holdings, and technical data; keeps existing notes, assessments, and alerts for symbols still in the portfolio.
+- **Replace**: clears all symbols first (cascade wipe), then loads the file only.
+- Notes are **not** imported from analyst files — only added via the UI/API.
+
+### Price sync
+
+A background worker in `main.py` refreshes prices every **300 seconds** (`syncIntervalSeconds` in `/api/v1/config`). Manual **Sync Prices** does the same. Updates `symbols.current_price` and `symbols.analyst_target_1y` in SQLite. Prices are cached, not streamed live.
+
+### Ephemeral (not in SQLite)
+
+Recomputed or fetched per request — not written to the database:
+
+| Data | Source |
+|------|--------|
+| Screening P-Score, upside %, flags | `ScreeningService` from DB fields + live Fib |
+| Inspector valuation (P/E, PEG, revenue growth, op margin) | `yfinance` per inspector request |
+| Auto Fib levels (no TA import) | `FibService` — 90d price history |
+| Chart timeline & trend leg peaks | `yfinance` for import time window |
+| Overview YTD performers | `yfinance` year-start prices |
+
+Browser-only (lost on full page reload unless noted):
+
+| State | Where |
+|-------|-------|
+| Selected symbol, table sort, chart mode, fib checkbox toggles | JavaScript in memory |
+| Synthesis guidance textarea | `localStorage` key `pda_synthesis_guidance` (same browser) |
+
+Server config (not in SQLite): LLM API keys, `NOTE_SYNTHESIS_GUIDANCE`, `ASSESSMENT_MODE` — set in `.env` or cloud env vars.
+
+### Cloud (Render)
+
+Same model as local: one SQLite file on the instance. Without a **persistent disk**, data can survive restarts but may be **lost on redeploy** or instance replacement. For production:
+
+1. Attach a Render disk (see `render.yaml` comments).
+2. Set `DATABASE_PATH=/var/data/portfolio.db`.
+
+All API clients (web dashboard, future Replit app) share that single database. There is no per-browser server session — the portfolio is instance-wide.
+
 ## Deploy to Render
 
 1. Push this repo to GitHub.
@@ -81,6 +150,6 @@ The API is designed for a future Replit mobile client. See [docs/REPLIT.md](docs
 ├── api/v1.py            # REST routes
 ├── services/            # Business logic
 ├── db/database.py       # SQLite schema
-├── docs/                # API + Replit guides
+├── docs/                # API, data/persistence, Replit guides
 └── render.yaml          # Render blueprint
 ```
