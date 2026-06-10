@@ -1,11 +1,18 @@
-# Main entry point for the application
+import os
 import threading
 import time
 import logging
 from flask import Flask, jsonify, send_file, request
 from engine import PortfolioEngine
 
-app = Flask(__name__, static_folder=".")
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+
+# Get the absolute directory of main.py to prevent working directory issues
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Configure Flask with absolute paths to ensure static file access works anywhere
+app = Flask(__name__, static_folder=BASE_DIR, static_url_path="")
 engine = PortfolioEngine()
 
 # In-memory store mirroring the frontend's loaded assets
@@ -38,8 +45,21 @@ def background_sync_loop():
 
 @app.route("/")
 def serve_dashboard():
-    """Serves the frontend layout."""
-    return send_file("dashboard.html")
+    """Serves the frontend layout, auto-detecting both dashboard.html and index.html."""
+    for filename in ["dashboard.html", "index.html"]:
+        path = os.path.join(BASE_DIR, filename)
+        if os.path.exists(path):
+            logging.info(f"Serving dashboard from: {path}")
+            return send_file(path)
+    
+    # Elegant fallback error display instead of standard Flask 404/500 failures
+    return (
+        f"<div style='font-family: system-ui; max-width: 600px; margin: 100px auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);'>"
+        f"<h3 style='color: #ef4444; margin-top: 0;'>Portfolio Dashboard UI Not Found</h3>"
+        f"<p style='color: #475569;'>Flask is running, but couldn't find your frontend HTML file. Please ensure either <b>dashboard.html</b> or <b>index.html</b> is placed inside the <code>Portfolio_Dashboard_Agent</code> directory:</p>"
+        f"<p style='background: #f1f5f9; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 13px; color: #0f172a;'>{BASE_DIR}</p>"
+        f"</div>"
+    ), 404
 
 @app.route("/api/sync", methods=["GET"])
 def trigger_manual_sync():
@@ -64,8 +84,6 @@ def update_state():
     return jsonify({"status": "success", "message": "Backend state updated."})
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    
     # Start the autonomous background sync loop
     worker = threading.Thread(target=background_sync_loop, daemon=True)
     worker.start()
@@ -73,26 +91,3 @@ if __name__ == "__main__":
     # Start the Flask web application
     print("Starting Portfolio Agent Server on http://127.0.0.1:5000")
     app.run(debug=True, port=5000, use_reloader=False)
-
-    # 1. Imports
-from engine import run_pipeline, generate_html
-
-def main():
-    print("[PDA] Starting Portfolio Sync...")
-    
-    # 2. Run the logic
-    portfolio_data = run_pipeline()
-    
-    # 3. Generate the static file
-    html_output = generate_html(portfolio_data)
-    
-    with open("dashboard.html", "w", encoding="utf-8") as f:
-        f.write(html_output)
-    
-    print("[PDA] Success: dashboard.html generated.")
-
-# 4. The "Entry Point" logic
-# This ensures it runs when you execute 'python main.py' 
-# but DOES NOT run automatically when you 'import main' in Colab.
-if __name__ == "__main__":
-    main()
