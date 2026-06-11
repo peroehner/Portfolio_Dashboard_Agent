@@ -1,44 +1,87 @@
-import yfinance as yf
-import torch
-from transformers import pipeline
 import logging
+import os
+
+import yfinance as yf
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 class PortfolioEngine:
     def __init__(self):
+        self.sentiment_analyzer = None
+        if os.environ.get("SKIP_TRANSFORMERS", "").lower() in ("1", "true", "yes"):
+            logging.info("Skipping transformers (SKIP_TRANSFORMERS=1).")
+            return
+
         logging.info("Initializing AI components (PyTorch & Transformers)...")
         try:
+            import torch
+            from transformers import pipeline
+
             self.sentiment_analyzer = pipeline(
-                "sentiment-analysis", 
+                "sentiment-analysis",
                 model="distilbert-base-uncased-finetuned-sst-2-english",
-                device=0 if torch.cuda.is_available() else -1
+                device=0 if torch.cuda.is_available() else -1,
             )
         except Exception as e:
-            logging.warning(f"Transformers initialization failed (running in data-only mode): {e}")
-            self.sentiment_analyzer = None
+            logging.warning(f"Transformers unavailable (running in data-only mode): {e}")
             
     def fetch_market_data(self, tickers):
         """Fetches live market data using yfinance."""
-        logging.info(f"Engine fetching yfinance data for: {tickers}")
+        quotes = self.fetch_market_quotes(tickers)
+        return {ticker: quote.get("currentPrice") for ticker, quote in quotes.items()}
+
+    def fetch_market_quotes(self, tickers, *, include_analyst_targets: bool = True):
+        """Fetches live price and optionally analyst 1Y mean target per ticker."""
+        logging.info(
+            "Engine fetching yfinance data for %s tickers (targets=%s)",
+            len(tickers),
+            include_analyst_targets,
+        )
         if not tickers:
             return {}
+
+        prices = {ticker: None for ticker in tickers}
+        data = None
         try:
             data = yf.download(tickers, period="1d", progress=False)
-            prices = {}
             for ticker in tickers:
                 try:
                     if len(tickers) == 1:
-                        prices[ticker] = float(data['Close'].iloc[-1])
+                        prices[ticker] = float(data["Close"].iloc[-1])
                     else:
-                        prices[ticker] = float(data['Close'][ticker].iloc[-1])
+                        prices[ticker] = float(data["Close"][ticker].iloc[-1])
                 except (KeyError, IndexError, TypeError):
                     prices[ticker] = None
-            return prices
         except Exception as e:
-            logging.error(f"Failed to fetch market data: {e}")
-            return {ticker: None for ticker in tickers}
+            logging.error(f"Failed to fetch market prices: {e}")
+        finally:
+            data = None
+
+        quotes = {}
+        for ticker in tickers:
+            analyst_target = self._fetch_analyst_target(ticker) if include_analyst_targets else None
+            quotes[ticker] = {
+                "currentPrice": (
+                    round(float(prices[ticker]), 2)
+                    if prices[ticker] is not None
+                    else None
+                ),
+                "analystTarget1y": analyst_target,
+            }
+        return quotes
+
+    def _fetch_analyst_target(self, ticker: str) -> float | None:
+        from services.market_cache import ticker_info_cache
+
+        try:
+            info = ticker_info_cache.get(ticker.upper(), lambda: yf.Ticker(ticker).info)
+            target_mean = info.get("targetMeanPrice")
+            if target_mean is not None:
+                return round(float(target_mean), 2)
+        except Exception as e:
+            logging.warning(f"Failed to fetch analyst target for {ticker}: {e}")
+        return None
 
     def analyze_asset_sentiment(self, texts):
         """AI analysis of stock news or fundamental text."""
@@ -54,7 +97,7 @@ class PortfolioEngine:
         alerts = []
         for symbol, details in portfolio_data.items():
             price = details.get("currentPrice", 0)
-            target = details.get("targetPrice", 0)
+            target = details.get("analystTarget1y") or details.get("targetPrice", 0)
             if target and price:
                 upside = (target - price) / price
                 if upside > 0.30:
