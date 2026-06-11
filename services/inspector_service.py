@@ -231,6 +231,9 @@ class InspectorService:
             "totalGainPct": holding.get("gainPct"),
             "currentValue": holding.get("marketValue"),
             "costBasis": holding.get("costBasis"),
+            "personalTarget": holding.get("personalTarget"),
+            "personalTargetValue": holding.get("personalTargetValue"),
+            "personalUpsidePct": holding.get("personalUpsidePct"),
         }
 
     def _valuation_metrics(

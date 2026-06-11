@@ -4,6 +4,7 @@ from typing import Any
 from services.alerts_service import AlertsService
 from services.fib_service import FibService
 from services.holdings_service import HoldingsService
+from services.notes_service import NotesService
 from services.portfolio_service import PortfolioService
 
 
@@ -12,6 +13,7 @@ class ScreeningService:
         self.portfolio_service = PortfolioService()
         self.holdings_service = HoldingsService()
         self.alerts_service = AlertsService()
+        self.notes_service = NotesService()
         self.fib_service = FibService()
         self.fib_proximity_pct = float(os.environ.get("FIB_PROXIMITY_PCT", "1.0"))
 
@@ -147,6 +149,7 @@ class ScreeningService:
             "fibDistancePct": fib_distance,
             "nearestFib": nearest["level"] if nearest else None,
             "alertCount": len(alerts),
+            "noteCount": len(self.notes_service.list_notes(symbol)),
             "holding": holding,
             "flags": flags,
             "score": round(score, 2),

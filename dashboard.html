@@ -75,9 +75,18 @@
       background: var(--accent);
       color: white;
     }
+    button.primary, button.sync {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 2px 8px rgba(59, 130, 246, 0.28);
+    }
+    button.primary:hover, button.sync:hover {
+      filter: brightness(1.08);
+    }
     button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
-    button.success { background: var(--accent-2); }
-    button.warn { background: var(--warn); color: #111; }
+    button.success { background: var(--accent-2); font-weight: 600; }
+    button.warn { background: var(--warn); color: #111; font-weight: 600; }
     main {
       display: grid;
       grid-template-columns: 280px 1fr 320px;
@@ -600,6 +609,44 @@
       font-size: 0.72rem;
       padding: 0.15rem 0.45rem;
     }
+    .screening-inspector-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      color: inherit;
+      text-decoration: none;
+      border-radius: 6px;
+      padding: 0.12rem 0.3rem;
+      margin: -0.12rem -0.3rem;
+      cursor: pointer;
+    }
+    .screening-inspector-link:hover {
+      background: rgba(96, 165, 250, 0.14);
+      color: #93c5fd;
+    }
+    .screening-note-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #86efac;
+    }
+    .screening-note-icon svg {
+      display: block;
+    }
+    .screening-alert-link {
+      font-weight: 600;
+      color: #fbbf24;
+    }
+    .screening-alert-link:hover {
+      color: #fde68a;
+    }
+    #inspector-recommendation.inspector-section-focus,
+    #inspector-notes.inspector-section-focus,
+    #inspector-alerts.inspector-section-focus {
+      outline: 2px solid rgba(96, 165, 250, 0.55);
+      outline-offset: 4px;
+      border-radius: 10px;
+    }
     .synthesis, .trading-rec {
       background: rgba(167,139,250,0.08);
       border: 1px solid rgba(167,139,250,0.25);
@@ -677,6 +724,21 @@
       gap: 1rem;
       margin-bottom: 1rem;
     }
+    .inspector-top-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 1rem;
+      align-items: stretch;
+    }
+    .inspector-top-row .inspector-side-card,
+    .inspector-top-row .inspector-holdings-card {
+      margin-bottom: 0;
+    }
+    @media (max-width: 960px) {
+      .inspector-top-row {
+        grid-template-columns: 1fr;
+      }
+    }
     .inspector-chart-card,
     .inspector-side-card,
     .valuation-scoring {
@@ -725,18 +787,32 @@
       height: 100% !important;
     }
     .trend-waves-row {
-      display: flex;
-      flex-direction: column;
-      gap: 0.55rem;
       margin-top: 0.85rem;
       padding-top: 0.85rem;
       border-top: 1px solid var(--border);
     }
-    .trend-waves-head {
+    .trend-waves-details {
+      background: var(--panel-2);
+      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+    }
+    .trend-waves-details summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.88rem;
+      font-weight: 600;
+      user-select: none;
+    }
+    .trend-waves-details[open] summary {
+      margin-bottom: 0.6rem;
+    }
+    .trend-waves-meta {
       display: flex;
       flex-wrap: wrap;
-      align-items: baseline;
       gap: 0.35rem 0.75rem;
+      margin-bottom: 0.55rem;
+      font-size: 0.74rem;
+      color: var(--muted);
     }
     .trend-waves-window {
       font-size: 0.74rem;
@@ -927,6 +1003,24 @@
     .valuation-scoring {
       margin-bottom: 1rem;
     }
+    .inspector-holdings-card .holdings-condensed {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+    .inspector-holdings-card .holdings-line {
+      margin: 0;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      color: var(--text);
+    }
+    .inspector-holdings-card .holdings-line strong {
+      font-weight: 700;
+    }
+    .inspector-holdings-card .holdings-line .muted {
+      color: var(--muted);
+      font-weight: 500;
+    }
     .valuation-grid {
       display: grid;
       grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -962,6 +1056,30 @@
     }
     .inspector-section {
       margin-top: 1.25rem;
+    }
+    .inspector-lower-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 1rem;
+      margin-top: 1rem;
+      align-items: start;
+    }
+    .inspector-lower-col-side {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .inspector-lower-col-side .inspector-section {
+      margin-top: 0;
+    }
+    .inspector-lower-col-main .recommendation-card {
+      margin-bottom: 0;
+      min-height: 100%;
+    }
+    @media (max-width: 960px) {
+      .inspector-lower-grid {
+        grid-template-columns: 1fr;
+      }
     }
     .inspector-section details {
       background: var(--panel-2);
@@ -1182,7 +1300,7 @@
       </span>
     </div>
     <div class="actions">
-      <button class="secondary" id="btnSync" onclick="syncPortfolio()">Sync Prices</button>
+      <button class="sync" id="btnSync" onclick="syncPortfolio()">Sync Prices</button>
       <button class="warn" id="btnAlerts" onclick="evaluateAlerts()">Check Alerts</button>
       <button class="success" id="btnAssess" onclick="assessAll()">Assess Portfolio</button>
     </div>
@@ -2547,18 +2665,76 @@
       return renderRecommendationChipRow(rec, { wrapperClass: "screening-rec-chips" });
     }
 
+    function screeningNoteIcon() {
+      return `<span class="screening-note-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm1 7h-4V4.5L15.5 9zM8 13h8v2H8v-2zm0 4h5v2H8v-2z"/></svg></span>`;
+    }
+
+    function screeningInspectorLink(symbol, section, innerHtml, title = "") {
+      const safeSymbol = String(symbol || "").replace(/'/g, "\\'");
+      const safeTitle = String(title || "").replace(/"/g, "&quot;");
+      return `<a href="#" class="screening-inspector-link" title="${safeTitle}" onclick="openInspectorSymbol('${safeSymbol}', '${section}'); return false;">${innerHtml}</a>`;
+    }
+
+    function renderScreeningRecommendationCell(row) {
+      const chips = renderRecommendationChips(row.recommendation);
+      return screeningInspectorLink(
+        row.symbol,
+        "recommendation",
+        chips,
+        "Open recommendation in Inspector"
+      );
+    }
+
+    function renderScreeningNotesCell(row) {
+      const count = Number(row.noteCount) || 0;
+      if (!count) {
+        return `<span class="empty">—</span>`;
+      }
+      const label = count === 1 ? "1 note" : `${count} notes`;
+      return screeningInspectorLink(
+        row.symbol,
+        "notes",
+        `${screeningNoteIcon()}<span class="screening-note-count">${count}</span>`,
+        `${label} — open in Inspector`
+      );
+    }
+
+    function renderScreeningAlertsCell(row) {
+      const count = Number(row.alertCount) || 0;
+      if (!count) {
+        return `<span class="empty">0</span>`;
+      }
+      return screeningInspectorLink(
+        row.symbol,
+        "alerts",
+        `<span class="screening-alert-link">${count}</span>`,
+        `${count} active alert(s) — open in Inspector`
+      );
+    }
+
     const screeningColumns = [
       { key: "symbol", label: "Symbol", sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
       {
         key: "recommendation",
         label: "Recommendation",
         sortValue: (row) => `${row.recommendation?.action || ""}|${row.recommendation?.confidence || ""}|${row.recommendation?.sentiment || ""}`,
-        render: (row) => renderRecommendationChips(row.recommendation),
+        render: (row) => renderScreeningRecommendationCell(row),
+      },
+      {
+        key: "noteCount",
+        label: "Notes",
+        sortValue: (row) => row.noteCount || 0,
+        render: (row) => renderScreeningNotesCell(row),
+      },
+      {
+        key: "alertCount",
+        label: "Alerts",
+        sortValue: (row) => row.alertCount,
+        render: (row) => renderScreeningAlertsCell(row),
       },
       { key: "score", label: "Score", sortValue: (row) => row.score, render: (row) => row.score },
       { key: "upsidePct", label: "Upside", sortValue: (row) => row.upsidePct, render: (row) => `${row.upsidePct ?? "—"}%` },
       { key: "fibDistancePct", label: "Fib Dist", sortValue: (row) => row.fibDistancePct, render: (row) => `${row.fibDistancePct ?? "—"}%` },
-      { key: "alertCount", label: "Alerts", sortValue: (row) => row.alertCount, render: (row) => row.alertCount },
       { key: "flags", label: "Flags", sortValue: (row) => row.flags.join(", "), render: (row) => row.flags.join(", ") },
     ];
 
@@ -2778,7 +2954,9 @@
     }
 
     function renderRecommendationCard(rec) {
-      if (!rec) return `<div class="empty">No recommendation yet — synthesize notes and run Assess Symbol.</div>`;
+      if (!rec || !rec.headline) {
+        return `<div class="recommendation-card" id="inspector-recommendation"><h3>Recommendation</h3><div class="empty">No recommendation yet — synthesize notes and run Assess Symbol.</div></div>`;
+      }
       const drivers = (rec.drivers || [])
         .map((d) => `<li>${d}</li>`)
         .join("");
@@ -2791,7 +2969,7 @@
         rec.upsidePct != null ? `${rec.upsidePct}% upside to target` : null,
       ].filter(Boolean).join(" · ");
       return `
-        <div class="recommendation-card">
+        <div class="recommendation-card" id="inspector-recommendation">
           <h3>Recommendation</h3>
           ${renderRecommendationChipRow(rec)}
           <div class="rec-headline">${rec.headline || ""}</div>
@@ -3079,6 +3257,79 @@
       return `${value}${suffix}`;
     }
 
+    function formatInspectorShares(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      return Number.isInteger(amount)
+        ? amount.toLocaleString()
+        : amount.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    }
+
+    function formatInspectorTargetUpside(pct) {
+      if (pct == null || pct === "") return "—";
+      const amount = Number(pct);
+      if (!Number.isFinite(amount)) return "—";
+      const sign = amount > 0 ? "+" : "";
+      return `${sign}${amount.toFixed(1)}%`;
+    }
+
+    function renderInspectorHoldingsCard(data) {
+      const symbol = data.symbol || "—";
+      const pm = data.positionMechanics;
+      const holding = data.holding;
+      if (!pm && !holding) {
+        return `
+          <section class="valuation-scoring inspector-holdings-card">
+            <h3>${symbol} Holdings</h3>
+            <div class="empty">No holding recorded for this symbol.</div>
+          </section>`;
+      }
+
+      const entryDate = pm?.entryDate
+        || (holding?.purchaseDate ? String(holding.purchaseDate).slice(0, 10) : null)
+        || "—";
+      const shareCount = pm?.sharesOwned ?? holding?.quantity;
+      const shares = formatInspectorShares(shareCount);
+      const investment = formatMoney(pm?.entryCapital ?? holding?.totalCost);
+      const currentValue = formatMoney(pm?.currentValue ?? holding?.marketValue);
+      const gain = pm?.totalGain ?? holding?.unrealizedGain;
+      const gainPct = pm?.totalGainPct ?? holding?.gainPct;
+      const gainClass = (gain ?? 0) >= 0 ? "gain-pos" : "gain-neg";
+      const personalTargetPrice = holding?.personalTarget ?? data.quote?.targetPrice ?? null;
+      const personalTargetValue = holding?.personalTargetValue
+        ?? pm?.personalTargetValue
+        ?? (
+          personalTargetPrice != null && shareCount != null
+            ? Number(shareCount) * Number(personalTargetPrice)
+            : null
+        );
+      const personalUpside = holding?.personalUpsidePct ?? (
+        personalTargetPrice != null && (holding?.currentPrice != null || data.quote?.currentPrice != null)
+          ? ((personalTargetPrice - (holding?.currentPrice ?? data.quote?.currentPrice))
+            / (holding?.currentPrice ?? data.quote?.currentPrice)) * 100
+          : null
+      );
+
+      return `
+        <section class="valuation-scoring inspector-holdings-card">
+          <h3>${symbol} Holdings</h3>
+          <div class="holdings-condensed">
+            <p class="holdings-line">
+              Entry: <strong>${entryDate}</strong>
+              · <strong>${shares}</strong> Shares
+              · Investment <strong>${investment}</strong>
+            </p>
+            <p class="holdings-line">
+              Value <strong>${currentValue}</strong>
+              Gain <strong class="${gainClass}">${formatGainLine(gain, gainPct)}</strong>
+              · Target <strong>${personalTargetValue != null ? formatMoney(personalTargetValue) : "—"}</strong>
+              <span class="muted">(${formatInspectorTargetUpside(personalUpside)})</span>
+            </p>
+          </div>
+        </section>`;
+    }
+
     function renderValuationMetric(label, value, valueClass = "") {
       return `
         <div class="valuation-metric">
@@ -3094,7 +3345,6 @@
 
     function renderInspectorDashboard(data, panelId) {
       const isHoldingsPreview = isHoldingsInspectorPanel(panelId);
-      const pm = data.positionMechanics;
       const val = data.valuation || {};
       const advisory = data.technicalAdvisory || {};
       const waves = data.trendWaves || [];
@@ -3133,11 +3383,14 @@
       return `
         ${setupHint}
         <div class="inspector-dashboard">
-          <section class="inspector-side-card advisory ${stanceClass}">
-            <h3>Technical Risk Advisory</h3>
-            <div class="advisory-stance">Technical Stance: ${advisory.stance || "Unknown"}</div>
-            <p>${advisory.message || "Insufficient technical data to assess support positioning."}</p>
-          </section>
+          <div class="inspector-top-row">
+            <section class="inspector-side-card advisory ${stanceClass}">
+              <h3>Technical Risk Advisory</h3>
+              <div class="advisory-stance">Technical Stance: ${advisory.stance || "Unknown"}</div>
+              <p>${advisory.message || "Insufficient technical data to assess support positioning."}</p>
+            </section>
+            ${isHoldingsPreview ? "" : renderInspectorHoldingsCard(data)}
+          </div>
           <section class="valuation-scoring">
             <h3>Valuation & Scoring</h3>
             <div class="valuation-grid">
@@ -3187,58 +3440,44 @@
               : ""}
             ${isHoldingsPreview ? "" : `
             <div class="trend-waves-row">
-              <div class="trend-waves-head">
-                <strong style="font-size:0.8rem;color:var(--muted);">Detected Trend Waves</strong>
-                ${technical.windowStart && technical.windowEnd
-                  ? `<span class="trend-waves-window">Time window ${technical.windowStart} → ${technical.windowEnd}</span>`
-                  : ""}
-                <span class="trend-source-note">${trendSource === "import" ? "From TA import" : "No TA import on file — re-import export"}</span>
-              </div>
-              ${waves.length
-                ? `<div class="trend-wave-list">${waves.map((wave) => {
-                    const moveText = wave.movePct != null ? `${Number(wave.movePct).toFixed(1)}%` : "";
-                    const dateRange = wave.startDate && wave.endDate
-                      ? `${wave.startDate} → ${wave.endDate}`
-                      : (wave.date || "—");
-                    const headline = [
-                      wave.label || "T?",
-                      wave.legPattern || wave.type || "",
-                      moveText,
-                      dateRange,
-                    ].filter(Boolean).join(" · ");
-                    const legPrices = wave.displayLow != null && wave.displayHigh != null
-                      ? `${formatMoney(wave.displayLow)} → ${formatMoney(wave.displayHigh)}`
-                      : `${formatMoney(wave.priceStart)} → ${formatMoney(wave.priceEnd)}`;
-                    const detailParts = [legPrices];
-                    if (wave.peakHigh != null && wave.peakLow != null) {
-                      detailParts.push(`High ${formatMoney(wave.peakHigh)} · Low ${formatMoney(wave.peakLow)}`);
-                    }
-                    if (wave.label === "T1" && importedFibLevels.length) {
-                      detailParts.push("Fib levels use T1");
-                    }
-                    return `
-                      <article class="trend-wave-card ${wave.direction || "up"}">
-                        <div class="trend-wave-title ${wave.direction || "up"}">${headline}</div>
-                        <div class="trend-wave-detail">${detailParts.join(" · ")}</div>
-                      </article>
-                    `;
-                  }).join("")}</div>`
-                : `<span class="empty">No imported trend waves. Use <strong>Import</strong> with your Portfolio-App TA export for this symbol.</span>`}
+              <details class="trend-waves-details">
+                <summary>Detected Trend Waves${waves.length ? ` (${waves.length})` : ""}${technical.windowStart && technical.windowEnd ? ` · ${technical.windowStart} → ${technical.windowEnd}` : ""}</summary>
+                <div class="trend-waves-meta">
+                  <span class="trend-source-note">${trendSource === "import" ? "From TA import" : "No TA import on file — re-import export"}</span>
+                </div>
+                ${waves.length
+                  ? `<div class="trend-wave-list">${waves.map((wave) => {
+                      const moveText = wave.movePct != null ? `${Number(wave.movePct).toFixed(1)}%` : "";
+                      const dateRange = wave.startDate && wave.endDate
+                        ? `${wave.startDate} → ${wave.endDate}`
+                        : (wave.date || "—");
+                      const headline = [
+                        wave.label || "T?",
+                        wave.legPattern || wave.type || "",
+                        moveText,
+                        dateRange,
+                      ].filter(Boolean).join(" · ");
+                      const legPrices = wave.displayLow != null && wave.displayHigh != null
+                        ? `${formatMoney(wave.displayLow)} → ${formatMoney(wave.displayHigh)}`
+                        : `${formatMoney(wave.priceStart)} → ${formatMoney(wave.priceEnd)}`;
+                      const detailParts = [legPrices];
+                      if (wave.peakHigh != null && wave.peakLow != null) {
+                        detailParts.push(`High ${formatMoney(wave.peakHigh)} · Low ${formatMoney(wave.peakLow)}`);
+                      }
+                      if (wave.label === "T1" && importedFibLevels.length) {
+                        detailParts.push("Fib levels use T1");
+                      }
+                      return `
+                        <article class="trend-wave-card ${wave.direction || "up"}">
+                          <div class="trend-wave-title ${wave.direction || "up"}">${headline}</div>
+                          <div class="trend-wave-detail">${detailParts.join(" · ")}</div>
+                        </article>
+                      `;
+                    }).join("")}</div>`
+                  : `<span class="empty">No imported trend waves. Use <strong>Import</strong> with your Portfolio-App TA export for this symbol.</span>`}
+              </details>
             </div>`}
           </section>
-          ${isHoldingsPreview ? "" : `
-          <section class="inspector-side-card">
-            <h3>Position Mechanics</h3>
-            ${pm ? `
-              <dl class="inspector-kv">
-                <div><dt>Entry Date</dt><dd>${pm.entryDate || "—"}</dd></div>
-                <div><dt>Shares Owned</dt><dd>${pm.sharesOwned ?? "—"}</dd></div>
-                <div><dt>Entry Capital</dt><dd>${formatMoney(pm.entryCapital)}</dd></div>
-                <div><dt>Total Gain</dt><dd class="${(pm.totalGain ?? 0) >= 0 ? "gain-pos" : "gain-neg"}">${formatGainLine(pm.totalGain, pm.totalGainPct)}</dd></div>
-                <div><dt>Current Value</dt><dd>${formatMoney(pm.currentValue)}</dd></div>
-              </dl>
-            ` : `<div class="empty">No holding recorded for this symbol.</div>`}
-          </section>`}
         </div>
       `;
     }
@@ -3540,33 +3779,40 @@
       const olderAssessments = assessments.slice(1);
       return `
         ${renderInspectorDashboard(data, panelId)}
-        ${data.alerts.length ? `
-        <div class="inspector-section">
-          <h3>Active Alerts</h3>
-          ${data.alerts.map((a) => `<div class="alert">${a.message}</div>`).join("")}
-        </div>` : ""}
-        ${renderRecommendationCard(rec)}
-        <div class="inspector-section">
-          <h3>Latest Overall Synthesis</h3>
-          ${renderOverallSynthesis(rec, latestAssessment)}
-        </div>
-        <div class="inspector-section">
-          <h3>Latest Note</h3>
-          ${latestNote ? renderInspectorNoteItem(latestNote, { panelId }) : `<div class="empty">No notes yet.</div>`}
-          ${olderNotes.length ? `
-            <details>
-              <summary>Older notes (${olderNotes.length})</summary>
-              ${olderNotes.map((n) => renderInspectorNoteItem(n, { history: true, panelId })).join("")}
-            </details>` : ""}
-        </div>
-        <div class="inspector-section">
-          <h3>Latest Assessment</h3>
-          ${latestAssessment ? renderInspectorAssessmentItem(latestAssessment, { panelId }) : `<div class="empty">No assessments yet — run Assess Symbol.</div>`}
-          ${olderAssessments.length ? `
-            <details>
-              <summary>Assessment history (${olderAssessments.length})</summary>
-              ${olderAssessments.map((a) => renderInspectorAssessmentItem(a, { history: true, panelId })).join("")}
-            </details>` : ""}
+        <div class="inspector-lower-grid">
+          <div class="inspector-lower-col inspector-lower-col-main">
+            ${renderRecommendationCard(rec)}
+          </div>
+          <div class="inspector-lower-col inspector-lower-col-side">
+            <div class="inspector-section" id="inspector-alerts">
+              <h3>Active Alerts</h3>
+              ${data.alerts.length
+                ? data.alerts.map((a) => `<div class="alert">${a.message}</div>`).join("")
+                : `<div class="empty">No active alerts.</div>`}
+            </div>
+            <div class="inspector-section">
+              <h3>Latest Overall Synthesis</h3>
+              ${renderOverallSynthesis(rec, latestAssessment)}
+            </div>
+            <div class="inspector-section" id="inspector-notes">
+              <h3>Latest Note</h3>
+              ${latestNote ? renderInspectorNoteItem(latestNote, { panelId }) : `<div class="empty">No notes yet.</div>`}
+              ${olderNotes.length ? `
+                <details>
+                  <summary>Older notes (${olderNotes.length})</summary>
+                  ${olderNotes.map((n) => renderInspectorNoteItem(n, { history: true, panelId })).join("")}
+                </details>` : ""}
+            </div>
+            <div class="inspector-section">
+              <h3>Latest Assessment</h3>
+              ${latestAssessment ? renderInspectorAssessmentItem(latestAssessment, { panelId }) : `<div class="empty">No assessments yet — run Assess Symbol.</div>`}
+              ${olderAssessments.length ? `
+                <details>
+                  <summary>Assessment history (${olderAssessments.length})</summary>
+                  ${olderAssessments.map((a) => renderInspectorAssessmentItem(a, { history: true, panelId })).join("")}
+                </details>` : ""}
+            </div>
+          </div>
         </div>
       `;
     }
@@ -3595,7 +3841,23 @@
       }
     }
 
-    async function loadInspector(symbol, panelId = "inspectorPanel") {
+    function focusInspectorSection(panelId, section) {
+      if (!section) return;
+      const sectionIds = {
+        recommendation: "inspector-recommendation",
+        notes: "inspector-notes",
+        alerts: "inspector-alerts",
+      };
+      const elementId = sectionIds[section] || section;
+      const panel = document.getElementById(panelId);
+      const target = panel ? panel.querySelector(`#${elementId}`) : null;
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.classList.add("inspector-section-focus");
+      window.setTimeout(() => target.classList.remove("inspector-section-focus"), 1800);
+    }
+
+    async function loadInspector(symbol, panelId = "inspectorPanel", focusSection = null) {
       if (!symbol) return;
       selectedSymbol = symbol;
       const [rawData, portfolio] = await Promise.all([
@@ -3622,6 +3884,9 @@
         document.getElementById("inspectorPanel").hidden = false;
         setInspectorSymbolHead(symbol);
       }
+      if (focusSection) {
+        window.requestAnimationFrame(() => focusInspectorSection(panelId, focusSection));
+      }
     }
 
     async function openHoldingsInspector(symbol, switchView = false) {
@@ -3629,9 +3894,9 @@
       await loadInspector(symbol, "holdingsInspectorPanel");
     }
 
-    async function openInspectorSymbol(symbol) {
+    async function openInspectorSymbol(symbol, section = null) {
       showView("inspector");
-      await loadInspector(symbol, "inspectorPanel");
+      await loadInspector(symbol, "inspectorPanel", section);
     }
 
     async function loadInspectorOptions() {

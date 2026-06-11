@@ -144,7 +144,10 @@ def serve_dashboard():
     dashboard_path = BASE_DIR / "dashboard.html"
     if not dashboard_path.is_file():
         return jsonify({"status": "error", "message": "dashboard.html not found"}), 404
-    return send_file(dashboard_path)
+    response = send_file(dashboard_path)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 @app.route("/api/sync", methods=["GET"])
