@@ -64,11 +64,25 @@ def get_engine():
 
 def background_sync_loop():
     """Background worker that continuously syncs prices via the engine."""
+    cycle = 0
+    target_refresh_every = max(
+        1,
+        int(os.environ.get("TARGET_REFRESH_CYCLES", "12")),
+    )
     while True:
         symbols = portfolio_service.list_symbols()
         if symbols:
-            logging.info(f"Background Sync: Fetching data for {len(symbols)} assets.")
-            result = portfolio_service.sync_prices(get_engine())
+            cycle += 1
+            refresh_targets = cycle % target_refresh_every == 0
+            logging.info(
+                "Background Sync: Fetching data for %s assets (targets=%s).",
+                len(symbols),
+                refresh_targets,
+            )
+            result = portfolio_service.sync_prices(
+                get_engine(),
+                refresh_targets=refresh_targets,
+            )
             new_alerts = alerts_service.evaluate_all(get_engine())
             if new_alerts:
                 logging.info(f"New alerts: {[alert['message'] for alert in new_alerts]}")

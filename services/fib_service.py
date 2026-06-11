@@ -1,14 +1,16 @@
 import os
 import threading
 import time
+from collections import OrderedDict
 from typing import Any
 
 import yfinance as yf
 
 FIB_RATIOS = (0.236, 0.382, 0.5, 0.618, 0.786)
 
-_LEVELS_CACHE: dict[tuple[str, str], tuple[float, dict[str, Any] | None]] = {}
+_LEVELS_CACHE: OrderedDict[tuple[str, str], tuple[float, dict[str, Any] | None]] = OrderedDict()
 _CACHE_LOCK = threading.Lock()
+_CACHE_MAX_ENTRIES = int(os.environ.get("FIB_CACHE_MAX_ENTRIES", "64"))
 
 
 class FibService:
@@ -78,6 +80,7 @@ class FibService:
 
     def _fetch_levels(self, symbol: str) -> dict[str, Any] | None:
         symbol = symbol.upper()
+        data = None
         try:
             data = yf.Ticker(symbol).history(period=self.period, auto_adjust=True)
             if data.empty:
@@ -109,6 +112,8 @@ class FibService:
             }
         except Exception:
             return None
+        finally:
+            data = None
 
     def _cache_get(self, cache_key: tuple[str, str]) -> dict[str, Any] | None:
         now = time.time()
@@ -120,6 +125,7 @@ class FibService:
             if expires_at <= now:
                 del _LEVELS_CACHE[cache_key]
                 return None
+            _LEVELS_CACHE.move_to_end(cache_key)
             return payload
 
     def _cache_has_key(self, cache_key: tuple[str, str]) -> bool:
@@ -132,9 +138,13 @@ class FibService:
             if expires_at <= now:
                 del _LEVELS_CACHE[cache_key]
                 return False
+            _LEVELS_CACHE.move_to_end(cache_key)
             return True
 
     def _cache_set(self, cache_key: tuple[str, str], payload: dict[str, Any] | None) -> None:
         expires_at = time.time() + self.cache_ttl
         with _CACHE_LOCK:
             _LEVELS_CACHE[cache_key] = (expires_at, payload)
+            _LEVELS_CACHE.move_to_end(cache_key)
+            while len(_LEVELS_CACHE) > _CACHE_MAX_ENTRIES:
+                _LEVELS_CACHE.popitem(last=False)

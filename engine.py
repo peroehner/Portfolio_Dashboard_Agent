@@ -31,13 +31,18 @@ class PortfolioEngine:
         quotes = self.fetch_market_quotes(tickers)
         return {ticker: quote.get("currentPrice") for ticker, quote in quotes.items()}
 
-    def fetch_market_quotes(self, tickers):
-        """Fetches live price and analyst 1Y mean target per ticker."""
-        logging.info(f"Engine fetching yfinance data for: {tickers}")
+    def fetch_market_quotes(self, tickers, *, include_analyst_targets: bool = True):
+        """Fetches live price and optionally analyst 1Y mean target per ticker."""
+        logging.info(
+            "Engine fetching yfinance data for %s tickers (targets=%s)",
+            len(tickers),
+            include_analyst_targets,
+        )
         if not tickers:
             return {}
 
         prices = {ticker: None for ticker in tickers}
+        data = None
         try:
             data = yf.download(tickers, period="1d", progress=False)
             for ticker in tickers:
@@ -50,17 +55,12 @@ class PortfolioEngine:
                     prices[ticker] = None
         except Exception as e:
             logging.error(f"Failed to fetch market prices: {e}")
+        finally:
+            data = None
 
         quotes = {}
         for ticker in tickers:
-            analyst_target = None
-            try:
-                target_mean = yf.Ticker(ticker).info.get("targetMeanPrice")
-                if target_mean is not None:
-                    analyst_target = round(float(target_mean), 2)
-            except Exception as e:
-                logging.warning(f"Failed to fetch analyst target for {ticker}: {e}")
-
+            analyst_target = self._fetch_analyst_target(ticker) if include_analyst_targets else None
             quotes[ticker] = {
                 "currentPrice": (
                     round(float(prices[ticker]), 2)
@@ -70,6 +70,18 @@ class PortfolioEngine:
                 "analystTarget1y": analyst_target,
             }
         return quotes
+
+    def _fetch_analyst_target(self, ticker: str) -> float | None:
+        from services.market_cache import ticker_info_cache
+
+        try:
+            info = ticker_info_cache.get(ticker.upper(), lambda: yf.Ticker(ticker).info)
+            target_mean = info.get("targetMeanPrice")
+            if target_mean is not None:
+                return round(float(target_mean), 2)
+        except Exception as e:
+            logging.warning(f"Failed to fetch analyst target for {ticker}: {e}")
+        return None
 
     def analyze_asset_sentiment(self, texts):
         """AI analysis of stock news or fundamental text."""

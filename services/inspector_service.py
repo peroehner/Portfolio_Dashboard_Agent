@@ -44,7 +44,7 @@ class InspectorService:
         assessments = self.assessment_service.list_assessments(symbol=symbol, limit=20)
         alerts = self.alerts_service.list_alerts(symbol=symbol, status="active")
         holding = self.holdings_service.get_holding(symbol)
-        recommendation = self._build_recommendation(
+        recommendation = build_symbol_recommendation(
             symbol_data, assessments, alerts, screen_row, nearest
         )
 
@@ -78,66 +78,9 @@ class InspectorService:
         screening: dict[str, Any],
         nearest_fib: dict[str, Any] | None,
     ) -> dict[str, Any]:
-        notes = symbol_data.get("notes", [])
-        syntheses = [note["synthesis"] for note in notes if note.get("synthesis")]
-        latest = assessments[0] if assessments else None
-
-        combined = {}
-        if latest and latest.get("noteSynthesis"):
-            combined = latest["noteSynthesis"]
-        elif syntheses:
-            combined = self._merge_syntheses(syntheses)
-
-        thesis = combined.get("integratedSummary") or combined.get("summary") or ""
-        sentiment = combined.get("sentiment") or "neutral"
-        growth = (combined.get("growthTrajectory") or [])[:5]
-        projections = (combined.get("revenueProjections") or [])[:3]
-        catalysts = (combined.get("catalystsToWatch") or [])[:5]
-
-        action = latest["action"] if latest else "hold"
-        confidence = latest["confidence"] if latest else "medium"
-        rationale = (
-            latest["rationale"]
-            if latest
-            else "Synthesize your notes, then run Assess Symbol to generate a recommendation."
+        return build_symbol_recommendation(
+            symbol_data, assessments, alerts, screening, nearest_fib
         )
-
-        drivers = self._clean_factors(latest.get("factors", []) if latest else [])
-        if not drivers and thesis:
-            drivers = [thesis]
-
-        watch_items = []
-        for catalyst in catalysts:
-            period = catalyst.get("period") or "Upcoming"
-            metric = catalyst.get("metric") or "Growth"
-            threshold = catalyst.get("threshold") or ""
-            watch_items.append(f"{period}: {metric}" + (f" — target {threshold}" if threshold else ""))
-        for alert in alerts[:3]:
-            watch_items.append(alert["message"])
-        if nearest_fib and nearest_fib.get("level"):
-            watch_items.append(
-                f"Price near Fib {nearest_fib['level'].get('label', '')} "
-                f"({nearest_fib.get('distancePct', '—')}%)"
-            )
-
-        headline = self._headline_for_action(action, sentiment)
-
-        return {
-            "action": action,
-            "confidence": confidence,
-            "headline": headline,
-            "rationale": rationale,
-            "drivers": drivers[:6],
-            "thesis": thesis,
-            "sentiment": sentiment,
-            "growthHighlights": growth,
-            "projections": projections,
-            "catalysts": catalysts,
-            "watchItems": watch_items[:8],
-            "assessedAt": latest.get("createdAt") if latest else None,
-            "provider": latest.get("provider") if latest else None,
-            "upsidePct": screening.get("upsidePct"),
-        }
 
     @staticmethod
     def _merge_syntheses(syntheses: list[dict[str, Any]]) -> dict[str, Any]:
@@ -307,7 +250,9 @@ class InspectorService:
             "operatingMargin": None,
         }
         try:
-            info = yf.Ticker(symbol).info
+            from services.market_cache import ticker_info_cache
+
+            info = ticker_info_cache.get(symbol.upper(), lambda: yf.Ticker(symbol).info)
             metrics.update(
                 {
                     "trailingPe": self._safe_round(info.get("trailingPE")),
@@ -458,3 +403,72 @@ class InspectorService:
         if sentiment == "bearish":
             return f"{base} · bearish notes flagged"
         return base
+
+
+def build_symbol_recommendation(
+    symbol_data: dict[str, Any],
+    assessments: list[dict[str, Any]],
+    alerts: list[dict[str, Any]],
+    screening: dict[str, Any],
+    nearest_fib: dict[str, Any] | None,
+) -> dict[str, Any]:
+    notes = symbol_data.get("notes", [])
+    syntheses = [note["synthesis"] for note in notes if note.get("synthesis")]
+    latest = assessments[0] if assessments else None
+
+    combined = {}
+    if latest and latest.get("noteSynthesis"):
+        combined = latest["noteSynthesis"]
+    elif syntheses:
+        combined = InspectorService._merge_syntheses(syntheses)
+
+    thesis = combined.get("integratedSummary") or combined.get("summary") or ""
+    sentiment = combined.get("sentiment") or "neutral"
+    growth = (combined.get("growthTrajectory") or [])[:5]
+    projections = (combined.get("revenueProjections") or [])[:3]
+    catalysts = (combined.get("catalystsToWatch") or [])[:5]
+
+    action = latest["action"] if latest else "hold"
+    confidence = latest["confidence"] if latest else "medium"
+    rationale = (
+        latest["rationale"]
+        if latest
+        else "Synthesize your notes, then run Assess Symbol to generate a recommendation."
+    )
+
+    drivers = InspectorService._clean_factors(latest.get("factors", []) if latest else [])
+    if not drivers and thesis:
+        drivers = [thesis]
+
+    watch_items = []
+    for catalyst in catalysts:
+        period = catalyst.get("period") or "Upcoming"
+        metric = catalyst.get("metric") or "Growth"
+        threshold = catalyst.get("threshold") or ""
+        watch_items.append(f"{period}: {metric}" + (f" — target {threshold}" if threshold else ""))
+    for alert in alerts[:3]:
+        watch_items.append(alert["message"])
+    if nearest_fib and nearest_fib.get("level"):
+        watch_items.append(
+            f"Price near Fib {nearest_fib['level'].get('label', '')} "
+            f"({nearest_fib.get('distancePct', '—')}%)"
+        )
+
+    headline = InspectorService._headline_for_action(action, sentiment)
+
+    return {
+        "action": action,
+        "confidence": confidence,
+        "headline": headline,
+        "rationale": rationale,
+        "drivers": drivers[:6],
+        "thesis": thesis,
+        "sentiment": sentiment,
+        "growthHighlights": growth,
+        "projections": projections,
+        "catalysts": catalysts,
+        "watchItems": watch_items[:8],
+        "assessedAt": latest.get("createdAt") if latest else None,
+        "provider": latest.get("provider") if latest else None,
+        "upsidePct": screening.get("upsidePct"),
+    }

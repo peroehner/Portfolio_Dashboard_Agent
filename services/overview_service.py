@@ -1,12 +1,20 @@
+import os
 from datetime import datetime
 from typing import Any
 
 import yfinance as yf
 
 from services.alerts_service import AlertsService
+from services.market_cache import TtlCache
 from services.assessment_service import AssessmentService
 from services.holdings_service import HoldingsService
 from services.portfolio_service import PortfolioService
+
+
+_YTD_PRICE_CACHE = TtlCache(
+    float(os.environ.get("YTD_PRICE_CACHE_TTL_SECONDS", "3600")),
+    max_entries=8,
+)
 
 
 class OverviewService:
@@ -39,30 +47,38 @@ class OverviewService:
             return {}
 
         year = datetime.now().year
-        start = f"{year}-01-01"
-        prices = {symbol: None for symbol in symbols}
-        try:
-            data = yf.download(
-                symbols,
-                start=start,
-                progress=False,
-                auto_adjust=True,
-                group_by="column",
-            )
-            if data.empty:
-                return prices
+        cache_key = (year, tuple(sorted(symbols)))
 
-            for symbol in symbols:
-                try:
-                    if len(symbols) == 1:
-                        prices[symbol] = round(float(data["Close"].iloc[0]), 2)
-                    else:
-                        prices[symbol] = round(float(data["Close"][symbol].iloc[0]), 2)
-                except (KeyError, IndexError, TypeError, ValueError):
-                    prices[symbol] = None
-        except Exception:
+        def fetch() -> dict[str, float | None]:
+            start = f"{year}-01-01"
+            prices = {symbol: None for symbol in symbols}
+            data = None
+            try:
+                data = yf.download(
+                    symbols,
+                    start=start,
+                    progress=False,
+                    auto_adjust=True,
+                    group_by="column",
+                )
+                if data.empty:
+                    return prices
+
+                for symbol in symbols:
+                    try:
+                        if len(symbols) == 1:
+                            prices[symbol] = round(float(data["Close"].iloc[0]), 2)
+                        else:
+                            prices[symbol] = round(float(data["Close"][symbol].iloc[0]), 2)
+                    except (KeyError, IndexError, TypeError, ValueError):
+                        prices[symbol] = None
+            except Exception:
+                return prices
+            finally:
+                data = None
             return prices
-        return prices
+
+        return _YTD_PRICE_CACHE.get(cache_key, fetch)
 
     def _ytd_performers(
         self,

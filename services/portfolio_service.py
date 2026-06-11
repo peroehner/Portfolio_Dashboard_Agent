@@ -113,13 +113,16 @@ class PortfolioService:
             imported.append(self.upsert_symbol(symbol, details))
         return imported
 
-    def sync_prices(self, engine) -> dict[str, Any]:
+    def sync_prices(self, engine, *, refresh_targets: bool = True) -> dict[str, Any]:
         symbols = self.list_symbols()
         if not symbols:
             return {"updated": 0, "symbols": []}
 
         tickers = [item["symbol"] for item in symbols]
-        live_quotes = engine.fetch_market_quotes(tickers)
+        live_quotes = engine.fetch_market_quotes(
+            tickers,
+            include_analyst_targets=refresh_targets,
+        )
         updated_prices = 0
         updated_targets = 0
 

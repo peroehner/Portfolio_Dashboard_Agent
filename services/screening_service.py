@@ -17,11 +17,10 @@ class ScreeningService:
 
     def run_screen(self, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         from services.assessment_service import AssessmentService
-        from services.inspector_service import InspectorService
+        from services.inspector_service import build_symbol_recommendation
 
         filters = filters or {}
         results = []
-        inspector = InspectorService()
         assessment_service = AssessmentService()
 
         for symbol_data in self.portfolio_service.list_symbols():
@@ -37,7 +36,7 @@ class ScreeningService:
                 and fib_closest["distancePct"] <= self.fib_proximity_pct
             ):
                 nearest = fib_closest
-            rec = inspector._build_recommendation(
+            rec = build_symbol_recommendation(
                 full_symbol or symbol_data,
                 assessments,
                 alerts,
