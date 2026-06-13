@@ -6,6 +6,7 @@ from services.fib_service import FibService
 from services.holdings_service import HoldingsService
 from services.notes_service import NotesService
 from services.portfolio_service import PortfolioService
+from services.technical_service import TechnicalService
 
 
 class ScreeningService:
@@ -15,6 +16,7 @@ class ScreeningService:
         self.alerts_service = AlertsService()
         self.notes_service = NotesService()
         self.fib_service = FibService()
+        self.technical_service = TechnicalService()
         self.fib_proximity_pct = float(os.environ.get("FIB_PROXIMITY_PCT", "1.0"))
 
     def run_screen(self, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -87,7 +89,12 @@ class ScreeningService:
         )
         return rows
 
-    def _score_symbol(self, symbol_data: dict[str, Any]) -> dict[str, Any]:
+    def _score_symbol(
+        self,
+        symbol_data: dict[str, Any],
+        *,
+        technical_advisory: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         symbol = symbol_data["symbol"]
         price = symbol_data.get("currentPrice")
         target = symbol_data.get("analystTarget1y") or symbol_data.get("targetPrice")
@@ -111,8 +118,9 @@ class ScreeningService:
         fib_closest = None
         nearest = None
         fib_distance = None
-        if price is not None:
-            fib_closest = self.fib_service.closest_level(symbol, price)
+        fib = self._resolve_fib(symbol) if price is not None else None
+        if price is not None and fib:
+            fib_closest = self.fib_service.closest_level(symbol, price, fib=fib)
             if fib_closest:
                 fib_distance = fib_closest["distancePct"]
                 if fib_distance <= self.fib_proximity_pct * 3:
@@ -136,6 +144,18 @@ class ScreeningService:
             score += min(len(alerts) * 5, 15)
             flags.append("active_alerts")
 
+        if technical_advisory is not None:
+            tech_stance = technical_advisory["stance"]
+        else:
+            from services.inspector_service import compute_technical_advisory
+
+            tech_stance = compute_technical_advisory(
+                symbol,
+                price,
+                self.technical_service,
+                self.fib_service,
+            )["stance"]
+
         return {
             "symbol": symbol,
             "currentPrice": price,
@@ -150,6 +170,7 @@ class ScreeningService:
             "nearestFib": nearest["level"] if nearest else None,
             "alertCount": len(alerts),
             "noteCount": len(self.notes_service.list_notes(symbol)),
+            "techStance": tech_stance,
             "holding": holding,
             "flags": flags,
             "score": round(score, 2),
@@ -167,3 +188,10 @@ class ScreeningService:
         if filters.get("hasAlerts") and row.get("alertCount", 0) == 0:
             return False
         return True
+
+    def _resolve_fib(self, symbol: str) -> dict[str, Any] | None:
+        snapshot = self.technical_service.get_snapshot(symbol)
+        fib = self.technical_service.fib_from_snapshot(symbol, snapshot)
+        if fib:
+            return fib
+        return self.fib_service.get_levels(symbol)

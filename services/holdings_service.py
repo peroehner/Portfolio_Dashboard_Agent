@@ -15,8 +15,8 @@ class HoldingsService:
             rows = conn.execute(
                 """
                 SELECT h.symbol, h.quantity, h.cost_basis, h.purchase_date, h.account_name,
-                       h.created_at, h.updated_at, s.current_price, s.annual_dividend,
-                       s.analyst_target_1y, s.target_price
+                       h.created_at, h.updated_at, s.current_price, s.day_change_pct,
+                       s.annual_dividend, s.analyst_target_1y, s.target_price
                 FROM holdings h
                 LEFT JOIN symbols s ON s.symbol = h.symbol
                 ORDER BY h.symbol
@@ -30,8 +30,8 @@ class HoldingsService:
             row = conn.execute(
                 """
                 SELECT h.symbol, h.quantity, h.cost_basis, h.purchase_date, h.account_name,
-                       h.created_at, h.updated_at, s.current_price, s.annual_dividend,
-                       s.analyst_target_1y, s.target_price
+                       h.created_at, h.updated_at, s.current_price, s.day_change_pct,
+                       s.annual_dividend, s.analyst_target_1y, s.target_price
                 FROM holdings h
                 LEFT JOIN symbols s ON s.symbol = h.symbol
                 WHERE h.symbol = ?
@@ -128,6 +128,7 @@ class HoldingsService:
             "purchaseDate": row["purchase_date"],
             "accountName": row["account_name"],
             "currentPrice": current_price,
+            "dayChangePct": row["day_change_pct"],
             "marketValue": market_value,
             "totalCost": total_cost,
             "unrealizedGain": unrealized_gain,

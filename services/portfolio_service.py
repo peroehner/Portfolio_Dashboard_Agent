@@ -130,15 +130,18 @@ class PortfolioService:
             for symbol in tickers:
                 quote = live_quotes.get(symbol) or {}
                 price = quote.get("currentPrice")
+                day_change_pct = quote.get("dayChangePct")
                 analyst_target = quote.get("analystTarget1y")
                 if price is not None:
                     conn.execute(
                         """
                         UPDATE symbols
-                        SET current_price = ?, updated_at = datetime('now')
+                        SET current_price = ?,
+                            day_change_pct = COALESCE(?, day_change_pct),
+                            updated_at = datetime('now')
                         WHERE symbol = ?
                         """,
-                        (price, symbol),
+                        (price, day_change_pct, symbol),
                     )
                     updated_prices += 1
                 if analyst_target is not None:

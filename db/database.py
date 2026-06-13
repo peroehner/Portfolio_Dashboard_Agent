@@ -117,6 +117,8 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
             WHERE analyst_target_1y IS NULL AND target_price IS NOT NULL
             """
         )
+    if "day_change_pct" not in symbol_columns:
+        conn.execute("ALTER TABLE symbols ADD COLUMN day_change_pct REAL")
 
     assessment_columns = {
         row[1] for row in conn.execute("PRAGMA table_info(assessments)")
@@ -160,8 +162,54 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
         )
 
 
+def _ensure_app_meta(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS app_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """
+    )
+
+
+def _migration_applied(conn: sqlite3.Connection, key: str) -> bool:
+    row = conn.execute("SELECT 1 FROM app_meta WHERE key = ?", (key,)).fetchone()
+    return row is not None
+
+
+def _mark_migration_applied(conn: sqlite3.Connection, key: str) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, datetime('now'))",
+        (key,),
+    )
+
+
+def _run_data_migrations(conn: sqlite3.Connection) -> None:
+    _ensure_app_meta(conn)
+    if _migration_applied(conn, "assessment_max3_cleanup_v1"):
+        return
+    conn.execute(
+        """
+        DELETE FROM assessments
+        WHERE id IN (
+            SELECT id FROM (
+                SELECT id,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY symbol ORDER BY created_at DESC, id DESC
+                       ) AS rn
+                FROM assessments
+            ) ranked
+            WHERE rn > 3
+        )
+        """
+    )
+    _mark_migration_applied(conn, "assessment_max3_cleanup_v1")
+
+
 def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(SCHEMA)
         _migrate_schema(conn)
+        _run_data_migrations(conn)
         conn.commit()

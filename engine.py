@@ -41,16 +41,27 @@ class PortfolioEngine:
         if not tickers:
             return {}
 
+        day_changes = {ticker: None for ticker in tickers}
         prices = {ticker: None for ticker in tickers}
         data = None
+        multi = len(tickers) > 1
         try:
-            data = yf.download(tickers, period="1d", progress=False)
+            data = yf.download(tickers, period="5d", progress=False)
             for ticker in tickers:
                 try:
-                    if len(tickers) == 1:
-                        prices[ticker] = float(data["Close"].iloc[-1])
-                    else:
-                        prices[ticker] = float(data["Close"][ticker].iloc[-1])
+                    closes = (
+                        data["Close"][ticker].dropna()
+                        if multi
+                        else data["Close"].dropna()
+                    )
+                    if closes.empty:
+                        continue
+                    price = float(closes.iloc[-1])
+                    prices[ticker] = price
+                    if len(closes) >= 2:
+                        previous = float(closes.iloc[-2])
+                        if previous:
+                            day_changes[ticker] = round((price - previous) / previous * 100, 2)
                 except (KeyError, IndexError, TypeError):
                     prices[ticker] = None
         except Exception as e:
@@ -61,15 +72,45 @@ class PortfolioEngine:
         quotes = {}
         for ticker in tickers:
             analyst_target = self._fetch_analyst_target(ticker) if include_analyst_targets else None
+            price = prices[ticker]
+            day_pct = day_changes.get(ticker)
+            if day_pct is None:
+                day_pct = self._fetch_day_change_pct(ticker, price)
             quotes[ticker] = {
                 "currentPrice": (
-                    round(float(prices[ticker]), 2)
-                    if prices[ticker] is not None
+                    round(float(price), 2)
+                    if price is not None
                     else None
                 ),
+                "dayChangePct": day_pct,
                 "analystTarget1y": analyst_target,
             }
         return quotes
+
+    def _fetch_day_change_pct(self, ticker: str, price: float | None) -> float | None:
+        """Session day change from yfinance info (works on non-trading days via last close)."""
+        from services.market_cache import ticker_info_cache
+
+        try:
+            info = ticker_info_cache.get(ticker.upper(), lambda: yf.Ticker(ticker).info)
+            pct = info.get("regularMarketChangePercent")
+            if pct is not None:
+                return round(float(pct), 2)
+            previous_close = info.get("previousClose") or info.get("regularMarketPreviousClose")
+            market_price = price
+            if market_price is None:
+                raw = info.get("regularMarketPrice") or info.get("currentPrice")
+                market_price = float(raw) if raw is not None else None
+            if market_price is not None and previous_close:
+                previous_close = float(previous_close)
+                if previous_close:
+                    return round((float(market_price) - previous_close) / previous_close * 100, 2)
+            change = info.get("regularMarketChange")
+            if change is not None and previous_close:
+                return round(float(change) / float(previous_close) * 100, 2)
+        except Exception as e:
+            logging.warning(f"Failed to fetch day change for {ticker}: {e}")
+        return None
 
     def _fetch_analyst_target(self, ticker: str) -> float | None:
         from services.market_cache import ticker_info_cache

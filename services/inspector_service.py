@@ -38,8 +38,15 @@ class InspectorService:
             if price is not None
             else None
         )
+        technical_advisory = compute_technical_advisory(
+            symbol,
+            price,
+            self.technical_service,
+            self.fib_service,
+        )
         screen_row = self.screening_service._score_symbol(
-            {**symbol_data, "notes": symbol_data.get("notes", [])}
+            {**symbol_data, "notes": symbol_data.get("notes", [])},
+            technical_advisory=technical_advisory,
         )
         assessments = self.assessment_service.list_assessments(symbol=symbol, limit=20)
         alerts = self.alerts_service.list_alerts(symbol=symbol, status="active")
@@ -66,7 +73,7 @@ class InspectorService:
             "trendWaveSource": "import" if technical_snapshot and technical_snapshot.get("trends") else "none",
             "importedFibLevels": self.technical_service.fib_levels_list(technical_snapshot),
             "chartTimeline": self.technical_service.chart_timeline(symbol, technical_snapshot),
-            "technicalAdvisory": self._technical_advisory(price, fib),
+            "technicalAdvisory": technical_advisory,
             "chartPoints": self._chart_points(symbol_data, holding, fib),
         }
 
@@ -327,49 +334,6 @@ class InspectorService:
             )
         return waves
 
-    def _technical_advisory(
-        self,
-        price: float | None,
-        fib: dict[str, Any] | None,
-    ) -> dict[str, str]:
-        if price is None or not fib:
-            return {
-                "stance": "Unknown",
-                "message": "Insufficient technical data to assess support positioning.",
-            }
-
-        center_level = next(
-            (level["price"] for level in fib.get("levels", []) if level.get("ratio") == 0.5),
-            None,
-        )
-        nearest = self.fib_service.closest_level(fib["symbol"], price) if fib else None
-        distance = nearest["distancePct"] if nearest else None
-
-        if center_level is not None and price >= center_level:
-            stance = "Strong"
-            message = (
-                f"Trading at ${price:,.2f}, comfortably above 50% technical support "
-                f"level (${center_level:,.2f}). Highly bullish trend baseline."
-            )
-        elif distance is not None and distance < 2:
-            stance = "Alert"
-            level_label = nearest["level"]["label"] if nearest else "Fib"
-            message = (
-                f"Trading at ${price:,.2f}, within {distance:.2f}% of Fib {level_label}. "
-                "Immediate retest or breakout setup — monitor closely."
-            )
-        elif center_level is not None:
-            stance = "Cautious"
-            message = (
-                f"Trading at ${price:,.2f}, below 50% technical support "
-                f"(${center_level:,.2f}). Watch for stabilization before adding risk."
-            )
-        else:
-            stance = "Neutral"
-            message = f"Trading at ${price:,.2f}. Monitor key Fibonacci boundaries for setup quality."
-
-        return {"stance": stance, "message": message}
-
     def _chart_points(
         self,
         symbol_data: dict[str, Any],
@@ -406,6 +370,76 @@ class InspectorService:
         if sentiment == "bearish":
             return f"{base} · bearish notes flagged"
         return base
+
+
+def resolve_symbol_fib(
+    symbol: str,
+    technical_service: TechnicalService,
+    fib_service: FibService,
+) -> dict[str, Any] | None:
+    snapshot = technical_service.get_snapshot(symbol)
+    fib = technical_service.fib_from_snapshot(symbol, snapshot)
+    if fib:
+        return fib
+    return fib_service.get_levels(symbol)
+
+
+def compute_technical_advisory(
+    symbol: str,
+    price: float | None,
+    technical_service: TechnicalService,
+    fib_service: FibService,
+) -> dict[str, str]:
+    fib = resolve_symbol_fib(symbol, technical_service, fib_service)
+    closest = (
+        fib_service.closest_level(symbol, price, fib=fib)
+        if price is not None and fib
+        else None
+    )
+    return build_technical_advisory(price, fib, closest)
+
+
+def build_technical_advisory(
+    price: float | None,
+    fib: dict[str, Any] | None,
+    closest: dict[str, Any] | None = None,
+) -> dict[str, str]:
+    if price is None or not fib:
+        return {
+            "stance": "Unknown",
+            "message": "Insufficient technical data to assess support positioning.",
+        }
+
+    center_level = next(
+        (level["price"] for level in fib.get("levels", []) if level.get("ratio") == 0.5),
+        None,
+    )
+    distance = closest["distancePct"] if closest else None
+
+    if center_level is not None and price >= center_level:
+        stance = "Strong"
+        message = (
+            f"Trading at ${price:,.2f}, comfortably above 50% technical support "
+            f"level (${center_level:,.2f}). Highly bullish trend baseline."
+        )
+    elif distance is not None and distance < 2:
+        stance = "Alert"
+        level_label = closest["level"]["label"] if closest else "Fib"
+        message = (
+            f"Trading at ${price:,.2f}, within {distance:.2f}% of Fib {level_label}. "
+            "Immediate retest or breakout setup — monitor closely."
+        )
+    elif center_level is not None:
+        stance = "Cautious"
+        message = (
+            f"Trading at ${price:,.2f}, below 50% technical support "
+            f"(${center_level:,.2f}). Watch for stabilization before adding risk."
+        )
+    else:
+        stance = "Neutral"
+        message = f"Trading at ${price:,.2f}. Monitor key Fibonacci boundaries for setup quality."
+
+    return {"stance": stance, "message": message}
 
 
 def build_symbol_recommendation(

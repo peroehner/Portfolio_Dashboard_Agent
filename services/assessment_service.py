@@ -11,6 +11,8 @@ from services.screening_service import ScreeningService
 
 
 class AssessmentService:
+    MAX_ASSESSMENTS_PER_SYMBOL = 3
+
     def __init__(self):
         self.portfolio_service = PortfolioService()
         self.holdings_service = HoldingsService()
@@ -137,6 +139,7 @@ class AssessmentService:
                     result["provider"],
                 ),
             )
+            self._trim_assessment_history(conn, symbol)
             conn.commit()
             row = conn.execute(
                 """
@@ -153,6 +156,24 @@ class AssessmentService:
             assessment["llmError"] = result.get("llmError")
         assessment["context"] = context
         return assessment
+
+    def _trim_assessment_history(self, conn, symbol: str) -> None:
+        rows = conn.execute(
+            """
+            SELECT id FROM assessments
+            WHERE symbol = ?
+            ORDER BY created_at DESC, id DESC
+            """,
+            (symbol,),
+        ).fetchall()
+        stale_ids = [row["id"] for row in rows[self.MAX_ASSESSMENTS_PER_SYMBOL :]]
+        if not stale_ids:
+            return
+        placeholders = ",".join("?" * len(stale_ids))
+        conn.execute(
+            f"DELETE FROM assessments WHERE id IN ({placeholders})",
+            stale_ids,
+        )
 
     def _row_to_assessment(self, row) -> dict[str, Any]:
         factors = self._parse_json_field(row["factors"], default=[])
