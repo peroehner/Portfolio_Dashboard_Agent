@@ -3,18 +3,28 @@
 Provides a compact, model-friendly snapshot of company fundamentals and recent
 headlines so the LLM assessment has more to reason about than price alone.
 
-Default provider is yfinance (already a dependency, no API key required). The
-service is intentionally pluggable: drop in a Financial Modeling Prep / Finnhub
-provider later by setting FUNDAMENTALS_PROVIDER and implementing a fetch_* pair.
+Fundamentals come from yfinance (already a dependency, no API key required).
+News is pluggable via NEWS_PROVIDER:
+  - "finnhub": true per-ticker company news (needs FINNHUB_API_KEY)
+  - "yfinance": yfinance Ticker.news (default fallback, no key)
+When NEWS_PROVIDER is unset, Finnhub is used automatically if a key is present,
+otherwise yfinance. Finnhub failures fall back to yfinance.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
+import ssl
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import certifi
 import yfinance as yf
 
 from services.market_cache import TtlCache, ticker_info_cache
@@ -81,6 +91,16 @@ class FundamentalsService:
         )
         self.provider = os.environ.get("FUNDAMENTALS_PROVIDER", "yfinance").strip().lower()
         self.news_limit = int(os.environ.get("ASSESSMENT_NEWS_LIMIT", "6"))
+        self.news_provider = os.environ.get("NEWS_PROVIDER", "").strip().lower()
+        self.finnhub_api_key = os.environ.get("FINNHUB_API_KEY", "").strip()
+        self.finnhub_news_days = int(os.environ.get("FINNHUB_NEWS_DAYS", "30"))
+
+    def active_news_provider(self) -> str:
+        if self.news_provider in ("finnhub", "yfinance"):
+            if self.news_provider == "finnhub" and not self.finnhub_api_key:
+                return "yfinance"
+            return self.news_provider
+        return "finnhub" if self.finnhub_api_key else "yfinance"
 
     def get_enrichment(self, symbol: str) -> dict[str, Any]:
         """Return {fundamentals, recentNews} for a symbol; empty dicts on failure."""
@@ -130,12 +150,73 @@ class FundamentalsService:
     def fetch_recent_news(self, symbol: str) -> list[dict[str, Any]]:
         if self.news_limit <= 0:
             return []
+        provider = self.active_news_provider()
         try:
-            raw = news_cache.get(symbol, lambda: yf.Ticker(symbol).news or [])
+            if provider == "finnhub":
+                return news_cache.get(f"finnhub:{symbol}", lambda: self._fetch_finnhub_news(symbol))
+            return news_cache.get(f"yfinance:{symbol}", lambda: self._fetch_yfinance_news(symbol))
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to fetch news for %s: %s", symbol, exc)
+            logger.warning("Failed to fetch news for %s via %s: %s", symbol, provider, exc)
+            if provider == "finnhub":
+                try:
+                    return news_cache.get(f"yfinance:{symbol}", lambda: self._fetch_yfinance_news(symbol))
+                except Exception as fallback_exc:  # noqa: BLE001
+                    logger.warning("yfinance news fallback failed for %s: %s", symbol, fallback_exc)
             return []
+
+    def _fetch_yfinance_news(self, symbol: str) -> list[dict[str, Any]]:
+        raw = yf.Ticker(symbol).news or []
         return self._normalize_news(raw)
+
+    def _fetch_finnhub_news(self, symbol: str) -> list[dict[str, Any]]:
+        if not self.finnhub_api_key:
+            return self._fetch_yfinance_news(symbol)
+        to_date = datetime.now(timezone.utc).date()
+        from_date = to_date - timedelta(days=max(1, self.finnhub_news_days))
+        url = (
+            "https://finnhub.io/api/v1/company-news"
+            f"?symbol={urllib.parse.quote(symbol)}"
+            f"&from={from_date.isoformat()}&to={to_date.isoformat()}"
+            f"&token={urllib.parse.quote(self.finnhub_api_key)}"
+        )
+        raw = self._get_json(url)
+        return self._normalize_finnhub_news(raw)
+
+    def _normalize_finnhub_news(self, raw: Any) -> list[dict[str, Any]]:
+        if not isinstance(raw, list):
+            return []
+        ordered = sorted(
+            (e for e in raw if isinstance(e, dict)),
+            key=lambda e: e.get("datetime", 0) or 0,
+            reverse=True,
+        )
+        items: list[dict[str, Any]] = []
+        for entry in ordered:
+            title = entry.get("headline")
+            if not title:
+                continue
+            summary = entry.get("summary")
+            url = entry.get("url")
+            source = entry.get("source")
+            items.append(
+                {
+                    "title": str(title).strip(),
+                    "publisher": str(source).strip() if source else None,
+                    "published": self._epoch_to_iso(entry.get("datetime")),
+                    "link": str(url).strip() if url else None,
+                    "summary": summary.strip()[:600] if isinstance(summary, str) and summary.strip() else None,
+                }
+            )
+            if len(items) >= self.news_limit:
+                break
+        return items
+
+    @staticmethod
+    def _get_json(url: str) -> Any:
+        ctx = ssl.create_default_context(cafile=certifi.where())
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=20, context=ctx) as response:
+            return json.loads(response.read().decode("utf-8"))
 
     def _normalize_news(self, raw: Any) -> list[dict[str, Any]]:
         if not isinstance(raw, list):
