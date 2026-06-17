@@ -118,6 +118,21 @@
       letter-spacing: normal;
       color: inherit;
     }
+    .panel-symbol-head .symbol-head-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .panel-symbol-head .symbol-head-quote {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: normal;
+    }
+    .panel-symbol-head .symbol-head-quote .quote-day {
+      font-weight: 700;
+    }
     .panel-symbol-head .symbol-head-ticker {
       font-size: 0.95rem;
       font-weight: 600;
@@ -365,6 +380,44 @@
       margin: 0 0 0.75rem;
       font-size: 0.95rem;
       color: var(--text);
+    }
+    .note-text-preview,
+    .note-text-edit {
+      width: 100%;
+      margin-top: 0.35rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.6rem;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    .note-text-preview[readonly] {
+      cursor: default;
+    }
+    .note-text-oneline {
+      margin-top: 0.35rem;
+      font-size: 0.88rem;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+    .note-head {
+      margin-bottom: 0.15rem;
+    }
+    .note-editing label {
+      display: block;
+      margin-top: 0.5rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .note-editing input,
+    .note-editing textarea {
+      width: 100%;
+      box-sizing: border-box;
     }
     .metric {
       background: var(--panel-2);
@@ -984,6 +1037,16 @@
     }
     .gain-pos { color: var(--accent-2); }
     .gain-neg { color: var(--danger); }
+    table.data td .gain-pos,
+    table.data td .gain-neg,
+    table.data td.pct-cell .gain-pos,
+    table.data td.pct-cell .gain-neg {
+      font-weight: 600;
+    }
+    table.data td .gain-pos,
+    table.data td.pct-cell .gain-pos { color: #22c55e !important; }
+    table.data td .gain-neg,
+    table.data td.pct-cell .gain-neg { color: #ef4444 !important; }
     .inspector-side-card.advisory {
       border-color: rgba(34, 197, 94, 0.28);
       background: rgba(34, 197, 94, 0.08);
@@ -1457,7 +1520,7 @@
               </div>
             </div>
             <label>Note</label>
-            <textarea name="text" rows="3" placeholder="Your outlook, thesis, risks..." required></textarea>
+            <textarea name="text" rows="7" placeholder="Your outlook, thesis, risks..." required></textarea>
             <div class="target-actions" style="margin-top:0.5rem;">
               <button type="submit">Add Note</button>
               <button type="button" class="secondary" onclick="synthesizeAllNotes()">Synthesize All Notes</button>
@@ -1528,7 +1591,10 @@
     </section>
     <section class="panel panel-detail">
       <h2 class="panel-symbol-head" id="inspectorTitleHead">
-        <span class="symbol-head-ticker" id="inspectorSymbol">Inspector</span>
+        <span class="symbol-head-row">
+          <span class="symbol-head-ticker" id="inspectorSymbol">Inspector</span>
+          <span class="symbol-head-quote" id="inspectorSymbolQuote" hidden></span>
+        </span>
         <span class="symbol-head-label" id="inspectorSymbolLabel" hidden>Inspector</span>
       </h2>
       <div id="inspectorEmpty" class="empty">Choose a symbol to inspect holdings, alerts, notes, and assessments.</div>
@@ -1590,6 +1656,8 @@
 
     let importVersion = null;
     let noteSynthesisSupported = false;
+    let editingNoteId = null;
+    let currentNotes = [];
     const SYNTHESIS_GUIDANCE_KEY = "pda_synthesis_guidance";
 
     function getSynthesisGuidance() {
@@ -1667,9 +1735,15 @@
       if (value == null || value === "") return "—";
       const amount = Number(value);
       if (!Number.isFinite(amount)) return "—";
-      const cls = amount >= 0 ? "gain-pos" : "gain-neg";
+      const positive = amount >= 0;
+      const color = positive ? "#22c55e" : "#ef4444";
+      const cls = positive ? "gain-pos" : "gain-neg";
       const prefix = amount > 0 ? "+" : "";
-      return `<span class="${cls}">${prefix}${amount.toFixed(2)}%</span>`;
+      return `<span class="${cls}" style="color:${color};font-weight:600;">${prefix}${amount.toFixed(2)}%</span>`;
+    }
+
+    function renderColoredPercentCell(value) {
+      return formatDayChangePercent(value);
     }
 
     function formatSignedMoney(value) {
@@ -1791,21 +1865,38 @@
       }
     }
 
-    function setInspectorSymbolHead(symbol) {
+    function setInspectorSymbolHead(symbol, quote = null) {
       const el = document.getElementById("inspectorSymbol");
       const label = document.getElementById("inspectorSymbolLabel");
       const head = document.getElementById("inspectorTitleHead");
+      const quoteEl = document.getElementById("inspectorSymbolQuote");
       if (!el) return;
       if (symbol) {
         el.textContent = symbol;
         el.classList.add("is-active");
         head?.classList.add("has-symbol");
         if (label) label.hidden = false;
+        if (quoteEl) {
+          const price = quote?.currentPrice;
+          const dayPct = quote?.dayChangePct;
+          if (price != null) {
+            const dayHtml = dayPct != null ? ` <span class="quote-day">${formatDayChangePercent(dayPct)}</span>` : "";
+            quoteEl.innerHTML = `(${formatMoney(price)}${dayHtml})`;
+            quoteEl.hidden = false;
+          } else {
+            quoteEl.innerHTML = "";
+            quoteEl.hidden = true;
+          }
+        }
       } else {
         el.textContent = "Inspector";
         el.classList.remove("is-active");
         head?.classList.remove("has-symbol");
         if (label) label.hidden = true;
+        if (quoteEl) {
+          quoteEl.innerHTML = "";
+          quoteEl.hidden = true;
+        }
       }
     }
 
@@ -2046,20 +2137,9 @@
       form.buyBelow.value = formatPriceInput(item.buyBelow);
       form.sellAbove.value = formatPriceInput(item.sellAbove);
       resetNoteForm();
-
-      document.getElementById("notesList").innerHTML = item.notes.length
-        ? item.notes.map((note) => `
-            <div class="note">
-              <strong>${note.date || "No date"}</strong> · ${note.source || "Note"}
-              <div>${note.text}</div>
-              ${note.synthesis ? renderSynthesisHtml(note.synthesis) : `<div class="empty" style="margin-top:0.35rem;">Not synthesized yet.</div>`}
-              <div class="actions" style="margin-top:0.4rem;">
-                <button type="button" class="secondary" onclick="synthesizeNote(${note.id}, ${note.synthesis ? "true" : "false"})">
-                  ${note.synthesis ? "Re-synthesize" : "Synthesize"}
-                </button>
-              </div>
-            </div>`).join("")
-        : `<div class="empty">No notes yet.</div>`;
+      editingNoteId = null;
+      currentNotes = item.notes || [];
+      renderTargetNotesList(currentNotes);
 
       document.getElementById("noteSynthesisPreview").innerHTML = "";
       await loadTargetContext(item, inspectorData);
@@ -2095,6 +2175,108 @@
       container.innerHTML = data.assessments.length
         ? data.assessments.map((item) => renderAssessmentHtml(item)).join("")
         : `<div class="empty">No assessments yet.</div>`;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function noteHasSynthesis(note) {
+      return !!(note.synthesis && note.synthesis.summary);
+    }
+
+    function noteFirstLine(text) {
+      const lines = String(text || "").split(/\r?\n/);
+      return lines[0] ?? "";
+    }
+
+    function renderTargetNoteEditor(note) {
+      return `
+        <div class="note note-editing" data-note-id="${note.id}">
+          <div class="grid-2">
+            <div>
+              <label for="editNoteDate-${note.id}">Date</label>
+              <input id="editNoteDate-${note.id}" type="date" value="${escapeHtml(note.date || "")}">
+            </div>
+            <div>
+              <label for="editNoteSource-${note.id}">Source</label>
+              <input id="editNoteSource-${note.id}" type="text" value="${escapeHtml(note.source || "")}" placeholder="Q1 earnings call">
+            </div>
+          </div>
+          <label for="editNoteText-${note.id}">Note</label>
+          <textarea id="editNoteText-${note.id}" class="note-text-edit" rows="7">${escapeHtml(note.text)}</textarea>
+          <div class="actions" style="margin-top:0.4rem;">
+            <button type="button" onclick="saveNote(${note.id})">Save</button>
+            <button type="button" class="secondary" onclick="cancelEditNote()">Cancel</button>
+          </div>
+        </div>`;
+    }
+
+    function renderTargetNoteItem(note) {
+      if (editingNoteId === note.id) {
+        return renderTargetNoteEditor(note);
+      }
+      const synthesized = noteHasSynthesis(note);
+      const textBlock = synthesized
+        ? `<div class="note-text-oneline">${escapeHtml(noteFirstLine(note.text))}</div>`
+        : `<textarea class="note-text-preview" rows="7" readonly>${escapeHtml(note.text)}</textarea>`;
+      const synthesisBlock = synthesized
+        ? renderSynthesisHtml(note.synthesis)
+        : `<div class="empty" style="margin-top:0.35rem;">Not synthesized yet.</div>`;
+      return `
+        <div class="note" data-note-id="${note.id}">
+          <div class="note-head">
+            <strong>${escapeHtml(note.date || "No date")}</strong> · ${escapeHtml(note.source || "Note")}
+          </div>
+          ${textBlock}
+          ${synthesisBlock}
+          <div class="actions" style="margin-top:0.4rem;">
+            <button type="button" class="secondary" onclick="startEditNote(${note.id})">Edit</button>
+            <button type="button" class="secondary" onclick="synthesizeNote(${note.id}, ${synthesized ? "true" : "false"})">
+              ${synthesized ? "Re-synthesize" : "Synthesize"}
+            </button>
+          </div>
+        </div>`;
+    }
+
+    function renderTargetNotesList(notes) {
+      document.getElementById("notesList").innerHTML = notes.length
+        ? notes.map((note) => renderTargetNoteItem(note)).join("")
+        : `<div class="empty">No notes yet.</div>`;
+    }
+
+    function startEditNote(noteId) {
+      editingNoteId = noteId;
+      renderTargetNotesList(currentNotes);
+      const textarea = document.getElementById(`editNoteText-${noteId}`);
+      textarea?.focus();
+    }
+
+    function cancelEditNote() {
+      editingNoteId = null;
+      renderTargetNotesList(currentNotes);
+    }
+
+    async function saveNote(noteId) {
+      if (!selectedSymbol) return;
+      const date = document.getElementById(`editNoteDate-${noteId}`)?.value || null;
+      const source = document.getElementById(`editNoteSource-${noteId}`)?.value || "";
+      const text = document.getElementById(`editNoteText-${noteId}`)?.value || "";
+      try {
+        await api(`/symbols/${selectedSymbol}/notes/${noteId}`, {
+          method: "PUT",
+          body: JSON.stringify({ date, source, text }),
+        });
+        editingNoteId = null;
+        await selectSymbol(selectedSymbol);
+        setStatus("Note saved.");
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
     }
 
     function renderSynthesisHtml(synthesis) {
@@ -2368,7 +2550,10 @@
         const indicator = sortIndicator(tableId, column.key);
         return `<th class="sortable${active}" data-table-id="${tableId}" data-sort-key="${column.key}">${column.label}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></th>`;
       }).join("");
-      const body = sortedRows.map((row) => `<tr>${columns.map((column) => `<td>${column.render(row)}</td>`).join("")}</tr>`).join("");
+      const body = sortedRows.map((row) => `<tr>${columns.map((column) => {
+        const cellAttrs = column.coloredPercent ? ' class="pct-cell"' : "";
+        return `<td${cellAttrs}>${column.render(row)}</td>`;
+      }).join("")}</tr>`).join("");
       return `<table class="data" data-table-id="${tableId}"><thead><tr>${headers}</tr></thead><tbody>${body}</tbody></table>`;
     }
 
@@ -2643,14 +2828,14 @@
     const holdingsColumns = [
       { key: "symbol", label: "Symbol", sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="openHoldingsInspector('${row.symbol}'); return false;">${row.symbol}</a>` },
       { key: "currentPrice", label: "Price", sortValue: (row) => row.currentPrice, render: (row) => formatMoney(row.currentPrice) },
-      { key: "dayChangePct", label: "Day %", sortValue: (row) => row.dayChangePct, render: (row) => formatDayChangePercent(row.dayChangePct) },
+      { key: "dayChangePct", label: "Day %", coloredPercent: true, sortValue: (row) => row.dayChangePct, render: (row) => renderColoredPercentCell(row.dayChangePct) },
       { key: "quantity", label: "Qty", sortValue: (row) => row.quantity, render: (row) => row.quantity },
       { key: "marketValue", label: "Value", sortValue: (row) => row.marketValue, render: (row) => formatMoney(row.marketValue) },
       { key: "weightPct", label: "Weight", sortValue: (row) => row.weightPct, render: (row) => row.weightPct != null ? `${row.weightPct}%` : "—" },
       { key: "unrealizedGain", label: "Gain", sortValue: (row) => row.unrealizedGain, render: (row) => formatMoney(row.unrealizedGain) },
-      { key: "gainPct", label: "Gain %", sortValue: (row) => row.gainPct, render: (row) => formatPercent(row.gainPct) },
+      { key: "gainPct", label: "Gain %", coloredPercent: true, sortValue: (row) => row.gainPct, render: (row) => renderColoredPercentCell(row.gainPct) },
       { key: "analystTarget1y", label: "1YT", sortValue: (row) => row.analystTarget1y, render: (row) => formatMoney(row.analystTarget1y) },
-      { key: "analystUpsidePct", label: "1YT %", sortValue: (row) => row.analystUpsidePct, render: (row) => formatDayChangePercent(row.analystUpsidePct) },
+      { key: "analystUpsidePct", label: "1YT %", coloredPercent: true, sortValue: (row) => row.analystUpsidePct, render: (row) => renderColoredPercentCell(row.analystUpsidePct) },
       { key: "annualDividend", label: "Annual Div.", sortValue: (row) => row.annualDividend, render: (row) => formatMoney(row.annualDividend) },
     ];
 
@@ -3928,7 +4113,7 @@
       if (panelId === "inspectorPanel") {
         document.getElementById("inspectorEmpty").hidden = true;
         document.getElementById("inspectorPanel").hidden = false;
-        setInspectorSymbolHead(symbol);
+        setInspectorSymbolHead(symbol, data.quote);
       }
       if (focusSection) {
         window.requestAnimationFrame(() => focusInspectorSection(panelId, focusSection));

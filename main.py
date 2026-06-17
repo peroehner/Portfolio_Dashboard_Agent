@@ -147,6 +147,8 @@ def serve_dashboard():
     response = send_file(dashboard_path)
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["ETag"] = str(int(dashboard_path.stat().st_mtime))
     return response
 
 

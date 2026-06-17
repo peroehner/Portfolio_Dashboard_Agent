@@ -168,6 +168,16 @@ def synthesize_note(symbol, note_id):
     return jsonify(note)
 
 
+@v1_bp.route("/symbols/<symbol>/notes/<int:note_id>", methods=["PUT", "PATCH"])
+def update_note(symbol, note_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        note = notes_service.update_note(symbol, note_id, data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404 if "not found" in str(exc).lower() else 400
+    return jsonify(note)
+
+
 @v1_bp.route("/symbols/<symbol>/notes/<int:note_id>", methods=["DELETE"])
 def delete_note(symbol, note_id):
     if not notes_service.delete_note(symbol, note_id):

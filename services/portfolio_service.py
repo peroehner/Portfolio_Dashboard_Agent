@@ -201,9 +201,11 @@ class PortfolioService:
         return normalized
 
     def _row_to_symbol(self, row, include_notes: bool) -> dict[str, Any]:
+        keys = row.keys()
         symbol = {
             "symbol": row["symbol"],
             "currentPrice": row["current_price"],
+            "dayChangePct": row["day_change_pct"] if "day_change_pct" in keys else None,
             "targetPrice": row["target_price"],
             "analystTarget1y": row["analyst_target_1y"],
             "buyBelow": row["buy_below"],

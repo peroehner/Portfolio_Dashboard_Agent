@@ -23,7 +23,11 @@ OPENAPI_SPEC = {
             "get": {"summary": "List notes"},
             "post": {"summary": "Add note"},
         },
-        "/symbols/{symbol}/notes/{noteId}": {"delete": {"summary": "Delete note"}},
+        "/symbols/{symbol}/notes/{noteId}": {
+            "put": {"summary": "Update note"},
+            "patch": {"summary": "Update note"},
+            "delete": {"summary": "Delete note"},
+        },
         "/symbols/{symbol}/notes/{noteId}/synthesize": {"post": {"summary": "Synthesize one note and persist result"}},
         "/symbols/{symbol}/notes/synthesize": {"post": {"summary": "Synthesize all notes for symbol"}},
         "/symbols/{symbol}/fib-levels": {"get": {"summary": "Fibonacci retracement levels"}},
