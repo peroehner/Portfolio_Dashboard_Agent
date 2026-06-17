@@ -89,7 +89,7 @@
     button.warn { background: var(--warn); color: #111; font-weight: 600; }
     main {
       display: grid;
-      grid-template-columns: 280px 1fr 320px;
+      grid-template-columns: 280px 1fr 640px;
       gap: 1rem;
       padding: 1rem;
       min-height: calc(100vh - 70px);
@@ -1839,6 +1839,10 @@
     const tableSortState = {};
     const tableDataCache = {};
     const tableSelection = {};
+    // Tables that should share a single selection (e.g. the Fundamentals sub-tabs,
+    // all keyed by symbol) so a highlighted row survives switching between them.
+    const tableSelectionGroup = { fundVal: "fundamentals", fundHealth: "fundamentals", fundRange: "fundamentals" };
+    const selectionKeyFor = (tableId) => tableSelectionGroup[tableId] || tableId;
 
     function formatPercent(value) {
       if (value == null || value === "") return "—";
@@ -2667,7 +2671,7 @@
         return `<th class="sortable${active}" data-table-id="${tableId}" data-sort-key="${column.key}">${column.label}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></th>`;
       }).join("");
       const keyColumn = columns.find((column) => column.rowKey) || columns[0];
-      const selectedKey = tableSelection[tableId];
+      const selectedKey = tableSelection[selectionKeyFor(tableId)];
       const body = sortedRows.map((row) => {
         const rowKey = keyColumn ? String(keyColumn.sortValue(row) ?? "") : "";
         const selectedClass = rowKey !== "" && rowKey === selectedKey ? " class=\"row-selected\"" : "";
@@ -3354,7 +3358,13 @@
     }
 
     function renderInspectorNoteItem(note, { history = false, panelId = "inspectorPanel" } = {}) {
-      const syn = note.synthesis ? renderSynthesisHtml(note.synthesis) : `<div class="empty" style="margin-top:0.35rem;">Not synthesized yet.</div>`;
+      const synthesized = noteHasSynthesis(note);
+      const textBlock = synthesized
+        ? `<div class="note-text-oneline">${escapeHtml(noteFirstLine(note.text))}</div>`
+        : `<div style="font-size:0.9rem;line-height:1.45;">${note.text}</div>`;
+      const syn = synthesized
+        ? renderSynthesisHtml(note.synthesis)
+        : `<div class="empty" style="margin-top:0.35rem;">Not synthesized yet.</div>`;
       const deleteBtn = history
         ? `<button type="button" class="btn-danger" data-delete-note="${note.id}" data-inspector-panel="${panelId}">Delete</button>`
         : "";
@@ -3364,7 +3374,7 @@
             <div style="font-size:0.78rem;color:var(--muted);">${note.date || note.createdAt || "Note"}${note.source ? ` · ${note.source}` : ""}</div>
             ${deleteBtn}
           </div>
-          <div style="font-size:0.9rem;line-height:1.45;">${note.text}</div>
+          ${textBlock}
           ${syn}
         </div>`;
     }
@@ -4511,7 +4521,7 @@
         const table = selectableRow.closest("table.data");
         const tableId = table?.dataset.tableId;
         if (tableId) {
-          tableSelection[tableId] = selectableRow.dataset.rowKey;
+          tableSelection[selectionKeyFor(tableId)] = selectableRow.dataset.rowKey;
           table.querySelectorAll("tbody tr.row-selected").forEach((tr) => tr.classList.remove("row-selected"));
           selectableRow.classList.add("row-selected");
         }

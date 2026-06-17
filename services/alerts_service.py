@@ -47,12 +47,30 @@ class AlertsService:
             return cursor.rowcount > 0
 
     def evaluate_all(self, engine) -> list[dict[str, Any]]:
+        self._dedupe_active_alerts()
         created = []
         for symbol_data in self.portfolio_service.list_symbols():
             created.extend(self._check_thresholds(symbol_data))
             created.extend(self._check_fib_proximity(symbol_data))
         created.extend(self._check_screener(engine))
         return created
+
+    def _dedupe_active_alerts(self) -> int:
+        """Collapse active alerts to the newest one per symbol + type kind."""
+        with get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE alerts SET status = 'superseded'
+                WHERE status = 'active'
+                  AND id NOT IN (
+                      SELECT MAX(id) FROM alerts
+                      WHERE status = 'active'
+                      GROUP BY symbol, alert_type
+                  )
+                """
+            )
+            conn.commit()
+            return cursor.rowcount
 
     def _check_thresholds(self, symbol_data: dict[str, Any]) -> list[dict[str, Any]]:
         created = []
@@ -148,6 +166,15 @@ class AlertsService:
             return None
 
         with get_connection() as conn:
+            # Keep only the latest alert per kind: supersede any prior active
+            # alerts of the same symbol + type before inserting the new one.
+            conn.execute(
+                """
+                UPDATE alerts SET status = 'superseded'
+                WHERE symbol = ? AND alert_type = ? AND status = 'active'
+                """,
+                (symbol, alert_type),
+            )
             cursor = conn.execute(
                 """
                 INSERT INTO alerts (
