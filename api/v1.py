@@ -7,6 +7,7 @@ from api.openapi_spec import OPENAPI_SPEC
 from services.alerts_service import AlertsService
 from services.assessment_service import AssessmentService
 from services.fib_service import FibService
+from services.fundamentals_service import FundamentalsService
 from services.holdings_service import HoldingsService
 from services.import_service import ImportService
 from services.inspector_service import InspectorService
@@ -28,6 +29,7 @@ import_service = ImportService()
 overview_service = OverviewService()
 screening_service = ScreeningService()
 inspector_service = InspectorService()
+fundamentals_service = FundamentalsService()
 
 
 def _engine():
@@ -358,6 +360,39 @@ def assess_symbol(symbol):
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 502
     return jsonify(assessment), 201
+
+
+@v1_bp.route("/fundamentals", methods=["GET"])
+def list_fundamentals():
+    symbols_meta = portfolio_service.list_symbols()
+    enrichment = fundamentals_service.get_enrichment_bulk([s["symbol"] for s in symbols_meta])
+    rows = []
+    for meta in symbols_meta:
+        symbol = meta["symbol"]
+        data = enrichment.get(symbol.upper(), {})
+        rows.append({
+            "symbol": symbol,
+            "currentPrice": meta.get("currentPrice"),
+            "dayChangePct": meta.get("dayChangePct"),
+            "fundamentals": data.get("fundamentals", {}),
+            "recentNews": data.get("recentNews", []),
+        })
+    return jsonify({"symbols": rows})
+
+
+@v1_bp.route("/symbols/<symbol>/fundamentals", methods=["GET"])
+def get_fundamentals(symbol):
+    symbol_data = portfolio_service.get_symbol(symbol)
+    if symbol_data is None:
+        return jsonify({"error": f"Symbol {symbol.upper()} not found."}), 404
+    enrichment = fundamentals_service.get_enrichment(symbol)
+    return jsonify({
+        "symbol": symbol.upper(),
+        "currentPrice": symbol_data.get("currentPrice"),
+        "dayChangePct": symbol_data.get("dayChangePct"),
+        "fundamentals": enrichment.get("fundamentals", {}),
+        "recentNews": enrichment.get("recentNews", []),
+    })
 
 
 @v1_bp.route("/symbols/<symbol>/fib-levels", methods=["GET"])

@@ -4,6 +4,7 @@ from typing import Any
 from db.database import get_connection
 from services.alerts_service import AlertsService
 from services.fib_service import FibService
+from services.fundamentals_service import FundamentalsService
 from services.holdings_service import HoldingsService
 from services.llm_client import LLMClient
 from services.portfolio_service import PortfolioService
@@ -19,6 +20,7 @@ class AssessmentService:
         self.alerts_service = AlertsService()
         self.fib_service = FibService()
         self.screening_service = ScreeningService()
+        self.fundamentals_service = FundamentalsService()
         self.llm_client = LLMClient()
 
     def assess_symbol(self, symbol: str) -> dict[str, Any]:
@@ -78,6 +80,7 @@ class AssessmentService:
 
         note_syntheses = [note["synthesis"] for note in notes if note.get("synthesis")]
         unsynthesized = sum(1 for note in notes if not note.get("synthesis"))
+        enrichment = self.fundamentals_service.get_enrichment(symbol)
 
         return {
             "symbol": symbol,
@@ -96,6 +99,8 @@ class AssessmentService:
                 "flags": screening.get("flags", []),
                 "fibDistancePct": screening.get("fibDistancePct"),
             },
+            "fundamentals": enrichment.get("fundamentals", {}),
+            "recentNews": enrichment.get("recentNews", []),
             "holding": holding,
         }
 

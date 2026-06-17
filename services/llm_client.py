@@ -400,6 +400,11 @@ class LLMClient:
         if analyst_target and price and analyst_target > price and screening.get("upsidePct", 0) > 20:
             factors.append(f"Analyst 1Y target implies {screening['upsidePct']:.1f}% upside.")
 
+        factors.extend(self._fundamentals_factors(context.get("fundamentals") or {}, price))
+        news = context.get("recentNews") or []
+        if news:
+            factors.append(f"{len(news)} recent headline(s) available — see news context.")
+
         rationale = (
             f"{context['symbol']} combined assessment from stored note syntheses, thresholds, and alerts. "
             + " ".join(factors or ["No major trigger; maintain current view."])
@@ -412,6 +417,49 @@ class LLMClient:
             "factors": factors or ["No active triggers."],
             "noteSynthesis": combined,
         }
+
+    @staticmethod
+    def _fundamentals_factors(fundamentals: dict[str, Any], price: float | None) -> list[str]:
+        """Derive a few human-readable rule-based factors from fundamentals."""
+        factors: list[str] = []
+        if not fundamentals:
+            return factors
+
+        valuation = fundamentals.get("valuation") or {}
+        growth = fundamentals.get("growthProfitability") or {}
+        health = fundamentals.get("financialHealth") or {}
+        price_range = fundamentals.get("priceRange") or {}
+
+        fwd_pe = valuation.get("forwardPe")
+        rev_growth = growth.get("revenueGrowth")
+        if fwd_pe is not None and rev_growth is not None:
+            growth_pct = rev_growth * 100
+            if fwd_pe > 30 and growth_pct < 15:
+                factors.append(
+                    f"Rich valuation: forward P/E {fwd_pe:.0f} vs {growth_pct:.0f}% revenue growth."
+                )
+            elif fwd_pe < 20 and growth_pct > 15:
+                factors.append(
+                    f"Reasonable valuation: forward P/E {fwd_pe:.0f} on {growth_pct:.0f}% revenue growth."
+                )
+
+        d2e = health.get("debtToEquity")
+        fcf = health.get("freeCashflow")
+        if d2e is not None and d2e > 150 and fcf is not None and fcf < 0:
+            factors.append(f"Balance-sheet risk: debt/equity {d2e:.0f} with negative free cash flow.")
+        elif fcf is not None and fcf > 0 and d2e is not None and d2e < 80:
+            factors.append("Healthy balance sheet: positive free cash flow, modest leverage.")
+
+        high_52w = price_range.get("high52w")
+        low_52w = price_range.get("low52w")
+        if price and high_52w and low_52w and high_52w > low_52w:
+            position = (price - low_52w) / (high_52w - low_52w) * 100
+            if position >= 90:
+                factors.append(f"Trading near 52-week high ({position:.0f}% of range).")
+            elif position <= 15:
+                factors.append(f"Trading near 52-week low ({position:.0f}% of range).")
+
+        return factors
 
     def _synthesis_system_prompt(self, guidance: str | None = None) -> str:
         prompt = (
@@ -444,14 +492,24 @@ class LLMClient:
         return (
             "You are a portfolio assistant. Produce a combined assessment by merging the user's "
             "STORED note syntheses (already structured — do not re-parse raw notes) with price "
-            "thresholds, active alerts, Fibonacci levels, screening scores, and holdings context. "
+            "thresholds, active alerts, Fibonacci levels, screening scores, holdings context, "
+            "company FUNDAMENTALS (valuation, growth/profitability, financial health, analyst "
+            "consensus, 52-week range), and RECENT NEWS headlines. "
+            "Weigh valuation vs. growth: e.g. a high forward P/E is only a concern if revenue/"
+            "earnings growth and margins do not support it; rising debt-to-equity with weak free "
+            "cash flow is a risk flag; price far above the 200-day average or near the 52-week "
+            "high tempers upside. Treat news headlines as sentiment signals, not facts to act on "
+            "alone, and never fabricate news that is not in the provided list. "
             "Respond only with JSON using keys: action, confidence, rationale, factors, noteSynthesis. "
             "action: buy | sell | hold | watch. "
             "confidence: high | medium | low. "
-            "factors: array of short strings citing which inputs drove the conclusion. "
+            "factors: array of short strings, each citing the SPECIFIC input that drove it "
+            "(e.g. 'Forward P/E 18 vs 22% revenue growth — reasonable', 'Debt/equity 180 with "
+            "negative FCF — balance-sheet risk', 'Trades 12% below 1Y analyst mean'). "
+            "rationale: 2-4 sentences integrating fundamentals, notes, and market context. "
             "noteSynthesis: pass through the provided combined noteSynthesis; you may add a brief "
             "integratedSummary field if helpful. "
-            "Focus on synthesis + market context. Do not invent position-sizing rules."
+            "Focus on evidence-based synthesis. Do not invent position-sizing rules."
         )
 
     def _assessment_user_prompt(self, context: dict[str, Any]) -> str:

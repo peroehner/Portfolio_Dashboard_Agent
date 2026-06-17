@@ -1126,6 +1126,97 @@
     @media (max-width: 700px) {
       .valuation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
+    #view-fundamentals { display: block; }
+    .fundamentals-tabbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0.25rem 0 1rem;
+    }
+    .fund-tab {
+      background: var(--panel-2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.4rem 0.9rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .fund-tab:hover { color: var(--text); }
+    .fund-tab.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .fund-table-scroll { overflow-x: auto; }
+    .fund-table-scroll table.data td,
+    .fund-table-scroll table.data th { white-space: nowrap; }
+    .fund-range-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+      gap: 1rem;
+      align-items: start;
+    }
+    @media (max-width: 1100px) {
+      .fund-range-layout { grid-template-columns: 1fr; }
+    }
+    .fund-news-panel {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      max-height: calc(100vh - 16rem);
+      overflow-y: auto;
+    }
+    .fund-news-head {
+      margin: 0 0 0.75rem;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+    .fund-news-link.active strong { color: #c4b5fd; }
+    .news-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+    .news-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent-2);
+      border-radius: 8px;
+      padding: 0.6rem 0.75rem;
+    }
+    .news-item .news-title {
+      font-size: 0.88rem;
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--text);
+    }
+    .news-item .news-meta {
+      font-size: 0.74rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+    }
+    .news-item .news-title-link {
+      color: #7eb6ff;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .news-item .news-title-link:hover {
+      color: #a8ccff;
+      text-decoration: underline;
+    }
+    .news-item .news-summary {
+      font-size: 0.8rem;
+      color: var(--text);
+      opacity: 0.85;
+      line-height: 1.45;
+      margin-top: 0.4rem;
+    }
     .inspector-section {
       margin-top: 1.25rem;
     }
@@ -1311,6 +1402,15 @@
     table.data { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     table.data th, table.data td { text-align: left; padding: 0.55rem 0.4rem; border-bottom: 1px solid var(--border); }
     table.data th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; }
+    table.data tbody tr[data-row-key] { cursor: pointer; }
+    table.data tbody tr[data-row-key]:hover td { background: rgba(148, 163, 184, 0.08); }
+    table.data tbody tr.row-selected td {
+      background: rgba(139, 92, 246, 0.16);
+    }
+    table.data tbody tr.row-selected td:first-child {
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+    table.data tbody tr.row-selected:hover td { background: rgba(139, 92, 246, 0.22); }
     .meta { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
     .badge {
       font-size: 0.75rem;
@@ -1386,6 +1486,7 @@
     <button data-view="screening" onclick="showView('screening')">Screening</button>
     <button data-view="fib" onclick="showView('fib')">Fib Proximity</button>
     <button data-view="inspector" onclick="showView('inspector')">Inspector</button>
+    <button data-view="fundamentals" onclick="showView('fundamentals')">Fundamentals</button>
   </nav>
 
   <div id="view-overview" class="view">
@@ -1602,6 +1703,19 @@
     </section>
   </main>
 
+  <main id="view-fundamentals" class="view" hidden>
+    <section class="panel">
+      <h2>Fundamentals Comparison</h2>
+      <p class="empty" style="margin-top:0;">Compare every tracked symbol side by side. Split across three tabs; click a column header to sort, or a symbol to open the Inspector.</p>
+      <div class="fundamentals-tabbar">
+        <button class="fund-tab active" data-fund-tab="val" onclick="setFundamentalsTab('val')">Valuation · Growth · Profitability</button>
+        <button class="fund-tab" data-fund-tab="health" onclick="setFundamentalsTab('health')">Health · Analyst</button>
+        <button class="fund-tab" data-fund-tab="range" onclick="setFundamentalsTab('range')">52-Week · News</button>
+      </div>
+      <div id="fundamentalsTable"><div class="empty">Loading fundamentals…</div></div>
+    </section>
+  </main>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <script>
@@ -1702,6 +1816,7 @@
       if (name === "screening") loadScreening();
       if (name === "fib") loadFibMap();
       if (name === "inspector") loadInspectorOptions();
+      if (name === "fundamentals") loadFundamentals();
     }
 
     const moneyFormatter = new Intl.NumberFormat("en-US", {
@@ -1723,6 +1838,7 @@
 
     const tableSortState = {};
     const tableDataCache = {};
+    const tableSelection = {};
 
     function formatPercent(value) {
       if (value == null || value === "") return "—";
@@ -2550,10 +2666,17 @@
         const indicator = sortIndicator(tableId, column.key);
         return `<th class="sortable${active}" data-table-id="${tableId}" data-sort-key="${column.key}">${column.label}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></th>`;
       }).join("");
-      const body = sortedRows.map((row) => `<tr>${columns.map((column) => {
-        const cellAttrs = column.coloredPercent ? ' class="pct-cell"' : "";
-        return `<td${cellAttrs}>${column.render(row)}</td>`;
-      }).join("")}</tr>`).join("");
+      const keyColumn = columns.find((column) => column.rowKey) || columns[0];
+      const selectedKey = tableSelection[tableId];
+      const body = sortedRows.map((row) => {
+        const rowKey = keyColumn ? String(keyColumn.sortValue(row) ?? "") : "";
+        const selectedClass = rowKey !== "" && rowKey === selectedKey ? " class=\"row-selected\"" : "";
+        const keyAttr = rowKey !== "" ? ` data-row-key="${escapeHtml(rowKey)}"` : "";
+        return `<tr${selectedClass}${keyAttr}>${columns.map((column) => {
+          const cellAttrs = column.coloredPercent ? ' class="pct-cell"' : "";
+          return `<td${cellAttrs}>${column.render(row)}</td>`;
+        }).join("")}</tr>`;
+      }).join("");
       return `<table class="data" data-table-id="${tableId}"><thead><tr>${headers}</tr></thead><tbody>${body}</tbody></table>`;
     }
 
@@ -2566,6 +2689,9 @@
       }
       if (tableId === "fib") {
         renderFibMapView();
+      }
+      if (tableId === "fundVal" || tableId === "fundHealth" || tableId === "fundRange") {
+        renderFundamentalsTable();
       }
     }
 
@@ -4130,6 +4256,221 @@
       await loadInspector(symbol, "inspectorPanel", section);
     }
 
+    function formatRatio(value, suffix = "") {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      return `${amount.toFixed(2)}${suffix}`;
+    }
+
+    function formatRatioPercent(value) {
+      // yfinance ratios like revenueGrowth=0.166 -> 16.6%
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      return `${(amount * 100).toFixed(1)}%`;
+    }
+
+    function formatColoredRatioPercent(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value) * 100;
+      if (!Number.isFinite(amount)) return "—";
+      const color = amount >= 0 ? "#22c55e" : "#ef4444";
+      const prefix = amount > 0 ? "+" : "";
+      return `<span style="color:${color};font-weight:700;">${prefix}${amount.toFixed(1)}%</span>`;
+    }
+
+    function formatLargeMoney(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      const abs = Math.abs(amount);
+      const sign = amount < 0 ? "-" : "";
+      if (abs >= 1e12) return `${sign}$${(abs / 1e12).toFixed(2)}T`;
+      if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
+      if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
+      return `${sign}$${abs.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    }
+
+    let fundamentalsRows = [];
+    let fundamentalsTab = "val";
+    let fundamentalsNewsSymbol = null;
+    const FUND_TABLE_IDS = { val: "fundVal", health: "fundHealth", range: "fundRange" };
+
+    function fundVal(row, group, key) {
+      const g = row.fundamentals && row.fundamentals[group];
+      return g ? g[key] : undefined;
+    }
+
+    function fundNum(value) {
+      if (value == null || value === "") return null;
+      const amount = Number(value);
+      return Number.isFinite(amount) ? amount : null;
+    }
+
+    function fundRangePosition(row) {
+      const price = fundNum(row.currentPrice);
+      const high = fundNum(fundVal(row, "priceRange", "high52w"));
+      const low = fundNum(fundVal(row, "priceRange", "low52w"));
+      if (price == null || high == null || low == null || high <= low) return null;
+      return ((price - low) / (high - low)) * 100;
+    }
+
+    function fundSymbolColumn() {
+      return {
+        key: "symbol", label: "Symbol",
+        sortValue: (r) => r.symbol,
+        render: (r) => `<a href="#" onclick="openInspectorSymbol('${r.symbol}'); return false;"><strong>${r.symbol}</strong></a>`,
+      };
+    }
+
+    function fundPriceColumn() {
+      return {
+        key: "price", label: "Price",
+        sortValue: (r) => fundNum(r.currentPrice),
+        render: (r) => formatMoney(r.currentPrice),
+      };
+    }
+
+    function fundamentalsColumns(tab) {
+      if (tab === "health") {
+        return [
+          fundSymbolColumn(),
+          fundPriceColumn(),
+          { key: "beta", label: "Beta", sortValue: (r) => fundNum(fundVal(r, "profile", "beta")), render: (r) => formatRatio(fundVal(r, "profile", "beta")) },
+          { key: "d2e", label: "Debt/Equity", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "debtToEquity")), render: (r) => formatRatio(fundVal(r, "financialHealth", "debtToEquity")) },
+          { key: "current", label: "Current Ratio", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "currentRatio")), render: (r) => formatRatio(fundVal(r, "financialHealth", "currentRatio")) },
+          { key: "quick", label: "Quick Ratio", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "quickRatio")), render: (r) => formatRatio(fundVal(r, "financialHealth", "quickRatio")) },
+          { key: "fcf", label: "Free Cash Flow", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "freeCashflow")), render: (r) => { const v = fundVal(r, "financialHealth", "freeCashflow"); const cls = (fundNum(v) ?? 0) >= 0 ? "gain-pos" : "gain-neg"; return `<span class="${cls}">${formatLargeMoney(v)}</span>`; } },
+          { key: "cash", label: "Total Cash", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "totalCash")), render: (r) => formatLargeMoney(fundVal(r, "financialHealth", "totalCash")) },
+          { key: "debt", label: "Total Debt", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "totalDebt")), render: (r) => formatLargeMoney(fundVal(r, "financialHealth", "totalDebt")) },
+          { key: "rec", label: "Recommendation", sortValue: (r) => fundVal(r, "analyst", "recommendationKey") || "", render: (r) => { const k = fundVal(r, "analyst", "recommendationKey"); return k ? String(k).replace(/_/g, " ") : "—"; } },
+          { key: "analysts", label: "# Analysts", sortValue: (r) => fundNum(fundVal(r, "analyst", "analystCount")), render: (r) => { const v = fundVal(r, "analyst", "analystCount"); return v != null ? Number(v).toFixed(0) : "—"; } },
+          { key: "tgtMean", label: "Mean Target", sortValue: (r) => fundNum(fundVal(r, "analyst", "targetMean")), render: (r) => formatMoney(fundVal(r, "analyst", "targetMean")) },
+          { key: "tgtHigh", label: "High Target", sortValue: (r) => fundNum(fundVal(r, "analyst", "targetHigh")), render: (r) => formatMoney(fundVal(r, "analyst", "targetHigh")) },
+          { key: "tgtLow", label: "Low Target", sortValue: (r) => fundNum(fundVal(r, "analyst", "targetLow")), render: (r) => formatMoney(fundVal(r, "analyst", "targetLow")) },
+        ];
+      }
+      if (tab === "range") {
+        return [
+          {
+            key: "symbol", label: "Symbol",
+            sortValue: (r) => r.symbol,
+            render: (r) => {
+              const active = r.symbol === fundamentalsNewsSymbol ? " active" : "";
+              return `<a href="#" class="fund-news-link${active}" onclick="selectFundamentalsNews('${r.symbol}'); return false;"><strong>${r.symbol}</strong></a>`;
+            },
+          },
+          fundPriceColumn(),
+          { key: "high52", label: "52W High", sortValue: (r) => fundNum(fundVal(r, "priceRange", "high52w")), render: (r) => formatMoney(fundVal(r, "priceRange", "high52w")) },
+          { key: "low52", label: "52W Low", sortValue: (r) => fundNum(fundVal(r, "priceRange", "low52w")), render: (r) => formatMoney(fundVal(r, "priceRange", "low52w")) },
+          { key: "ma50", label: "50-Day Avg", sortValue: (r) => fundNum(fundVal(r, "priceRange", "ma50")), render: (r) => formatMoney(fundVal(r, "priceRange", "ma50")) },
+          { key: "ma200", label: "200-Day Avg", sortValue: (r) => fundNum(fundVal(r, "priceRange", "ma200")), render: (r) => formatMoney(fundVal(r, "priceRange", "ma200")) },
+          { key: "rangePos", label: "Range Position", sortValue: (r) => fundRangePosition(r), render: (r) => { const p = fundRangePosition(r); return p != null ? `${p.toFixed(0)}%` : "—"; } },
+          { key: "divYield", label: "Dividend Yield", sortValue: (r) => fundNum(fundVal(r, "profile", "dividendYield")), render: (r) => { const v = fundVal(r, "profile", "dividendYield"); return v != null ? `${Number(v).toFixed(2)}%` : "—"; } },
+        ];
+      }
+      // default: valuation + growth + profitability
+      return [
+        fundSymbolColumn(),
+        fundPriceColumn(),
+        { key: "sector", label: "Sector", sortValue: (r) => fundVal(r, "profile", "sector") || "", render: (r) => fundVal(r, "profile", "sector") || "—" },
+        { key: "mktCap", label: "Mkt Cap", sortValue: (r) => fundNum(fundVal(r, "profile", "marketCap")), render: (r) => formatLargeMoney(fundVal(r, "profile", "marketCap")) },
+        { key: "ttmPe", label: "P/E", sortValue: (r) => fundNum(fundVal(r, "valuation", "trailingPe")), render: (r) => formatRatio(fundVal(r, "valuation", "trailingPe")) },
+        { key: "fwdPe", label: "Fwd P/E", sortValue: (r) => fundNum(fundVal(r, "valuation", "forwardPe")), render: (r) => formatRatio(fundVal(r, "valuation", "forwardPe")) },
+        { key: "pb", label: "P/B", sortValue: (r) => fundNum(fundVal(r, "valuation", "priceToBook")), render: (r) => formatRatio(fundVal(r, "valuation", "priceToBook")) },
+        { key: "ps", label: "P/S", sortValue: (r) => fundNum(fundVal(r, "valuation", "priceToSales")), render: (r) => formatRatio(fundVal(r, "valuation", "priceToSales")) },
+        { key: "peg", label: "PEG", sortValue: (r) => fundNum(fundVal(r, "valuation", "pegRatio")), render: (r) => formatRatio(fundVal(r, "valuation", "pegRatio")) },
+        { key: "ev", label: "EV/EBITDA", sortValue: (r) => fundNum(fundVal(r, "valuation", "evToEbitda")), render: (r) => formatRatio(fundVal(r, "valuation", "evToEbitda")) },
+        { key: "revG", label: "Rev Growth", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "revenueGrowth")), render: (r) => formatColoredRatioPercent(fundVal(r, "growthProfitability", "revenueGrowth")) },
+        { key: "earnG", label: "Earn Growth", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "earningsGrowth")), render: (r) => formatColoredRatioPercent(fundVal(r, "growthProfitability", "earningsGrowth")) },
+        { key: "gm", label: "Gross Margin", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "grossMargin")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "grossMargin")) },
+        { key: "om", label: "Op Margin", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "operatingMargin")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "operatingMargin")) },
+        { key: "pm", label: "Profit Margin", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "profitMargin")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "profitMargin")) },
+        { key: "roe", label: "ROE", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "returnOnEquity")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "returnOnEquity")) },
+      ];
+    }
+
+    function renderFundamentalsNewsPanel() {
+      const panel = document.getElementById("fundamentalsNewsPanel");
+      if (!panel) return;
+      if (!fundamentalsRows.length) {
+        panel.innerHTML = `<div class="empty">No symbols.</div>`;
+        return;
+      }
+      let row = fundamentalsRows.find((r) => r.symbol === fundamentalsNewsSymbol);
+      if (!row) {
+        row = fundamentalsRows[0];
+        fundamentalsNewsSymbol = row.symbol;
+      }
+      const news = row.recentNews || [];
+      panel.innerHTML = `
+        <h3 class="fund-news-head">${row.symbol} — Recent News${news.length ? ` (${news.length})` : ""}</h3>
+        ${news.length
+          ? `<ul class="news-list">${news.map((item) => {
+              const title = escapeHtml(item.title || "");
+              const titleHtml = item.link
+                ? `<a class="news-title-link" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${title} ↗</a>`
+                : `<span class="news-title">${title}</span>`;
+              const summary = item.summary ? `<div class="news-summary">${escapeHtml(item.summary)}</div>` : "";
+              return `
+              <li class="news-item">
+                <div class="news-title">${titleHtml}</div>
+                <div class="news-meta">${escapeHtml(item.publisher || "—")}${item.published ? ` · ${escapeHtml(String(item.published).slice(0, 10))}` : ""}</div>
+                ${summary}
+              </li>`;
+            }).join("")}</ul>`
+          : `<div class="empty">No recent headlines available for ${row.symbol}.</div>`}`;
+    }
+
+    function selectFundamentalsNews(symbol) {
+      fundamentalsNewsSymbol = symbol;
+      document.querySelectorAll(".fund-news-link").forEach((link) => {
+        link.classList.toggle("active", link.textContent.trim() === symbol);
+      });
+      renderFundamentalsNewsPanel();
+    }
+
+    function renderFundamentalsTable() {
+      const container = document.getElementById("fundamentalsTable");
+      const tableId = FUND_TABLE_IDS[fundamentalsTab];
+      const columns = fundamentalsColumns(fundamentalsTab);
+      const table = renderSortableTable(tableId, columns, fundamentalsRows, "No symbols to compare. Add symbols first.");
+      if (fundamentalsTab === "range") {
+        container.innerHTML = `
+          <div class="fund-range-layout">
+            <div class="fund-table-scroll">${table}</div>
+            <aside class="fund-news-panel" id="fundamentalsNewsPanel"></aside>
+          </div>`;
+        renderFundamentalsNewsPanel();
+      } else {
+        container.innerHTML = `<div class="fund-table-scroll">${table}</div>`;
+      }
+    }
+
+    function setFundamentalsTab(tab) {
+      fundamentalsTab = tab;
+      document.querySelectorAll(".fund-tab").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.fundTab === tab);
+      });
+      renderFundamentalsTable();
+    }
+
+    async function loadFundamentals() {
+      const container = document.getElementById("fundamentalsTable");
+      container.innerHTML = `<div class="empty">Loading fundamentals for all symbols… (first load may take a few seconds)</div>`;
+      try {
+        const data = await api("/fundamentals");
+        fundamentalsRows = data.symbols || [];
+        if (!fundamentalsNewsSymbol && fundamentalsRows.length) {
+          fundamentalsNewsSymbol = fundamentalsRows[0].symbol;
+        }
+        renderFundamentalsTable();
+      } catch (err) {
+        container.innerHTML = `<div class="empty">Could not load fundamentals: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
     async function loadInspectorOptions() {
       const data = await api("/portfolio");
       const symbols = data.symbols;
@@ -4165,6 +4506,18 @@
         );
         return;
       }
+      const selectableRow = event.target.closest("table.data tbody tr");
+      if (selectableRow && selectableRow.dataset.rowKey != null) {
+        const table = selectableRow.closest("table.data");
+        const tableId = table?.dataset.tableId;
+        if (tableId) {
+          tableSelection[tableId] = selectableRow.dataset.rowKey;
+          table.querySelectorAll("tbody tr.row-selected").forEach((tr) => tr.classList.remove("row-selected"));
+          selectableRow.classList.add("row-selected");
+        }
+        // no return: allow links/buttons inside the row to keep working
+      }
+
       const header = event.target.closest("th.sortable");
       if (!header) return;
       const tableId = header.dataset.tableId;
