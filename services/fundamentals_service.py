@@ -221,6 +221,7 @@ class FundamentalsService:
                 if isinstance(value, (int, float)):
                     out[grp][key] = round(float(value) / 100.0, 4)
             self._put_num(out["valuation"], "forwardPe", metric.get("forwardPE"))
+            self._put_num(out["valuation"], "evToEbitda", metric.get("evEbitdaTTM"))
             # yfinance expresses debt/equity as a percentage-like number (e.g. 158),
             # Finnhub as a raw ratio (1.58) — scale to match the UI's expectation.
             de = self._first_num(
@@ -257,9 +258,68 @@ class FundamentalsService:
         if rec:
             out["analyst"].update(rec)
 
+        # Finnhub's free metrics lack moving averages and absolute cash/debt/FCF.
+        # Backfill those from yfinance's history + statement endpoints, which use
+        # different Yahoo APIs than the often-blocked quoteSummary (.info) and so
+        # may still respond on datacenter IPs. Only exact values are used — never
+        # approximations — so columns stay blank rather than showing wrong data.
+        for key, value in self._history_moving_averages(symbol).items():
+            self._put_num(out["priceRange"], key, value)
+        for key, value in self._statement_financials(symbol).items():
+            self._put_num(out["financialHealth"], key, value)
+
         # Note: analyst price targets (targetMean/High/Low) require Finnhub's
         # premium /stock/price-target endpoint, so they stay empty on free tier.
         return {grp: vals for grp, vals in out.items() if vals}
+
+    def _history_moving_averages(self, symbol: str) -> dict[str, Any]:
+        try:
+            closes = make_ticker(symbol).history(period="1y", auto_adjust=True)["Close"].dropna()
+        except Exception as exc:  # noqa: BLE001 - network/3rd-party failures are non-fatal
+            logger.warning("History MA fetch failed for %s: %s", symbol, exc)
+            return {}
+        out: dict[str, Any] = {}
+        if len(closes) >= 50:
+            out["ma50"] = float(closes.tail(50).mean())
+        if len(closes) >= 200:
+            out["ma200"] = float(closes.tail(200).mean())
+        return out
+
+    def _statement_financials(self, symbol: str) -> dict[str, Any]:
+        try:
+            ticker = make_ticker(symbol)
+            balance = ticker.balance_sheet
+            cashflow = ticker.cashflow
+        except Exception as exc:  # noqa: BLE001 - network/3rd-party failures are non-fatal
+            logger.warning("Statement fetch failed for %s: %s", symbol, exc)
+            return {}
+        out: dict[str, Any] = {}
+        cash = self._statement_value(
+            balance, ["Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments"]
+        )
+        if cash is not None:
+            out["totalCash"] = cash
+        debt = self._statement_value(balance, ["Total Debt"])
+        if debt is not None:
+            out["totalDebt"] = debt
+        fcf = self._statement_value(cashflow, ["Free Cash Flow"])
+        if fcf is not None:
+            out["freeCashflow"] = fcf
+        return out
+
+    @staticmethod
+    def _statement_value(frame: Any, row_names: list[str]) -> float | None:
+        if frame is None or getattr(frame, "empty", True):
+            return None
+        for name in row_names:
+            try:
+                if name in frame.index:
+                    series = frame.loc[name].dropna()
+                    if len(series):
+                        return float(series.iloc[0])
+            except Exception:  # noqa: BLE001 - defensive against odd frame shapes
+                continue
+        return None
 
     def _finnhub_get(self, url: str, symbol: str, label: str) -> Any:
         try:
