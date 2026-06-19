@@ -260,9 +260,9 @@ class InspectorService:
             "operatingMargin": None,
         }
         try:
-            from services.market_cache import ticker_info_cache
+            from services.market_cache import make_ticker, ticker_info_cache
 
-            info = ticker_info_cache.get(symbol.upper(), lambda: yf.Ticker(symbol).info)
+            info = ticker_info_cache.get(symbol.upper(), lambda: make_ticker(symbol).info)
             metrics.update(
                 {
                     "trailingPe": self._safe_round(info.get("trailingPE")),

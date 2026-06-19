@@ -44,3 +44,48 @@ class TtlCache:
 _ticker_info_ttl = float(os.environ.get("YFINANCE_INFO_CACHE_TTL_SECONDS", "900"))
 _ticker_info_max = int(os.environ.get("YFINANCE_INFO_CACHE_MAX_ENTRIES", "48"))
 ticker_info_cache: TtlCache = TtlCache(_ticker_info_ttl, _ticker_info_max)
+
+
+# --- Shared yfinance session -------------------------------------------------
+# Yahoo's quoteSummary endpoint (yf.Ticker.info) is frequently blocked/rate
+# limited from datacenter IPs (e.g. Render), returning empty info while the
+# lightweight price/news endpoints still work. A browser-impersonating
+# curl_cffi session gets a valid cookie+crumb far more reliably. We build it
+# once and reuse it. If curl_cffi is unavailable we fall back to the default
+# session (no behavior change).
+_yf_session: Any = None
+_yf_session_ready = False
+_yf_session_lock = threading.Lock()
+
+
+def get_yf_session() -> Any:
+    global _yf_session, _yf_session_ready
+    with _yf_session_lock:
+        if _yf_session_ready:
+            return _yf_session
+        _yf_session_ready = True
+        impersonate = os.environ.get("YF_IMPERSONATE", "chrome").strip()
+        if impersonate.lower() in ("", "0", "off", "none", "false"):
+            _yf_session = None
+            return None
+        try:
+            from curl_cffi import requests as cffi_requests
+
+            _yf_session = cffi_requests.Session(impersonate=impersonate)
+        except Exception:  # noqa: BLE001 - optional dependency / runtime issue
+            _yf_session = None
+        return _yf_session
+
+
+def make_ticker(symbol: str):
+    """Return a yf.Ticker, using the impersonating session when available."""
+    import yfinance as yf
+
+    session = get_yf_session()
+    if session is not None:
+        try:
+            return yf.Ticker(symbol, session=session)
+        except TypeError:
+            # Older/newer yfinance without a session kwarg.
+            pass
+    return yf.Ticker(symbol)

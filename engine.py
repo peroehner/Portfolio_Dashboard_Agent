@@ -89,10 +89,10 @@ class PortfolioEngine:
 
     def _fetch_day_change_pct(self, ticker: str, price: float | None) -> float | None:
         """Session day change from yfinance info (works on non-trading days via last close)."""
-        from services.market_cache import ticker_info_cache
+        from services.market_cache import make_ticker, ticker_info_cache
 
         try:
-            info = ticker_info_cache.get(ticker.upper(), lambda: yf.Ticker(ticker).info)
+            info = ticker_info_cache.get(ticker.upper(), lambda: make_ticker(ticker).info)
             pct = info.get("regularMarketChangePercent")
             if pct is not None:
                 return round(float(pct), 2)
@@ -113,10 +113,10 @@ class PortfolioEngine:
         return None
 
     def _fetch_analyst_target(self, ticker: str) -> float | None:
-        from services.market_cache import ticker_info_cache
+        from services.market_cache import make_ticker, ticker_info_cache
 
         try:
-            info = ticker_info_cache.get(ticker.upper(), lambda: yf.Ticker(ticker).info)
+            info = ticker_info_cache.get(ticker.upper(), lambda: make_ticker(ticker).info)
             target_mean = info.get("targetMeanPrice")
             if target_mean is not None:
                 return round(float(target_mean), 2)

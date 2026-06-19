@@ -27,7 +27,7 @@ from typing import Any
 import certifi
 import yfinance as yf
 
-from services.market_cache import TtlCache, ticker_info_cache
+from services.market_cache import TtlCache, make_ticker, ticker_info_cache
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ class FundamentalsService:
         if self.provider != "yfinance":
             logger.warning("Unknown FUNDAMENTALS_PROVIDER=%s, falling back to yfinance", self.provider)
         try:
-            info = ticker_info_cache.get(symbol, lambda: yf.Ticker(symbol).info)
+            info = ticker_info_cache.get(symbol, lambda: make_ticker(symbol).info)
         except Exception as exc:  # noqa: BLE001 - network/3rd-party failures are non-fatal
             logger.warning("Failed to fetch fundamentals for %s: %s", symbol, exc)
             return {}
@@ -165,7 +165,7 @@ class FundamentalsService:
             return []
 
     def _fetch_yfinance_news(self, symbol: str) -> list[dict[str, Any]]:
-        raw = yf.Ticker(symbol).news or []
+        raw = make_ticker(symbol).news or []
         return self._normalize_news(raw)
 
     def _fetch_finnhub_news(self, symbol: str) -> list[dict[str, Any]]:
