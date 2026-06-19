@@ -1,6 +1,7 @@
 import ast
 import json
 import re
+from datetime import datetime
 from typing import Any
 
 from services.holdings_service import HoldingsService
@@ -202,7 +203,7 @@ class ImportService:
         if len(lines) < 2:
             raise ValueError("CSV must include a header row and at least one data row.")
 
-        delimiter = "\t" if "\t" in lines[0] and "," not in lines[0] else ","
+        delimiter = self._detect_csv_delimiter(lines[0])
         headers = [part.strip().lower() for part in lines[0].split(delimiter)]
         symbol_idx = self._header_index(headers, ("symbol", "ticker"))
         if symbol_idx is None:
@@ -230,8 +231,28 @@ class ImportService:
                     "targetPrice": row.get("targetprice") or row.get("target"),
                     "buyBelow": row.get("buybelow"),
                     "sellAbove": row.get("sellabove"),
-                    "quantity": row.get("quantity") or row.get("shares"),
-                    "costBasis": row.get("costbasis") or row.get("cost"),
+                    "quantity": row.get("quantity") or row.get("shares") or row.get("qty"),
+                    "costBasis": (
+                        row.get("costbasis")
+                        or row.get("cost")
+                        or row.get("avgcost")
+                        or row.get("averagecost")
+                        or row.get("avg cost")
+                        or row.get("avg_cost")
+                    ),
+                    "purchaseDate": (
+                        row.get("purchasedate")
+                        or row.get("purchase_date")
+                        or row.get("purchase date")
+                        or row.get("entrydate")
+                        or row.get("date")
+                    ),
+                    "accountName": (
+                        row.get("account")
+                        or row.get("accountname")
+                        or row.get("account name")
+                    ),
+                    "annualDividend": row.get("annualdividend") or row.get("dividend"),
                 }
             )
             if not payload:
@@ -484,13 +505,17 @@ class ImportService:
             "costBasis": ("costBasis", "cost_basis", "cost"),
             "annualDividend": ("annualDividend", "annual_dividend", "dividend"),
             "purchaseDate": ("purchaseDate", "purchase_date", "entryDate", "entry_date"),
+            "accountName": ("accountName", "account_name", "account"),
         }
+        text_fields = {"purchaseDate", "accountName"}
         for target, keys in mapping.items():
             for key in keys:
                 if key in details and details[key] not in (None, ""):
                     value = details[key]
                     if target == "purchaseDate":
-                        normalized[target] = str(value).strip()[:10]
+                        normalized[target] = self._parse_date_flexible(value)
+                    elif target == "accountName":
+                        normalized[target] = str(value).strip()
                     elif isinstance(value, (int, float)):
                         normalized[target] = float(value)
                     else:
@@ -499,6 +524,32 @@ class ImportService:
                             normalized[target] = parsed
                     break
         return normalized
+
+    @staticmethod
+    def _detect_csv_delimiter(header_line: str) -> str:
+        """Pick the most frequent of ';', tab, or ',' in the header row."""
+        counts = {sep: header_line.count(sep) for sep in (";", "\t", ",")}
+        best = max(counts, key=lambda sep: counts[sep])
+        return best if counts[best] > 0 else ","
+
+    @staticmethod
+    def _parse_date_flexible(value: Any) -> str:
+        """Normalize unambiguous date formats to ISO (YYYY-MM-DD); pass through otherwise.
+
+        Handles '19.06.26' / '19.06.2026' (dot dates are unambiguously day-first
+        / European), ISO dates, and year-first slash dates. Two-digit years map
+        via %y (26 -> 2026). Ambiguous month/day slash dates (e.g. '01/02/2025')
+        are intentionally left untouched rather than guessed.
+        """
+        text = str(value).strip()
+        if not text:
+            return text
+        for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%d.%m.%y", "%Y/%m/%d"):
+            try:
+                return datetime.strptime(text, fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        return text[:10]
 
     def _looks_like_csv(self, text: str) -> bool:
         lines = [line.strip() for line in text.splitlines() if line.strip()]
