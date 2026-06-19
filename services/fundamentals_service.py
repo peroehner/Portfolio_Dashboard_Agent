@@ -35,6 +35,33 @@ _news_ttl = float(os.environ.get("NEWS_CACHE_TTL_SECONDS", "3600"))
 _news_max = int(os.environ.get("NEWS_CACHE_MAX_ENTRIES", "48"))
 news_cache: TtlCache = TtlCache(_news_ttl, _news_max)
 
+_fund_ttl = float(os.environ.get("FUNDAMENTALS_CACHE_TTL_SECONDS", "21600"))  # 6h
+_fund_max = int(os.environ.get("FUNDAMENTALS_CACHE_MAX_ENTRIES", "128"))
+finnhub_fundamentals_cache: TtlCache = TtlCache(_fund_ttl, _fund_max)
+
+# Finnhub /stock/metric "metric" keys -> (group, normalized key).
+# These are plain ratios with the same convention as yfinance (no scaling).
+_FINNHUB_RATIO_FIELDS = {
+    "peTTM": ("valuation", "trailingPe"),
+    "pbAnnual": ("valuation", "priceToBook"),
+    "psTTM": ("valuation", "priceToSales"),
+    "currentRatioAnnual": ("financialHealth", "currentRatio"),
+    "quickRatioAnnual": ("financialHealth", "quickRatio"),
+    "beta": ("profile", "beta"),
+    "52WeekHigh": ("priceRange", "high52w"),
+    "52WeekLow": ("priceRange", "low52w"),
+}
+# Finnhub reports these as percentages (e.g. 45.2); yfinance/the UI expect a
+# fraction (0.452), so divide by 100.
+_FINNHUB_PCT_AS_FRACTION = {
+    "grossMarginTTM": ("growthProfitability", "grossMargin"),
+    "operatingMarginTTM": ("growthProfitability", "operatingMargin"),
+    "netProfitMarginTTM": ("growthProfitability", "profitMargin"),
+    "roeTTM": ("growthProfitability", "returnOnEquity"),
+    "revenueGrowthTTMYoy": ("growthProfitability", "revenueGrowth"),
+    "epsGrowthTTMYoy": ("growthProfitability", "earningsGrowth"),
+}
+
 # Map yfinance `info` keys -> normalized fundamentals keys we expose to the model.
 _VALUATION_FIELDS = {
     "trailingPE": "trailingPe",
@@ -128,6 +155,25 @@ class FundamentalsService:
         return results
 
     def fetch_fundamentals(self, symbol: str) -> dict[str, Any]:
+        """yfinance first; fall back to Finnhub when yfinance returns nothing.
+
+        On datacenter IPs (e.g. Render) Yahoo's quoteSummary often returns empty
+        info, so we backfill from Finnhub when a key is configured.
+        """
+        data = self._fetch_yfinance_fundamentals(symbol)
+        if self._is_empty_fundamentals(data) and self.finnhub_api_key:
+            try:
+                fh = finnhub_fundamentals_cache.get(
+                    symbol, lambda: self._fetch_finnhub_fundamentals(symbol)
+                )
+            except Exception as exc:  # noqa: BLE001 - network/3rd-party failures are non-fatal
+                logger.warning("Finnhub fundamentals failed for %s: %s", symbol, exc)
+                fh = {}
+            if not self._is_empty_fundamentals(fh):
+                return fh
+        return data
+
+    def _fetch_yfinance_fundamentals(self, symbol: str) -> dict[str, Any]:
         if self.provider != "yfinance":
             logger.warning("Unknown FUNDAMENTALS_PROVIDER=%s, falling back to yfinance", self.provider)
         try:
@@ -146,6 +192,118 @@ class FundamentalsService:
             "analyst": self._collect(info, _ANALYST_FIELDS),
             "priceRange": self._collect(info, _RANGE_FIELDS),
         }
+
+    def _fetch_finnhub_fundamentals(self, symbol: str) -> dict[str, Any]:
+        if not self.finnhub_api_key:
+            return {}
+        token = urllib.parse.quote(self.finnhub_api_key)
+        qsym = urllib.parse.quote(symbol)
+        out: dict[str, dict[str, Any]] = {
+            "valuation": {},
+            "growthProfitability": {},
+            "financialHealth": {},
+            "profile": {},
+            "analyst": {},
+            "priceRange": {},
+        }
+
+        metric = self._finnhub_get(
+            f"https://finnhub.io/api/v1/stock/metric?symbol={qsym}&metric=all&token={token}",
+            symbol,
+            "metric",
+        )
+        metric = metric.get("metric") if isinstance(metric, dict) else None
+        if isinstance(metric, dict):
+            for src, (grp, key) in _FINNHUB_RATIO_FIELDS.items():
+                self._put_num(out[grp], key, metric.get(src))
+            for src, (grp, key) in _FINNHUB_PCT_AS_FRACTION.items():
+                value = metric.get(src)
+                if isinstance(value, (int, float)):
+                    out[grp][key] = round(float(value) / 100.0, 4)
+            self._put_num(out["valuation"], "forwardPe", metric.get("forwardPE"))
+            # yfinance expresses debt/equity as a percentage-like number (e.g. 158),
+            # Finnhub as a raw ratio (1.58) — scale to match the UI's expectation.
+            de = self._first_num(
+                metric,
+                "totalDebt/totalEquityAnnual",
+                "totalDebt/totalEquityQuarterly",
+                "longTermDebt/equityAnnual",
+            )
+            if de is not None:
+                out["financialHealth"]["debtToEquity"] = round(de * 100.0, 4)
+            dy = self._first_num(metric, "dividendYieldIndicatedAnnual", "currentDividendYieldTTM")
+            if dy is not None:
+                out["profile"]["dividendYield"] = round(dy, 4)
+
+        profile = self._finnhub_get(
+            f"https://finnhub.io/api/v1/stock/profile2?symbol={qsym}&token={token}",
+            symbol,
+            "profile2",
+        )
+        if isinstance(profile, dict):
+            industry = profile.get("finnhubIndustry")
+            if industry:
+                out["profile"]["sector"] = str(industry)
+            mcap = profile.get("marketCapitalization")  # in millions of currency
+            if isinstance(mcap, (int, float)) and mcap:
+                out["profile"]["marketCap"] = round(float(mcap) * 1_000_000, 2)
+
+        recs = self._finnhub_get(
+            f"https://finnhub.io/api/v1/stock/recommendation?symbol={qsym}&token={token}",
+            symbol,
+            "recommendation",
+        )
+        rec = self._latest_recommendation(recs)
+        if rec:
+            out["analyst"].update(rec)
+
+        # Note: analyst price targets (targetMean/High/Low) require Finnhub's
+        # premium /stock/price-target endpoint, so they stay empty on free tier.
+        return {grp: vals for grp, vals in out.items() if vals}
+
+    def _finnhub_get(self, url: str, symbol: str, label: str) -> Any:
+        try:
+            return self._get_json(url)
+        except Exception as exc:  # noqa: BLE001 - network/3rd-party failures are non-fatal
+            logger.warning("Finnhub %s failed for %s: %s", label, symbol, exc)
+            return None
+
+    @staticmethod
+    def _is_empty_fundamentals(data: Any) -> bool:
+        return not isinstance(data, dict) or all(not v for v in data.values())
+
+    @staticmethod
+    def _put_num(target: dict[str, Any], key: str, value: Any) -> None:
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            target[key] = round(float(value), 4)
+
+    @staticmethod
+    def _first_num(source: dict[str, Any], *keys: str) -> float | None:
+        for key in keys:
+            value = source.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return float(value)
+        return None
+
+    @staticmethod
+    def _latest_recommendation(recs: Any) -> dict[str, Any]:
+        if not isinstance(recs, list) or not recs:
+            return {}
+        entries = [r for r in recs if isinstance(r, dict)]
+        if not entries:
+            return {}
+        latest = max(entries, key=lambda r: str(r.get("period", "")))
+        buckets = {
+            "strong_buy": int(latest.get("strongBuy") or 0),
+            "buy": int(latest.get("buy") or 0),
+            "hold": int(latest.get("hold") or 0),
+            "sell": int(latest.get("sell") or 0),
+            "strong_sell": int(latest.get("strongSell") or 0),
+        }
+        total = sum(buckets.values())
+        if total <= 0:
+            return {}
+        return {"recommendationKey": max(buckets, key=lambda k: buckets[k]), "analystCount": total}
 
     def fetch_recent_news(self, symbol: str) -> list[dict[str, Any]]:
         if self.news_limit <= 0:
