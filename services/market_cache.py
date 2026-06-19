@@ -46,35 +46,37 @@ _ticker_info_max = int(os.environ.get("YFINANCE_INFO_CACHE_MAX_ENTRIES", "48"))
 ticker_info_cache: TtlCache = TtlCache(_ticker_info_ttl, _ticker_info_max)
 
 
-# --- Shared yfinance session -------------------------------------------------
+# --- Per-thread yfinance session ---------------------------------------------
 # Yahoo's quoteSummary endpoint (yf.Ticker.info) is frequently blocked/rate
 # limited from datacenter IPs (e.g. Render), returning empty info while the
 # lightweight price/news endpoints still work. A browser-impersonating
-# curl_cffi session gets a valid cookie+crumb far more reliably. We build it
-# once and reuse it. If curl_cffi is unavailable we fall back to the default
-# session (no behavior change).
-_yf_session: Any = None
-_yf_session_ready = False
-_yf_session_lock = threading.Lock()
+# curl_cffi session gets a valid cookie+crumb far more reliably.
+#
+# IMPORTANT: curl_cffi sessions are NOT thread-safe, and fundamentals are
+# fetched concurrently via a ThreadPoolExecutor. Sharing one session across
+# threads crashes the worker (502). We therefore keep one session PER THREAD
+# via thread-local storage. If curl_cffi is unavailable we fall back to the
+# default yfinance session (no behavior change).
+_yf_local = threading.local()
+_yf_impersonate = os.environ.get("YF_IMPERSONATE", "chrome").strip()
+_yf_disabled = _yf_impersonate.lower() in ("", "0", "off", "none", "false")
 
 
 def get_yf_session() -> Any:
-    global _yf_session, _yf_session_ready
-    with _yf_session_lock:
-        if _yf_session_ready:
-            return _yf_session
-        _yf_session_ready = True
-        impersonate = os.environ.get("YF_IMPERSONATE", "chrome").strip()
-        if impersonate.lower() in ("", "0", "off", "none", "false"):
-            _yf_session = None
-            return None
-        try:
-            from curl_cffi import requests as cffi_requests
+    if _yf_disabled:
+        return None
+    if getattr(_yf_local, "ready", False):
+        return _yf_local.session
+    session: Any = None
+    try:
+        from curl_cffi import requests as cffi_requests
 
-            _yf_session = cffi_requests.Session(impersonate=impersonate)
-        except Exception:  # noqa: BLE001 - optional dependency / runtime issue
-            _yf_session = None
-        return _yf_session
+        session = cffi_requests.Session(impersonate=_yf_impersonate)
+    except Exception:  # noqa: BLE001 - optional dependency / runtime issue
+        session = None
+    _yf_local.session = session
+    _yf_local.ready = True
+    return session
 
 
 def make_ticker(symbol: str):
