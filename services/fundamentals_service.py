@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import ssl
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -27,7 +28,27 @@ from typing import Any
 import certifi
 import yfinance as yf
 
-from services.market_cache import TtlCache, make_ticker, ticker_info_cache
+from services.market_cache import CACHE_MISS, TtlCache, make_ticker, ticker_info_cache
+
+# Finnhub's free tier allows ~60 API calls/minute. A whole-portfolio fetch can
+# burst past that, causing 429s. An optional global minimum interval between
+# Finnhub requests smooths the burst. It's OFF by default because a blocking
+# throttle on the synchronous bulk endpoint could exceed the server request
+# timeout for large portfolios; we instead rely on retry-on-429 plus not caching
+# empty results (so reloads converge). Set FINNHUB_MIN_INTERVAL_SECONDS to enable.
+_finnhub_min_interval = float(os.environ.get("FINNHUB_MIN_INTERVAL_SECONDS", "0"))
+_finnhub_throttle_lock = threading.Lock()
+_finnhub_last_call = [0.0]
+
+
+def _finnhub_throttle() -> None:
+    if _finnhub_min_interval <= 0:
+        return
+    with _finnhub_throttle_lock:
+        wait = _finnhub_min_interval - (time.monotonic() - _finnhub_last_call[0])
+        if wait > 0:
+            time.sleep(wait)
+        _finnhub_last_call[0] = time.monotonic()
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +168,7 @@ class FundamentalsService:
         if not self.enabled:
             return {s: {"fundamentals": {}, "recentNews": []} for s in unique}
 
-        workers = max(1, min(int(os.environ.get("FUNDAMENTALS_BULK_WORKERS", "8")), len(unique)))
+        workers = max(1, min(int(os.environ.get("FUNDAMENTALS_BULK_WORKERS", "4")), len(unique)))
         results: dict[str, dict[str, Any]] = {}
         with ThreadPoolExecutor(max_workers=workers) as pool:
             for symbol, enrichment in zip(unique, pool.map(self.get_enrichment, unique)):
@@ -162,16 +183,28 @@ class FundamentalsService:
         """
         data = self._fetch_yfinance_fundamentals(symbol)
         if self._is_empty_fundamentals(data) and self.finnhub_api_key:
-            try:
-                fh = finnhub_fundamentals_cache.get(
-                    symbol, lambda: self._fetch_finnhub_fundamentals(symbol)
-                )
-            except Exception as exc:  # noqa: BLE001 - network/3rd-party failures are non-fatal
-                logger.warning("Finnhub fundamentals failed for %s: %s", symbol, exc)
-                fh = {}
+            fh = self._cached_finnhub_fundamentals(symbol)
             if not self._is_empty_fundamentals(fh):
                 return fh
         return data
+
+    def _cached_finnhub_fundamentals(self, symbol: str) -> dict[str, Any]:
+        """Finnhub fundamentals with caching of successful (non-empty) results only.
+
+        Empty results (e.g. from a transient 429) are NOT cached, so a later
+        retry can succeed instead of serving a stale blank for the whole TTL.
+        """
+        cached = finnhub_fundamentals_cache.peek(symbol)
+        if cached is not CACHE_MISS:
+            return cached
+        try:
+            fh = self._fetch_finnhub_fundamentals(symbol)
+        except Exception as exc:  # noqa: BLE001 - network/3rd-party failures are non-fatal
+            logger.warning("Finnhub fundamentals failed for %s: %s", symbol, exc)
+            return {}
+        if not self._is_empty_fundamentals(fh):
+            finnhub_fundamentals_cache.put(symbol, fh)
+        return fh
 
     def _fetch_yfinance_fundamentals(self, symbol: str) -> dict[str, Any]:
         if self.provider != "yfinance":
@@ -433,8 +466,20 @@ class FundamentalsService:
     def _get_json(url: str) -> Any:
         ctx = ssl.create_default_context(cafile=certifi.where())
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=20, context=ctx) as response:
-            return json.loads(response.read().decode("utf-8"))
+        is_finnhub = "finnhub.io" in url
+        attempts = 3 if is_finnhub else 1
+        for attempt in range(attempts):
+            if is_finnhub:
+                _finnhub_throttle()
+            try:
+                with urllib.request.urlopen(req, timeout=20, context=ctx) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except urllib.error.HTTPError as exc:
+                # 429 (rate limited) is retryable with backoff; re-raise otherwise.
+                if exc.code == 429 and attempt < attempts - 1:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise
 
     def _normalize_news(self, raw: Any) -> list[dict[str, Any]]:
         if not isinstance(raw, list):

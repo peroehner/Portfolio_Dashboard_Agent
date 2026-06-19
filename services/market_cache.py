@@ -9,6 +9,9 @@ from typing import Any, Callable, Hashable, TypeVar
 
 T = TypeVar("T")
 
+# Sentinel returned by TtlCache.peek when a key is absent/expired.
+CACHE_MISS = object()
+
 
 class TtlCache:
     def __init__(self, ttl_seconds: float, max_entries: int = 64):
@@ -35,6 +38,27 @@ class TtlCache:
             while len(self._entries) > self.max_entries:
                 self._entries.popitem(last=False)
         return value
+
+    def peek(self, key: Hashable) -> Any:
+        """Return the cached value if present and fresh, else CACHE_MISS."""
+        now = time.time()
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is not None:
+                expires_at, value = entry
+                if expires_at > now:
+                    self._entries.move_to_end(key)
+                    return value
+                del self._entries[key]
+        return CACHE_MISS
+
+    def put(self, key: Hashable, value: Any) -> None:
+        now = time.time()
+        with self._lock:
+            self._entries[key] = (now + self.ttl, value)
+            self._entries.move_to_end(key)
+            while len(self._entries) > self.max_entries:
+                self._entries.popitem(last=False)
 
     def clear(self) -> None:
         with self._lock:
