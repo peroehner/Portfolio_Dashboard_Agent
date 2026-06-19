@@ -239,6 +239,74 @@ def import_file():
     return jsonify({"status": "success", **result})
 
 
+@v1_bp.route("/export", methods=["GET"])
+def export_portfolio():
+    """Export the full portfolio as a tolerant, human-editable JSON document.
+
+    Each position carries the minimal set (symbol, shares, purchaseDate, avgCost)
+    plus thresholds, personal/analyst targets, dividend, and personal notes when
+    they exist. Re-importing this file (replace mode) restores the DB state.
+    """
+    from datetime import datetime, timezone
+
+    include_notes = request.args.get("notes", default="1") != "0"
+    symbols = portfolio_service.list_symbols()
+    holdings = {h["symbol"]: h for h in holdings_service.list_holdings()}
+
+    def prune(d):
+        return {k: v for k, v in d.items() if v not in (None, "", [])}
+
+    positions = []
+    for sym in symbols:
+        ticker = sym["symbol"]
+        h = holdings.get(ticker, {})
+        notes_out = []
+        if include_notes:
+            for n in notes_service.list_notes(ticker):
+                notes_out.append(prune({
+                    "date": n.get("date"),
+                    "source": n.get("source"),
+                    "text": n.get("text"),
+                    "synthesis": n.get("synthesis"),
+                }))
+        position = {
+            # Minimal core (always present, even if null, for easy editing)
+            "symbol": ticker,
+            "shares": h.get("quantity"),
+            "purchaseDate": h.get("purchaseDate"),
+            "avgCost": h.get("costBasis"),
+        }
+        # Optional extras, only when set
+        position.update(prune({
+            "account": h.get("accountName"),
+            "currentPrice": sym.get("currentPrice"),
+            "targetPrice": sym.get("targetPrice"),
+            "analystTarget1y": sym.get("analystTarget1y"),
+            "buyBelow": sym.get("buyBelow"),
+            "sellAbove": sym.get("sellAbove"),
+            "annualDividend": sym.get("annualDividend"),
+        }))
+        if notes_out:
+            position["notes"] = notes_out
+        positions.append(position)
+
+    document = {
+        "format": "portfolio-dashboard",
+        "version": 1,
+        "exportedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "currency": "USD",
+        "positions": positions,
+    }
+
+    response = jsonify(document)
+    if request.args.get("download"):
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        response.headers["Content-Disposition"] = (
+            f'attachment; filename="portfolio-export-{stamp}.json"'
+        )
+    return response
+
+
 @v1_bp.route("/holdings", methods=["GET"])
 def list_holdings():
     return jsonify({"holdings": holdings_service.list_holdings()})
@@ -378,6 +446,37 @@ def list_fundamentals():
             "recentNews": data.get("recentNews", []),
         })
     return jsonify({"symbols": rows})
+
+
+@v1_bp.route("/news-feed", methods=["GET"])
+def news_feed():
+    """Compact Summary feed: latest recommendation changes + top recent news."""
+    news_limit = request.args.get("newsLimit", default=8, type=int)
+    changes_limit = request.args.get("changesLimit", default=6, type=int)
+
+    changes = assessment_service.list_recommendation_changes(limit=changes_limit)
+
+    symbols_meta = portfolio_service.list_symbols()
+    enrichment = fundamentals_service.get_enrichment_bulk([s["symbol"] for s in symbols_meta])
+    items = []
+    for meta in symbols_meta:
+        symbol = meta["symbol"]
+        for article in (enrichment.get(symbol.upper(), {}).get("recentNews") or []):
+            items.append({
+                "symbol": symbol,
+                "title": article.get("title"),
+                "publisher": article.get("publisher"),
+                "published": article.get("published"),
+                "link": article.get("link"),
+                "summary": article.get("summary"),
+            })
+    # Newest first; fall back to stable order when dates are missing/equal.
+    items.sort(key=lambda a: (a.get("published") or ""), reverse=True)
+
+    return jsonify({
+        "recommendationChanges": changes,
+        "topNews": items[: max(0, news_limit)],
+    })
 
 
 @v1_bp.route("/symbols/<symbol>/fundamentals", methods=["GET"])

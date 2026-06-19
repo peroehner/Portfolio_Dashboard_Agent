@@ -86,6 +86,21 @@ CREATE TABLE IF NOT EXISTS symbol_technical (
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (symbol) REFERENCES symbols(symbol) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS recommendation_changelog (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    old_action TEXT,
+    new_action TEXT NOT NULL,
+    old_confidence TEXT,
+    new_confidence TEXT,
+    provider TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (symbol) REFERENCES symbols(symbol) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_reco_changelog_symbol ON recommendation_changelog(symbol);
+CREATE INDEX IF NOT EXISTS idx_reco_changelog_created ON recommendation_changelog(created_at);
 """
 
 
@@ -158,6 +173,24 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
                 updated_at TEXT NOT NULL DEFAULT (datetime('now')),
                 FOREIGN KEY (symbol) REFERENCES symbols(symbol) ON DELETE CASCADE
             );
+            """
+        )
+    if "recommendation_changelog" not in tables:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS recommendation_changelog (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT NOT NULL,
+                old_action TEXT,
+                new_action TEXT NOT NULL,
+                old_confidence TEXT,
+                new_confidence TEXT,
+                provider TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (symbol) REFERENCES symbols(symbol) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_reco_changelog_symbol ON recommendation_changelog(symbol);
+            CREATE INDEX IF NOT EXISTS idx_reco_changelog_created ON recommendation_changelog(created_at);
             """
         )
 

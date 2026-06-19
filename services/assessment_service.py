@@ -125,6 +125,15 @@ class AssessmentService:
         factors_json = json.dumps(result.get("factors", []))
         synthesis_json = json.dumps(result.get("noteSynthesis", {}))
         with get_connection() as conn:
+            previous = conn.execute(
+                """
+                SELECT action, confidence FROM assessments
+                WHERE symbol = ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """,
+                (symbol,),
+            ).fetchone()
             cursor = conn.execute(
                 """
                 INSERT INTO assessments (
@@ -144,6 +153,7 @@ class AssessmentService:
                     result["provider"],
                 ),
             )
+            self._record_recommendation_change(conn, symbol, previous, result)
             self._trim_assessment_history(conn, symbol)
             conn.commit()
             row = conn.execute(
@@ -161,6 +171,60 @@ class AssessmentService:
             assessment["llmError"] = result.get("llmError")
         assessment["context"] = context
         return assessment
+
+    def _record_recommendation_change(self, conn, symbol: str, previous, result: dict[str, Any]) -> None:
+        """Log a changelog row when the discrete action changes vs the prior assessment.
+
+        Skips the very first assessment for a symbol (no prior action to compare).
+        """
+        if previous is None:
+            return
+        old_action = previous["action"]
+        new_action = result["action"]
+        if old_action == new_action:
+            return
+        conn.execute(
+            """
+            INSERT INTO recommendation_changelog (
+                symbol, old_action, new_action, old_confidence, new_confidence, provider
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                symbol,
+                old_action,
+                new_action,
+                previous["confidence"],
+                result["confidence"],
+                result.get("provider"),
+            ),
+        )
+
+    def list_recommendation_changes(self, limit: int = 8) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, symbol, old_action, new_action, old_confidence,
+                       new_confidence, provider, created_at
+                FROM recommendation_changelog
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "symbol": row["symbol"],
+                "oldAction": row["old_action"],
+                "newAction": row["new_action"],
+                "oldConfidence": row["old_confidence"],
+                "newConfidence": row["new_confidence"],
+                "provider": row["provider"],
+                "createdAt": row["created_at"],
+            }
+            for row in rows
+        ]
 
     def _trim_assessment_history(self, conn, symbol: str) -> None:
         rows = conn.execute(

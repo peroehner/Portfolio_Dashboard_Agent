@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from services.holdings_service import HoldingsService
+from services.notes_service import NotesService
 from services.portfolio_service import PortfolioService
 from services.technical_service import TechnicalService
 
@@ -82,6 +83,7 @@ class ImportService:
         self.portfolio_service = PortfolioService()
         self.holdings_service = HoldingsService()
         self.technical_service = TechnicalService()
+        self.notes_service = NotesService()
 
     def import_payload(self, payload: Any, mode: str = "merge") -> dict[str, Any]:
         if isinstance(payload, str):
@@ -96,10 +98,14 @@ class ImportService:
         symbols_updated = 0
         symbols_skipped = 0
         holdings_imported = 0
+        notes_imported = 0
 
         def apply_symbol(symbol: str, data: dict[str, Any]) -> None:
-            nonlocal symbols_imported, symbols_added, symbols_updated, symbols_skipped, holdings_imported
-            outcome = self._import_symbol_record(symbol, data, import_mode)
+            nonlocal symbols_imported, symbols_added, symbols_updated, symbols_skipped
+            nonlocal holdings_imported, notes_imported
+            record = self._canonicalize_record(data)
+            notes = record.pop("notes", None)
+            outcome = self._import_symbol_record(symbol, record, import_mode)
             if outcome["skipped"]:
                 symbols_skipped += 1
                 return
@@ -110,26 +116,22 @@ class ImportService:
                 symbols_updated += 1
             if outcome["holding"]:
                 holdings_imported += 1
+            notes_imported += self._import_notes(symbol, notes, import_mode)
 
-        if "symbols" in payload and isinstance(payload["symbols"], list):
-            for item in payload["symbols"]:
-                if not isinstance(item, dict) or not item.get("symbol"):
-                    continue
-                apply_symbol(item["symbol"], item)
-
-        if "holdings" in payload and isinstance(payload["holdings"], list):
-            for item in payload["holdings"]:
-                if not isinstance(item, dict) or not item.get("symbol"):
-                    continue
-                apply_symbol(item["symbol"], item)
+        for list_key in ("positions", "symbols", "holdings"):
+            if list_key in payload and isinstance(payload[list_key], list):
+                for item in payload[list_key]:
+                    if not isinstance(item, dict) or not item.get("symbol"):
+                        continue
+                    apply_symbol(item["symbol"], item)
 
         for symbol, details in payload.items():
-            if symbol in ("symbols", "holdings", "portfolio", "metadata"):
+            if symbol in ("positions", "symbols", "holdings", "portfolio", "metadata"):
                 continue
             if not isinstance(details, dict):
                 continue
             normalized = self._normalize_symbol_record(details)
-            if not normalized and "_technical" not in details:
+            if not normalized and "_technical" not in details and "notes" not in details:
                 continue
             apply_symbol(symbol, details)
 
@@ -140,6 +142,7 @@ class ImportService:
                 "symbolsUpdated": symbols_updated,
                 "symbolsSkipped": symbols_skipped,
                 "holdingsImported": holdings_imported,
+                "notesImported": notes_imported,
                 "clearedSymbols": cleared_symbols,
             },
             import_mode,
@@ -586,6 +589,64 @@ class ImportService:
             if name in headers:
                 return headers.index(name)
         return None
+
+    def _canonicalize_record(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Return a shallow copy with tolerant aliases mapped to canonical keys.
+
+        Lets minimal exports (symbol/shares/purchaseDate/avgCost) and richer
+        records flow through upsert_symbol/upsert_holding unchanged.
+        """
+        if not isinstance(data, dict):
+            return {}
+        record = dict(data)
+
+        def first(*keys):
+            for key in keys:
+                if key in record and record[key] not in (None, ""):
+                    return record[key]
+            return None
+
+        if "costBasis" not in record and "cost_basis" not in record:
+            avg = first("avgCost", "averageCost", "avg_cost", "cost")
+            if avg is not None:
+                record["costBasis"] = avg
+        if "quantity" not in record:
+            qty = first("shares", "qty")
+            if qty is not None:
+                record["quantity"] = qty
+        if "accountName" not in record and "account_name" not in record:
+            account = first("account", "accountName", "account_name")
+            if account is not None:
+                record["accountName"] = account
+        return record
+
+    def _import_notes(self, symbol: str, notes: Any, mode: str) -> int:
+        if not isinstance(notes, list) or not notes:
+            return 0
+        symbol = symbol.upper()
+        existing_keys = set()
+        if mode != "replace":
+            for note in self.notes_service.list_notes(symbol):
+                existing_keys.add((note.get("date"), note.get("source"), note.get("text")))
+        count = 0
+        for note in notes:
+            if not isinstance(note, dict):
+                continue
+            text = note.get("text") or note.get("note")
+            if not text or not str(text).strip():
+                continue
+            date = note.get("date") or note.get("note_date")
+            source = note.get("source")
+            key = (date, source, text)
+            if key in existing_keys:
+                continue
+            self.notes_service.add_note(
+                symbol,
+                {"text": str(text), "date": date, "source": source or "import"},
+            )
+            existing_keys.add(key)
+            count += 1
+        return count
 
     def _import_symbol_record(
         self,

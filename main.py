@@ -35,7 +35,10 @@ def load_env_file() -> None:
 
 load_env_file()
 
+import math
+
 from flask import Flask, jsonify, send_file, request
+from flask.json.provider import DefaultJSONProvider
 
 from api.v1 import v1_bp
 from db.database import init_db
@@ -43,7 +46,29 @@ from services.alerts_service import AlertsService
 from services.import_service import ImportService
 from services.portfolio_service import PortfolioService
 
+
+def _json_safe(value):
+    """Recursively replace NaN/Infinity floats with None so output is valid JSON.
+
+    Python's json emits bare NaN/Infinity tokens, which browsers' JSON.parse
+    rejects — silently breaking fetch() callers. Coerce them to null instead.
+    """
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
+class SafeJSONProvider(DefaultJSONProvider):
+    def dumps(self, obj, **kwargs):
+        return super().dumps(_json_safe(obj), **kwargs)
+
+
 app = Flask(__name__, static_folder=str(BASE_DIR))
+app.json = SafeJSONProvider(app)
 app.register_blueprint(v1_bp)
 
 portfolio_service = PortfolioService()
