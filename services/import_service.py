@@ -669,6 +669,13 @@ class ImportService:
             account = first("account", "accountName", "account_name")
             if account is not None:
                 record["accountName"] = account
+        if "_technical" not in record:
+            technical = first("technical", "technicalAnalysis", "technical_analysis")
+            if isinstance(technical, dict) and technical:
+                record["_technical"] = technical
+        record.pop("technical", None)
+        record.pop("technicalAnalysis", None)
+        record.pop("technical_analysis", None)
         return record
 
     def _import_notes(self, symbol: str, notes: Any, mode: str) -> int:

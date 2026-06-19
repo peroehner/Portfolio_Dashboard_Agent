@@ -15,6 +15,7 @@ from services.notes_service import NotesService
 from services.overview_service import OverviewService
 from services.portfolio_service import PortfolioService
 from services.screening_service import ScreeningService
+from services.technical_service import TechnicalService
 from services.llm_client import LLMClient
 
 v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
@@ -30,6 +31,7 @@ overview_service = OverviewService()
 screening_service = ScreeningService()
 inspector_service = InspectorService()
 fundamentals_service = FundamentalsService()
+technical_service = TechnicalService()
 
 
 def _engine():
@@ -288,6 +290,19 @@ def export_portfolio():
         }))
         if notes_out:
             position["notes"] = notes_out
+        # Technical-analysis snapshot (trend waves + Fibonacci levels) from the
+        # legacy TA-Analyst import — included so a replace-import restores it.
+        tech = technical_service.get_snapshot(ticker)
+        if tech:
+            technical_out = prune({
+                "windowStart": tech.get("windowStart"),
+                "windowEnd": tech.get("windowEnd"),
+                "fibAnchor": tech.get("fibAnchor"),
+                "trends": tech.get("trends"),
+                "fibLevels": tech.get("fibLevels"),
+            })
+            if technical_out.get("trends") or technical_out.get("fibLevels"):
+                position["technical"] = technical_out
         positions.append(position)
 
     document = {
