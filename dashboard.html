@@ -1586,6 +1586,11 @@
       </span>
     </div>
     <div class="actions">
+      <span id="userChip" hidden style="display:inline-flex;align-items:center;gap:8px;margin-right:8px;font-size:13px;color:#9aa8bc">
+        <img id="userAvatar" alt="" width="24" height="24" style="border-radius:50%;display:none">
+        <span id="userEmail"></span>
+        <a id="logoutLink" href="/auth/logout" style="display:none;color:#7aa2f7;text-decoration:none">Logout</a>
+      </span>
       <button class="sync" id="btnSync" onclick="syncPortfolio()">Sync Prices</button>
       <button class="warn" id="btnAlerts" onclick="evaluateAlerts()">Check Alerts</button>
       <button class="success" id="btnAssess" onclick="assessAll()">Assess Portfolio</button>
@@ -1934,6 +1939,19 @@
         if (data.synthesisGuidanceFromEnv && !getSynthesisGuidance()) {
           setStatus("Server has NOTE_SYNTHESIS_GUIDANCE in .env — add UI guidance here to override per session.");
         }
+      } catch (_) { /* non-fatal */ }
+    }
+
+    async function loadMe() {
+      try {
+        const data = await api("/me");
+        const chip = document.getElementById("userChip");
+        if (!data || !data.user) return;
+        document.getElementById("userEmail").textContent = data.user.email || data.user.name || "";
+        const avatar = document.getElementById("userAvatar");
+        if (data.user.picture) { avatar.src = data.user.picture; avatar.style.display = "inline-block"; }
+        if (data.authEnabled) document.getElementById("logoutLink").style.display = "inline";
+        chip.hidden = false;
       } catch (_) { /* non-fatal */ }
     }
 
@@ -5040,6 +5058,7 @@
     });
 
     loadConfig();
+    loadMe();
     loadSynthesisGuidance();
     resetNoteForm();
     showView("overview");

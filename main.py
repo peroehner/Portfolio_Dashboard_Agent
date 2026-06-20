@@ -41,6 +41,7 @@ from flask import Flask, jsonify, send_file, request
 from flask.json.provider import DefaultJSONProvider
 
 from api.v1 import v1_bp
+from auth import init_auth
 from db.database import get_bootstrap_user_id, init_db, set_current_user_id
 from services.alerts_service import AlertsService
 from services.import_service import ImportService
@@ -143,11 +144,10 @@ def ensure_database():
     ensure_background_worker()
 
 
-@app.before_request
-def bind_current_user():
-    # Phase 1b: single-user operation — every request acts as the bootstrap user.
-    # Phase 2 (Google OAuth) will resolve this from the authenticated session.
-    set_current_user_id(get_bootstrap_user_id())
+# Auth + per-request current-user binding. Registered after ensure_database so
+# the DB is ready when the guard resolves users. When Google OAuth env vars are
+# unset this binds every request to the bootstrap user (single-user mode).
+init_auth(app)
 
 
 @app.after_request

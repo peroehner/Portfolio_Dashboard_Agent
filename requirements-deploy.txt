@@ -7,3 +7,5 @@ python-dotenv
 certifi
 psycopg[binary]
 psycopg_pool
+Authlib
+requests

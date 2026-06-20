@@ -31,6 +31,21 @@ services:
       # sync: false tells the Blueprint not to manage/overwrite the value.
       - key: DATABASE_URL
         sync: false
-      # Optional — set in Render dashboard (never commit secrets):
+      # Mark the session cookie Secure (Render serves HTTPS).
+      - key: SESSION_COOKIE_SECURE
+        value: "1"
+      # Auth secrets — set in the Render dashboard (never commit secrets):
+      #   SESSION_SECRET           (long random string)
+      #   GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET
+      #   OAUTH_REDIRECT_URI=https://<your-service>.onrender.com/auth/callback
+      #   ALLOWED_EMAILS           (optional sign-in allowlist)
+      - key: SESSION_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: OAUTH_REDIRECT_URI
+        sync: false
+      # Other optional keys (set in dashboard):
       # LLM_PROVIDER, OPENAI_API_KEY, GEMINI_API_KEY, FINNHUB_API_KEY
-      # GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET (added in Phase 2)

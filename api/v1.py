@@ -49,6 +49,24 @@ def health():
     })
 
 
+@v1_bp.route("/me", methods=["GET"])
+def get_me():
+    """Current authenticated user (or the bootstrap user when auth is disabled)."""
+    from auth import AUTH_ENABLED
+    from db.database import get_current_user_id, get_user
+
+    user = get_user(get_current_user_id())
+    return jsonify({
+        "authEnabled": AUTH_ENABLED,
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "name": user["name"],
+            "picture": user["picture"],
+        } if user else None,
+    })
+
+
 @v1_bp.route("/config", methods=["GET"])
 def get_config():
     client = LLMClient()
