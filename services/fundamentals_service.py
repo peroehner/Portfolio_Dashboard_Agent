@@ -176,16 +176,21 @@ class FundamentalsService:
         return results
 
     def fetch_fundamentals(self, symbol: str) -> dict[str, Any]:
-        """yfinance first; fall back to Finnhub when yfinance returns nothing.
+        """yfinance first; backfill from Finnhub when core financials are missing.
 
-        On datacenter IPs (e.g. Render) Yahoo's quoteSummary often returns empty
-        info, so we backfill from Finnhub when a key is configured.
+        On datacenter IPs (e.g. Render) and increasingly on residential IPs,
+        Yahoo's quoteSummary often returns *partial* info: the price endpoint
+        still yields marketCap while the valuation/profitability modules fail.
+        A coarse "all empty" check would short-circuit the fallback and leave a
+        mostly-blank row, so instead we trigger Finnhub whenever the core
+        financials are missing and merge it into yfinance's gaps (yfinance wins
+        where it has a value).
         """
         data = self._fetch_yfinance_fundamentals(symbol)
-        if self._is_empty_fundamentals(data) and self.finnhub_api_key:
+        if self._needs_finnhub(data) and self.finnhub_api_key:
             fh = self._cached_finnhub_fundamentals(symbol)
             if not self._is_empty_fundamentals(fh):
-                return fh
+                data = self._merge_fundamentals(data, fh)
         return data
 
     def _cached_finnhub_fundamentals(self, symbol: str) -> dict[str, Any]:
@@ -364,6 +369,43 @@ class FundamentalsService:
     @staticmethod
     def _is_empty_fundamentals(data: Any) -> bool:
         return not isinstance(data, dict) or all(not v for v in data.values())
+
+    @staticmethod
+    def _needs_finnhub(data: Any) -> bool:
+        """True when the meaningful financials are missing.
+
+        Yahoo frequently returns only profile fields (e.g. marketCap) while the
+        valuation and profitability modules fail. Those partial rows still look
+        "non-empty", so we explicitly check the core groups here.
+        """
+        if not isinstance(data, dict):
+            return True
+        valuation = data.get("valuation") or {}
+        growth = data.get("growthProfitability") or {}
+        return not valuation or not growth
+
+    @staticmethod
+    def _merge_fundamentals(primary: dict[str, Any], secondary: dict[str, Any]) -> dict[str, Any]:
+        """Fill gaps in ``primary`` (yfinance) with ``secondary`` (Finnhub).
+
+        Existing non-empty values in ``primary`` are preserved; only missing or
+        empty fields are taken from ``secondary``.
+        """
+        if not isinstance(secondary, dict) or not secondary:
+            return primary
+        if not isinstance(primary, dict):
+            return dict(secondary)
+        merged: dict[str, Any] = {}
+        for group in set(primary) | set(secondary):
+            base = dict(primary.get(group) or {})
+            extra = secondary.get(group) or {}
+            if isinstance(extra, dict):
+                for key, value in extra.items():
+                    if key not in base or base[key] in (None, "", {}, []):
+                        base[key] = value
+            if base:
+                merged[group] = base
+        return merged
 
     @staticmethod
     def _put_num(target: dict[str, Any], key: str, value: Any) -> None:
