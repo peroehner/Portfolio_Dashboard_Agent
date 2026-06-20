@@ -3616,16 +3616,19 @@
         const data = await response.json();
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
         const url = URL.createObjectURL(blob);
-        const stamp = new Date().toISOString().slice(0, 10);
+        const count = (data.positions || []).length;
+        const now = new Date();
+        const p = (n) => String(n).padStart(2, "0");
+        const stamp = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+        const filename = `DA-${count}-${stamp}.json`;
         const link = document.createElement("a");
         link.href = url;
-        link.download = `portfolio-export-${stamp}.json`;
+        link.download = filename;
         document.body.appendChild(link);
         link.click();
         link.remove();
         URL.revokeObjectURL(url);
-        const count = (data.positions || []).length;
-        setImportNote(`Exported ${count} position${count === 1 ? "" : "s"} to portfolio-export-${stamp}.json`, "success");
+        setImportNote(`Exported ${count} position${count === 1 ? "" : "s"} to ${filename}`, "success");
       } catch (error) {
         setImportNote(error.message, "error");
       }

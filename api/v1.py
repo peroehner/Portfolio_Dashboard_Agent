@@ -315,10 +315,9 @@ def export_portfolio():
 
     response = jsonify(document)
     if request.args.get("download"):
-        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        response.headers["Content-Disposition"] = (
-            f'attachment; filename="portfolio-export-{stamp}.json"'
-        )
+        stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        filename = f"DA-{len(positions)}-{stamp}.json"
+        response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 
 
