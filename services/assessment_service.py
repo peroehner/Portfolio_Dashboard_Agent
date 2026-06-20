@@ -86,9 +86,9 @@ class AssessmentService:
         """
         params: list[Any] = []
         if symbol:
-            query += " WHERE symbol = ?"
+            query += " WHERE symbol = %s"
             params.append(symbol.upper())
-        query += " ORDER BY created_at DESC LIMIT ?"
+        query += " ORDER BY created_at DESC LIMIT %s"
         params.append(limit)
 
         with get_connection() as conn:
@@ -96,10 +96,10 @@ class AssessmentService:
         return [self._row_to_assessment(row) for row in rows]
 
     def delete_assessment(self, assessment_id: int, symbol: str | None = None) -> bool:
-        query = "DELETE FROM assessments WHERE id = ?"
+        query = "DELETE FROM assessments WHERE id = %s"
         params: list[Any] = [assessment_id]
         if symbol:
-            query += " AND symbol = ?"
+            query += " AND symbol = %s"
             params.append(symbol.upper())
 
         with get_connection() as conn:
@@ -164,7 +164,7 @@ class AssessmentService:
             previous = conn.execute(
                 """
                 SELECT action, confidence FROM assessments
-                WHERE symbol = ?
+                WHERE symbol = %s
                 ORDER BY created_at DESC, id DESC
                 LIMIT 1
                 """,
@@ -176,7 +176,8 @@ class AssessmentService:
                     symbol, action, confidence, rationale, factors,
                     note_synthesis, trading_recommendation, provider
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
                 """,
                 (
                     symbol,
@@ -189,6 +190,7 @@ class AssessmentService:
                     result["provider"],
                 ),
             )
+            new_id = cursor.fetchone()["id"]
             self._record_recommendation_change(conn, symbol, previous, result)
             self._trim_assessment_history(conn, symbol)
             conn.commit()
@@ -196,9 +198,9 @@ class AssessmentService:
                 """
                 SELECT id, symbol, action, confidence, rationale, factors,
                        note_synthesis, trading_recommendation, provider, created_at
-                FROM assessments WHERE id = ?
+                FROM assessments WHERE id = %s
                 """,
-                (cursor.lastrowid,),
+                (new_id,),
             ).fetchone()
 
         assessment = self._row_to_assessment(row)
@@ -224,7 +226,7 @@ class AssessmentService:
             INSERT INTO recommendation_changelog (
                 symbol, old_action, new_action, old_confidence, new_confidence, provider
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s)
             """,
             (
                 symbol,
@@ -244,7 +246,7 @@ class AssessmentService:
                        new_confidence, provider, created_at
                 FROM recommendation_changelog
                 ORDER BY created_at DESC, id DESC
-                LIMIT ?
+                LIMIT %s
                 """,
                 (limit,),
             ).fetchall()
@@ -266,7 +268,7 @@ class AssessmentService:
         rows = conn.execute(
             """
             SELECT id FROM assessments
-            WHERE symbol = ?
+            WHERE symbol = %s
             ORDER BY created_at DESC, id DESC
             """,
             (symbol,),
@@ -274,7 +276,7 @@ class AssessmentService:
         stale_ids = [row["id"] for row in rows[self.MAX_ASSESSMENTS_PER_SYMBOL :]]
         if not stale_ids:
             return
-        placeholders = ",".join("?" * len(stale_ids))
+        placeholders = ",".join(["%s"] * len(stale_ids))
         conn.execute(
             f"DELETE FROM assessments WHERE id IN ({placeholders})",
             stale_ids,

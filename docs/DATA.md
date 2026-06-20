@@ -6,7 +6,7 @@ This document is the canonical reference for what the Portfolio Dashboard Agent 
 
 | Change | Update |
 |--------|--------|
-| New/altered SQLite table or column | `db/database.py`, this doc, README § Data & persistence |
+| New/altered Postgres table or column | `db/database.py`, this doc, README § Data & persistence |
 | Import merge/replace or new import fields | `services/import_service.py`, this doc |
 | New persisted API writes | relevant `services/*.py`, `docs/API.md` if public |
 | Background sync interval or cached fields | `main.py`, `api/v1.py` `/config`, this doc |
@@ -14,15 +14,18 @@ This document is the canonical reference for what the Portfolio Dashboard Agent 
 
 ## Storage location
 
-| Environment | Default path | Override |
-|-------------|--------------|----------|
-| Local dev | `data/portfolio.db` (repo-relative) | `DATABASE_PATH` in `.env` |
-| Render (ephemeral) | `data/portfolio.db` on instance disk | — |
-| Render (persistent) | `/var/data/portfolio.db` | `DATABASE_PATH` + attached disk in `render.yaml` |
+Storage is **Postgres** (psycopg3 + connection pool). Connection string comes
+from `DATABASE_URL`.
 
-Schema and migrations: `db/database.py` (`init_db()` on first request).
+| Environment | Source of `DATABASE_URL` |
+|-------------|--------------------------|
+| Local dev | `docker compose up -d db` → `postgresql://postgres:postgres@localhost:5432/portfolio` (default in `.env.example`) |
+| Render | Managed Postgres, injected via `render.yaml` (`fromDatabase`) |
 
-## SQLite tables
+Schema and migrations: `db/database.py` (`init_db()` on first request). Migrating
+from a legacy SQLite file: `python scripts/migrate_sqlite_to_postgres.py`.
+
+## Tables
 
 ### `symbols`
 
@@ -78,7 +81,7 @@ Upload (JSON / CSV / TA .txt)
     → PortfolioService.upsert_symbol()
     → HoldingsService.upsert_holding() (if qty/cost in payload)
     → TechnicalService.upsert_snapshot() (if _technical in payload)
-    → SQLite
+    → Postgres
 ```
 
 - Raw upload bytes are **not** archived.
@@ -96,7 +99,7 @@ Manual sync: legacy `GET /api/sync` or UI **Sync Prices** (same price update pat
 
 ## Ephemeral / on-demand data
 
-Not stored in SQLite; fetched when an endpoint or UI view needs it:
+Not stored in Postgres; fetched when an endpoint or UI view needs it:
 
 | Concern | Service | Mechanism |
 |---------|---------|-----------|
@@ -118,14 +121,14 @@ Not stored in SQLite; fetched when an endpoint or UI view needs it:
 
 ## Cloud deployment notes
 
-- **Single-tenant DB**: all users of one deployed instance share one SQLite file (no auth layer yet).
-- **Sleep vs data loss**: Render free tier sleeps when idle; waking does not clear the DB. **Redeploy** without a persistent disk can wipe `data/portfolio.db`.
+- **Single-tenant DB**: all users of one deployed instance share one Postgres database (no auth layer yet — multi-tenancy is the next phase).
+- **Persistence**: managed Postgres survives redeploys and instance sleeps. Render's `free` Postgres plan expires after 30 days; switch to `basic-256mb` for durable storage.
 - **LLM secrets**: `OPENAI_API_KEY`, `GEMINI_API_KEY`, etc. live in platform env vars only.
 - **Re-import after redeploy**: if no persistent disk, keep analyst export files locally to restore state.
 
 ## Quick reference: durable vs ephemeral
 
-**Survives restart** (if DB file exists): symbols, thresholds, holdings, notes, syntheses, assessments, alerts, TA trends/fibs, last-synced prices.
+**Survives restart** (durable in Postgres): symbols, thresholds, holdings, notes, syntheses, assessments, alerts, TA trends/fibs, last-synced prices.
 
 **Refreshed on schedule**: `current_price`, `analyst_target_1y` (every sync).
 

@@ -34,7 +34,7 @@ class HoldingsService:
                        s.annual_dividend, s.analyst_target_1y, s.target_price
                 FROM holdings h
                 LEFT JOIN symbols s ON s.symbol = h.symbol
-                WHERE h.symbol = ?
+                WHERE h.symbol = %s
                 """,
                 (symbol,),
             ).fetchone()
@@ -56,13 +56,13 @@ class HoldingsService:
             conn.execute(
                 """
                 INSERT INTO holdings (symbol, quantity, cost_basis, purchase_date, account_name)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT(symbol) DO UPDATE SET
                     quantity = excluded.quantity,
                     cost_basis = excluded.cost_basis,
                     purchase_date = COALESCE(excluded.purchase_date, holdings.purchase_date),
                     account_name = excluded.account_name,
-                    updated_at = datetime('now')
+                    updated_at = app_now_text()
                 """,
                 (symbol, quantity, cost_basis, purchase_date, account_name),
             )
@@ -75,7 +75,7 @@ class HoldingsService:
     def delete_holding(self, symbol: str) -> bool:
         symbol = symbol.upper()
         with get_connection() as conn:
-            cursor = conn.execute("DELETE FROM holdings WHERE symbol = ?", (symbol,))
+            cursor = conn.execute("DELETE FROM holdings WHERE symbol = %s", (symbol,))
             conn.commit()
             return cursor.rowcount > 0
 

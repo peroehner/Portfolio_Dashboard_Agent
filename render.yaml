@@ -4,7 +4,7 @@ services:
   - type: web
     name: portfolio-dashboard-agent
     runtime: python
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements-deploy.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 --max-requests 500 --max-requests-jitter 50 main:app
     healthCheckPath: /health
@@ -25,12 +25,12 @@ services:
         value: "64"
       - key: YFINANCE_INFO_CACHE_MAX_ENTRIES
         value: "48"
+      # DATABASE_URL is managed manually in the service's Environment tab — it
+      # points at the separately-provisioned Render Postgres instance
+      # "Portfolio-Dashboard-Agent-DB" (use its Internal Database URL).
+      # sync: false tells the Blueprint not to manage/overwrite the value.
+      - key: DATABASE_URL
+        sync: false
       # Optional — set in Render dashboard (never commit secrets):
-      # LLM_PROVIDER, OPENAI_API_KEY, GEMINI_API_KEY
-      # Persistent SQLite (enable a 1GB disk in Render, then uncomment):
-      # - key: DATABASE_PATH
-      #   value: /var/data/portfolio.db
-    # disk:
-    #   name: portfolio-data
-    #   mountPath: /var/data
-    #   sizeGB: 1
+      # LLM_PROVIDER, OPENAI_API_KEY, GEMINI_API_KEY, FINNHUB_API_KEY
+      # GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET (added in Phase 2)

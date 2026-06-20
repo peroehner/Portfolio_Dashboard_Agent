@@ -18,7 +18,7 @@ class PortfolioService:
         symbol = symbol.upper()
         with get_connection() as conn:
             row = conn.execute(
-                "SELECT * FROM symbols WHERE symbol = ?",
+                "SELECT * FROM symbols WHERE symbol = %s",
                 (symbol,),
             ).fetchone()
         if row is None:
@@ -31,7 +31,7 @@ class PortfolioService:
 
         with get_connection() as conn:
             existing = conn.execute(
-                "SELECT * FROM symbols WHERE symbol = ?",
+                "SELECT * FROM symbols WHERE symbol = %s",
                 (symbol,),
             ).fetchone()
 
@@ -49,9 +49,9 @@ class PortfolioService:
                 conn.execute(
                     """
                     UPDATE symbols
-                    SET current_price = ?, target_price = ?, buy_below = ?, sell_above = ?,
-                        annual_dividend = ?, analyst_target_1y = ?, updated_at = datetime('now')
-                    WHERE symbol = ?
+                    SET current_price = %s, target_price = %s, buy_below = %s, sell_above = %s,
+                        annual_dividend = %s, analyst_target_1y = %s, updated_at = app_now_text()
+                    WHERE symbol = %s
                     """,
                     (
                         merged["current_price"],
@@ -70,7 +70,7 @@ class PortfolioService:
                         symbol, current_price, target_price, buy_below, sell_above,
                         annual_dividend, analyst_target_1y
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         symbol,
@@ -92,7 +92,7 @@ class PortfolioService:
         symbol = symbol.upper()
         with get_connection() as conn:
             cursor = conn.execute(
-                "DELETE FROM symbols WHERE symbol = ?",
+                "DELETE FROM symbols WHERE symbol = %s",
                 (symbol,),
             )
             conn.commit()
@@ -136,10 +136,10 @@ class PortfolioService:
                     conn.execute(
                         """
                         UPDATE symbols
-                        SET current_price = ?,
-                            day_change_pct = COALESCE(?, day_change_pct),
-                            updated_at = datetime('now')
-                        WHERE symbol = ?
+                        SET current_price = %s,
+                            day_change_pct = COALESCE(%s, day_change_pct),
+                            updated_at = app_now_text()
+                        WHERE symbol = %s
                         """,
                         (price, day_change_pct, symbol),
                     )
@@ -148,8 +148,8 @@ class PortfolioService:
                     conn.execute(
                         """
                         UPDATE symbols
-                        SET analyst_target_1y = ?, updated_at = datetime('now')
-                        WHERE symbol = ?
+                        SET analyst_target_1y = %s, updated_at = app_now_text()
+                        WHERE symbol = %s
                         """,
                         (analyst_target, symbol),
                     )

@@ -22,15 +22,15 @@ class AlertsService:
             SELECT id, symbol, alert_type, message, price, reference_value,
                    fib_level, status, created_at
             FROM alerts
-            WHERE status = ?
+            WHERE status = %s
         """
         params: list[Any] = [status]
 
         if symbol:
-            query += " AND symbol = ?"
+            query += " AND symbol = %s"
             params.append(symbol.upper())
 
-        query += " ORDER BY created_at DESC LIMIT ?"
+        query += " ORDER BY created_at DESC LIMIT %s"
         params.append(limit)
 
         with get_connection() as conn:
@@ -40,7 +40,7 @@ class AlertsService:
     def dismiss_alert(self, alert_id: int) -> bool:
         with get_connection() as conn:
             cursor = conn.execute(
-                "UPDATE alerts SET status = 'dismissed' WHERE id = ? AND status = 'active'",
+                "UPDATE alerts SET status = 'dismissed' WHERE id = %s AND status = 'active'",
                 (alert_id,),
             )
             conn.commit()
@@ -171,7 +171,7 @@ class AlertsService:
             conn.execute(
                 """
                 UPDATE alerts SET status = 'superseded'
-                WHERE symbol = ? AND alert_type = ? AND status = 'active'
+                WHERE symbol = %s AND alert_type = %s AND status = 'active'
                 """,
                 (symbol, alert_type),
             )
@@ -179,17 +179,18 @@ class AlertsService:
                 """
                 INSERT INTO alerts (
                     symbol, alert_type, message, price, reference_value, fib_level
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                ) VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
                 """,
                 (symbol, alert_type, message, price, reference_value, fib_level),
             )
+            alert_id = cursor.fetchone()["id"]
             conn.commit()
-            alert_id = cursor.lastrowid
             row = conn.execute(
                 """
                 SELECT id, symbol, alert_type, message, price, reference_value,
                        fib_level, status, created_at
-                FROM alerts WHERE id = ?
+                FROM alerts WHERE id = %s
                 """,
                 (alert_id,),
             ).fetchone()
@@ -207,9 +208,9 @@ class AlertsService:
             row = conn.execute(
                 """
                 SELECT id FROM alerts
-                WHERE symbol = ? AND alert_type = ? AND status = 'active'
-                  AND IFNULL(reference_value, -1) = IFNULL(?, -1)
-                  AND IFNULL(fib_level, '') = IFNULL(?, '')
+                WHERE symbol = %s AND alert_type = %s AND status = 'active'
+                  AND COALESCE(reference_value, -1) = COALESCE(%s, -1)
+                  AND COALESCE(fib_level, '') = COALESCE(%s, '')
                 """,
                 (symbol, alert_type, reference_value, fib_level),
             ).fetchone()

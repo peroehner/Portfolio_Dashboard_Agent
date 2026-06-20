@@ -5,3 +5,5 @@ curl_cffi
 pandas
 python-dotenv
 certifi
+psycopg[binary]
+psycopg_pool

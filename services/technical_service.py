@@ -46,7 +46,7 @@ class TechnicalService:
                 SELECT symbol, window_start, window_end, fib_anchor,
                        trends_json, fib_levels_json, updated_at
                 FROM symbol_technical
-                WHERE symbol = ?
+                WHERE symbol = %s
                 """,
                 (symbol,),
             ).fetchone()
@@ -65,14 +65,14 @@ class TechnicalService:
                     symbol, window_start, window_end, fib_anchor,
                     trends_json, fib_levels_json, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+                VALUES (%s, %s, %s, %s, %s, %s, app_now_text())
                 ON CONFLICT(symbol) DO UPDATE SET
-                    window_start = excluded.window_start,
-                    window_end = excluded.window_end,
-                    fib_anchor = excluded.fib_anchor,
-                    trends_json = excluded.trends_json,
-                    fib_levels_json = excluded.fib_levels_json,
-                    updated_at = datetime('now')
+                    window_start = EXCLUDED.window_start,
+                    window_end = EXCLUDED.window_end,
+                    fib_anchor = EXCLUDED.fib_anchor,
+                    trends_json = EXCLUDED.trends_json,
+                    fib_levels_json = EXCLUDED.fib_levels_json,
+                    updated_at = app_now_text()
                 """,
                 (
                     symbol,

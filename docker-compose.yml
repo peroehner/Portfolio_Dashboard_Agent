@@ -1,0 +1,28 @@
+# Local Postgres for development. Production uses Render's managed Postgres.
+#
+#   docker compose up -d db      # start
+#   docker compose down          # stop (data persists in the named volume)
+#   docker compose down -v       # stop and wipe data
+#
+# Matches the default DATABASE_URL in .env.example:
+#   postgresql://postgres:postgres@localhost:5432/portfolio
+services:
+  db:
+    image: postgres:17
+    container_name: portfolio_pg
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: portfolio
+    ports:
+      - "5432:5432"
+    volumes:
+      - portfolio_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d portfolio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  portfolio_pgdata:

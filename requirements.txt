@@ -3,3 +3,5 @@ yfinance
 transformers
 torch
 pandas
+psycopg[binary]
+psycopg_pool

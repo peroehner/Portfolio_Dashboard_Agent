@@ -1,15 +1,32 @@
-import os
-import tempfile
 import unittest
 import unittest.mock
-from pathlib import Path
 
-os.environ["DATABASE_PATH"] = str(Path(tempfile.mkdtemp()) / "test_technical.db")
+import psycopg
 
-from db.database import init_db
+from db.database import close_pool, get_database_url, init_db
 from services.import_service import ImportService
 from services.inspector_service import InspectorService
 from services.technical_service import TechnicalService
+
+
+def _db_available() -> bool:
+    try:
+        with psycopg.connect(get_database_url(), connect_timeout=3):
+            return True
+    except Exception:
+        return False
+
+
+DB_AVAILABLE = _db_available()
+
+
+def _reset_schema() -> None:
+    """Drop and recreate the public schema for an isolated test database."""
+    close_pool()
+    with psycopg.connect(get_database_url(), autocommit=True) as conn:
+        conn.execute("DROP SCHEMA public CASCADE")
+        conn.execute("CREATE SCHEMA public")
+    init_db()
 
 
 SAMPLE_EXPORT = """
@@ -33,12 +50,9 @@ Fibonacci Levels:
 
 
 class TechnicalImportTestCase(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        init_db()
-
     def setUp(self):
-        init_db()
+        if DB_AVAILABLE:
+            _reset_schema()
         self.import_service = ImportService()
         self.technical_service = TechnicalService()
 
@@ -70,6 +84,7 @@ class TechnicalImportTestCase(unittest.TestCase):
         self.assertIn("0% (High)", snapshot["fibLevels"])
         self.assertEqual(snapshot["fibLevels"]["0% (High)"], 398.13)
 
+    @unittest.skipUnless(DB_AVAILABLE, "Postgres not reachable (set DATABASE_URL / start docker compose)")
     def test_import_txt_persists_technical_snapshot(self):
         result = self.import_service.import_txt(SAMPLE_EXPORT, mode="merge")
         self.assertEqual(result["symbolsImported"], 1)
@@ -79,6 +94,7 @@ class TechnicalImportTestCase(unittest.TestCase):
         self.assertEqual(len(snapshot["trends"]), 3)
         self.assertAlmostEqual(snapshot["fibLevels"]["50.0% Center Line"], 363.78)
 
+    @unittest.skipUnless(DB_AVAILABLE, "Postgres not reachable (set DATABASE_URL / start docker compose)")
     def test_inspector_uses_imported_fib_anchor(self):
         self.import_service.import_txt(SAMPLE_EXPORT, mode="merge")
         inspector = InspectorService()

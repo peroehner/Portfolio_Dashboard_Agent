@@ -22,7 +22,7 @@ class NotesService:
                 f"""
                 SELECT {self.NOTE_COLUMNS}
                 FROM notes
-                WHERE symbol = ?
+                WHERE symbol = %s
                 ORDER BY note_date DESC, created_at DESC
                 """,
                 (symbol,),
@@ -33,7 +33,7 @@ class NotesService:
         symbol = symbol.upper()
         with get_connection() as conn:
             row = conn.execute(
-                f"SELECT {self.NOTE_COLUMNS} FROM notes WHERE id = ? AND symbol = ?",
+                f"SELECT {self.NOTE_COLUMNS} FROM notes WHERE id = %s AND symbol = %s",
                 (note_id, symbol),
             ).fetchone()
         return self._row_to_note(row) if row else None
@@ -50,7 +50,8 @@ class NotesService:
             cursor = conn.execute(
                 """
                 INSERT INTO notes (symbol, note_date, source, text)
-                VALUES (?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
                 """,
                 (
                     symbol,
@@ -59,8 +60,8 @@ class NotesService:
                     text,
                 ),
             )
+            note_id = cursor.fetchone()["id"]
             conn.commit()
-            note_id = cursor.lastrowid
 
         note = self.get_note(symbol, note_id)
         assert note is not None
@@ -89,9 +90,9 @@ class NotesService:
                 conn.execute(
                     """
                     UPDATE notes
-                    SET note_date = ?, source = ?, text = ?,
+                    SET note_date = %s, source = %s, text = %s,
                         synthesis = NULL, synthesis_provider = NULL, synthesized_at = NULL
-                    WHERE id = ? AND symbol = ?
+                    WHERE id = %s AND symbol = %s
                     """,
                     (note_date, source, text, note_id, symbol),
                 )
@@ -99,8 +100,8 @@ class NotesService:
                 conn.execute(
                     """
                     UPDATE notes
-                    SET note_date = ?, source = ?, text = ?
-                    WHERE id = ? AND symbol = ?
+                    SET note_date = %s, source = %s, text = %s
+                    WHERE id = %s AND symbol = %s
                     """,
                     (note_date, source, text, note_id, symbol),
                 )
@@ -130,8 +131,8 @@ class NotesService:
             conn.execute(
                 """
                 UPDATE notes
-                SET synthesis = ?, synthesis_provider = ?, synthesized_at = datetime('now')
-                WHERE id = ? AND symbol = ?
+                SET synthesis = %s, synthesis_provider = %s, synthesized_at = app_now_text()
+                WHERE id = %s AND symbol = %s
                 """,
                 (synthesis_json, provider, note_id, symbol),
             )
@@ -165,7 +166,7 @@ class NotesService:
         symbol = symbol.upper()
         with get_connection() as conn:
             cursor = conn.execute(
-                "DELETE FROM notes WHERE id = ? AND symbol = ?",
+                "DELETE FROM notes WHERE id = %s AND symbol = %s",
                 (note_id, symbol),
             )
             conn.commit()
@@ -174,11 +175,11 @@ class NotesService:
     def _ensure_symbol_exists(self, symbol: str) -> None:
         with get_connection() as conn:
             existing = conn.execute(
-                "SELECT symbol FROM symbols WHERE symbol = ?",
+                "SELECT symbol FROM symbols WHERE symbol = %s",
                 (symbol,),
             ).fetchone()
             if existing is None:
-                conn.execute("INSERT INTO symbols (symbol) VALUES (?)", (symbol,))
+                conn.execute("INSERT INTO symbols (symbol) VALUES (%s)", (symbol,))
                 conn.commit()
 
     def _row_to_note(self, row) -> dict[str, Any]:

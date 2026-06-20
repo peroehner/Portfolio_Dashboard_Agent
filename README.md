@@ -42,7 +42,7 @@ See [.env.example](.env.example). Key settings:
 | `OPENAI_API_KEY` | — | Enable OpenAI assessments |
 | `GEMINI_API_KEY` | — | Enable Gemini assessments |
 | `SKIP_TRANSFORMERS` | — | Set `1` on deploy to skip torch |
-| `DATABASE_PATH` | `data/portfolio.db` | SQLite path |
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/portfolio` | Postgres connection string |
 | `FIB_PROXIMITY_PCT` | `1.0` | Fib alert band (%) |
 
 ## API
@@ -57,7 +57,7 @@ Full reference: [docs/API.md](docs/API.md)
 
 ## Data & persistence
 
-The server stores durable portfolio state in **SQLite** (`data/portfolio.db` by default, or `DATABASE_PATH`). The browser is a client: it loads and edits via the REST API. Uploaded analyst/import files are **parsed once** — the raw file is not kept on disk.
+The server stores durable portfolio state in **Postgres** (via `DATABASE_URL`; psycopg3 + connection pool). Locally, start it with `docker compose up -d db`. The browser is a client: it loads and edits via the REST API. Uploaded analyst/import files are **parsed once** — the raw file is not kept on disk.
 
 > **Maintenance:** When you change persistence (schema, import modes, sync behavior, or client-side storage), update this section and [docs/DATA.md](docs/DATA.md). Trigger files: `db/database.py`, `services/import_service.py`, `services/portfolio_service.py`, `main.py` (background sync), `dashboard.html` (`localStorage`).
 
@@ -113,16 +113,13 @@ Browser-only (lost on full page reload unless noted):
 | Selected symbol, table sort, chart mode, fib checkbox toggles | JavaScript in memory |
 | Synthesis guidance textarea | `localStorage` key `pda_synthesis_guidance` (same browser) |
 
-Server config (not in SQLite): LLM API keys, `NOTE_SYNTHESIS_GUIDANCE`, `ASSESSMENT_MODE` — set in `.env` or cloud env vars.
+Server config (not in Postgres): LLM API keys, `NOTE_SYNTHESIS_GUIDANCE`, `ASSESSMENT_MODE` — set in `.env` or cloud env vars.
 
 ### Cloud (Render)
 
-Same model as local: one SQLite file on the instance. Without a **persistent disk**, data can survive restarts but may be **lost on redeploy** or instance replacement. For production:
+One managed Postgres database backs the instance, injected as `DATABASE_URL` via the blueprint (`render.yaml`). Managed Postgres survives restarts and redeploys (the `free` plan expires after 30 days — switch to `basic-256mb` for durable storage).
 
-1. Attach a Render disk (see `render.yaml` comments).
-2. Set `DATABASE_PATH=/var/data/portfolio.db`.
-
-All API clients (web dashboard, future Replit app) share that single database. There is no per-browser server session — the portfolio is instance-wide.
+All API clients (web dashboard, future Replit app) share that single database. There is no per-browser server session — the portfolio is instance-wide (multi-user auth is the next phase).
 
 ## Deploy to Render
 
@@ -133,9 +130,9 @@ All API clients (web dashboard, future Replit app) share that single database. T
    - Start: `gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 main:app`
    - Health check: `/health`
 4. Add env vars in Render dashboard (optional LLM keys, `ASSESSMENT_MODE`).
-5. For persistent SQLite, attach a Render disk and set `DATABASE_PATH=/var/data/portfolio.db`.
+5. The Blueprint provisions a managed Postgres and wires `DATABASE_URL` automatically. To migrate existing local data, run `python scripts/migrate_sqlite_to_postgres.py` against the new `DATABASE_URL`.
 
-**Note:** Free-tier instances sleep when idle. Data on ephemeral disk resets on redeploy unless you use a persistent disk.
+**Note:** Free-tier web instances sleep when idle. Managed Postgres persists across redeploys (the `free` DB plan expires after 30 days).
 
 ## Mobile (Replit)
 
