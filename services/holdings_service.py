@@ -1,6 +1,6 @@
 from typing import Any
 
-from db.database import get_connection
+from db.database import get_connection, get_current_user_id
 
 
 class HoldingsService:
@@ -11,6 +11,7 @@ class HoldingsService:
             PortfolioService().upsert_symbol(symbol, data)
 
     def list_holdings(self) -> list[dict[str, Any]]:
+        user_id = get_current_user_id()
         with get_connection() as conn:
             rows = conn.execute(
                 """
@@ -18,14 +19,17 @@ class HoldingsService:
                        h.created_at, h.updated_at, s.current_price, s.day_change_pct,
                        s.annual_dividend, s.analyst_target_1y, s.target_price
                 FROM holdings h
-                LEFT JOIN symbols s ON s.symbol = h.symbol
+                LEFT JOIN symbols s ON s.user_id = h.user_id AND s.symbol = h.symbol
+                WHERE h.user_id = %s
                 ORDER BY h.symbol
-                """
+                """,
+                (user_id,),
             ).fetchall()
         return [self._row_to_holding(row) for row in rows]
 
     def get_holding(self, symbol: str) -> dict[str, Any] | None:
         symbol = symbol.upper()
+        user_id = get_current_user_id()
         with get_connection() as conn:
             row = conn.execute(
                 """
@@ -33,10 +37,10 @@ class HoldingsService:
                        h.created_at, h.updated_at, s.current_price, s.day_change_pct,
                        s.annual_dividend, s.analyst_target_1y, s.target_price
                 FROM holdings h
-                LEFT JOIN symbols s ON s.symbol = h.symbol
-                WHERE h.symbol = %s
+                LEFT JOIN symbols s ON s.user_id = h.user_id AND s.symbol = h.symbol
+                WHERE h.user_id = %s AND h.symbol = %s
                 """,
-                (symbol,),
+                (user_id, symbol),
             ).fetchone()
         return self._row_to_holding(row) if row else None
 
@@ -52,19 +56,20 @@ class HoldingsService:
         if purchase_date is not None:
             purchase_date = str(purchase_date).strip()[:10] or None
 
+        user_id = get_current_user_id()
         with get_connection() as conn:
             conn.execute(
                 """
-                INSERT INTO holdings (symbol, quantity, cost_basis, purchase_date, account_name)
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT(symbol) DO UPDATE SET
+                INSERT INTO holdings (user_id, symbol, quantity, cost_basis, purchase_date, account_name)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT(user_id, symbol) DO UPDATE SET
                     quantity = excluded.quantity,
                     cost_basis = excluded.cost_basis,
                     purchase_date = COALESCE(excluded.purchase_date, holdings.purchase_date),
                     account_name = excluded.account_name,
                     updated_at = app_now_text()
                 """,
-                (symbol, quantity, cost_basis, purchase_date, account_name),
+                (user_id, symbol, quantity, cost_basis, purchase_date, account_name),
             )
             conn.commit()
 
@@ -74,8 +79,12 @@ class HoldingsService:
 
     def delete_holding(self, symbol: str) -> bool:
         symbol = symbol.upper()
+        user_id = get_current_user_id()
         with get_connection() as conn:
-            cursor = conn.execute("DELETE FROM holdings WHERE symbol = %s", (symbol,))
+            cursor = conn.execute(
+                "DELETE FROM holdings WHERE user_id = %s AND symbol = %s",
+                (user_id, symbol),
+            )
             conn.commit()
             return cursor.rowcount > 0
 

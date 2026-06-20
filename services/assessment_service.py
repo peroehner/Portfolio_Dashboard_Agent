@@ -1,10 +1,11 @@
+import contextvars
 import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from db.database import get_connection
+from db.database import get_connection, get_current_user_id
 from services.alerts_service import AlertsService
 from services.fib_service import FibService
 from services.fundamentals_service import FundamentalsService
@@ -56,8 +57,14 @@ class AssessmentService:
         computed: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
         first_error: Exception | None = None
         workers = min(self.assess_workers, len(symbol_list))
+        # Worker threads must see the same current user as this request; copy the
+        # context so get_current_user_id() resolves correctly inside the pool.
+        ctx = contextvars.copy_context()
         with ThreadPoolExecutor(max_workers=workers) as executor:
-            future_map = {executor.submit(self._compute_assessment, sym): sym for sym in symbol_list}
+            future_map = {
+                executor.submit(ctx.run, self._compute_assessment, sym): sym
+                for sym in symbol_list
+            }
             for future, sym in future_map.items():
                 try:
                     computed[sym] = future.result()
@@ -83,10 +90,11 @@ class AssessmentService:
             SELECT id, symbol, action, confidence, rationale, factors,
                    note_synthesis, trading_recommendation, provider, created_at
             FROM assessments
+            WHERE user_id = %s
         """
-        params: list[Any] = []
+        params: list[Any] = [get_current_user_id()]
         if symbol:
-            query += " WHERE symbol = %s"
+            query += " AND symbol = %s"
             params.append(symbol.upper())
         query += " ORDER BY created_at DESC LIMIT %s"
         params.append(limit)
@@ -96,8 +104,8 @@ class AssessmentService:
         return [self._row_to_assessment(row) for row in rows]
 
     def delete_assessment(self, assessment_id: int, symbol: str | None = None) -> bool:
-        query = "DELETE FROM assessments WHERE id = %s"
-        params: list[Any] = [assessment_id]
+        query = "DELETE FROM assessments WHERE id = %s AND user_id = %s"
+        params: list[Any] = [assessment_id, get_current_user_id()]
         if symbol:
             query += " AND symbol = %s"
             params.append(symbol.upper())
@@ -160,26 +168,28 @@ class AssessmentService:
     ) -> dict[str, Any]:
         factors_json = json.dumps(result.get("factors", []))
         synthesis_json = json.dumps(result.get("noteSynthesis", {}))
+        user_id = get_current_user_id()
         with get_connection() as conn:
             previous = conn.execute(
                 """
                 SELECT action, confidence FROM assessments
-                WHERE symbol = %s
+                WHERE user_id = %s AND symbol = %s
                 ORDER BY created_at DESC, id DESC
                 LIMIT 1
                 """,
-                (symbol,),
+                (user_id, symbol),
             ).fetchone()
             cursor = conn.execute(
                 """
                 INSERT INTO assessments (
-                    symbol, action, confidence, rationale, factors,
+                    user_id, symbol, action, confidence, rationale, factors,
                     note_synthesis, trading_recommendation, provider
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
+                    user_id,
                     symbol,
                     result["action"],
                     result["confidence"],
@@ -191,8 +201,8 @@ class AssessmentService:
                 ),
             )
             new_id = cursor.fetchone()["id"]
-            self._record_recommendation_change(conn, symbol, previous, result)
-            self._trim_assessment_history(conn, symbol)
+            self._record_recommendation_change(conn, user_id, symbol, previous, result)
+            self._trim_assessment_history(conn, user_id, symbol)
             conn.commit()
             row = conn.execute(
                 """
@@ -210,7 +220,9 @@ class AssessmentService:
         assessment["context"] = context
         return assessment
 
-    def _record_recommendation_change(self, conn, symbol: str, previous, result: dict[str, Any]) -> None:
+    def _record_recommendation_change(
+        self, conn, user_id: int, symbol: str, previous, result: dict[str, Any]
+    ) -> None:
         """Log a changelog row when the discrete action changes vs the prior assessment.
 
         Skips the very first assessment for a symbol (no prior action to compare).
@@ -224,11 +236,12 @@ class AssessmentService:
         conn.execute(
             """
             INSERT INTO recommendation_changelog (
-                symbol, old_action, new_action, old_confidence, new_confidence, provider
+                user_id, symbol, old_action, new_action, old_confidence, new_confidence, provider
             )
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
             (
+                user_id,
                 symbol,
                 old_action,
                 new_action,
@@ -239,16 +252,18 @@ class AssessmentService:
         )
 
     def list_recommendation_changes(self, limit: int = 8) -> list[dict[str, Any]]:
+        user_id = get_current_user_id()
         with get_connection() as conn:
             rows = conn.execute(
                 """
                 SELECT id, symbol, old_action, new_action, old_confidence,
                        new_confidence, provider, created_at
                 FROM recommendation_changelog
+                WHERE user_id = %s
                 ORDER BY created_at DESC, id DESC
                 LIMIT %s
                 """,
-                (limit,),
+                (user_id, limit),
             ).fetchall()
         return [
             {
@@ -264,22 +279,22 @@ class AssessmentService:
             for row in rows
         ]
 
-    def _trim_assessment_history(self, conn, symbol: str) -> None:
+    def _trim_assessment_history(self, conn, user_id: int, symbol: str) -> None:
         rows = conn.execute(
             """
             SELECT id FROM assessments
-            WHERE symbol = %s
+            WHERE user_id = %s AND symbol = %s
             ORDER BY created_at DESC, id DESC
             """,
-            (symbol,),
+            (user_id, symbol),
         ).fetchall()
         stale_ids = [row["id"] for row in rows[self.MAX_ASSESSMENTS_PER_SYMBOL :]]
         if not stale_ids:
             return
         placeholders = ",".join(["%s"] * len(stale_ids))
         conn.execute(
-            f"DELETE FROM assessments WHERE id IN ({placeholders})",
-            stale_ids,
+            f"DELETE FROM assessments WHERE user_id = %s AND id IN ({placeholders})",
+            [user_id, *stale_ids],
         )
 
     def _row_to_assessment(self, row) -> dict[str, Any]:

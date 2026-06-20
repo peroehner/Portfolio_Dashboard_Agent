@@ -3,7 +3,7 @@ import os
 import time
 from typing import Any
 
-from db.database import get_connection
+from db.database import get_connection, get_current_user_id
 from services.llm_client import LLMClient
 
 
@@ -17,24 +17,27 @@ class NotesService:
 
     def list_notes(self, symbol: str) -> list[dict[str, Any]]:
         symbol = symbol.upper()
+        user_id = get_current_user_id()
         with get_connection() as conn:
             rows = conn.execute(
                 f"""
                 SELECT {self.NOTE_COLUMNS}
                 FROM notes
-                WHERE symbol = %s
+                WHERE user_id = %s AND symbol = %s
                 ORDER BY note_date DESC, created_at DESC
                 """,
-                (symbol,),
+                (user_id, symbol),
             ).fetchall()
         return [self._row_to_note(row) for row in rows]
 
     def get_note(self, symbol: str, note_id: int) -> dict[str, Any] | None:
         symbol = symbol.upper()
+        user_id = get_current_user_id()
         with get_connection() as conn:
             row = conn.execute(
-                f"SELECT {self.NOTE_COLUMNS} FROM notes WHERE id = %s AND symbol = %s",
-                (note_id, symbol),
+                f"SELECT {self.NOTE_COLUMNS} FROM notes "
+                "WHERE id = %s AND user_id = %s AND symbol = %s",
+                (note_id, user_id, symbol),
             ).fetchone()
         return self._row_to_note(row) if row else None
 
@@ -46,14 +49,16 @@ class NotesService:
         if not text:
             raise ValueError("Note text is required.")
 
+        user_id = get_current_user_id()
         with get_connection() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO notes (symbol, note_date, source, text)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO notes (user_id, symbol, note_date, source, text)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
+                    user_id,
                     symbol,
                     data.get("date") or data.get("note_date"),
                     data.get("source"),
@@ -85,6 +90,7 @@ class NotesService:
             or source != (note.get("source") or None)
         )
 
+        user_id = get_current_user_id()
         with get_connection() as conn:
             if content_changed:
                 conn.execute(
@@ -92,18 +98,18 @@ class NotesService:
                     UPDATE notes
                     SET note_date = %s, source = %s, text = %s,
                         synthesis = NULL, synthesis_provider = NULL, synthesized_at = NULL
-                    WHERE id = %s AND symbol = %s
+                    WHERE id = %s AND user_id = %s AND symbol = %s
                     """,
-                    (note_date, source, text, note_id, symbol),
+                    (note_date, source, text, note_id, user_id, symbol),
                 )
             else:
                 conn.execute(
                     """
                     UPDATE notes
                     SET note_date = %s, source = %s, text = %s
-                    WHERE id = %s AND symbol = %s
+                    WHERE id = %s AND user_id = %s AND symbol = %s
                     """,
-                    (note_date, source, text, note_id, symbol),
+                    (note_date, source, text, note_id, user_id, symbol),
                 )
             conn.commit()
 
@@ -127,14 +133,15 @@ class NotesService:
         provider = synthesis.pop("provider", self.llm_client.active_provider())
         synthesis_json = json.dumps(synthesis)
 
+        user_id = get_current_user_id()
         with get_connection() as conn:
             conn.execute(
                 """
                 UPDATE notes
                 SET synthesis = %s, synthesis_provider = %s, synthesized_at = app_now_text()
-                WHERE id = %s AND symbol = %s
+                WHERE id = %s AND user_id = %s AND symbol = %s
                 """,
-                (synthesis_json, provider, note_id, symbol),
+                (synthesis_json, provider, note_id, user_id, symbol),
             )
             conn.commit()
 
@@ -164,22 +171,27 @@ class NotesService:
 
     def delete_note(self, symbol: str, note_id: int) -> bool:
         symbol = symbol.upper()
+        user_id = get_current_user_id()
         with get_connection() as conn:
             cursor = conn.execute(
-                "DELETE FROM notes WHERE id = %s AND symbol = %s",
-                (note_id, symbol),
+                "DELETE FROM notes WHERE id = %s AND user_id = %s AND symbol = %s",
+                (note_id, user_id, symbol),
             )
             conn.commit()
             return cursor.rowcount > 0
 
     def _ensure_symbol_exists(self, symbol: str) -> None:
+        user_id = get_current_user_id()
         with get_connection() as conn:
             existing = conn.execute(
-                "SELECT symbol FROM symbols WHERE symbol = %s",
-                (symbol,),
+                "SELECT symbol FROM symbols WHERE user_id = %s AND symbol = %s",
+                (user_id, symbol),
             ).fetchone()
             if existing is None:
-                conn.execute("INSERT INTO symbols (symbol) VALUES (%s)", (symbol,))
+                conn.execute(
+                    "INSERT INTO symbols (user_id, symbol) VALUES (%s, %s)",
+                    (user_id, symbol),
+                )
                 conn.commit()
 
     def _row_to_note(self, row) -> dict[str, Any]:

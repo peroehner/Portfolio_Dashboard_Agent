@@ -1,6 +1,6 @@
 from typing import Any
 
-from db.database import get_connection
+from db.database import get_connection, get_current_user_id
 from services.notes_service import NotesService
 
 
@@ -8,18 +8,21 @@ class PortfolioService:
     SYMBOL_FIELDS = ("current_price", "target_price", "buy_below", "sell_above")
 
     def list_symbols(self) -> list[dict[str, Any]]:
+        user_id = get_current_user_id()
         with get_connection() as conn:
             rows = conn.execute(
-                "SELECT * FROM symbols ORDER BY symbol"
+                "SELECT * FROM symbols WHERE user_id = %s ORDER BY symbol",
+                (user_id,),
             ).fetchall()
         return [self._row_to_symbol(row, include_notes=False) for row in rows]
 
     def get_symbol(self, symbol: str) -> dict[str, Any] | None:
         symbol = symbol.upper()
+        user_id = get_current_user_id()
         with get_connection() as conn:
             row = conn.execute(
-                "SELECT * FROM symbols WHERE symbol = %s",
-                (symbol,),
+                "SELECT * FROM symbols WHERE user_id = %s AND symbol = %s",
+                (user_id, symbol),
             ).fetchone()
         if row is None:
             return None
@@ -27,12 +30,13 @@ class PortfolioService:
 
     def upsert_symbol(self, symbol: str, data: dict[str, Any]) -> dict[str, Any]:
         symbol = symbol.upper()
+        user_id = get_current_user_id()
         payload = self._normalize_symbol_input(data)
 
         with get_connection() as conn:
             existing = conn.execute(
-                "SELECT * FROM symbols WHERE symbol = %s",
-                (symbol,),
+                "SELECT * FROM symbols WHERE user_id = %s AND symbol = %s",
+                (user_id, symbol),
             ).fetchone()
 
             if existing:
@@ -51,7 +55,7 @@ class PortfolioService:
                     UPDATE symbols
                     SET current_price = %s, target_price = %s, buy_below = %s, sell_above = %s,
                         annual_dividend = %s, analyst_target_1y = %s, updated_at = app_now_text()
-                    WHERE symbol = %s
+                    WHERE user_id = %s AND symbol = %s
                     """,
                     (
                         merged["current_price"],
@@ -60,6 +64,7 @@ class PortfolioService:
                         merged["sell_above"],
                         merged["annual_dividend"],
                         merged["analyst_target_1y"],
+                        user_id,
                         symbol,
                     ),
                 )
@@ -67,12 +72,13 @@ class PortfolioService:
                 conn.execute(
                     """
                     INSERT INTO symbols (
-                        symbol, current_price, target_price, buy_below, sell_above,
+                        user_id, symbol, current_price, target_price, buy_below, sell_above,
                         annual_dividend, analyst_target_1y
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
+                        user_id,
                         symbol,
                         payload.get("current_price"),
                         payload.get("target_price"),
@@ -90,18 +96,20 @@ class PortfolioService:
 
     def delete_symbol(self, symbol: str) -> bool:
         symbol = symbol.upper()
+        user_id = get_current_user_id()
         with get_connection() as conn:
             cursor = conn.execute(
-                "DELETE FROM symbols WHERE symbol = %s",
-                (symbol,),
+                "DELETE FROM symbols WHERE user_id = %s AND symbol = %s",
+                (user_id, symbol),
             )
             conn.commit()
             return cursor.rowcount > 0
 
     def clear_portfolio(self) -> int:
         """Remove all symbols; cascades notes, alerts, assessments, and holdings."""
+        user_id = get_current_user_id()
         with get_connection() as conn:
-            cursor = conn.execute("DELETE FROM symbols")
+            cursor = conn.execute("DELETE FROM symbols WHERE user_id = %s", (user_id,))
             conn.commit()
             return cursor.rowcount
 
@@ -125,6 +133,7 @@ class PortfolioService:
         )
         updated_prices = 0
         updated_targets = 0
+        user_id = get_current_user_id()
 
         with get_connection() as conn:
             for symbol in tickers:
@@ -139,9 +148,9 @@ class PortfolioService:
                         SET current_price = %s,
                             day_change_pct = COALESCE(%s, day_change_pct),
                             updated_at = app_now_text()
-                        WHERE symbol = %s
+                        WHERE user_id = %s AND symbol = %s
                         """,
-                        (price, day_change_pct, symbol),
+                        (price, day_change_pct, user_id, symbol),
                     )
                     updated_prices += 1
                 if analyst_target is not None:
@@ -149,9 +158,9 @@ class PortfolioService:
                         """
                         UPDATE symbols
                         SET analyst_target_1y = %s, updated_at = app_now_text()
-                        WHERE symbol = %s
+                        WHERE user_id = %s AND symbol = %s
                         """,
-                        (analyst_target, symbol),
+                        (analyst_target, user_id, symbol),
                     )
                     updated_targets += 1
             conn.commit()

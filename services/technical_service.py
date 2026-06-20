@@ -5,7 +5,7 @@ from typing import Any
 import pandas as pd
 import yfinance as yf
 
-from db.database import get_connection
+from db.database import get_connection, get_current_user_id
 
 BLOCK_HEADER = re.compile(
     r"\[TECHNICAL ANALYSIS EXPORT:\s*([A-Z][A-Z0-9.\-]+)\s*\]",
@@ -40,15 +40,16 @@ FIB_ANCHOR_LINE = re.compile(r"Fibonacci anchor:\s*(.+)", re.I)
 class TechnicalService:
     def get_snapshot(self, symbol: str) -> dict[str, Any] | None:
         symbol = symbol.upper()
+        user_id = get_current_user_id()
         with get_connection() as conn:
             row = conn.execute(
                 """
                 SELECT symbol, window_start, window_end, fib_anchor,
                        trends_json, fib_levels_json, updated_at
                 FROM symbol_technical
-                WHERE symbol = %s
+                WHERE user_id = %s AND symbol = %s
                 """,
-                (symbol,),
+                (user_id, symbol),
             ).fetchone()
         if row is None:
             return None
@@ -56,17 +57,18 @@ class TechnicalService:
 
     def upsert_snapshot(self, symbol: str, snapshot: dict[str, Any]) -> dict[str, Any]:
         symbol = symbol.upper()
+        user_id = get_current_user_id()
         trends = snapshot.get("trends") or []
         fib_levels = snapshot.get("fibLevels") or {}
         with get_connection() as conn:
             conn.execute(
                 """
                 INSERT INTO symbol_technical (
-                    symbol, window_start, window_end, fib_anchor,
+                    user_id, symbol, window_start, window_end, fib_anchor,
                     trends_json, fib_levels_json, updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, app_now_text())
-                ON CONFLICT(symbol) DO UPDATE SET
+                VALUES (%s, %s, %s, %s, %s, %s, %s, app_now_text())
+                ON CONFLICT(user_id, symbol) DO UPDATE SET
                     window_start = EXCLUDED.window_start,
                     window_end = EXCLUDED.window_end,
                     fib_anchor = EXCLUDED.fib_anchor,
@@ -75,6 +77,7 @@ class TechnicalService:
                     updated_at = app_now_text()
                 """,
                 (
+                    user_id,
                     symbol,
                     snapshot.get("windowStart"),
                     snapshot.get("windowEnd"),

@@ -1,17 +1,33 @@
+import os
 import unittest
 import unittest.mock
 
 import psycopg
 
-from db.database import close_pool, get_database_url, init_db
-from services.import_service import ImportService
-from services.inspector_service import InspectorService
-from services.technical_service import TechnicalService
+# These tests DROP SCHEMA on the target database, so they must never run against
+# the dev/production DB. They only run when TEST_DATABASE_URL is explicitly set
+# to a throwaway database; otherwise the DB-backed tests are skipped. Pointing
+# the app at the test DB here ensures the pool and services use it too.
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+if TEST_DATABASE_URL:
+    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+
+from db.database import (  # noqa: E402 - import after DATABASE_URL override
+    close_pool,
+    get_database_url,
+    init_db,
+    reset_bootstrap_user_cache,
+)
+from services.import_service import ImportService  # noqa: E402
+from services.inspector_service import InspectorService  # noqa: E402
+from services.technical_service import TechnicalService  # noqa: E402
 
 
 def _db_available() -> bool:
+    if not TEST_DATABASE_URL:
+        return False
     try:
-        with psycopg.connect(get_database_url(), connect_timeout=3):
+        with psycopg.connect(TEST_DATABASE_URL, connect_timeout=3):
             return True
     except Exception:
         return False
@@ -26,6 +42,7 @@ def _reset_schema() -> None:
     with psycopg.connect(get_database_url(), autocommit=True) as conn:
         conn.execute("DROP SCHEMA public CASCADE")
         conn.execute("CREATE SCHEMA public")
+    reset_bootstrap_user_cache()
     init_db()
 
 
@@ -84,7 +101,7 @@ class TechnicalImportTestCase(unittest.TestCase):
         self.assertIn("0% (High)", snapshot["fibLevels"])
         self.assertEqual(snapshot["fibLevels"]["0% (High)"], 398.13)
 
-    @unittest.skipUnless(DB_AVAILABLE, "Postgres not reachable (set DATABASE_URL / start docker compose)")
+    @unittest.skipUnless(DB_AVAILABLE, "Set TEST_DATABASE_URL to a throwaway DB to run schema tests")
     def test_import_txt_persists_technical_snapshot(self):
         result = self.import_service.import_txt(SAMPLE_EXPORT, mode="merge")
         self.assertEqual(result["symbolsImported"], 1)
@@ -94,7 +111,7 @@ class TechnicalImportTestCase(unittest.TestCase):
         self.assertEqual(len(snapshot["trends"]), 3)
         self.assertAlmostEqual(snapshot["fibLevels"]["50.0% Center Line"], 363.78)
 
-    @unittest.skipUnless(DB_AVAILABLE, "Postgres not reachable (set DATABASE_URL / start docker compose)")
+    @unittest.skipUnless(DB_AVAILABLE, "Set TEST_DATABASE_URL to a throwaway DB to run schema tests")
     def test_inspector_uses_imported_fib_anchor(self):
         self.import_service.import_txt(SAMPLE_EXPORT, mode="merge")
         inspector = InspectorService()

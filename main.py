@@ -41,7 +41,7 @@ from flask import Flask, jsonify, send_file, request
 from flask.json.provider import DefaultJSONProvider
 
 from api.v1 import v1_bp
-from db.database import init_db
+from db.database import get_bootstrap_user_id, init_db, set_current_user_id
 from services.alerts_service import AlertsService
 from services.import_service import ImportService
 from services.portfolio_service import PortfolioService
@@ -90,6 +90,9 @@ def get_engine():
 
 def background_sync_loop():
     """Background worker that continuously syncs prices via the engine."""
+    # Runs outside any request; operate as the bootstrap user. (When OAuth lands
+    # with multiple users this should iterate over all users.)
+    set_current_user_id(get_bootstrap_user_id())
     cycle = 0
     target_refresh_every = max(
         1,
@@ -138,6 +141,13 @@ def ensure_database():
         init_db()
         app._db_ready = True
     ensure_background_worker()
+
+
+@app.before_request
+def bind_current_user():
+    # Phase 1b: single-user operation — every request acts as the bootstrap user.
+    # Phase 2 (Google OAuth) will resolve this from the authenticated session.
+    set_current_user_id(get_bootstrap_user_id())
 
 
 @app.after_request

@@ -1,7 +1,7 @@
 import os
 from typing import Any
 
-from db.database import get_connection
+from db.database import get_connection, get_current_user_id
 from services.fib_service import FibService
 from services.portfolio_service import PortfolioService
 
@@ -18,13 +18,14 @@ class AlertsService:
         status: str = "active",
         limit: int = 100,
     ) -> list[dict[str, Any]]:
+        user_id = get_current_user_id()
         query = """
             SELECT id, symbol, alert_type, message, price, reference_value,
                    fib_level, status, created_at
             FROM alerts
-            WHERE status = %s
+            WHERE user_id = %s AND status = %s
         """
-        params: list[Any] = [status]
+        params: list[Any] = [user_id, status]
 
         if symbol:
             query += " AND symbol = %s"
@@ -38,10 +39,12 @@ class AlertsService:
         return [self._row_to_alert(row) for row in rows]
 
     def dismiss_alert(self, alert_id: int) -> bool:
+        user_id = get_current_user_id()
         with get_connection() as conn:
             cursor = conn.execute(
-                "UPDATE alerts SET status = 'dismissed' WHERE id = %s AND status = 'active'",
-                (alert_id,),
+                "UPDATE alerts SET status = 'dismissed' "
+                "WHERE id = %s AND user_id = %s AND status = 'active'",
+                (alert_id, user_id),
             )
             conn.commit()
             return cursor.rowcount > 0
@@ -57,17 +60,19 @@ class AlertsService:
 
     def _dedupe_active_alerts(self) -> int:
         """Collapse active alerts to the newest one per symbol + type kind."""
+        user_id = get_current_user_id()
         with get_connection() as conn:
             cursor = conn.execute(
                 """
                 UPDATE alerts SET status = 'superseded'
-                WHERE status = 'active'
+                WHERE user_id = %s AND status = 'active'
                   AND id NOT IN (
                       SELECT MAX(id) FROM alerts
-                      WHERE status = 'active'
+                      WHERE user_id = %s AND status = 'active'
                       GROUP BY symbol, alert_type
                   )
-                """
+                """,
+                (user_id, user_id),
             )
             conn.commit()
             return cursor.rowcount
@@ -165,24 +170,25 @@ class AlertsService:
         if self._active_alert_exists(symbol, alert_type, reference_value, fib_level):
             return None
 
+        user_id = get_current_user_id()
         with get_connection() as conn:
             # Keep only the latest alert per kind: supersede any prior active
             # alerts of the same symbol + type before inserting the new one.
             conn.execute(
                 """
                 UPDATE alerts SET status = 'superseded'
-                WHERE symbol = %s AND alert_type = %s AND status = 'active'
+                WHERE user_id = %s AND symbol = %s AND alert_type = %s AND status = 'active'
                 """,
-                (symbol, alert_type),
+                (user_id, symbol, alert_type),
             )
             cursor = conn.execute(
                 """
                 INSERT INTO alerts (
-                    symbol, alert_type, message, price, reference_value, fib_level
-                ) VALUES (%s, %s, %s, %s, %s, %s)
+                    user_id, symbol, alert_type, message, price, reference_value, fib_level
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (symbol, alert_type, message, price, reference_value, fib_level),
+                (user_id, symbol, alert_type, message, price, reference_value, fib_level),
             )
             alert_id = cursor.fetchone()["id"]
             conn.commit()
@@ -204,15 +210,16 @@ class AlertsService:
         reference_value: float | None,
         fib_level: str | None = None,
     ) -> bool:
+        user_id = get_current_user_id()
         with get_connection() as conn:
             row = conn.execute(
                 """
                 SELECT id FROM alerts
-                WHERE symbol = %s AND alert_type = %s AND status = 'active'
+                WHERE user_id = %s AND symbol = %s AND alert_type = %s AND status = 'active'
                   AND COALESCE(reference_value, -1) = COALESCE(%s, -1)
                   AND COALESCE(fib_level, '') = COALESCE(%s, '')
                 """,
-                (symbol, alert_type, reference_value, fib_level),
+                (user_id, symbol, alert_type, reference_value, fib_level),
             ).fetchone()
         return row is not None
 
