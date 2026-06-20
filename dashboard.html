@@ -1578,6 +1578,7 @@
         </div>
       </div>
       <span class="badge" id="providerBadge">assess: …</span>
+      <span class="badge" id="refreshBadge" title="Summary and Holdings auto-refresh every 30s with the latest synced prices.">updated …</span>
       <span class="links">
         <a href="/docs/api" target="_blank">API</a> ·
         <a href="/docs/replit" target="_blank">Replit</a> ·
@@ -1950,6 +1951,64 @@
       if (name === "fib") loadFibMap();
       if (name === "inspector") loadInspectorOptions();
       if (name === "fundamentals") loadFundamentals();
+    }
+
+    // ---- Auto-refresh (every 30s) -------------------------------------------
+    // Quietly reloads the active view so background price syncs and in-flight
+    // assessments surface without a manual reload. Loaders preserve row
+    // selection and sort state, so the refresh is non-disruptive.
+    const AUTO_REFRESH_MS = 30000;
+    let autoRefreshTimer = null;
+    let autoRefreshInProgress = false;
+
+    // Limited to read-only, price-driven views. Editable views (Target) and
+    // heavy ones (Fundamentals) are intentionally excluded so we never clobber
+    // an in-progress edit or trigger an expensive bulk refetch on a timer.
+    const autoRefreshLoaders = {
+      overview: () => loadOverview(),
+      holdings: () => loadHoldings(),
+    };
+
+    function markRefreshed(success = true) {
+      const badge = document.getElementById("refreshBadge");
+      if (!badge) return;
+      if (success) {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, "0");
+        const mm = String(now.getMinutes()).padStart(2, "0");
+        const ss = String(now.getSeconds()).padStart(2, "0");
+        badge.textContent = `updated ${hh}:${mm}:${ss}`;
+      }
+    }
+
+    function userIsInteracting() {
+      const el = document.activeElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) {
+        return true;
+      }
+      return false;
+    }
+
+    async function autoRefreshTick() {
+      // Skip when the tab is hidden, a refresh is mid-flight, or the user is
+      // typing — so we never clobber input or waste calls in the background.
+      if (document.hidden || autoRefreshInProgress || userIsInteracting()) return;
+      const loader = autoRefreshLoaders[currentView];
+      if (!loader) return;
+      autoRefreshInProgress = true;
+      try {
+        await loader();
+        markRefreshed(true);
+      } catch (_) {
+        /* background refresh failures are non-fatal and stay silent */
+      } finally {
+        autoRefreshInProgress = false;
+      }
+    }
+
+    function startAutoRefresh() {
+      if (autoRefreshTimer) return;
+      autoRefreshTimer = setInterval(autoRefreshTick, AUTO_REFRESH_MS);
     }
 
     const moneyFormatter = new Intl.NumberFormat("en-US", {
@@ -2743,6 +2802,10 @@
     }
 
     async function assessAll() {
+      const btn = document.getElementById("btnAssess");
+      const originalLabel = btn ? btn.textContent : "";
+      if (btn) btn.textContent = "Assessing…";
+      setStatus("Assessing portfolio… this can take a minute or two for a full portfolio.", "info");
       await withLoading("btnAssess", async () => {
         try {
           const data = await api("/assess", { method: "POST" });
@@ -2750,6 +2813,8 @@
           setStatus(`Generated ${data.assessments.length} assessments.`, "success");
         } catch (error) {
           setStatus(error.message, "error");
+        } finally {
+          if (btn) btn.textContent = originalLabel;
         }
       });
     }
@@ -4975,6 +5040,8 @@
     loadSynthesisGuidance();
     resetNoteForm();
     showView("overview");
+    markRefreshed(true);
+    startAutoRefresh();
   </script>
 </body>
 </html>

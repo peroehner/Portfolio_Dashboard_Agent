@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import random
 import ssl
 import threading
 import time
@@ -50,6 +51,24 @@ def _finnhub_throttle() -> None:
             time.sleep(wait)
         _finnhub_last_call[0] = time.monotonic()
 
+
+# Yahoo's analyst price-target endpoint is reliable in isolation but drops calls
+# when several fire at once during the concurrent bulk fetch. Spacing them out
+# (ON by default) makes them succeed without poisoning the cache.
+_targets_min_interval = float(os.environ.get("ANALYST_TARGETS_MIN_INTERVAL_SECONDS", "0.4"))
+_targets_throttle_lock = threading.Lock()
+_targets_last_call = [0.0]
+
+
+def _analyst_targets_throttle() -> None:
+    if _targets_min_interval <= 0:
+        return
+    with _targets_throttle_lock:
+        wait = _targets_min_interval - (time.monotonic() - _targets_last_call[0])
+        if wait > 0:
+            time.sleep(wait)
+        _targets_last_call[0] = time.monotonic()
+
 logger = logging.getLogger(__name__)
 
 _news_ttl = float(os.environ.get("NEWS_CACHE_TTL_SECONDS", "3600"))
@@ -59,6 +78,11 @@ news_cache: TtlCache = TtlCache(_news_ttl, _news_max)
 _fund_ttl = float(os.environ.get("FUNDAMENTALS_CACHE_TTL_SECONDS", "21600"))  # 6h
 _fund_max = int(os.environ.get("FUNDAMENTALS_CACHE_MAX_ENTRIES", "128"))
 finnhub_fundamentals_cache: TtlCache = TtlCache(_fund_ttl, _fund_max)
+
+# Analyst price targets are cached on their own so a transient fetch failure is
+# retried on the next request instead of being frozen inside the fundamentals
+# blob for the full TTL (only successful, non-empty results are stored).
+analyst_targets_cache: TtlCache = TtlCache(_fund_ttl, _fund_max)
 
 # Finnhub /stock/metric "metric" keys -> (group, normalized key).
 # These are plain ratios with the same convention as yfinance (no scaling).
@@ -191,6 +215,16 @@ class FundamentalsService:
             fh = self._cached_finnhub_fundamentals(symbol)
             if not self._is_empty_fundamentals(fh):
                 data = self._merge_fundamentals(data, fh)
+        # Backfill analyst price targets from their own cache. This runs outside
+        # the fundamentals blob so a transient miss retries next time rather than
+        # being frozen blank for the whole TTL.
+        if isinstance(data, dict) and not self._has_analyst_targets(data):
+            targets = self._cached_analyst_targets(symbol)
+            if targets:
+                analyst = dict(data.get("analyst") or {})
+                for key, value in targets.items():
+                    analyst.setdefault(key, value)
+                data["analyst"] = analyst
         return data
 
     def _cached_finnhub_fundamentals(self, symbol: str) -> dict[str, Any]:
@@ -306,8 +340,9 @@ class FundamentalsService:
         for key, value in self._statement_financials(symbol).items():
             self._put_num(out["financialHealth"], key, value)
 
-        # Note: analyst price targets (targetMean/High/Low) require Finnhub's
-        # premium /stock/price-target endpoint, so they stay empty on free tier.
+        # Note: analyst price targets are intentionally NOT fetched here. They are
+        # handled by _cached_analyst_targets() outside this cached blob so a
+        # transient failure does not get baked into the 6h fundamentals cache.
         return {grp: vals for grp, vals in out.items() if vals}
 
     def _history_moving_averages(self, symbol: str) -> dict[str, Any]:
@@ -321,6 +356,51 @@ class FundamentalsService:
             out["ma50"] = float(closes.tail(50).mean())
         if len(closes) >= 200:
             out["ma200"] = float(closes.tail(200).mean())
+        return out
+
+    @staticmethod
+    def _has_analyst_targets(data: dict[str, Any]) -> bool:
+        analyst = data.get("analyst") or {}
+        return any(analyst.get(k) is not None for k in ("targetLow", "targetMean", "targetHigh"))
+
+    def _cached_analyst_targets(self, symbol: str) -> dict[str, Any]:
+        """Analyst price targets with caching of successful (non-empty) results only.
+
+        Symbols with no analyst coverage (e.g. thin OTC names) legitimately
+        return nothing; those are not cached, but they are also cheap and simply
+        stay blank on each pass — never showing fabricated numbers.
+        """
+        cached = analyst_targets_cache.peek(symbol)
+        if cached is not CACHE_MISS:
+            return cached
+        targets = self._analyst_price_targets(symbol)
+        if targets:
+            analyst_targets_cache.put(symbol, targets)
+        return targets
+
+    def _analyst_price_targets(self, symbol: str) -> dict[str, Any]:
+        # Yahoo rate-limits this endpoint under the concurrent bulk warm, so a
+        # single transient failure would otherwise cache a blank target column
+        # for the whole TTL. A couple of quick retries make it converge.
+        targets: Any = None
+        for attempt in range(3):
+            try:
+                _analyst_targets_throttle()
+                targets = make_ticker(symbol).analyst_price_targets
+                break
+            except Exception as exc:  # noqa: BLE001 - network/3rd-party failures are non-fatal
+                if attempt == 2:
+                    logger.warning("Analyst price target fetch failed for %s: %s", symbol, exc)
+                    return {}
+                # Longer, jittered backoff so retries escape the bulk-fetch burst.
+                time.sleep(1.5 * (attempt + 1) + random.uniform(0, 0.75))
+        if not isinstance(targets, dict):
+            return {}
+        out: dict[str, Any] = {}
+        for src, dest in (("low", "targetLow"), ("mean", "targetMean"), ("high", "targetHigh")):
+            value = targets.get(src)
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and value:
+                out[dest] = float(value)
         return out
 
     def _statement_financials(self, symbol: str) -> dict[str, Any]:

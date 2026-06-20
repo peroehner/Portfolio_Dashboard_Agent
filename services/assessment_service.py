@@ -1,4 +1,7 @@
 import json
+import logging
+import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from db.database import get_connection
@@ -22,24 +25,57 @@ class AssessmentService:
         self.screening_service = ScreeningService()
         self.fundamentals_service = FundamentalsService()
         self.llm_client = LLMClient()
+        self.assess_workers = max(1, int(os.environ.get("ASSESS_WORKERS", "6")))
 
-    def assess_symbol(self, symbol: str) -> dict[str, Any]:
+    def _compute_assessment(self, symbol: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Build context and run the (slow, network-bound) LLM call. No DB writes."""
         symbol = symbol.upper()
         symbol_data = self.portfolio_service.get_symbol(symbol)
         if symbol_data is None:
             raise ValueError(f"Symbol {symbol} not found.")
-
         context = self._build_context(symbol_data)
         result = self.llm_client.generate_assessment(context)
-        return self._save_assessment(symbol, result, context)
+        return result, context
+
+    def assess_symbol(self, symbol: str) -> dict[str, Any]:
+        result, context = self._compute_assessment(symbol)
+        return self._save_assessment(symbol.upper(), result, context)
 
     def assess_portfolio(self, symbols: list[str] | None = None) -> list[dict[str, Any]]:
         if symbols:
-            return [self.assess_symbol(symbol) for symbol in symbols]
+            symbol_list = [str(symbol).upper() for symbol in symbols]
+        else:
+            symbol_list = [item["symbol"] for item in self.portfolio_service.list_symbols()]
+        if not symbol_list:
+            return []
+
+        # The per-symbol LLM call dominates wall time (~15s each on Gemini), so a
+        # sequential pass over a full portfolio can take many minutes and makes the
+        # UI look stuck. Run the network-bound compute concurrently, then persist
+        # serially on this thread (SQLite writes stay single-threaded and ordered).
+        computed: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
+        first_error: Exception | None = None
+        workers = min(self.assess_workers, len(symbol_list))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            future_map = {executor.submit(self._compute_assessment, sym): sym for sym in symbol_list}
+            for future, sym in future_map.items():
+                try:
+                    computed[sym] = future.result()
+                except Exception as exc:  # noqa: BLE001 - surfaced/handled below
+                    if first_error is None:
+                        first_error = exc
+                    logging.warning("Assessment compute failed for %s: %s", sym, exc)
+
+        # Preserve the original "unknown symbol -> 404" contract for explicit requests.
+        if symbols and isinstance(first_error, ValueError):
+            raise first_error
 
         assessments = []
-        for item in self.portfolio_service.list_symbols():
-            assessments.append(self.assess_symbol(item["symbol"]))
+        for sym in symbol_list:
+            if sym not in computed:
+                continue
+            result, context = computed[sym]
+            assessments.append(self._save_assessment(sym, result, context))
         return assessments
 
     def list_assessments(self, symbol: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
