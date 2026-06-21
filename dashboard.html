@@ -952,9 +952,9 @@
     }
     .fib-level-row {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 0.75rem;
+      justify-content: flex-start;
+      align-items: baseline;
+      gap: 0.5rem;
       font-size: 0.76rem;
     }
     .fib-level-label {
@@ -1606,6 +1606,10 @@
         <span id="userEmail"></span>
         <a id="logoutLink" href="/auth/logout" style="display:none;color:#7aa2f7;text-decoration:none">Logout</a>
       </span>
+      <label id="preferComputedToggle" title="Use computed trends &amp; Fibonacci from price history instead of imported TA snapshots, for the whole portfolio. Reversible — imported data is kept." style="display:inline-flex;align-items:center;gap:6px;margin-right:8px;font-size:13px;color:#9aa8bc;cursor:pointer">
+        <input type="checkbox" id="preferComputedCheckbox" onchange="togglePreferComputed(this.checked)">
+        Computed trends
+      </label>
       <button class="sync" id="btnSync" onclick="syncPortfolio()">Sync Prices</button>
       <button class="warn" id="btnAlerts" onclick="evaluateAlerts()">Check Alerts</button>
       <button class="success" id="btnAssess" onclick="assessAll()">Assess Portfolio</button>
@@ -1977,6 +1981,8 @@
       try {
         const data = await api("/me");
         const chip = document.getElementById("userChip");
+        const computedCheckbox = document.getElementById("preferComputedCheckbox");
+        if (computedCheckbox) computedCheckbox.checked = !!data?.preferComputedTrends;
         if (!data || !data.user) return;
         document.getElementById("userEmail").textContent = data.user.email || data.user.name || "";
         const avatar = document.getElementById("userAvatar");
@@ -1984,6 +1990,36 @@
         if (data.authEnabled) document.getElementById("logoutLink").style.display = "inline";
         chip.hidden = false;
       } catch (_) { /* non-fatal */ }
+    }
+
+    async function togglePreferComputed(checked) {
+      const checkbox = document.getElementById("preferComputedCheckbox");
+      try {
+        const data = await api("/preferences", {
+          method: "PATCH",
+          body: JSON.stringify({ preferComputedTrends: checked }),
+        });
+        if (checkbox) checkbox.checked = !!data.preferComputedTrends;
+        invalidateViewCaches();
+        await loadHoldings();
+        await loadFibMap(true);
+        if (inspectorChartSymbol.inspectorPanel) {
+          await loadInspector(inspectorChartSymbol.inspectorPanel, "inspectorPanel");
+        }
+        if (inspectorChartSymbol.holdingsInspectorPanel) {
+          await loadInspector(inspectorChartSymbol.holdingsInspectorPanel, "holdingsInspectorPanel");
+        }
+        if (selectedSymbol) await selectSymbol(selectedSymbol);
+        setStatus(
+          checked
+            ? "Now using computed trends for all symbols. Re-run Assess Portfolio to refresh assessments."
+            : "Reverted to imported TA where available.",
+          "success",
+        );
+      } catch (error) {
+        if (checkbox) checkbox.checked = !checked;
+        setStatus(error.message, "error");
+      }
     }
 
     function showView(name) {

@@ -165,9 +165,15 @@ class AssessmentService:
 
     def _build_technical(self, symbol: str) -> dict[str, Any] | None:
         """Computed multi-timeframe signals, with an imported snapshot's
-        hand-anchored swing/Fibonacci taking precedence when present."""
+        hand-anchored swing/Fibonacci taking precedence when present — unless
+        the user has opted to prefer computed trends over imported TA."""
+        from db.database import get_prefer_computed_trends
+
         signals = self.technical_signals_service.get_signals(symbol)
         block: dict[str, Any] = dict(signals) if signals else {}
+
+        if get_prefer_computed_trends():
+            return block or None
 
         snapshot = self.technical_service.get_snapshot(symbol)
         if snapshot and snapshot.get("trends"):

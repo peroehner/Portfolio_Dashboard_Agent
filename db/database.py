@@ -72,6 +72,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         email TEXT UNIQUE NOT NULL,
         name TEXT,
         picture TEXT,
+        prefer_computed_trends BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TEXT NOT NULL DEFAULT app_now_text(),
         last_login_at TEXT
     )
@@ -213,6 +214,7 @@ MIGRATION_STATEMENTS: tuple[str, ...] = (
     "ALTER TABLE holdings ADD COLUMN IF NOT EXISTS purchase_date TEXT",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS picture TEXT",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TEXT",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS prefer_computed_trends BOOLEAN NOT NULL DEFAULT FALSE",
 )
 
 BOOTSTRAP_USER_EMAIL = os.environ.get("BOOTSTRAP_USER_EMAIL", "local@portfolio.local")
@@ -353,6 +355,27 @@ def get_user(user_id: int) -> dict | None:
             "SELECT id, google_sub, email, name, picture FROM users WHERE id = %s",
             (user_id,),
         ).fetchone()
+
+
+def get_prefer_computed_trends(user_id: int | None = None) -> bool:
+    """Whether this user wants computed trends to override imported TA snapshots."""
+    uid = user_id if user_id is not None else get_current_user_id()
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT prefer_computed_trends FROM users WHERE id = %s", (uid,)
+        ).fetchone()
+    return bool(row["prefer_computed_trends"]) if row else False
+
+
+def set_prefer_computed_trends(value: bool, user_id: int | None = None) -> bool:
+    uid = user_id if user_id is not None else get_current_user_id()
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE users SET prefer_computed_trends = %s WHERE id = %s",
+            (bool(value), uid),
+        )
+        conn.commit()
+    return bool(value)
 
 
 # --------------------------------------------------------------------------- #

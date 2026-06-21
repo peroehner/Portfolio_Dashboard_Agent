@@ -53,11 +53,12 @@ def health():
 def get_me():
     """Current authenticated user (or the bootstrap user when auth is disabled)."""
     from auth import AUTH_ENABLED
-    from db.database import get_current_user_id, get_user
+    from db.database import get_current_user_id, get_prefer_computed_trends, get_user
 
     user = get_user(get_current_user_id())
     return jsonify({
         "authEnabled": AUTH_ENABLED,
+        "preferComputedTrends": get_prefer_computed_trends(),
         "user": {
             "id": user["id"],
             "email": user["email"],
@@ -65,6 +66,17 @@ def get_me():
             "picture": user["picture"],
         } if user else None,
     })
+
+
+@v1_bp.route("/preferences", methods=["PATCH"])
+def update_preferences():
+    """Update per-user preferences (currently: prefer computed trends over imported TA)."""
+    from db.database import get_prefer_computed_trends, set_prefer_computed_trends
+
+    data = request.get_json(silent=True) or {}
+    if "preferComputedTrends" in data:
+        set_prefer_computed_trends(bool(data["preferComputedTrends"]))
+    return jsonify({"preferComputedTrends": get_prefer_computed_trends()})
 
 
 @v1_bp.route("/config", methods=["GET"])

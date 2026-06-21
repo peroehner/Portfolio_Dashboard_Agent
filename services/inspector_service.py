@@ -30,19 +30,29 @@ class InspectorService:
         if symbol_data is None:
             return None
 
+        from db.database import get_prefer_computed_trends
+
         price = symbol_data.get("currentPrice")
+        prefer_computed = get_prefer_computed_trends()
         technical_snapshot = self.technical_service.get_snapshot(symbol)
-        imported_trends = bool(technical_snapshot and technical_snapshot.get("trends"))
+        # When the user prefers computed trends, ignore the imported snapshot for
+        # trend/Fib resolution (it stays in the DB so the choice is reversible).
+        imported_trends = (
+            bool(technical_snapshot and technical_snapshot.get("trends"))
+            and not prefer_computed
+        )
 
         # Compute trend waves / timeline / Fibonacci from price history when the
-        # user hasn't imported a hand-anchored TA export for this symbol. The
-        # imported snapshot always wins so curated anchors are preserved.
+        # user hasn't imported a hand-anchored TA export for this symbol (or has
+        # opted to prefer computed trends). The imported snapshot otherwise wins
+        # so curated anchors are preserved.
         computed_chart = None
         if ASSESSMENT_TECHNICALS and not imported_trends:
             computed_chart = self.technical_signals_service.get_chart(symbol)
 
-        # Fib precedence: imported anchor > computed swing > generic 90d lookback.
-        fib = self.technical_service.fib_from_snapshot(symbol, technical_snapshot)
+        # Fib precedence: imported anchor > computed swing > generic 90d lookback
+        # (imported anchor skipped when computed is preferred).
+        fib = None if prefer_computed else self.technical_service.fib_from_snapshot(symbol, technical_snapshot)
         if not fib and computed_chart:
             fib = computed_chart.get("fib")
         if not fib:
@@ -89,7 +99,10 @@ class InspectorService:
             "valuation": self._valuation_metrics(symbol, symbol_data, screen_row, holding),
             "trendWaves": self._resolve_trend_waves(symbol, technical_snapshot, imported_trends, computed_chart),
             "trendWaveSource": self._trend_wave_source(imported_trends, computed_chart),
-            "importedFibLevels": self.technical_service.fib_levels_list(technical_snapshot),
+            "importedFibLevels": (
+                [] if prefer_computed
+                else self.technical_service.fib_levels_list(technical_snapshot)
+            ),
             "chartTimeline": (
                 self.technical_service.chart_timeline(symbol, technical_snapshot)
                 if imported_trends
