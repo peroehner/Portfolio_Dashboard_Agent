@@ -16,6 +16,7 @@ from services.overview_service import OverviewService
 from services.portfolio_service import PortfolioService
 from services.screening_service import ScreeningService
 from services.technical_service import TechnicalService
+from services.track_record_service import TrackRecordService
 from services.llm_client import LLMClient
 
 v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
@@ -32,6 +33,7 @@ screening_service = ScreeningService()
 inspector_service = InspectorService()
 fundamentals_service = FundamentalsService()
 technical_service = TechnicalService()
+track_record_service = TrackRecordService()
 
 
 def _engine():
@@ -562,6 +564,21 @@ def news_feed():
         "recommendationChanges": changes,
         "topNews": items[: max(0, news_limit)],
     })
+
+
+@v1_bp.route("/assessments/overview", methods=["GET"])
+def get_assessments_overview():
+    """Portfolio-wide latest assessment per symbol (Summary overview panel)."""
+    return jsonify({"assessments": assessment_service.latest_overview()})
+
+
+@v1_bp.route("/track-record", methods=["GET"])
+def get_track_record():
+    """Read-only self-scoring of past recommendations and detected patterns.
+
+    Evaluates any captures whose horizon has elapsed, then returns hit-rate
+    buckets overall, by signal kind, and per recommendation/pattern label."""
+    return jsonify(track_record_service.get_summary())
 
 
 @v1_bp.route("/symbols/<symbol>/fundamentals", methods=["GET"])

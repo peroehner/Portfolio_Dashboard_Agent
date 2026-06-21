@@ -52,6 +52,9 @@ class ScreeningService:
                 "confidence": rec.get("confidence") or "medium",
                 "sentiment": rec.get("sentiment") or "neutral",
             }
+            latest = assessments[0] if assessments else None
+            row["assessedAt"] = latest.get("createdAt") if latest else None
+            row["rationale"] = latest.get("rationale") if latest else None
             if self._passes_filters(row, filters):
                 results.append(row)
 

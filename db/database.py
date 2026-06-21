@@ -182,6 +182,26 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS signal_outcomes (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        symbol TEXT NOT NULL,
+        assessment_id BIGINT,
+        kind TEXT NOT NULL,
+        label TEXT NOT NULL,
+        direction TEXT NOT NULL,
+        entry_price DOUBLE PRECISION NOT NULL,
+        horizon_days INTEGER NOT NULL,
+        captured_at TEXT NOT NULL DEFAULT app_now_text(),
+        eval_due_at TEXT NOT NULL,
+        eval_price DOUBLE PRECISION,
+        return_pct DOUBLE PRECISION,
+        outcome TEXT,
+        evaluated_at TEXT,
+        FOREIGN KEY (user_id, symbol) REFERENCES symbols(user_id, symbol) ON DELETE CASCADE
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS app_meta (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -198,6 +218,8 @@ INDEX_STATEMENTS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS idx_assessments_user_symbol ON assessments(user_id, symbol)",
     "CREATE INDEX IF NOT EXISTS idx_reco_changelog_user_symbol ON recommendation_changelog(user_id, symbol)",
     "CREATE INDEX IF NOT EXISTS idx_reco_changelog_created ON recommendation_changelog(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_signal_outcomes_user ON signal_outcomes(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_signal_outcomes_pending ON signal_outcomes(user_id, outcome, eval_due_at)",
 )
 
 # Idempotent column adds so an already-deployed Postgres picks up new columns

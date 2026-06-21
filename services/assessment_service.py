@@ -26,6 +26,33 @@ ASSESSMENT_TECHNICALS = os.environ.get("ASSESSMENT_TECHNICALS", "1").lower() not
     "off",
 )
 
+# Tier 4: capture each assessment's recommendation (and any detected chart
+# patterns) as a forward-looking "signal outcome" so the system can later score
+# its own track record. Read-only reporting; no auto-calibration yet.
+TRACK_RECORD = os.environ.get("TRACK_RECORD", "1").lower() not in (
+    "0",
+    "false",
+    "no",
+    "off",
+)
+TRACK_RECORD_HORIZON_DAYS = max(1, int(os.environ.get("TRACK_RECORD_HORIZON_DAYS", "21")))
+
+_ACTION_DIRECTION = {
+    "buy": "bullish",
+    "sell": "bearish",
+    "hold": "neutral",
+    "watch": "neutral",
+}
+
+
+def _pattern_direction(pattern_type: str | None) -> str:
+    t = (pattern_type or "").strip().lower()
+    if t == "bullish":
+        return "bullish"
+    if t == "bearish":
+        return "bearish"
+    return "neutral"
+
 
 class AssessmentService:
     MAX_ASSESSMENTS_PER_SYMBOL = 3
@@ -116,6 +143,65 @@ class AssessmentService:
         with get_connection() as conn:
             rows = conn.execute(query, params).fetchall()
         return [self._row_to_assessment(row) for row in rows]
+
+    def latest_overview(self) -> list[dict[str, Any]]:
+        """Latest assessment per symbol, joined with live price/target context.
+
+        Powers the portfolio-wide "Latest Assessments" overview (Summary panel).
+        Newest first."""
+        user_id = get_current_user_id()
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT a.symbol, a.action, a.confidence, a.rationale, a.factors,
+                       a.provider, a.created_at,
+                       s.current_price, s.target_price, s.analyst_target_1y
+                FROM (
+                    SELECT *, ROW_NUMBER() OVER (
+                        PARTITION BY symbol ORDER BY created_at DESC, id DESC
+                    ) AS rn
+                    FROM assessments
+                    WHERE user_id = %s
+                ) a
+                JOIN symbols s ON s.user_id = %s AND s.symbol = a.symbol
+                WHERE a.rn = 1
+                ORDER BY a.created_at DESC, a.symbol
+                """,
+                (user_id, user_id),
+            ).fetchall()
+
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            price = row["current_price"]
+            target = row["target_price"]
+            analyst = row["analyst_target_1y"]
+            upside = (
+                round((target - price) / price * 100, 2)
+                if price and target and price > 0
+                else None
+            )
+            analyst_upside = (
+                round((analyst - price) / price * 100, 2)
+                if price and analyst and price > 0
+                else None
+            )
+            out.append(
+                {
+                    "symbol": row["symbol"],
+                    "action": row["action"],
+                    "confidence": row["confidence"],
+                    "rationale": row["rationale"],
+                    "factors": self._parse_json_field(row["factors"], default=[]),
+                    "provider": row["provider"],
+                    "assessedAt": row["created_at"],
+                    "currentPrice": price,
+                    "targetPrice": target,
+                    "analystTarget1y": analyst,
+                    "upsidePct": upside,
+                    "analystUpsidePct": analyst_upside,
+                }
+            )
+        return out
 
     def delete_assessment(self, assessment_id: int, symbol: str | None = None) -> bool:
         query = "DELETE FROM assessments WHERE id = %s AND user_id = %s"
@@ -247,6 +333,8 @@ class AssessmentService:
             )
             new_id = cursor.fetchone()["id"]
             self._record_recommendation_change(conn, user_id, symbol, previous, result)
+            if TRACK_RECORD:
+                self._capture_signal_outcomes(conn, user_id, symbol, new_id, result, context)
             self._trim_assessment_history(conn, user_id, symbol)
             conn.commit()
             row = conn.execute(
@@ -295,6 +383,77 @@ class AssessmentService:
                 result.get("provider"),
             ),
         )
+
+    def _capture_signal_outcomes(
+        self,
+        conn,
+        user_id: int,
+        symbol: str,
+        assessment_id: int,
+        result: dict[str, Any],
+        context: dict[str, Any],
+    ) -> None:
+        """Snapshot the recommendation + detected patterns as forward-looking bets.
+
+        Entry price is the price at assessment time; the evaluator later compares it
+        to the price once the horizon elapses. To avoid flooding on repeated
+        re-assessments, we keep at most one *pending* capture per (symbol, kind,
+        label)."""
+        entry_price = context.get("currentPrice")
+        if not entry_price or entry_price <= 0:
+            return
+
+        captures: list[tuple[str, str, str]] = []  # (kind, label, direction)
+        action = str(result.get("action", "hold")).strip().lower()
+        captures.append(
+            ("recommendation", action, _ACTION_DIRECTION.get(action, "neutral"))
+        )
+
+        technical = context.get("technical") or {}
+        for pattern in technical.get("patterns") or []:
+            name = pattern.get("name")
+            if not name:
+                continue
+            captures.append(("pattern", name, _pattern_direction(pattern.get("type"))))
+
+        for kind, label, direction in captures:
+            pending = conn.execute(
+                """
+                SELECT 1 FROM signal_outcomes
+                WHERE user_id = %s AND symbol = %s AND kind = %s AND label = %s
+                  AND outcome IS NULL
+                LIMIT 1
+                """,
+                (user_id, symbol, kind, label),
+            ).fetchone()
+            if pending is not None:
+                continue
+            conn.execute(
+                """
+                INSERT INTO signal_outcomes (
+                    user_id, symbol, assessment_id, kind, label, direction,
+                    entry_price, horizon_days, eval_due_at
+                )
+                VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s,
+                    to_char(
+                        timezone('UTC', now()) + (%s || ' days')::interval,
+                        'YYYY-MM-DD HH24:MI:SS'
+                    )
+                )
+                """,
+                (
+                    user_id,
+                    symbol,
+                    assessment_id,
+                    kind,
+                    label,
+                    direction,
+                    float(entry_price),
+                    TRACK_RECORD_HORIZON_DAYS,
+                    TRACK_RECORD_HORIZON_DAYS,
+                ),
+            )
 
     def list_recommendation_changes(self, limit: int = 8) -> list[dict[str, Any]]:
         user_id = get_current_user_id()

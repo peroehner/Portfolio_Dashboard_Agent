@@ -603,6 +603,46 @@
       gap: 1rem;
       align-items: start;
     }
+    /* Keep the table and the Inspector side-by-side and in view: the table
+       scrolls internally (sticky header) and the Inspector sticks while the
+       page scrolls, so clicking the last row never pushes it out of sight. */
+    .holdings-table-panel {
+      position: sticky;
+      top: 1rem;
+      align-self: start;
+      max-height: calc(100vh - 2rem);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .holdings-table-panel #holdingsTable {
+      overflow-y: auto;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .holdings-table-panel #holdingsTable table.data thead th {
+      position: sticky;
+      top: 0;
+      background: var(--panel);
+      z-index: 2;
+    }
+    .holdings-inspector-panel {
+      position: sticky;
+      top: 1rem;
+      align-self: start;
+      max-height: calc(100vh - 2rem);
+      overflow-y: auto;
+    }
+    @media (max-width: 1100px) {
+      .holdings-table-panel,
+      .holdings-inspector-panel {
+        position: static;
+        max-height: none;
+      }
+      .holdings-table-panel #holdingsTable {
+        max-height: 60vh;
+      }
+    }
     table.data a {
       color: #7eb6ff;
       text-decoration: none;
@@ -1294,6 +1334,110 @@
       line-height: 1.45;
       margin-top: 0.4rem;
     }
+    .track-record-head {
+      display: flex;
+      align-items: baseline;
+      gap: 0.6rem;
+    }
+    .track-record-sub {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    .tr-overall {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      padding: 0.6rem 0 1rem 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+    .tr-overall-rate {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      font-size: 1.9rem;
+      font-weight: 700;
+    }
+    .tr-overall-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .tr-overall-stats {
+      display: flex;
+      gap: 1.2rem;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .tr-section { margin-top: 1rem; }
+    .tr-section h3 { margin: 0 0 0.5rem 0; font-size: 0.95rem; }
+    .tr-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .tr-table th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 0.3rem 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .tr-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+    .tr-table .tr-num { text-align: right; }
+    .tr-muted { color: var(--muted); }
+    .tr-rate { font-weight: 700; }
+    .tr-rate.tr-good { color: #22c55e; }
+    .tr-rate.tr-mid { color: #f59e0b; }
+    .tr-rate.tr-bad { color: #ef4444; }
+    .tr-rate.tr-rate-na { color: var(--muted); font-weight: 500; }
+    .tr-table td .pos { color: #22c55e; }
+    .tr-table td .neg { color: #ef4444; }
+    .tr-table tr[onclick] { cursor: pointer; }
+    .tr-table tbody tr[onclick]:hover { background: var(--panel-2); }
+    .la-conf { color: var(--muted); font-size: 0.78rem; text-transform: capitalize; }
+    .news-changes-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+      gap: 1rem;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .news-changes-grid { grid-template-columns: 1fr; }
+    }
+    .news-changes-col { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+    .nc-area { min-width: 0; }
+    .nc-area h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: baseline;
+      gap: 0.4rem;
+    }
+    .nc-count { color: var(--muted); font-size: 0.8rem; font-weight: 500; }
+    .nc-scroll { overflow-y: auto; padding-right: 0.25rem; }
+    .nc-scroll-assess { max-height: 17rem; }
+    .nc-scroll-reco { max-height: 13rem; }
+    .nc-scroll-news { max-height: 32rem; }
+    .nc-item {
+      padding: 0.5rem 0.6rem;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .nc-item:hover { background: var(--panel-2); border-color: var(--border); }
+    .nc-line { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+    .nc-line .nc-upside { margin-left: auto; font-size: 0.85rem; }
+    .nc-thesis { color: var(--muted); font-size: 0.85rem; margin-top: 0.25rem; line-height: 1.35; }
+    .nc-thesis .pos { color: #22c55e; }
+    .nc-thesis .neg { color: #ef4444; }
+    .nc-upside .pos { color: #22c55e; }
+    .nc-upside .neg { color: #ef4444; }
+    .nc-meta { color: var(--muted); font-size: 0.75rem; margin-top: 0.2rem; }
+    .screening-assessed { white-space: nowrap; }
     .topnews-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
@@ -1355,17 +1499,33 @@
       margin-top: 1rem;
       align-items: start;
     }
-    .inspector-lower-col-side {
+    .inspector-lower-col-side,
+    .inspector-lower-col-main {
       display: flex;
       flex-direction: column;
       gap: 1rem;
     }
-    .inspector-lower-col-side .inspector-section {
+    .inspector-lower-col-side .inspector-section,
+    .inspector-lower-col-main .inspector-section {
       margin-top: 0;
     }
     .inspector-lower-col-main .recommendation-card {
       margin-bottom: 0;
-      min-height: 100%;
+    }
+    .inspector-section h3:has(.inspector-section-delete) {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.6rem;
+    }
+    .inspector-section-delete {
+      font-size: 0.72rem;
+      padding: 0.15rem 0.5rem;
+    }
+    .inspector-scroll {
+      max-height: 20rem;
+      overflow-y: auto;
+      padding-right: 0.25rem;
     }
     @media (max-width: 960px) {
       .inspector-lower-grid {
@@ -1710,18 +1870,34 @@
         </section>
       </div>
     </div>
-    <div class="wide-panel" id="topNewsPanel">
-      <h2>Top News &amp; Recommendation Changes</h2>
-      <div class="topnews-grid">
-        <section class="topnews-col">
-          <h3>Recommendation Changes</h3>
-          <div id="recoChangesList"><div class="empty">Loading…</div></div>
-        </section>
-        <section class="topnews-col">
-          <h3>Latest News</h3>
-          <div id="topNewsList"><div class="empty">Loading…</div></div>
-        </section>
+    <div class="wide-panel" id="newsChangesPanel">
+      <h2>Portfolio News and Changes</h2>
+      <div class="news-changes-grid">
+        <div class="news-changes-col">
+          <section class="nc-area">
+            <h3>Latest Assessments <span class="nc-count" id="latestAssessmentsMeta"></span></h3>
+            <div class="nc-scroll nc-scroll-assess" id="latestAssessmentsBody"><div class="empty">Loading…</div></div>
+          </section>
+          <section class="nc-area">
+            <h3>Recommendation Changes</h3>
+            <div class="nc-scroll nc-scroll-reco" id="recoChangesList"><div class="empty">Loading…</div></div>
+          </section>
+        </div>
+        <div class="news-changes-col">
+          <section class="nc-area">
+            <h3>Latest News</h3>
+            <div class="nc-scroll nc-scroll-news" id="topNewsList"><div class="empty">Loading…</div></div>
+          </section>
+        </div>
       </div>
+    </div>
+    <div class="wide-panel" id="trackRecordPanel">
+      <div class="track-record-head">
+        <h2>Signal Track Record</h2>
+        <span class="track-record-sub" id="trackRecordMeta"></span>
+      </div>
+      <p class="visual-subtitle">How past recommendations and detected chart patterns actually played out over the evaluation horizon. Self-scoring only — signals are measured, not yet auto-weighted.</p>
+      <div id="trackRecordBody"><div class="empty">Loading…</div></div>
     </div>
     <div class="wide-panel import-bar">
       <h2>Import / Export</h2>
@@ -1739,7 +1915,7 @@
   </div>
 
   <main id="view-holdings" class="view" hidden>
-    <section class="panel">
+    <section class="panel holdings-table-panel">
       <div class="holdings-head">
         <h2>Positions (Holdings)</h2>
         <label class="toggle-inline" title="Show a totals row at the bottom">
@@ -1750,7 +1926,7 @@
       <p class="empty" style="margin-top:0;">Click a symbol to inspect it. Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows; totals then apply to the selection.</p>
       <div id="holdingsTable"></div>
     </section>
-    <section class="panel">
+    <section class="panel holdings-inspector-panel">
       <h2 id="holdingsInspectorTitle">Inspector</h2>
       <div id="holdingsInspectorEmpty" class="empty">Select a symbol from the holdings table.</div>
       <div id="holdingsInspectorPanel" hidden></div>
@@ -3426,6 +3602,8 @@
       `;
       renderOverviewVisuals(data);
       loadTopNews();
+      loadLatestAssessments();
+      loadTrackRecord();
     }
 
     function actionChip(action) {
@@ -3475,6 +3653,144 @@
       } catch (err) {
         recoEl.innerHTML = `<div class="empty">Could not load feed: ${escapeHtml(err.message)}</div>`;
         newsEl.innerHTML = "";
+      }
+    }
+
+    function trackRecordRate(bucket) {
+      if (bucket.hitRate == null) return `<span class="tr-rate tr-rate-na">—</span>`;
+      const cls = bucket.hitRate >= 60 ? "tr-good" : bucket.hitRate >= 40 ? "tr-mid" : "tr-bad";
+      return `<span class="tr-rate ${cls}">${bucket.hitRate}%</span>`;
+    }
+
+    function trackRecordReturn(bucket) {
+      if (bucket.avgReturn == null) return "—";
+      const cls = bucket.avgReturn > 0 ? "pos" : bucket.avgReturn < 0 ? "neg" : "";
+      const sign = bucket.avgReturn > 0 ? "+" : "";
+      return `<span class="${cls}">${sign}${bucket.avgReturn}%</span>`;
+    }
+
+    function trackRecordRows(buckets) {
+      if (!buckets.length) return "";
+      return buckets
+        .map((b) => {
+          const decided = b.wins + b.losses;
+          return `
+            <tr>
+              <td>${escapeHtml(b.label)}</td>
+              <td class="tr-num">${b.count}</td>
+              <td class="tr-num">${b.wins}–${b.losses}${b.neutrals ? ` <span class="tr-muted">(${b.neutrals}n)</span>` : ""}</td>
+              <td class="tr-num">${decided ? trackRecordRate(b) : `<span class="tr-rate tr-rate-na">—</span>`}</td>
+              <td class="tr-num">${trackRecordReturn(b)}</td>
+            </tr>`;
+        })
+        .join("");
+    }
+
+    function renderTrackRecord(data) {
+      const body = document.getElementById("trackRecordBody");
+      const metaEl = document.getElementById("trackRecordMeta");
+      if (!body) return;
+      const overall = data.overall || { count: 0 };
+      if (metaEl) {
+        const pend = data.pending ? ` · ${data.pending} pending` : "";
+        metaEl.textContent = `±${data.horizonBandPct}% band${pend}`;
+      }
+      if (!overall.count) {
+        body.innerHTML = `<div class="empty">No evaluated signals yet. Recommendations and patterns are scored once their horizon elapses — run Assess Portfolio to start the clock.</div>`;
+        return;
+      }
+      const recos = (data.byLabel || []).filter((b) => b.kind === "recommendation");
+      const patterns = (data.byLabel || []).filter((b) => b.kind === "pattern");
+      const section = (title, buckets) =>
+        buckets.length
+          ? `
+            <div class="tr-section">
+              <h3>${title}</h3>
+              <table class="tr-table">
+                <thead><tr><th>Signal</th><th class="tr-num">N</th><th class="tr-num">W–L</th><th class="tr-num">Hit</th><th class="tr-num">Avg ret</th></tr></thead>
+                <tbody>${trackRecordRows(buckets)}</tbody>
+              </table>
+            </div>`
+          : "";
+      body.innerHTML = `
+        <div class="tr-overall">
+          <div class="tr-overall-rate">${trackRecordRate(overall)}<span class="tr-overall-label">overall hit rate</span></div>
+          <div class="tr-overall-stats">
+            <span><strong>${overall.count}</strong> evaluated</span>
+            <span><strong>${overall.wins}</strong> wins · <strong>${overall.losses}</strong> losses</span>
+            <span>avg return ${trackRecordReturn(overall)}</span>
+          </div>
+        </div>
+        ${section("Recommendations", recos)}
+        ${section("Chart patterns", patterns)}`;
+    }
+
+    async function loadTrackRecord() {
+      const body = document.getElementById("trackRecordBody");
+      if (!body) return;
+      try {
+        const data = await api("/track-record");
+        renderTrackRecord(data);
+      } catch (err) {
+        body.innerHTML = `<div class="empty">Could not load track record: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function latestUpsideCell(a) {
+      const useAnalyst = a.upsidePct == null;
+      const v = useAnalyst ? a.analystUpsidePct : a.upsidePct;
+      if (v == null) return `<span class="tr-muted">—</span>`;
+      const cls = v > 0 ? "pos" : v < 0 ? "neg" : "";
+      const sign = v > 0 ? "+" : "";
+      const label = useAnalyst ? "to 1Y analyst target" : "to personal target";
+      return `<span class="${cls}" title="${label}">${sign}${v}%${useAnalyst ? " *" : ""}</span>`;
+    }
+
+    function shortenThesis(text, max = 150) {
+      if (!text) return "";
+      const t = String(text).trim().replace(/\s+/g, " ");
+      if (t.length <= max) return t;
+      const cut = t.slice(0, max);
+      const lastSpace = cut.lastIndexOf(" ");
+      return (lastSpace > 80 ? cut.slice(0, lastSpace) : cut).replace(/[\s,.;:—-]+$/, "") + "…";
+    }
+
+    function renderLatestAssessmentItem(a) {
+      const conf = a.confidence ? `<span class="la-conf">${escapeHtml(a.confidence)}</span>` : "";
+      const pattern = patternBadgeHtml(a.symbol);
+      const thesis = shortenThesis(a.rationale);
+      const day = a.assessedAt ? String(a.assessedAt).slice(0, 10) : "";
+      return `
+        <div class="nc-item" onclick="openInspectorSymbol('${a.symbol}', 'recommendation')" title="Open ${a.symbol} in Inspector">
+          <div class="nc-line">
+            <strong>${a.symbol}</strong>
+            ${actionChip(a.action)} ${conf}
+            ${pattern}
+            <span class="nc-upside">${latestUpsideCell(a)}</span>
+          </div>
+          ${thesis ? `<div class="nc-thesis" title="${escapeHtml(a.rationale || "")}">${escapeHtml(thesis)}</div>` : ""}
+          ${day ? `<div class="nc-meta">Assessed ${day}</div>` : ""}
+        </div>`;
+    }
+
+    function renderLatestAssessments(list) {
+      const body = document.getElementById("latestAssessmentsBody");
+      const meta = document.getElementById("latestAssessmentsMeta");
+      if (!body) return;
+      if (meta) meta.textContent = list.length ? `${list.length} symbols` : "";
+      body.innerHTML = list.length
+        ? `<div class="topnews-feed">${list.map(renderLatestAssessmentItem).join("")}</div>`
+        : `<div class="empty">No assessments yet. Run Assess Portfolio to populate this overview.</div>`;
+    }
+
+    async function loadLatestAssessments() {
+      const body = document.getElementById("latestAssessmentsBody");
+      if (!body) return;
+      try {
+        const [data] = await Promise.all([api("/assessments/overview"), loadSymbolPatterns()]);
+        renderLatestAssessments(data.assessments || []);
+      } catch (err) {
+        body.innerHTML = `<div class="empty">Could not load assessments: ${escapeHtml(err.message)}</div>`;
       }
     }
 
@@ -3618,12 +3934,25 @@
 
     function renderScreeningRecommendationCell(row) {
       const chips = renderRecommendationChips(row.recommendation);
-      return screeningInspectorLink(
-        row.symbol,
-        "recommendation",
-        chips,
-        "Open recommendation in Inspector"
-      );
+      const title = row.rationale
+        ? `${row.rationale} — click to open in Inspector`
+        : "Open recommendation in Inspector";
+      return screeningInspectorLink(row.symbol, "recommendation", chips, title);
+    }
+
+    function renderScreeningPatternCell(row) {
+      const badge = patternBadgeHtml(row.symbol);
+      return badge || `<span class="empty">—</span>`;
+    }
+
+    function renderScreeningAssessedCell(row) {
+      const action = row.recommendation?.action;
+      const chip = action ? actionChip(action) : "";
+      if (!row.assessedAt) {
+        return chip ? `<span class="screening-assessed">${chip}</span>` : `<span class="empty">—</span>`;
+      }
+      const day = String(row.assessedAt).slice(0, 10);
+      return `<span class="screening-assessed" title="${escapeHtml(row.assessedAt)}">${chip} ${day}</span>`;
     }
 
     function renderScreeningNotesCell(row) {
@@ -3672,6 +4001,18 @@
         label: "Tech Stance",
         sortValue: (row) => row.techStance || "",
         render: (row) => renderScreeningTechStanceCell(row),
+      },
+      {
+        key: "pattern",
+        label: "Pattern",
+        sortValue: (row) => symbolPatterns[row.symbol]?.name || "",
+        render: (row) => renderScreeningPatternCell(row),
+      },
+      {
+        key: "assessedAt",
+        label: "Assessed",
+        sortValue: (row) => row.assessedAt || "",
+        render: (row) => renderScreeningAssessedCell(row),
       },
       {
         key: "noteCount",
@@ -3918,6 +4259,12 @@
       cache.data = data.results;
       cache.fetchedAt = now;
       document.getElementById("screeningTable").innerHTML = renderScreeningTable(data.results);
+      // Pattern badges come from the shared /patterns map; fill them in once loaded.
+      loadSymbolPatterns().then(() => {
+        if (currentView === "screening" && cache.data) {
+          document.getElementById("screeningTable").innerHTML = renderScreeningTable(cache.data);
+        }
+      });
     }
 
     async function loadFibMap(force = false) {
@@ -4870,41 +5217,43 @@
         <div class="inspector-lower-grid">
           <div class="inspector-lower-col inspector-lower-col-main">
             ${renderRecommendationCard(rec)}
+            <div class="inspector-section">
+              <h3>
+                <span>Older Notes${olderNotes.length ? ` (${olderNotes.length})` : ""}</span>
+                ${olderNotes.length ? `<button type="button" class="btn-danger inspector-section-delete" data-delete-older-notes data-inspector-panel="${panelId}">Delete all</button>` : ""}
+              </h3>
+              <div class="inspector-scroll">
+                ${olderNotes.length
+                  ? olderNotes.map((n) => renderInspectorNoteItem(n, { history: true, panelId })).join("")
+                  : `<div class="empty">No older notes.</div>`}
+              </div>
+            </div>
+            <div class="inspector-section">
+              <h3>
+                <span>Assessment History${olderAssessments.length ? ` (${olderAssessments.length})` : ""}</span>
+                ${olderAssessments.length ? `<button type="button" class="btn-danger inspector-section-delete" data-delete-assessment-history data-inspector-panel="${panelId}">Delete all</button>` : ""}
+              </h3>
+              <div class="inspector-scroll">
+                ${olderAssessments.length
+                  ? olderAssessments.map((a) => renderInspectorAssessmentItem(a, { history: true, panelId })).join("")
+                  : `<div class="empty">No assessment history.</div>`}
+              </div>
+            </div>
           </div>
           <div class="inspector-lower-col inspector-lower-col-side">
+            <div class="inspector-section">
+              <h3>Latest Assessment</h3>
+              ${latestAssessment ? renderInspectorAssessmentItem(latestAssessment, { panelId }) : `<div class="empty">No assessments yet — run Assess Symbol.</div>`}
+            </div>
             <div class="inspector-section" id="inspector-alerts">
               <h3>Active Alerts</h3>
               ${data.alerts.length
                 ? data.alerts.map((a) => `<div class="alert">${a.message}</div>`).join("")
                 : `<div class="empty">No active alerts.</div>`}
             </div>
-            <div class="inspector-section">
-              <h3>Latest Overall Synthesis</h3>
-              ${renderOverallSynthesis(rec, latestAssessment)}
-            </div>
             <div class="inspector-section" id="inspector-notes">
               <h3>Latest Note</h3>
               ${latestNote ? renderInspectorNoteItem(latestNote, { panelId }) : `<div class="empty">No notes yet.</div>`}
-              ${olderNotes.length ? `
-                <details>
-                  <summary style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;">
-                    <span>Older notes (${olderNotes.length})</span>
-                    <button type="button" class="btn-danger" style="font-size:0.72rem;padding:0.15rem 0.5rem;" data-delete-older-notes data-inspector-panel="${panelId}">Delete all</button>
-                  </summary>
-                  ${olderNotes.map((n) => renderInspectorNoteItem(n, { history: true, panelId })).join("")}
-                </details>` : ""}
-            </div>
-            <div class="inspector-section">
-              <h3>Latest Assessment</h3>
-              ${latestAssessment ? renderInspectorAssessmentItem(latestAssessment, { panelId }) : `<div class="empty">No assessments yet — run Assess Symbol.</div>`}
-              ${olderAssessments.length ? `
-                <details>
-                  <summary style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;">
-                    <span>Assessment history (${olderAssessments.length})</span>
-                    <button type="button" class="btn-danger" style="font-size:0.72rem;padding:0.15rem 0.5rem;" data-delete-assessment-history data-inspector-panel="${panelId}">Delete all</button>
-                  </summary>
-                  ${olderAssessments.map((a) => renderInspectorAssessmentItem(a, { history: true, panelId })).join("")}
-                </details>` : ""}
             </div>
           </div>
         </div>
