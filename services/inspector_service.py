@@ -50,6 +50,16 @@ class InspectorService:
         if ASSESSMENT_TECHNICALS and not imported_trends:
             computed_chart = self.technical_signals_service.get_chart(symbol)
 
+        # Chart patterns are derived from price history and are source-independent,
+        # so surface them for imported symbols too (cached signals fetch).
+        chart_patterns: list[dict[str, Any]] = []
+        if ASSESSMENT_TECHNICALS:
+            if computed_chart:
+                chart_patterns = computed_chart.get("patterns") or []
+            else:
+                signals = self.technical_signals_service.get_signals(symbol)
+                chart_patterns = (signals or {}).get("patterns") or []
+
         # Fib precedence: imported anchor > computed swing > generic 90d lookback
         # (imported anchor skipped when computed is preferred).
         fib = None if prefer_computed else self.technical_service.fib_from_snapshot(symbol, technical_snapshot)
@@ -109,6 +119,7 @@ class InspectorService:
                 else (computed_chart or {}).get("chartTimeline")
             ),
             "technicalAdvisory": technical_advisory,
+            "chartPatterns": chart_patterns,
             "chartPoints": self._chart_points(symbol_data, holding, fib),
         }
 

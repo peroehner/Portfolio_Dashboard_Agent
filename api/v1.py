@@ -115,6 +115,47 @@ def list_symbols():
     return jsonify({"symbols": portfolio_service.list_symbols()})
 
 
+@v1_bp.route("/patterns", methods=["GET"])
+def list_patterns():
+    """Top detected chart pattern per portfolio symbol, for badging the list.
+
+    Patterns are derived from (cached) price history and are user-independent, so
+    they can be computed in parallel without per-thread user context."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from services.assessment_service import ASSESSMENT_TECHNICALS
+    from services.technical_signals_service import TechnicalSignalsService
+
+    if not ASSESSMENT_TECHNICALS:
+        return jsonify({"patterns": {}})
+
+    symbols = [s["symbol"] for s in portfolio_service.list_symbols()]
+    if not symbols:
+        return jsonify({"patterns": {}})
+
+    svc = TechnicalSignalsService()
+
+    def top_pattern(symbol):
+        signals = svc.get_signals(symbol)
+        patterns = (signals or {}).get("patterns") or []
+        if not patterns:
+            return symbol, None
+        p = patterns[0]
+        return symbol, {
+            "name": p.get("name"),
+            "type": p.get("type"),
+            "status": p.get("status"),
+            "confidence": p.get("confidence"),
+        }
+
+    out: dict[str, dict] = {}
+    with ThreadPoolExecutor(max_workers=min(6, len(symbols))) as pool:
+        for symbol, pattern in pool.map(top_pattern, symbols):
+            if pattern:
+                out[symbol] = pattern
+    return jsonify({"patterns": out})
+
+
 @v1_bp.route("/symbols/<symbol>", methods=["GET"])
 def get_symbol(symbol):
     item = portfolio_service.get_symbol(symbol)

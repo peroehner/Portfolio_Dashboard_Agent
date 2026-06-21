@@ -505,6 +505,16 @@ class LLMClient:
                 f"Price at the {nearest.get('label')} Fibonacci level "
                 f"({swing.get('source', 'computed')} anchor)."
             )
+
+        for pattern in (technical.get("patterns") or [])[:2]:
+            conf = pattern.get("confidence")
+            conf_txt = f", confidence {conf:.0%}" if isinstance(conf, (int, float)) else ""
+            target = pattern.get("target")
+            target_txt = f", measured target ≈ ${target}" if target else ""
+            factors.append(
+                f"Chart pattern: {pattern.get('name')} "
+                f"({pattern.get('type')}, {pattern.get('status')}{conf_txt}){target_txt}."
+            )
         return factors
 
     def _synthesis_system_prompt(self, guidance: str | None = None) -> str:
@@ -552,8 +562,14 @@ class LLMClient:
             "50/200-day cross (golden/death), RSI and MACD momentum (flag overbought/oversold "
             "extremes), ATR volatility, 52-week range position, and the swing/Fibonacci "
             "structure. Respect the swing 'source': 'imported' is a user-curated anchor and "
-            "should be preferred over the 'computed' one when both exist. Technical signals "
-            "modulate timing and confidence; fundamentals and notes drive the core thesis. "
+            "should be preferred over the 'computed' one when both exist. "
+            "If the technical block contains 'patterns' (e.g. Head & Shoulders, Double "
+            "Top/Bottom, triangles), treat each as ONE probabilistic input weighted by its "
+            "'confidence' and 'status' (a 'confirmed' break matters more than a 'forming' "
+            "one) — classic chart patterns are subjective with mixed reliability, so let "
+            "them nuance timing/conviction and never override the fundamental thesis. "
+            "Technical signals modulate timing and confidence; fundamentals and notes drive "
+            "the core thesis. "
             "Respond only with JSON using keys: action, confidence, rationale, factors, noteSynthesis. "
             "action: buy | sell | hold | watch. "
             "confidence: high | medium | low. "

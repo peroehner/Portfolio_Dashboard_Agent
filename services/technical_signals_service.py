@@ -46,6 +46,15 @@ class TechnicalSignalsService:
         self.pivot_min_pct = float(os.environ.get("TECHNICAL_PIVOT_MIN_PCT", "4"))
         self.pivot_max_pct = float(os.environ.get("TECHNICAL_PIVOT_MAX_PCT", "18"))
         self.max_waves = int(os.environ.get("TECHNICAL_MAX_WAVES", "6"))
+        # Tier 3: named chart-pattern detection over the pivot sequence.
+        self.detect_patterns = os.environ.get("ASSESSMENT_PATTERNS", "1").lower() not in (
+            "0",
+            "false",
+            "no",
+            "off",
+        )
+        # Tolerance for "similar" pivots (e.g. the two tops of a double top).
+        self.pattern_tol_pct = float(os.environ.get("TECHNICAL_PATTERN_TOL_PCT", "3"))
 
     def _pivot_kwargs(self) -> dict[str, float]:
         return {
@@ -53,6 +62,7 @@ class TechnicalSignalsService:
             "pivot_atr_mult": self.pivot_atr_mult,
             "pivot_min_pct": self.pivot_min_pct,
             "pivot_max_pct": self.pivot_max_pct,
+            "pattern_tol_pct": self.pattern_tol_pct if self.detect_patterns else 0.0,
         }
 
     def _history(self, symbol: str) -> "pd.DataFrame | None":
@@ -102,6 +112,7 @@ class TechnicalSignalsService:
         pivot_atr_mult: float = 2.5,
         pivot_min_pct: float = 4.0,
         pivot_max_pct: float = 18.0,
+        pattern_tol_pct: float = 3.0,
     ) -> dict[str, Any] | None:
         if df is None or df.empty or "Close" not in df:
             return None
@@ -136,7 +147,15 @@ class TechnicalSignalsService:
         threshold = pivot_pct if pivot_pct > 0 else _adaptive_threshold(
             atr_pct, pivot_atr_mult, pivot_min_pct, pivot_max_pct
         )
-        signals["swing"] = _swing_block(close, price, threshold)
+        prices = [float(v) for v in close.to_numpy()]
+        dates = [d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d) for d in close.index]
+        pivots = _zigzag(prices, threshold)
+        signals["swing"] = _swing_block(close, price, threshold, pivots=pivots)
+        signals["patterns"] = (
+            _detect_patterns(prices, dates, pivots, price, pattern_tol_pct)
+            if pattern_tol_pct > 0
+            else []
+        )
         return signals
 
     @staticmethod
@@ -149,6 +168,7 @@ class TechnicalSignalsService:
         pivot_atr_mult: float = 2.5,
         pivot_min_pct: float = 4.0,
         pivot_max_pct: float = 18.0,
+        pattern_tol_pct: float = 3.0,
         max_waves: int = 6,
     ) -> dict[str, Any] | None:
         """Build Inspector-shaped trend waves + price timeline + Fibonacci from
@@ -214,7 +234,7 @@ class TechnicalSignalsService:
             "points": points,
         }
 
-        swing = _swing_block(close, price, threshold)
+        swing = _swing_block(close, price, threshold, pivots=pivots)
         fib = None
         if swing:
             fib = {
@@ -226,7 +246,18 @@ class TechnicalSignalsService:
                 "anchorTrend": f"Computed swing · {swing['structure']}",
                 "source": "computed",
             }
-        return {"trendWaves": waves, "chartTimeline": timeline, "fib": fib, "swing": swing}
+        patterns = (
+            _detect_patterns(prices, dates, pivots, price, pattern_tol_pct)
+            if pattern_tol_pct > 0
+            else []
+        )
+        return {
+            "trendWaves": waves,
+            "chartTimeline": timeline,
+            "fib": fib,
+            "swing": swing,
+            "patterns": patterns,
+        }
 
 
 # --------------------------------------------------------------------------- #
@@ -447,10 +478,16 @@ def _zigzag(prices: list[float], pct: float) -> list[tuple[int, str]]:
     return pivots
 
 
-def _swing_block(close: pd.Series, price: float, threshold: float) -> dict[str, Any] | None:
+def _swing_block(
+    close: pd.Series,
+    price: float,
+    threshold: float,
+    pivots: list[tuple[int, str]] | None = None,
+) -> dict[str, Any] | None:
     prices = [float(v) for v in close.to_numpy()]
     dates = [d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d) for d in close.index]
-    pivots = _zigzag(prices, threshold)
+    if pivots is None:
+        pivots = _zigzag(prices, threshold)
     if len(pivots) < 2:
         return None
 
@@ -521,3 +558,227 @@ def _structure(
     if lower_highs and not lower_lows:
         return "falling highs (potential distribution)"
     return "range / mixed"
+
+
+# --------------------------------------------------------------------------- #
+# Tier 3 — named chart-pattern detection over the pivot sequence.
+#
+# Deterministic, geometry-based matchers on the same adaptive zig-zag pivots the
+# trend/swing logic uses. Each match carries a confidence and key levels so the
+# LLM and rules engine can weigh it as ONE probabilistic input, never gospel —
+# classic patterns are subjective and have mixed predictive power.
+# --------------------------------------------------------------------------- #
+def _similar(a: float, b: float, tol: float) -> bool:
+    base = (abs(a) + abs(b)) / 2
+    return base > 0 and abs(a - b) / base <= tol
+
+
+def _closeness(a: float, b: float) -> float:
+    """1.0 when identical, decaying toward 0 as they diverge."""
+    base = (abs(a) + abs(b)) / 2
+    if base <= 0:
+        return 0.0
+    return max(0.0, 1 - abs(a - b) / base)
+
+
+def _pattern_conf(base: float, closeness: float) -> float:
+    return round(min(0.95, base + 0.35 * closeness), 2)
+
+
+def _points(
+    w: list[tuple[int, str, float]], dates: list[str], roles: list[str] | None = None
+) -> list[dict[str, Any]]:
+    """The pivot vertices that define a pattern, for drawing it on the chart."""
+    out = []
+    for k, (i, _t, p) in enumerate(w):
+        role = roles[k] if roles and k < len(roles) else _t
+        out.append({"date": dates[i], "price": round(p, 2), "role": role})
+    return out
+
+
+def _pattern(
+    name: str,
+    ptype: str,
+    confidence: float,
+    status: str,
+    start: str,
+    end: str,
+    key_label: str,
+    key_price: float,
+    target: float | None,
+    price: float,
+    points: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    tgt = f", measured target ≈ ${target}" if target else ""
+    return {
+        "name": name,
+        "type": ptype,
+        "confidence": confidence,
+        "status": status,
+        "startDate": start,
+        "endDate": end,
+        "keyLevel": {"label": key_label, "price": key_price},
+        "target": target,
+        "points": points or [],
+        "summary": f"{name} ({ptype}, {status}); {key_label} ${key_price}{tgt}",
+    }
+
+
+def _flat(vals: list[float], tol: float) -> bool:
+    avg = sum(vals) / len(vals)
+    return avg > 0 and (max(vals) - min(vals)) / avg <= tol
+
+
+def _strictly_rising(vals: list[float]) -> bool:
+    return len(vals) >= 2 and all(b > a for a, b in zip(vals, vals[1:]))
+
+
+def _strictly_falling(vals: list[float]) -> bool:
+    return len(vals) >= 2 and all(b < a for a, b in zip(vals, vals[1:]))
+
+
+def _detect_triangle(
+    window: list[tuple[int, str, float]], price: float, tol: float, dates: list[str]
+) -> dict[str, Any] | None:
+    highs = [p for _, t, p in window if t == "high"]
+    lows = [p for _, t, p in window if t == "low"]
+    if len(highs) < 2 or len(lows) < 2:
+        return None
+    flat_high = _flat(highs, tol)
+    flat_low = _flat(lows, tol)
+    rising_low = _strictly_rising(lows) and lows[-1] > lows[0] * (1 + tol)
+    falling_high = _strictly_falling(highs) and highs[-1] < highs[0] * (1 - tol)
+    start, end = dates[window[0][0]], dates[window[-1][0]]
+
+    # Triangles need the flat side touched >=3 times so they aren't confused with
+    # a 2-touch double top/bottom.
+    pts = _points(window, dates)
+    if flat_high and rising_low and len(highs) >= 3:
+        return _pattern(
+            "Ascending Triangle", "bullish", _pattern_conf(0.5, 1 - (max(highs) - min(highs)) / max(highs)),
+            "confirmed" if price > max(highs) else "forming", start, end,
+            "resistance", round(sum(highs) / len(highs), 2), None, price, pts,
+        )
+    if flat_low and falling_high and len(lows) >= 3:
+        return _pattern(
+            "Descending Triangle", "bearish", _pattern_conf(0.5, 1 - (max(lows) - min(lows)) / max(lows)),
+            "confirmed" if price < min(lows) else "forming", start, end,
+            "support", round(sum(lows) / len(lows), 2), None, price, pts,
+        )
+    if falling_high and rising_low and len(highs) >= 2 and len(lows) >= 2:
+        return _pattern(
+            "Symmetrical Triangle", "neutral", 0.5, "forming", start, end,
+            "apex", round((highs[-1] + lows[-1]) / 2, 2), None, price, pts,
+        )
+    return None
+
+
+def _windows(
+    pts: list[tuple[int, str, float]], length: int, lookback: int
+) -> list[list[tuple[int, str, float]]]:
+    """Sub-windows of ``length`` within the last ``lookback`` pivots, most recent
+    first. The zig-zag always appends a tentative trailing pivot, so a completed
+    pattern usually sits one or two pivots back from the tail — scanning recent
+    windows (not just ``pts[-length:]``) is what makes detection reliable."""
+    n = len(pts)
+    if n < length:
+        return []
+    max_start = n - length
+    min_start = max(0, n - lookback)
+    return [pts[s:s + length] for s in range(max_start, min_start - 1, -1)]
+
+
+def _match_hs(
+    w: list[tuple[int, str, float]], price: float, tol: float, dates: list[str]
+) -> dict[str, Any] | None:
+    types = [t for _, t, _ in w]
+    p0, p1, p2, p3, p4 = (p for _, _, p in w)
+    if types == ["high", "low", "high", "low", "high"]:
+        ls, t1, head, t2, rs = p0, p1, p2, p3, p4
+        if head > ls and head > rs and _similar(ls, rs, tol * 2):
+            neckline = (t1 + t2) / 2
+            roles = ["Left Shoulder", "Trough", "Head", "Trough", "Right Shoulder"]
+            return _pattern(
+                "Head & Shoulders", "bearish", _pattern_conf(0.6, _closeness(ls, rs)),
+                "confirmed" if price < neckline else "forming",
+                dates[w[0][0]], dates[w[-1][0]], "neckline", round(neckline, 2),
+                round(neckline - (head - neckline), 2), price, _points(w, dates, roles),
+            )
+    elif types == ["low", "high", "low", "high", "low"]:
+        ls, t1, head, t2, rs = p0, p1, p2, p3, p4
+        if head < ls and head < rs and _similar(ls, rs, tol * 2):
+            neckline = (t1 + t2) / 2
+            roles = ["Left Shoulder", "Peak", "Head", "Peak", "Right Shoulder"]
+            return _pattern(
+                "Inverse Head & Shoulders", "bullish", _pattern_conf(0.6, _closeness(ls, rs)),
+                "confirmed" if price > neckline else "forming",
+                dates[w[0][0]], dates[w[-1][0]], "neckline", round(neckline, 2),
+                round(neckline + (neckline - head), 2), price, _points(w, dates, roles),
+            )
+    return None
+
+
+def _match_double(
+    w: list[tuple[int, str, float]], price: float, tol: float, dates: list[str]
+) -> dict[str, Any] | None:
+    types = [t for _, t, _ in w]
+    a, mid, b = (p for _, _, p in w)
+    if types == ["high", "low", "high"] and _similar(a, b, tol):
+        return _pattern(
+            "Double Top", "bearish", _pattern_conf(0.55, _closeness(a, b)),
+            "confirmed" if price < mid else "forming",
+            dates[w[0][0]], dates[w[-1][0]], "neckline", round(mid, 2),
+            round(mid - (max(a, b) - mid), 2), price,
+            _points(w, dates, ["Top", "Neckline", "Top"]),
+        )
+    if types == ["low", "high", "low"] and _similar(a, b, tol):
+        return _pattern(
+            "Double Bottom", "bullish", _pattern_conf(0.55, _closeness(a, b)),
+            "confirmed" if price > mid else "forming",
+            dates[w[0][0]], dates[w[-1][0]], "neckline", round(mid, 2),
+            round(mid + (mid - min(a, b)), 2), price,
+            _points(w, dates, ["Bottom", "Neckline", "Bottom"]),
+        )
+    return None
+
+
+def _detect_patterns(
+    prices: list[float],
+    dates: list[str],
+    pivots: list[tuple[int, str]],
+    price: float,
+    tol_pct: float = 3.0,
+    max_patterns: int = 3,
+) -> list[dict[str, Any]]:
+    if len(pivots) < 3 or tol_pct <= 0:
+        return []
+    tol = max(0.005, tol_pct / 100.0)
+    pts = [(i, t, prices[i]) for i, t in pivots]
+
+    # Return a single, non-contradictory best read of the current structure
+    # rather than several overlapping labels on the same pivots (a Head &
+    # Shoulders trivially contains an inner "double bottom"; an ascending
+    # triangle's flat highs look like a "double top"). Priority by structural
+    # completeness: H&S (5 pivots) > triangle (4) vs double (3) disambiguated.
+
+    # 1) Head & Shoulders — strongest, uses 5 pivots.
+    for w in _windows(pts, 5, lookback=6):
+        hs = _match_hs(w, price, tol, dates)
+        if hs:
+            return [hs]
+
+    # 2) Triangle (>=3 flat-side touches) vs Double (3 pivots).
+    triangle = _detect_triangle(pts[-7:], price, tol, dates)
+    double = None
+    for w in _windows(pts, 3, lookback=5):
+        double = _match_double(w, price, tol, dates)
+        if double:
+            break
+
+    # A triangle explains the flat side better than a double would, so it wins
+    # when both fire on the same swing.
+    if triangle:
+        return [triangle]
+    if double:
+        return [double]
+    return []

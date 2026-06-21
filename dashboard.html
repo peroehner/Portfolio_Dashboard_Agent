@@ -199,8 +199,21 @@
       background: var(--panel-2);
       border-color: var(--border);
     }
-    .symbol-item strong { display: block; }
+    .symbol-item strong { display: flex; align-items: center; gap: 0.4rem; }
     .symbol-item span { color: var(--muted); font-size: 0.85rem; }
+    .sym-pattern {
+      font-size: 0.68rem;
+      font-weight: 600;
+      line-height: 1;
+      padding: 0.12rem 0.35rem;
+      border-radius: 999px;
+      border: 1px solid currentColor;
+      white-space: nowrap;
+      letter-spacing: 0.02em;
+    }
+    .sym-pattern.is-bullish { color: #22c55e; }
+    .sym-pattern.is-bearish { color: #ef4444; }
+    .sym-pattern.is-neutral { color: #f59e0b; }
     #view-portfolio .panel-detail,
     #view-inspector .panel-detail {
       position: sticky;
@@ -972,6 +985,55 @@
     }
     .fib-level-price {
       font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .pattern-panel {
+      margin-top: 0.75rem;
+      padding: 0.65rem 0.75rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(96, 165, 250, 0.06);
+    }
+    .pattern-panel h4 {
+      margin: 0 0 0.45rem;
+      font-size: 0.78rem;
+      color: #93c5fd;
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .pattern-caveat {
+      font-size: 0.66rem;
+      font-weight: 400;
+      color: var(--muted);
+    }
+    .pattern-list {
+      display: grid;
+      gap: 0.28rem;
+    }
+    .pattern-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      font-size: 0.76rem;
+      flex-wrap: wrap;
+    }
+    .pattern-name {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-weight: 600;
+    }
+    .pattern-dot {
+      width: 0.65rem;
+      height: 0.65rem;
+      border-radius: 999px;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+    .pattern-meta {
+      color: var(--muted);
       font-variant-numeric: tabular-nums;
     }
     .fib-toggle {
@@ -2234,7 +2296,32 @@
       form.date.value = todayISO();
     }
 
+    const PATTERN_ABBREV = {
+      "Head & Shoulders": "H&S",
+      "Inverse Head & Shoulders": "iH&S",
+      "Double Top": "DT",
+      "Double Bottom": "DB",
+      "Ascending Triangle": "Asc△",
+      "Descending Triangle": "Desc△",
+      "Symmetrical Triangle": "Sym△",
+    };
+    let symbolPatterns = {};
+    let symbolPatternsFetched = false;
+    const symbolNavRegistry = {};
+
+    function patternBadgeHtml(symbol) {
+      const p = symbolPatterns[symbol];
+      if (!p || !p.name) return "";
+      const abbrev = PATTERN_ABBREV[p.name] || p.name;
+      const cls =
+        p.type === "Bullish" ? "is-bullish" : p.type === "Bearish" ? "is-bearish" : "is-neutral";
+      const conf = p.confidence != null ? ` · ${Math.round(p.confidence * 100)}%` : "";
+      const title = `${p.name} (${p.type || "?"}, ${p.status || "?"}${conf})`;
+      return `<span class="sym-pattern ${cls}" title="${title}">◆ ${abbrev}</span>`;
+    }
+
     function renderSymbolNavList(listId, symbols, onSelect) {
+      symbolNavRegistry[listId] = { symbols, onSelect };
       const list = document.getElementById(listId);
       if (!list) return;
       list.innerHTML = "";
@@ -2242,19 +2329,42 @@
         const li = document.createElement("li");
         li.className = "symbol-item" + (item.symbol === selectedSymbol ? " active" : "");
         li.onclick = () => onSelect(item.symbol);
-        li.innerHTML = `<strong>${item.symbol}</strong><span>${formatMoney(item.currentPrice)} · PT ${formatMoney(item.targetPrice)} · 1YT ${formatMoney(item.analystTarget1y)}</span>`;
+        li.innerHTML = `<strong>${item.symbol}${patternBadgeHtml(item.symbol)}</strong><span>${formatMoney(item.currentPrice)} · PT ${formatMoney(item.targetPrice)} · 1YT ${formatMoney(item.analystTarget1y)}</span>`;
         list.appendChild(li);
       });
       const active = list.querySelector(".symbol-item.active");
       if (active) active.scrollIntoView({ block: "nearest" });
     }
 
+    function rerenderSymbolNavLists() {
+      Object.entries(symbolNavRegistry).forEach(([listId, { symbols, onSelect }]) => {
+        renderSymbolNavList(listId, symbols, onSelect);
+      });
+    }
+
+    async function loadSymbolPatterns(force = false) {
+      if (symbolPatternsFetched && !force) {
+        rerenderSymbolNavLists();
+        return;
+      }
+      try {
+        const data = await api("/patterns");
+        symbolPatterns = data.patterns || {};
+        symbolPatternsFetched = true;
+        rerenderSymbolNavLists();
+      } catch (_) {
+        /* badges are best-effort */
+      }
+    }
+
     function renderSymbolList(symbols) {
       renderSymbolNavList("symbolList", symbols, selectSymbol);
+      loadSymbolPatterns();
     }
 
     function renderInspectorSymbolList(symbols) {
       renderSymbolNavList("inspectorSymbolList", symbols, loadInspector);
+      loadSymbolPatterns();
     }
 
     function setDetailSymbolHead(symbol, quote = null) {
@@ -2357,6 +2467,7 @@
 
     async function refreshAllViews(importData, mode) {
       invalidateViewCaches();
+      symbolPatternsFetched = false;
       const importedSymbols = importData.symbols || [];
       if (mode === "replace") {
         selectedSymbol = importedSymbols[0]?.symbol || null;
@@ -2915,6 +3026,7 @@
         try {
           const data = await api("/sync", { method: "POST" });
           invalidateViewCaches();
+          symbolPatternsFetched = false;
           await loadPortfolio();
           setStatus(`Synced ${data.sync.updated} symbols. ${data.newAlerts.length} new alerts.`, "success");
         } catch (error) {
@@ -4256,6 +4368,31 @@
           ${level.shortLabel || level.label}
         </label>
       `).join("");
+      const chartPatterns = data.chartPatterns || [];
+      const patternColor = (type) =>
+        type === "bullish" ? "#22c55e" : type === "bearish" ? "#ef4444" : "#9aa8bc";
+      const patternsHtml = (!isHoldingsPreview && chartPatterns.length)
+        ? `<div class="pattern-panel">
+            <h4>Chart Patterns <span class="pattern-caveat">probabilistic — one input among many</span></h4>
+            <div class="pattern-list">
+              ${chartPatterns.map((p) => {
+                const color = patternColor(p.type);
+                const conf = (typeof p.confidence === "number") ? `${Math.round(p.confidence * 100)}%` : "";
+                const key = p.keyLevel || {};
+                const target = p.target != null ? ` · target ≈ ${formatMoney(p.target)}` : "";
+                const keyTxt = key.price != null ? ` · ${key.label} ${formatMoney(key.price)}` : "";
+                return `
+                  <div class="pattern-row">
+                    <span class="pattern-name" style="color:${color};">
+                      <span class="pattern-dot" style="background:${color};"></span>
+                      ${escapeHtml(p.name)}
+                    </span>
+                    <span class="pattern-meta">${escapeHtml(p.status || "")}${conf ? ` · ${conf}` : ""}${keyTxt}${target}</span>
+                  </div>`;
+              }).join("")}
+            </div>
+          </div>`
+        : "";
       const stanceClass = String(advisory.stance || "neutral").toLowerCase();
       const setupHint = data._inspectorNeedsServerRefresh
         ? `<div class="alert" style="margin-bottom:0.85rem;">Inspector analytics are partial. Restart the server from <code>Portfolio_Dashboard_Agent</code> with <code>python3 main.py</code>, then use <strong>Sync Prices</strong> so Fib levels, valuation metrics, and trend waves can load.</div>`
@@ -4313,6 +4450,7 @@
                   </div>
                 </div>`
               : ""}
+            ${patternsHtml}
             <div class="inspector-chart-wrap" style="${chartMode === "timeline" && canSwitchChart ? "height:320px;" : ""}">
               <canvas id="inspectorChart-${panelId}" aria-label="Fibonacci and trend timeline chart for ${data.symbol}"></canvas>
             </div>
@@ -4394,17 +4532,21 @@
       return palette[index % palette.length];
     }
 
-    function renderInspectorTrendLegend(panelId, waves) {
+    function renderInspectorTrendLegend(panelId, waves, pattern = null) {
       const legend = document.getElementById(`inspectorTrendLegend-${panelId}`);
       if (!legend) return;
-      legend.innerHTML = [
+      const items = [
         `<span><span class="legend-line" style="color:#c4b5fd;"></span>Window price</span>`,
         ...waves.map((wave, index) => {
           const color = trendChartColor(wave, index);
           const arrow = wave.direction === "down" ? "↓" : "↑";
           return `<span><span class="legend-line" style="color:${color};"></span>${wave.label} ${arrow} ${wave.legPattern || wave.type || ""}</span>`;
         }),
-      ].join("");
+      ];
+      if (pattern && (pattern.points || []).length >= 2) {
+        items.push(`<span><span class="legend-line" style="color:#f59e0b;"></span>◆ ${escapeHtml(pattern.name)} (${escapeHtml(pattern.status || "")})</span>`);
+      }
+      legend.innerHTML = items.join("");
     }
 
     function renderInspectorTimelineChart(canvas, panelId, data, timeline, waves, blueprint) {
@@ -4459,6 +4601,56 @@
         });
       });
 
+      const pattern = (data.chartPatterns || [])[0];
+      if (pattern && (pattern.points || []).length >= 2) {
+        const pColor = "#f59e0b";
+        const patternPts = pattern.points.map((pt) => ({ x: pt.date, y: pt.price, role: pt.role }));
+        datasets.push({
+          label: pattern.name,
+          data: patternPts,
+          borderColor: pColor,
+          backgroundColor: pColor,
+          pointRadius: 7,
+          pointHoverRadius: 9,
+          pointStyle: "rectRot",
+          pointBackgroundColor: pColor,
+          borderWidth: 2.5,
+          borderDash: [2, 3],
+          fill: false,
+          tension: 0,
+          order: 0,
+          _patternKey: "pattern",
+        });
+        const firstX = patternPts[0].x;
+        const lastX = patternPts[patternPts.length - 1].x;
+        if (pattern.keyLevel && pattern.keyLevel.price != null) {
+          datasets.push({
+            label: pattern.keyLevel.label || "neckline",
+            data: [{ x: firstX, y: pattern.keyLevel.price }, { x: extents.max, y: pattern.keyLevel.price }],
+            borderColor: pColor,
+            borderDash: [8, 4],
+            pointRadius: 0,
+            borderWidth: 1.5,
+            fill: false,
+            order: 2,
+            _patternKey: "pattern",
+          });
+        }
+        if (pattern.target != null) {
+          datasets.push({
+            label: "target",
+            data: [{ x: lastX, y: pattern.target }, { x: extents.max, y: pattern.target }],
+            borderColor: pColor,
+            borderDash: [2, 5],
+            pointRadius: 0,
+            borderWidth: 1.5,
+            fill: false,
+            order: 2,
+            _patternKey: "pattern",
+          });
+        }
+      }
+
       const fibLevels = enrichImportedFibLevels(data.importedFibLevels || []);
       const fibSource = fibLevels.length
         ? fibLevels
@@ -4508,7 +4700,8 @@
                 label(context) {
                   const raw = context.raw;
                   if (raw?.y == null) return `${context.dataset.label}: —`;
-                  return `${context.dataset.label}: ${formatMoney(raw.y)}`;
+                  const role = raw.role ? ` (${raw.role})` : "";
+                  return `${context.dataset.label}${role}: ${formatMoney(raw.y)}`;
                 },
               },
             },
@@ -4530,7 +4723,7 @@
           },
         },
       });
-      renderInspectorTrendLegend(panelId, waves);
+      renderInspectorTrendLegend(panelId, waves, pattern);
       return true;
     }
 
