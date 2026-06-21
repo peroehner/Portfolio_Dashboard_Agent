@@ -98,12 +98,14 @@ class AssessmentService:
         computed: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}
         first_error: Exception | None = None
         workers = min(self.assess_workers, len(symbol_list))
-        # Worker threads must see the same current user as this request; copy the
-        # context so get_current_user_id() resolves correctly inside the pool.
-        ctx = contextvars.copy_context()
+        # Worker threads must see the same current user as this request. A single
+        # Context can only be entered by one thread at a time, so each task gets
+        # its own copy of the current context (captured here on the request
+        # thread) — sharing one ctx.run across the pool raises "cannot enter
+        # context: ... is already entered".
         with ThreadPoolExecutor(max_workers=workers) as executor:
             future_map = {
-                executor.submit(ctx.run, self._compute_assessment, sym): sym
+                executor.submit(contextvars.copy_context().run, self._compute_assessment, sym): sym
                 for sym in symbol_list
             }
             for future, sym in future_map.items():
