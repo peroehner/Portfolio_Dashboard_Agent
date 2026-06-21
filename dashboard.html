@@ -279,6 +279,21 @@
     @media (max-width: 720px) {
       .target-fields-grid { grid-template-columns: 1fr; }
     }
+    .target-position-group {
+      margin-bottom: 0.85rem;
+      padding-bottom: 0.85rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .target-group-label {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      margin: 0 0 0.45rem;
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
     .target-field label {
       display: flex;
       align-items: baseline;
@@ -1692,6 +1707,7 @@
     <section class="panel panel-detail">
       <h2 class="panel-symbol-head" id="detailTitleHead">
         <span class="symbol-head-ticker" id="detailSymbol">Select a symbol</span>
+        <span class="symbol-head-quote" id="detailSymbolQuote" hidden></span>
       </h2>
       <div id="detailEmpty" class="empty">Choose a symbol to view thresholds, notes, and recommendations.</div>
       <div id="detailPanel" hidden>
@@ -1708,11 +1724,24 @@
             </div>
           </div>
           <form id="symbolForm">
-            <div class="target-fields-grid">
-              <div class="target-field">
-                <label>Current Price <span class="field-hint">synced</span></label>
-                <input name="currentPrice" type="text" inputmode="decimal" autocomplete="off">
+            <div class="target-position-group">
+              <div class="target-group-label">Your position <span class="field-hint">0 shares = watch only</span></div>
+              <div class="target-fields-grid">
+                <div class="target-field">
+                  <label>Shares</label>
+                  <input name="shares" type="text" inputmode="decimal" autocomplete="off" placeholder="Amount held">
+                </div>
+                <div class="target-field">
+                  <label>Avg Cost <span class="field-hint">USD / share</span></label>
+                  <input name="avgCost" type="text" inputmode="decimal" autocomplete="off" placeholder="Cost per share">
+                </div>
+                <div class="target-field">
+                  <label>Purchase Date</label>
+                  <input name="purchaseDate" type="date" autocomplete="off">
+                </div>
               </div>
+            </div>
+            <div class="target-fields-grid">
               <div class="target-field">
                 <label>Personal Target</label>
                 <input name="targetPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="Your price target">
@@ -1735,6 +1764,7 @@
             <div class="target-actions" style="margin-top:0.75rem;">
               <button type="submit">Save Settings</button>
               <button type="button" class="success" onclick="assessSelected()">Assess Symbol</button>
+              <button type="button" class="btn-danger" style="margin-left:auto;" onclick="deleteSelectedSymbol()">Delete Symbol</button>
             </div>
           </form>
         </section>
@@ -1865,6 +1895,7 @@
       fib: { data: null, fetchedAt: 0 },
     };
     let selectedSymbol = null;
+    let targetCurrentPrice = null;
     let currentView = "overview";
     let allocationChart = null;
     const ALLOCATION_COLORS = ["#3b82f6", "#22c55e", "#60a5fa", "#f97316", "#a78bfa", "#64748b"];
@@ -2175,7 +2206,7 @@
         const li = document.createElement("li");
         li.className = "symbol-item" + (item.symbol === selectedSymbol ? " active" : "");
         li.onclick = () => onSelect(item.symbol);
-        li.innerHTML = `<strong>${item.symbol}</strong><span>${formatMoney(item.currentPrice)} · tgt ${formatMoney(item.targetPrice)} · 1YT ${formatMoney(item.analystTarget1y)}</span>`;
+        li.innerHTML = `<strong>${item.symbol}</strong><span>${formatMoney(item.currentPrice)} · PT ${formatMoney(item.targetPrice)} · 1YT ${formatMoney(item.analystTarget1y)}</span>`;
         list.appendChild(li);
       });
       const active = list.querySelector(".symbol-item.active");
@@ -2190,18 +2221,35 @@
       renderSymbolNavList("inspectorSymbolList", symbols, loadInspector);
     }
 
-    function setDetailSymbolHead(symbol) {
+    function setDetailSymbolHead(symbol, quote = null) {
       const el = document.getElementById("detailSymbol");
       const head = document.getElementById("detailTitleHead");
+      const quoteEl = document.getElementById("detailSymbolQuote");
       if (!el) return;
       if (symbol) {
         el.textContent = symbol;
         el.classList.add("is-active");
         head?.classList.add("has-symbol");
+        if (quoteEl) {
+          const price = quote?.currentPrice;
+          const dayPct = quote?.dayChangePct;
+          if (price != null) {
+            const dayHtml = dayPct != null ? ` <span class="quote-day">${formatDayChangePercent(dayPct)}</span>` : "";
+            quoteEl.innerHTML = `${formatMoney(price)}${dayHtml}`;
+            quoteEl.hidden = false;
+          } else {
+            quoteEl.innerHTML = "";
+            quoteEl.hidden = true;
+          }
+        }
       } else {
         el.textContent = "Select a symbol";
         el.classList.remove("is-active");
         head?.classList.remove("has-symbol");
+        if (quoteEl) {
+          quoteEl.innerHTML = "";
+          quoteEl.hidden = true;
+        }
       }
     }
 
@@ -2467,12 +2515,16 @@
         api(`/symbols/${symbol}/inspector`).catch(() => null),
       ]);
       const inspectorData = inspector ? normalizeInspectorData(inspector) : null;
-      setDetailSymbolHead(symbol);
+      targetCurrentPrice = item.currentPrice ?? null;
+      setDetailSymbolHead(symbol, item);
       document.getElementById("detailEmpty").hidden = true;
       document.getElementById("detailPanel").hidden = false;
 
       const form = document.getElementById("symbolForm");
-      form.currentPrice.value = formatPriceInput(item.currentPrice);
+      const holding = inspectorData?.holding || null;
+      form.shares.value = holding?.quantity != null && holding.quantity !== 0 ? String(holding.quantity) : "";
+      form.avgCost.value = formatPriceInput(holding?.costBasis);
+      form.purchaseDate.value = (holding?.purchaseDate || "").slice(0, 10);
       form.targetPrice.value = formatPriceInput(item.targetPrice);
       form.buyBelow.value = formatPriceInput(item.buyBelow);
       form.sellAbove.value = formatPriceInput(item.sellAbove);
@@ -2579,6 +2631,7 @@
             <button type="button" class="secondary" onclick="synthesizeNote(${note.id}, ${synthesized ? "true" : "false"})">
               ${synthesized ? "Re-synthesize" : "Synthesize"}
             </button>
+            <button type="button" class="btn-danger" onclick="deleteTargetNote(${note.id})">Delete</button>
           </div>
         </div>`;
     }
@@ -2599,6 +2652,19 @@
     function cancelEditNote() {
       editingNoteId = null;
       renderTargetNotesList(currentNotes);
+    }
+
+    async function deleteTargetNote(noteId) {
+      if (!selectedSymbol) return;
+      if (!confirm("Delete this note?")) return;
+      try {
+        await api(`/symbols/${selectedSymbol}/notes/${noteId}`, { method: "DELETE" });
+        if (editingNoteId === noteId) editingNoteId = null;
+        await selectSymbol(selectedSymbol);
+        setStatus("Note deleted.");
+      } catch (error) {
+        setStatus(error.message);
+      }
     }
 
     async function saveNote(noteId) {
@@ -2739,12 +2805,26 @@
         await api(`/symbols/${selectedSymbol}`, {
           method: "PUT",
           body: JSON.stringify({
-            currentPrice: parsePrice(form.currentPrice.value),
             targetPrice: parsePrice(form.targetPrice.value),
             buyBelow: parsePrice(form.buyBelow.value),
             sellAbove: parsePrice(form.sellAbove.value),
           }),
         });
+        const shares = parsePrice(form.shares.value);
+        if (shares && shares > 0) {
+          await api(`/holdings/${selectedSymbol}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              quantity: shares,
+              costBasis: parsePrice(form.avgCost.value),
+              purchaseDate: form.purchaseDate.value || null,
+            }),
+          });
+        } else {
+          // 0 / empty shares = watch only: drop any existing position, keep the symbol.
+          await api(`/holdings/${selectedSymbol}`, { method: "DELETE" }).catch(() => {});
+        }
+        invalidateViewCaches();
         await selectSymbol(selectedSymbol);
         setStatus(`Saved settings for ${selectedSymbol}.`);
       } catch (error) {
@@ -2772,6 +2852,27 @@
         setStatus(error.message);
       }
     };
+
+    async function deleteSelectedSymbol() {
+      if (!selectedSymbol) return;
+      const symbol = selectedSymbol;
+      if (!confirm(`Delete ${symbol} from your portfolio? This removes its notes, assessments, alerts and position. Other users are not affected.`)) {
+        return;
+      }
+      try {
+        await api(`/symbols/${symbol}`, { method: "DELETE" });
+        selectedSymbol = null;
+        targetCurrentPrice = null;
+        invalidateViewCaches();
+        await loadPortfolio();
+        await loadOverview();
+        await loadHoldings();
+        await loadInspectorOptions();
+        setStatus(`Deleted ${symbol}.`, "success");
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
 
     async function syncPortfolio() {
       await withLoading("btnSync", async () => {
@@ -3973,6 +4074,7 @@
         data.valuation.trailingPe == null
         && data.valuation.forwardPe == null
         && data.trendWaveSource !== "import"
+        && data.trendWaveSource !== "computed"
       );
       if (!data.importedFibLevels && data.technicalSnapshot?.fibLevels) {
         data.importedFibLevels = Object.entries(data.technicalSnapshot.fibLevels).map(([label, price]) => ({
@@ -4094,11 +4196,12 @@
       const blueprint = data.fibBlueprint;
       const importedFibLevels = enrichImportedFibLevels(data.importedFibLevels || []);
       const trendSource = data.trendWaveSource || (waves.length ? "import" : "none");
+      const hasTrendWaves = (trendSource === "import" || trendSource === "computed") && waves.length > 0;
       const hasTimeline = (data.chartTimeline?.points || []).length > 0;
       const chartMode = getInspectorChartMode(panelId, data);
       const canSwitchChart = isHoldingsPreview
         ? hasTimeline
-        : trendSource === "import" && waves.length > 0;
+        : hasTrendWaves;
       const fibToggleLevels = importedFibLevels.length
         ? importedFibLevels
         : (blueprint?.levels || []).map((level) => ({
@@ -4183,9 +4286,9 @@
             ${isHoldingsPreview ? "" : `
             <div class="trend-waves-row">
               <details class="trend-waves-details">
-                <summary>Detected Trend Waves${waves.length ? ` (${waves.length})` : ""}${technical.windowStart && technical.windowEnd ? ` · ${technical.windowStart} → ${technical.windowEnd}` : ""}</summary>
+                <summary>Detected Trend Waves${waves.length ? ` (${waves.length})` : ""}${technical.windowStart && technical.windowEnd ? ` · ${technical.windowStart} → ${technical.windowEnd}` : (data.chartTimeline?.windowStart && data.chartTimeline?.windowEnd ? ` · ${data.chartTimeline.windowStart} → ${data.chartTimeline.windowEnd}` : "")}</summary>
                 <div class="trend-waves-meta">
-                  <span class="trend-source-note">${trendSource === "import" ? "From TA import" : "No TA import on file — re-import export"}</span>
+                  <span class="trend-source-note">${trendSource === "import" ? "From TA import" : trendSource === "computed" ? "Computed from price history (adaptive swing)" : "No TA import on file — re-import export"}</span>
                 </div>
                 ${waves.length
                   ? `<div class="trend-wave-list">${waves.map((wave) => {
@@ -4469,9 +4572,10 @@
 
     function getInspectorChartMode(panelId, data) {
       const isHoldingsPreview = isHoldingsInspectorPanel(panelId);
-      const hasImportTrends = data.trendWaveSource === "import" && (data.trendWaves || []).length > 0;
+      const hasTrends = (data.trendWaveSource === "import" || data.trendWaveSource === "computed")
+        && (data.trendWaves || []).length > 0;
       const hasTimeline = (data.chartTimeline?.points || []).length > 0;
-      const preferTimeline = isHoldingsPreview ? hasTimeline : hasImportTrends;
+      const preferTimeline = isHoldingsPreview ? hasTimeline : hasTrends;
       if (!inspectorChartMode[panelId]) {
         inspectorChartMode[panelId] = preferTimeline ? "timeline" : "blueprint";
       }
@@ -4508,7 +4612,9 @@
       const mode = getInspectorChartMode(panelId, data);
       const hasTimeline = (timeline?.points || []).length > 0;
       const useTimeline = mode === "timeline" && (
-        isHoldingsPreview ? hasTimeline : data.trendWaveSource === "import" && waves.length > 0
+        isHoldingsPreview
+          ? hasTimeline
+          : (data.trendWaveSource === "import" || data.trendWaveSource === "computed") && waves.length > 0
       );
 
       if (useTimeline) {
@@ -4552,7 +4658,10 @@
               ${latestNote ? renderInspectorNoteItem(latestNote, { panelId }) : `<div class="empty">No notes yet.</div>`}
               ${olderNotes.length ? `
                 <details>
-                  <summary>Older notes (${olderNotes.length})</summary>
+                  <summary style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;">
+                    <span>Older notes (${olderNotes.length})</span>
+                    <button type="button" class="btn-danger" style="font-size:0.72rem;padding:0.15rem 0.5rem;" data-delete-older-notes data-inspector-panel="${panelId}">Delete all</button>
+                  </summary>
                   ${olderNotes.map((n) => renderInspectorNoteItem(n, { history: true, panelId })).join("")}
                 </details>` : ""}
             </div>
@@ -4561,7 +4670,10 @@
               ${latestAssessment ? renderInspectorAssessmentItem(latestAssessment, { panelId }) : `<div class="empty">No assessments yet — run Assess Symbol.</div>`}
               ${olderAssessments.length ? `
                 <details>
-                  <summary>Assessment history (${olderAssessments.length})</summary>
+                  <summary style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;">
+                    <span>Assessment history (${olderAssessments.length})</span>
+                    <button type="button" class="btn-danger" style="font-size:0.72rem;padding:0.15rem 0.5rem;" data-delete-assessment-history data-inspector-panel="${panelId}">Delete all</button>
+                  </summary>
                   ${olderAssessments.map((a) => renderInspectorAssessmentItem(a, { history: true, panelId })).join("")}
                 </details>` : ""}
             </div>
@@ -4589,6 +4701,42 @@
         await api(`/assessments/${assessmentId}?symbol=${encodeURIComponent(selectedSymbol)}`, { method: "DELETE" });
         await loadInspector(selectedSymbol, panelId);
         setStatus(`Assessment deleted for ${selectedSymbol}.`);
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    async function deleteInspectorOlderNotes(panelId) {
+      const data = inspectorChartData[panelId];
+      if (!data) return;
+      const symbol = data.symbol || selectedSymbol;
+      const older = (data.quote?.notes || []).slice(1);
+      if (!older.length) { setStatus("No older notes to delete."); return; }
+      if (!confirm(`Delete all ${older.length} older note(s) and their syntheses? The latest note is kept.`)) return;
+      try {
+        for (const note of older) {
+          await api(`/symbols/${symbol}/notes/${note.id}`, { method: "DELETE" });
+        }
+        await loadInspector(symbol, panelId);
+        setStatus(`Deleted ${older.length} older note(s) for ${symbol}.`);
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    async function deleteInspectorAssessmentHistory(panelId) {
+      const data = inspectorChartData[panelId];
+      if (!data) return;
+      const symbol = data.symbol || selectedSymbol;
+      const older = (data.assessments || []).slice(1);
+      if (!older.length) { setStatus("No assessment history to delete."); return; }
+      if (!confirm(`Delete the entire assessment history (${older.length})? The latest assessment is kept.`)) return;
+      try {
+        for (const item of older) {
+          await api(`/assessments/${item.id}?symbol=${encodeURIComponent(symbol)}`, { method: "DELETE" });
+        }
+        await loadInspector(symbol, panelId);
+        setStatus(`Deleted assessment history (${older.length}) for ${symbol}.`);
       } catch (error) {
         setStatus(error.message, "error");
       }
@@ -4988,6 +5136,20 @@
     }
 
     document.addEventListener("click", (event) => {
+      const bulkNotesBtn = event.target.closest("[data-delete-older-notes]");
+      if (bulkNotesBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteInspectorOlderNotes(bulkNotesBtn.dataset.inspectorPanel || "inspectorPanel");
+        return;
+      }
+      const bulkAssessBtn = event.target.closest("[data-delete-assessment-history]");
+      if (bulkAssessBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteInspectorAssessmentHistory(bulkAssessBtn.dataset.inspectorPanel || "inspectorPanel");
+        return;
+      }
       const deleteNoteBtn = event.target.closest("[data-delete-note]");
       if (deleteNoteBtn) {
         deleteInspectorNote(
@@ -5041,7 +5203,7 @@
       const input = event.target;
       if (input.name !== "targetPrice") return;
       const form = event.target.form;
-      const price = parsePrice(form.currentPrice.value);
+      const price = targetCurrentPrice;
       const target = parsePrice(form.targetPrice.value);
       const targetMeta = document.getElementById("targetUpsideMeta");
       if (!targetMeta || price == null || target == null) return;
@@ -5052,7 +5214,7 @@
 
     document.getElementById("symbolForm").addEventListener("focusout", (event) => {
       const input = event.target;
-      if (!input.name || !["currentPrice", "targetPrice", "buyBelow", "sellAbove"].includes(input.name)) return;
+      if (!input.name || !["avgCost", "targetPrice", "buyBelow", "sellAbove"].includes(input.name)) return;
       const parsed = parsePrice(input.value);
       input.value = parsed == null ? "" : formatPriceInput(parsed);
     });

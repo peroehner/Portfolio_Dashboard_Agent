@@ -401,6 +401,7 @@ class LLMClient:
             factors.append(f"Analyst 1Y target implies {screening['upsidePct']:.1f}% upside.")
 
         factors.extend(self._fundamentals_factors(context.get("fundamentals") or {}, price))
+        factors.extend(self._technical_factors(context.get("technical") or {}))
         news = context.get("recentNews") or []
         if news:
             factors.append(f"{len(news)} recent headline(s) available — see news context.")
@@ -461,6 +462,51 @@ class LLMClient:
 
         return factors
 
+    @staticmethod
+    def _technical_factors(technical: dict[str, Any]) -> list[str]:
+        """Human-readable rule-based factors from computed technical signals."""
+        factors: list[str] = []
+        if not technical:
+            return factors
+
+        trend = technical.get("trend") or {}
+        momentum = technical.get("momentum") or {}
+        swing = technical.get("swing") or {}
+
+        stack = trend.get("maStack")
+        if stack == "bullish":
+            factors.append("Uptrend: price above rising 20/50/200-day averages.")
+        elif stack == "bearish":
+            factors.append("Downtrend: price below falling 20/50/200-day averages.")
+
+        cross = trend.get("crossState")
+        if cross == "golden":
+            factors.append("Golden cross: 50-day crossed above the 200-day average.")
+        elif cross == "death":
+            factors.append("Death cross: 50-day crossed below the 200-day average.")
+
+        rsi = momentum.get("rsi14")
+        zone = momentum.get("rsiZone")
+        if rsi is not None and zone == "overbought":
+            factors.append(f"Momentum stretched: RSI {rsi:.0f} (overbought).")
+        elif rsi is not None and zone == "oversold":
+            factors.append(f"Momentum washed out: RSI {rsi:.0f} (oversold).")
+
+        frames = technical.get("timeframes") or []
+        dirs = {f["window"]: f["direction"] for f in frames if "window" in f}
+        if dirs.get("1Y") == "up" and dirs.get("1M") == "down":
+            factors.append("Short-term pullback within a longer-term uptrend.")
+        elif dirs.get("1Y") == "down" and dirs.get("1M") == "up":
+            factors.append("Short-term bounce within a longer-term downtrend.")
+
+        nearest = swing.get("nearestLevel") or {}
+        if nearest.get("distancePct") is not None and nearest["distancePct"] <= 2:
+            factors.append(
+                f"Price at the {nearest.get('label')} Fibonacci level "
+                f"({swing.get('source', 'computed')} anchor)."
+            )
+        return factors
+
     def _synthesis_system_prompt(self, guidance: str | None = None) -> str:
         prompt = (
             "You are a financial analyst assistant. The user provides a raw personal investment note "
@@ -500,6 +546,14 @@ class LLMClient:
             "cash flow is a risk flag; price far above the 200-day average or near the 52-week "
             "high tempers upside. Treat news headlines as sentiment signals, not facts to act on "
             "alone, and never fabricate news that is not in the provided list. "
+            "When a 'technical' block is present, weigh it for timing and conviction: the "
+            "multi-timeframe trend and returns (reconcile short-term vs long-term, e.g. a "
+            "short-term pullback within a long-term uptrend), the moving-average stack and "
+            "50/200-day cross (golden/death), RSI and MACD momentum (flag overbought/oversold "
+            "extremes), ATR volatility, 52-week range position, and the swing/Fibonacci "
+            "structure. Respect the swing 'source': 'imported' is a user-curated anchor and "
+            "should be preferred over the 'computed' one when both exist. Technical signals "
+            "modulate timing and confidence; fundamentals and notes drive the core thesis. "
             "Respond only with JSON using keys: action, confidence, rationale, factors, noteSynthesis. "
             "action: buy | sell | hold | watch. "
             "confidence: high | medium | low. "

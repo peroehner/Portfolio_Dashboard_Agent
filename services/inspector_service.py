@@ -4,12 +4,13 @@ from typing import Any
 import yfinance as yf
 
 from services.alerts_service import AlertsService
-from services.assessment_service import AssessmentService
+from services.assessment_service import ASSESSMENT_TECHNICALS, AssessmentService
 from services.fib_service import FibService
 from services.holdings_service import HoldingsService
 from services.portfolio_service import PortfolioService
 from services.screening_service import ScreeningService
 from services.technical_service import TechnicalService
+from services.technical_signals_service import TechnicalSignalsService
 
 
 class InspectorService:
@@ -21,6 +22,7 @@ class InspectorService:
         self.fib_service = FibService()
         self.screening_service = ScreeningService()
         self.technical_service = TechnicalService()
+        self.technical_signals_service = TechnicalSignalsService()
 
     def inspect(self, symbol: str) -> dict[str, Any] | None:
         symbol = symbol.upper()
@@ -30,20 +32,36 @@ class InspectorService:
 
         price = symbol_data.get("currentPrice")
         technical_snapshot = self.technical_service.get_snapshot(symbol)
+        imported_trends = bool(technical_snapshot and technical_snapshot.get("trends"))
+
+        # Compute trend waves / timeline / Fibonacci from price history when the
+        # user hasn't imported a hand-anchored TA export for this symbol. The
+        # imported snapshot always wins so curated anchors are preserved.
+        computed_chart = None
+        if ASSESSMENT_TECHNICALS and not imported_trends:
+            computed_chart = self.technical_signals_service.get_chart(symbol)
+
+        # Fib precedence: imported anchor > computed swing > generic 90d lookback.
         fib = self.technical_service.fib_from_snapshot(symbol, technical_snapshot)
+        if not fib and computed_chart:
+            fib = computed_chart.get("fib")
         if not fib:
             fib = self.fib_service.get_levels(symbol)
+
         nearest = (
-            self.fib_service.nearest_level(symbol, price, self.screening_service.fib_proximity_pct)
-            if price is not None
+            self.fib_service.nearest_level(
+                symbol, price, self.screening_service.fib_proximity_pct, fib=fib
+            )
+            if price is not None and fib
             else None
         )
-        technical_advisory = compute_technical_advisory(
-            symbol,
-            price,
-            self.technical_service,
-            self.fib_service,
+        # Keep the advisory consistent with the Fib we actually display.
+        closest = (
+            self.fib_service.closest_level(symbol, price, fib=fib)
+            if price is not None and fib
+            else None
         )
+        technical_advisory = build_technical_advisory(price, fib, closest)
         screen_row = self.screening_service._score_symbol(
             {**symbol_data, "notes": symbol_data.get("notes", [])},
             technical_advisory=technical_advisory,
@@ -69,10 +87,14 @@ class InspectorService:
             "recommendation": recommendation,
             "positionMechanics": self._position_mechanics(holding),
             "valuation": self._valuation_metrics(symbol, symbol_data, screen_row, holding),
-            "trendWaves": self._trend_waves(symbol, technical_snapshot),
-            "trendWaveSource": "import" if technical_snapshot and technical_snapshot.get("trends") else "none",
+            "trendWaves": self._resolve_trend_waves(symbol, technical_snapshot, imported_trends, computed_chart),
+            "trendWaveSource": self._trend_wave_source(imported_trends, computed_chart),
             "importedFibLevels": self.technical_service.fib_levels_list(technical_snapshot),
-            "chartTimeline": self.technical_service.chart_timeline(symbol, technical_snapshot),
+            "chartTimeline": (
+                self.technical_service.chart_timeline(symbol, technical_snapshot)
+                if imported_trends
+                else (computed_chart or {}).get("chartTimeline")
+            ),
             "technicalAdvisory": technical_advisory,
             "chartPoints": self._chart_points(symbol_data, holding, fib),
         }
@@ -161,6 +183,27 @@ class InspectorService:
         technical_snapshot: dict[str, Any] | None,
     ) -> list[dict[str, Any]]:
         return self.technical_service.trend_waves_for_symbol(symbol, technical_snapshot)
+
+    def _resolve_trend_waves(
+        self,
+        symbol: str,
+        technical_snapshot: dict[str, Any] | None,
+        imported_trends: bool,
+        computed_chart: dict[str, Any] | None,
+    ) -> list[dict[str, Any]]:
+        if imported_trends:
+            return self._trend_waves(symbol, technical_snapshot)
+        if computed_chart:
+            return computed_chart.get("trendWaves") or []
+        return []
+
+    @staticmethod
+    def _trend_wave_source(imported_trends: bool, computed_chart: dict[str, Any] | None) -> str:
+        if imported_trends:
+            return "import"
+        if computed_chart and computed_chart.get("trendWaves"):
+            return "computed"
+        return "none"
 
     def _build_fib_blueprint(
         self,
