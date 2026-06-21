@@ -9,9 +9,12 @@ API-first portfolio screening, personal notes, alerts, holdings, and trade asses
 - **Alerts** — buy-below, sell-above, screener upside, Fibonacci proximity
 - **Holdings** — quantity, cost basis, weight %, unrealized gain
 - **Screening** — multi-factor scored views + Fib proximity map
-- **Inspector** — full single-stock context
+- **Inspector** — full single-stock context, chart patterns & trend waves
 - **Assessments** — rules engine (default) or optional OpenAI/Gemini
 - **Import** — JSON/CSV analysis file upload
+
+Learning to read the charts (patterns, `forming`/`confirmed` labels, trend
+waves, technical stance, track record): **[docs/PATTERNS.md](docs/PATTERNS.md)**.
 
 ## Local development
 
