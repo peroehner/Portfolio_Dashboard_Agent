@@ -149,13 +149,6 @@
       color: #ddd6fe;
       text-shadow: 0 0 28px rgba(139, 92, 246, 0.35);
     }
-    .panel-symbol-head .symbol-head-label {
-      font-size: 0.72rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--muted);
-    }
     #view-portfolio,
     #view-inspector {
       --portfolio-chrome: 8.75rem;
@@ -1720,14 +1713,15 @@
       background: rgba(154, 168, 188, 0.08);
       border-color: var(--border);
     }
-    .fib-filter-bar {
+    .fib-filter-bar,
+    .screening-filter-bar {
       display: flex;
       align-items: center;
       gap: 0.5rem;
       flex-wrap: wrap;
       margin-bottom: 0.75rem;
     }
-    .fib-filter-bar .filter-btn.active {
+    .filter-btn.active {
       background: var(--accent);
       color: #fff;
       border-color: var(--accent);
@@ -2035,8 +2029,8 @@
   <nav class="tabs">
     <button class="active" data-view="overview" onclick="showView('overview')">Summary</button>
     <button data-view="holdings" onclick="showView('holdings')">Holdings</button>
-    <button data-view="portfolio" onclick="showView('portfolio')">Target</button>
     <button data-view="screening" onclick="showView('screening')">Screening</button>
+    <button data-view="portfolio" onclick="showView('portfolio')">Target</button>
     <button data-view="fib" onclick="showView('fib')">Patterns &amp; Tech Signals</button>
     <button data-view="inspector" onclick="showView('inspector')">Inspector</button>
     <button data-view="fundamentals" onclick="showView('fundamentals')">Fundamentals</button>
@@ -2141,8 +2135,10 @@
 
     <section class="panel panel-detail">
       <h2 class="panel-symbol-head" id="detailTitleHead">
-        <span class="symbol-head-ticker" id="detailSymbol">Select a symbol</span>
-        <span class="symbol-head-quote" id="detailSymbolQuote" hidden></span>
+        <span class="symbol-head-row">
+          <span class="symbol-head-ticker" id="detailSymbol">Select a symbol</span>
+          <span class="symbol-head-quote" id="detailSymbolQuote" hidden></span>
+        </span>
       </h2>
       <div id="detailEmpty" class="empty">Choose a symbol to view thresholds, notes, and recommendations.</div>
       <div id="detailPanel" hidden>
@@ -2248,10 +2244,10 @@
   <div id="view-screening" class="view" hidden>
     <div class="wide-panel">
       <h2>Portfolio Screening</h2>
-      <div class="actions" style="margin-bottom:0.75rem;">
-        <button class="secondary" onclick="loadScreening('', true)">Refresh</button>
-        <button class="secondary" onclick="loadScreening('?minUpside=30')">High Upside</button>
-        <button class="secondary" onclick="loadScreening('?nearFib=1')">Near Fib</button>
+      <div class="screening-filter-bar">
+        <button type="button" class="secondary filter-btn active" data-screen-filter="all" onclick="setScreeningFilter('all')">All</button>
+        <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
+        <button type="button" class="secondary filter-btn" data-screen-filter="nearFib" onclick="setScreeningFilter('nearFib')">Near Fib</button>
       </div>
       <div id="screeningTable"></div>
     </div>
@@ -2303,7 +2299,6 @@
           <span class="symbol-head-ticker" id="inspectorSymbol">Inspector</span>
           <span class="symbol-head-quote" id="inspectorSymbolQuote" hidden></span>
         </span>
-        <span class="symbol-head-label" id="inspectorSymbolLabel" hidden>Inspector</span>
       </h2>
       <div id="inspectorEmpty" class="empty">Choose a symbol to inspect holdings, alerts, notes, and assessments.</div>
       <div id="inspectorPanel" hidden></div>
@@ -2785,7 +2780,7 @@
           const dayPct = quote?.dayChangePct;
           if (price != null) {
             const dayHtml = dayPct != null ? ` <span class="quote-day">${formatDayChangePercent(dayPct)}</span>` : "";
-            quoteEl.innerHTML = `${formatMoney(price)}${dayHtml}`;
+            quoteEl.innerHTML = `(${formatMoney(price)}${dayHtml})`;
             quoteEl.hidden = false;
           } else {
             quoteEl.innerHTML = "";
@@ -2805,7 +2800,6 @@
 
     function setInspectorSymbolHead(symbol, quote = null) {
       const el = document.getElementById("inspectorSymbol");
-      const label = document.getElementById("inspectorSymbolLabel");
       const head = document.getElementById("inspectorTitleHead");
       const quoteEl = document.getElementById("inspectorSymbolQuote");
       if (!el) return;
@@ -2813,7 +2807,6 @@
         el.textContent = symbol;
         el.classList.add("is-active");
         head?.classList.add("has-symbol");
-        if (label) label.hidden = false;
         if (quoteEl) {
           const price = quote?.currentPrice;
           const dayPct = quote?.dayChangePct;
@@ -2830,7 +2823,6 @@
         el.textContent = "Inspector";
         el.classList.remove("is-active");
         head?.classList.remove("has-symbol");
-        if (label) label.hidden = true;
         if (quoteEl) {
           quoteEl.innerHTML = "";
           quoteEl.hidden = true;
@@ -4586,7 +4578,31 @@
       }
     }
 
+    let screeningFilter = "all";
+    const SCREENING_FILTER_QUERIES = {
+      all: "",
+      upside: "?minUpside=30",
+      nearFib: "?nearFib=1",
+    };
+
+    function screeningFilterForQuery(query) {
+      const entry = Object.entries(SCREENING_FILTER_QUERIES).find(([, q]) => q === (query || ""));
+      return entry ? entry[0] : "all";
+    }
+
+    function updateScreeningFilterButtons() {
+      document.querySelectorAll("#view-screening .filter-btn").forEach((button) => {
+        button.classList.toggle("active", button.dataset.screenFilter === screeningFilter);
+      });
+    }
+
+    function setScreeningFilter(filter) {
+      loadScreening(SCREENING_FILTER_QUERIES[filter] || "");
+    }
+
     async function loadScreening(query = "", force = false) {
+      screeningFilter = screeningFilterForQuery(query);
+      updateScreeningFilterButtons();
       const cache = viewDataCache.screening;
       const now = Date.now();
       if (
