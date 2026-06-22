@@ -2281,6 +2281,10 @@
     // assessments surface without a manual reload. Loaders preserve row
     // selection and sort state, so the refresh is non-disruptive.
     const AUTO_REFRESH_MS = 30000;
+    // Re-pull the Yahoo-backed news/fundamentals feed at most this often, so the
+    // 30s auto-refresh doesn't trigger a bulk enrichment fetch every cycle.
+    const TOPNEWS_REFRESH_MS = 300000;
+    let lastTopNewsAt = 0;
     let autoRefreshTimer = null;
     let autoRefreshInProgress = false;
 
@@ -2483,17 +2487,43 @@
     };
     let symbolPatterns = {};
     let symbolPatternsFetched = false;
+    let symbolPatternsFetchedAt = 0;
+    // Re-pull the shared /patterns snapshot after this long so badges self-heal as
+    // cold/failed price histories warm up on the server (the source of the "list
+    // looks outdated" staleness). Cheap: /patterns recomputes from cached history.
+    const SYMBOL_PATTERNS_TTL_MS = 300000;
     const symbolNavRegistry = {};
 
     function patternBadgeHtml(symbol) {
       const p = symbolPatterns[symbol];
       if (!p || !p.name) return "";
       const abbrev = PATTERN_ABBREV[p.name] || p.name;
+      // Backend emits lowercase types ("bullish"/"bearish"/"neutral").
+      const type = String(p.type || "").toLowerCase();
       const cls =
-        p.type === "Bullish" ? "is-bullish" : p.type === "Bearish" ? "is-bearish" : "is-neutral";
+        type === "bullish" ? "is-bullish" : type === "bearish" ? "is-bearish" : "is-neutral";
       const conf = p.confidence != null ? ` · ${Math.round(p.confidence * 100)}%` : "";
       const title = `${p.name} (${p.type || "?"}, ${p.status || "?"}${conf})`;
       return `<span class="sym-pattern ${cls}" title="${title}">◆ ${abbrev}</span>`;
+    }
+
+    // The Inspector fetches a symbol's signals fresh on every open, so its top
+    // pattern is the authoritative, up-to-date answer for that symbol. Patch it
+    // into the shared badge map so the list immediately agrees with the chart
+    // (fixes a stale list badge after new data has been fetched).
+    function syncSymbolPatternFromInspector(symbol, data) {
+      if (!symbol) return;
+      const top = ((data && data.chartPatterns) || [])[0];
+      if (top && top.name) {
+        symbolPatterns[symbol] = {
+          name: top.name,
+          type: top.type,
+          status: top.status,
+          confidence: top.confidence,
+        };
+      } else {
+        delete symbolPatterns[symbol];
+      }
     }
 
     function renderSymbolNavList(listId, symbols, onSelect) {
@@ -2519,7 +2549,8 @@
     }
 
     async function loadSymbolPatterns(force = false) {
-      if (symbolPatternsFetched && !force) {
+      const stale = Date.now() - symbolPatternsFetchedAt >= SYMBOL_PATTERNS_TTL_MS;
+      if (symbolPatternsFetched && !force && !stale) {
         rerenderSymbolNavLists();
         return;
       }
@@ -2527,6 +2558,7 @@
         const data = await api("/patterns");
         symbolPatterns = data.patterns || {};
         symbolPatternsFetched = true;
+        symbolPatternsFetchedAt = Date.now();
         rerenderSymbolNavLists();
       } catch (_) {
         /* badges are best-effort */
@@ -3601,7 +3633,17 @@
         </div>
       `;
       renderOverviewVisuals(data);
-      loadTopNews();
+      // The news/fundamentals feed is the only Yahoo-heavy piece here and it
+      // changes slowly, so throttle it: the 30s auto-refresh keeps prices and
+      // (DB-backed) assessments current, but only re-pulls news every few
+      // minutes. This stops the background timer from hammering Yahoo (and
+      // flooding logs with crumb errors) for symbols whose datacenter IP is
+      // blocked. The first call always runs since lastTopNewsAt starts at 0.
+      const nowTs = Date.now();
+      if (nowTs - lastTopNewsAt >= TOPNEWS_REFRESH_MS) {
+        lastTopNewsAt = nowTs;
+        loadTopNews();
+      }
       loadLatestAssessments();
       loadTrackRecord();
     }
@@ -5352,6 +5394,7 @@
       inspectorChartData[panelId] = data;
       document.getElementById(panelId).innerHTML = renderInspectorHtml(data, panelId);
       renderInspectorChart(data, panelId);
+      syncSymbolPatternFromInspector(symbol, data);
       renderSymbolList(portfolio.symbols);
       renderInspectorSymbolList(portfolio.symbols);
       if (panelId === "holdingsInspectorPanel") {

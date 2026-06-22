@@ -84,6 +84,28 @@ finnhub_fundamentals_cache: TtlCache = TtlCache(_fund_ttl, _fund_max)
 # blob for the full TTL (only successful, non-empty results are stored).
 analyst_targets_cache: TtlCache = TtlCache(_fund_ttl, _fund_max)
 
+# Short-lived "failure cooldown" (negative cache). When Yahoo blocks a request
+# (e.g. the 401 Invalid Crumb that hits Render's datacenter IP), the empty result
+# is intentionally NOT cached in the success caches so a recovery is picked up
+# quickly. Without a brake, though, every assess-all and every 30s auto-refresh
+# re-hammers all blocked symbols -- and analyst_price_targets even retries 3x with
+# sleeps each pass -- producing a log flood and wasted load. This cache records a
+# symbol+kind that just failed and skips re-fetching it until the cooldown lapses,
+# so a persistently blocked symbol is attempted at most once per window instead of
+# on every request. Set YFINANCE_FAILURE_COOLDOWN_SECONDS=0 to disable.
+_yf_fail_ttl = float(os.environ.get("YFINANCE_FAILURE_COOLDOWN_SECONDS", "600"))
+yf_failure_cache: TtlCache = TtlCache(max(1.0, _yf_fail_ttl), 512)
+_yf_fail_enabled = _yf_fail_ttl > 0
+
+
+def _in_cooldown(key: str) -> bool:
+    return _yf_fail_enabled and yf_failure_cache.peek(key) is not CACHE_MISS
+
+
+def _mark_cooldown(key: str) -> None:
+    if _yf_fail_enabled:
+        yf_failure_cache.put(key, True)
+
 # Finnhub /stock/metric "metric" keys -> (group, normalized key).
 # These are plain ratios with the same convention as yfinance (no scaling).
 _FINNHUB_RATIO_FIELDS = {
@@ -248,12 +270,16 @@ class FundamentalsService:
     def _fetch_yfinance_fundamentals(self, symbol: str) -> dict[str, Any]:
         if self.provider != "yfinance":
             logger.warning("Unknown FUNDAMENTALS_PROVIDER=%s, falling back to yfinance", self.provider)
+        if _in_cooldown(f"info:{symbol}"):
+            return {}
         try:
             info = ticker_info_cache.get(symbol, lambda: make_ticker(symbol).info)
         except Exception as exc:  # noqa: BLE001 - network/3rd-party failures are non-fatal
             logger.warning("Failed to fetch fundamentals for %s: %s", symbol, exc)
+            _mark_cooldown(f"info:{symbol}")
             return {}
         if not isinstance(info, dict):
+            _mark_cooldown(f"info:{symbol}")
             return {}
 
         return {
@@ -373,9 +399,15 @@ class FundamentalsService:
         cached = analyst_targets_cache.peek(symbol)
         if cached is not CACHE_MISS:
             return cached
+        if _in_cooldown(f"targets:{symbol}"):
+            return {}
         targets = self._analyst_price_targets(symbol)
         if targets:
             analyst_targets_cache.put(symbol, targets)
+        else:
+            # No targets (block, rate limit, or genuinely no coverage). Cool down
+            # so the 3x-retry fetch isn't repeated on every request for a window.
+            _mark_cooldown(f"targets:{symbol}")
         return targets
 
     def _analyst_price_targets(self, symbol: str) -> dict[str, Any]:
@@ -524,6 +556,8 @@ class FundamentalsService:
         if self.news_limit <= 0:
             return []
         provider = self.active_news_provider()
+        if _in_cooldown(f"news:{symbol}"):
+            return []
         try:
             if provider == "finnhub":
                 return news_cache.get(f"finnhub:{symbol}", lambda: self._fetch_finnhub_news(symbol))
@@ -535,6 +569,7 @@ class FundamentalsService:
                     return news_cache.get(f"yfinance:{symbol}", lambda: self._fetch_yfinance_news(symbol))
                 except Exception as fallback_exc:  # noqa: BLE001
                     logger.warning("yfinance news fallback failed for %s: %s", symbol, fallback_exc)
+            _mark_cooldown(f"news:{symbol}")
             return []
 
     def _fetch_yfinance_news(self, symbol: str) -> list[dict[str, Any]]:
