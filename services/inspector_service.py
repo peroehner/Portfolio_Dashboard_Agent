@@ -1,7 +1,7 @@
 import re
 from typing import Any
 
-import yfinance as yf
+import yfinance as yf  # noqa: F401 - retained as a patch target for tests
 
 from services.alerts_service import AlertsService
 from services.assessment_service import ASSESSMENT_TECHNICALS, AssessmentService
@@ -344,8 +344,10 @@ class InspectorService:
         return metrics
 
     def _detect_trend_waves(self, symbol: str) -> list[dict[str, Any]]:
+        from services.market_cache import make_ticker
+
         try:
-            history = yf.Ticker(symbol).history(period="6mo", auto_adjust=True)
+            history = make_ticker(symbol).history(period="6mo", auto_adjust=True)
         except Exception:
             return []
         if history.empty or len(history) < 12:

@@ -123,9 +123,8 @@ def list_patterns():
 
     Patterns are derived from (cached) price history and are user-independent, so
     they can be computed in parallel without per-thread user context."""
-    from concurrent.futures import ThreadPoolExecutor
-
     from services.assessment_service import ASSESSMENT_TECHNICALS
+    from services.market_cache import yf_pool
     from services.technical_signals_service import TechnicalSignalsService
 
     if not ASSESSMENT_TECHNICALS:
@@ -151,10 +150,9 @@ def list_patterns():
         }
 
     out: dict[str, dict] = {}
-    with ThreadPoolExecutor(max_workers=min(6, len(symbols))) as pool:
-        for symbol, pattern in pool.map(top_pattern, symbols):
-            if pattern:
-                out[symbol] = pattern
+    for symbol, pattern in yf_pool.map(top_pattern, symbols):
+        if pattern:
+            out[symbol] = pattern
     return jsonify({"patterns": out})
 
 

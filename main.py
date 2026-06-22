@@ -13,14 +13,50 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 
 
+def raise_fd_limit() -> None:
+    """Raise the open-file-descriptor soft limit.
+
+    yfinance keeps SQLite-backed timezone/cookie caches and the threaded server
+    opens a socket per Yahoo fetch. On macOS the default soft limit is only 256,
+    which the long-running server exhausts within minutes — after which every new
+    socket/file open fails (EMFILE) and live history fetches silently return
+    empty (blank patterns/trends) while cached data still serves. Lift the soft
+    limit toward the hard limit so the process has ample headroom.
+    """
+    try:
+        import resource
+
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        target = 10240
+        if hard != resource.RLIM_INFINITY:
+            target = min(target, hard)
+        if soft < target:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+            logging.info("Raised open-file limit from %s to %s", soft, target)
+    except Exception as exc:  # noqa: BLE001 - best effort, never fatal
+        logging.warning("Could not raise open-file limit: %s", exc)
+
+
+raise_fd_limit()
+
+
 def load_env_file() -> None:
-    """Load .env before service imports so API keys are available."""
+    """Load .env before service imports so API keys are available.
+
+    IMPORTANT: override=True. When the app is launched from the Cursor/VS Code
+    debugger, the editor's `python.envFile` parser injects the .env values into
+    the process environment *before* this runs — but that parser does NOT strip
+    inline `# comments`, so e.g. `TECHNICAL_SIGNALS_PERIOD=2y  # ...` arrives as
+    the literal string including the comment, which yfinance then rejects
+    ("Period '2y  # ...' is invalid"). python-dotenv strips inline comments
+    correctly, so we let it re-parse and override the editor's raw values.
+    """
     env_path = BASE_DIR / ".env"
     if not env_path.is_file():
         return
     try:
         from dotenv import load_dotenv
-        load_dotenv(env_path)
+        load_dotenv(env_path, override=True)
     except ImportError:
         for line in env_path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
@@ -28,8 +64,11 @@ def load_env_file() -> None:
                 continue
             key, _, value = line.partition("=")
             key = key.strip()
+            # Strip an inline comment (unquoted values only) before unquoting.
+            if value and value.lstrip()[:1] not in ("'", '"') and "#" in value:
+                value = value.split("#", 1)[0]
             value = value.strip().strip('"').strip("'")
-            if key and key not in os.environ:
+            if key:
                 os.environ[key] = value
 
 

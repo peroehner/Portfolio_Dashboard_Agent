@@ -22,14 +22,19 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import certifi
 import yfinance as yf
 
-from services.market_cache import CACHE_MISS, TtlCache, make_ticker, ticker_info_cache
+from services.market_cache import (
+    CACHE_MISS,
+    TtlCache,
+    make_ticker,
+    reset_yf_session,
+    ticker_info_cache,
+)
 
 # Finnhub's free tier allows ~60 API calls/minute. A whole-portfolio fetch can
 # burst past that, causing 429s. An optional global minimum interval between
@@ -214,11 +219,11 @@ class FundamentalsService:
         if not self.enabled:
             return {s: {"fundamentals": {}, "recentNews": []} for s in unique}
 
-        workers = max(1, min(int(os.environ.get("FUNDAMENTALS_BULK_WORKERS", "4")), len(unique)))
+        from services.market_cache import yf_pool
+
         results: dict[str, dict[str, Any]] = {}
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            for symbol, enrichment in zip(unique, pool.map(self.get_enrichment, unique)):
-                results[symbol] = enrichment
+        for symbol, enrichment in zip(unique, yf_pool.map(self.get_enrichment, unique)):
+            results[symbol] = enrichment
         return results
 
     def fetch_fundamentals(self, symbol: str) -> dict[str, Any]:
@@ -276,6 +281,7 @@ class FundamentalsService:
             info = ticker_info_cache.get(symbol, lambda: make_ticker(symbol).info)
         except Exception as exc:  # noqa: BLE001 - network/3rd-party failures are non-fatal
             logger.warning("Failed to fetch fundamentals for %s: %s", symbol, exc)
+            reset_yf_session()  # likely a stale cookie/crumb; rebuild next call
             _mark_cooldown(f"info:{symbol}")
             return {}
         if not isinstance(info, dict):
@@ -376,6 +382,7 @@ class FundamentalsService:
             closes = make_ticker(symbol).history(period="1y", auto_adjust=True)["Close"].dropna()
         except Exception as exc:  # noqa: BLE001 - network/3rd-party failures are non-fatal
             logger.warning("History MA fetch failed for %s: %s", symbol, exc)
+            reset_yf_session()  # likely a stale cookie/crumb; rebuild next call
             return {}
         out: dict[str, Any] = {}
         if len(closes) >= 50:
@@ -442,6 +449,7 @@ class FundamentalsService:
             cashflow = ticker.cashflow
         except Exception as exc:  # noqa: BLE001 - network/3rd-party failures are non-fatal
             logger.warning("Statement fetch failed for %s: %s", symbol, exc)
+            reset_yf_session()  # likely a stale cookie/crumb; rebuild next call
             return {}
         out: dict[str, Any] = {}
         cash = self._statement_value(

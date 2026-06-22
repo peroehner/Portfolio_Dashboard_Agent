@@ -3,9 +3,9 @@ import re
 from typing import Any
 
 import pandas as pd
-import yfinance as yf
 
 from db.database import get_connection, get_current_user_id
+from services.market_cache import make_ticker
 
 BLOCK_HEADER = re.compile(
     r"\[TECHNICAL ANALYSIS EXPORT:\s*([A-Z][A-Z0-9.\-]+)\s*\]",
@@ -310,7 +310,7 @@ class TechnicalService:
         end = window_end if len(window_end) > 7 else f"{window_end}-01"
         try:
             end_exclusive = pd.to_datetime(end) + pd.offsets.MonthEnd(0) + pd.Timedelta(days=1)
-            history = yf.Ticker(symbol.upper()).history(
+            history = make_ticker(symbol.upper()).history(
                 start=start,
                 end=end_exclusive.strftime("%Y-%m-%d"),
                 auto_adjust=True,
@@ -405,7 +405,7 @@ class TechnicalService:
             import pandas as pd
 
             end_exclusive = pd.to_datetime(end_date) + pd.Timedelta(days=1)
-            history = yf.Ticker(symbol.upper()).history(
+            history = make_ticker(symbol.upper()).history(
                 start=start_date,
                 end=end_exclusive.strftime("%Y-%m-%d"),
                 auto_adjust=True,

@@ -41,12 +41,15 @@ class PortfolioEngine:
         if not tickers:
             return {}
 
+        from services.market_cache import yf_throttle
+
         day_changes = {ticker: None for ticker in tickers}
         prices = {ticker: None for ticker in tickers}
         data = None
         multi = len(tickers) > 1
         try:
-            data = yf.download(tickers, period="5d", progress=False)
+            with yf_throttle():
+                data = yf.download(tickers, period="5d", progress=False)
             for ticker in tickers:
                 try:
                     closes = (

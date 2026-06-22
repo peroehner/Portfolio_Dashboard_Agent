@@ -64,14 +64,36 @@ class ScreeningService:
         return results
 
     def fib_proximity_map(self) -> list[dict[str, Any]]:
+        """Per-symbol Fibonacci proximity enriched with the detected chart pattern,
+        trend-wave count, and the technical stance — the data behind the
+        "Patterns & Tech Signals" view."""
+        from services.assessment_service import ASSESSMENT_TECHNICALS
+        from services.inspector_service import build_technical_advisory
+        from services.market_cache import yf_pool
+        from services.technical_signals_service import TechnicalSignalsService
+
+        symbols_data = [
+            s for s in self.portfolio_service.list_symbols() if s.get("currentPrice") is not None
+        ]
+
+        # Chart pattern + trend waves come from cached price history and are
+        # user-independent, so compute them in parallel on the shared, persistent
+        # yfinance worker pool (mirrors /patterns). The pool is reused across
+        # requests so yfinance's per-thread cache handles stay bounded.
+        charts: dict[str, dict[str, Any] | None] = {}
+        if ASSESSMENT_TECHNICALS and symbols_data:
+            tsvc = TechnicalSignalsService()
+            symbols = [s["symbol"] for s in symbols_data]
+            for symbol, chart in zip(symbols, yf_pool.map(tsvc.get_chart, symbols)):
+                charts[symbol] = chart
+
         rows = []
-        for symbol_data in self.portfolio_service.list_symbols():
-            price = symbol_data.get("currentPrice")
-            if price is None:
-                continue
+        for symbol_data in symbols_data:
+            price = symbol_data["currentPrice"]
             symbol = symbol_data["symbol"]
             closest = self.fib_service.closest_level(symbol, price)
             fib = closest["fib"] if closest else self.fib_service.get_levels(symbol)
+            advisory = build_technical_advisory(price, fib, closest)
             rows.append(
                 {
                     "symbol": symbol,
@@ -85,12 +107,42 @@ class ScreeningService:
                     "levels": fib.get("levels", []) if fib else [],
                     "swingHigh": fib.get("swingHigh") if fib else None,
                     "swingLow": fib.get("swingLow") if fib else None,
+                    "pattern": self._top_pattern(charts.get(symbol)),
+                    "trends": self._trend_summary(charts.get(symbol)),
+                    "techStance": advisory.get("stance"),
+                    "techStanceMessage": advisory.get("message"),
                 }
             )
         rows.sort(
             key=lambda item: item["distancePct"] if item["distancePct"] is not None else 999,
         )
         return rows
+
+    @staticmethod
+    def _top_pattern(chart: dict[str, Any] | None) -> dict[str, Any] | None:
+        patterns = (chart or {}).get("patterns") or []
+        if not patterns:
+            return None
+        p = patterns[0]
+        key = p.get("keyLevel") or {}
+        return {
+            "name": p.get("name"),
+            "type": p.get("type"),
+            "status": p.get("status"),
+            "confidence": p.get("confidence"),
+            "keyLabel": key.get("label"),
+            "neckline": key.get("price"),
+            "target": p.get("target"),
+        }
+
+    @staticmethod
+    def _trend_summary(chart: dict[str, Any] | None) -> dict[str, Any] | None:
+        waves = (chart or {}).get("trendWaves") or []
+        if not waves:
+            return None
+        ups = sum(1 for w in waves if w.get("direction") == "up")
+        downs = sum(1 for w in waves if w.get("direction") == "down")
+        return {"legs": len(waves), "ups": ups, "downs": downs}
 
     def _score_symbol(
         self,

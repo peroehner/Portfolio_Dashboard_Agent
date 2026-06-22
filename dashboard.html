@@ -765,8 +765,21 @@
       font-weight: 600;
       font-size: 0.82rem;
     }
+    .screening-flags {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
     .screening-tech-stance.strong { color: var(--accent-2); }
-    .screening-tech-stance.alert { color: #f87171; }
+    .screening-tech-stance.alert {
+      color: #f87171;
+      /* Reset the generic .alert box (border-left/padding/background) so the
+         stance renders as plain coloured text like the other stances. */
+      background: none;
+      border-left: 0;
+      border-radius: 0;
+      padding: 0;
+      margin: 0;
+    }
     .screening-tech-stance.cautious,
     .screening-tech-stance.neutral,
     .screening-tech-stance.unknown { color: var(--warn); }
@@ -1600,6 +1613,77 @@
       margin-bottom: 0.25rem;
     }
     .fib-map-header h2 { margin: 0; }
+    .fib-map-header-actions { display: flex; align-items: center; gap: 0.5rem; }
+    .help-btn {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--panel-2, #16202e); color: var(--text);
+      font-weight: 700; font-size: 0.95rem; line-height: 1; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0; flex: none;
+    }
+    .help-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .fib-pattern { font-weight: 600; white-space: nowrap; cursor: help; }
+    .fib-pattern.is-bullish { color: #22c55e; }
+    .fib-pattern.is-bearish { color: #ef4444; }
+    .fib-pattern.is-neutral { color: #f59e0b; }
+    .fib-trends { white-space: nowrap; }
+    /* Help modal */
+    .help-modal-backdrop {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(3, 8, 15, 0.72);
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 3vh 1rem; overflow-y: auto;
+    }
+    .help-modal-backdrop[hidden] { display: none; }
+    .help-modal {
+      background: var(--panel, #0f1722); color: var(--text);
+      border: 1px solid var(--border); border-radius: 14px;
+      max-width: 860px; width: 100%; margin: auto;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+    }
+    .help-modal-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; padding: 1rem 1.4rem; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--panel, #0f1722); border-radius: 14px 14px 0 0;
+    }
+    .help-modal-head h3 { margin: 0; font-size: 1.15rem; }
+    .help-modal-close {
+      background: transparent; border: none; color: var(--muted, #9aa8bc);
+      font-size: 1.6rem; line-height: 1; cursor: pointer; padding: 0 0.25rem;
+    }
+    .help-modal-close:hover { color: var(--text); }
+    .help-modal-body { padding: 1.1rem 1.4rem 1.6rem; }
+    .help-modal-body h4 {
+      margin: 1.4rem 0 0.5rem; font-size: 1rem; color: var(--accent, #6ea8fe);
+    }
+    .help-modal-body h4:first-child { margin-top: 0; }
+    .help-modal-body p { margin: 0.4rem 0; line-height: 1.5; color: var(--text); }
+    .help-modal-body table.help-table {
+      width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 0.86rem;
+    }
+    .help-modal-body table.help-table th,
+    .help-modal-body table.help-table td {
+      border: 1px solid var(--border); padding: 0.35rem 0.55rem; text-align: left; vertical-align: top;
+    }
+    .help-modal-body table.help-table th { background: rgba(255,255,255,0.04); }
+    .help-modal-body code {
+      background: rgba(255,255,255,0.07); padding: 0.05rem 0.3rem; border-radius: 4px; font-size: 0.85em;
+    }
+    .help-modal-body .help-caveat {
+      border-left: 3px solid var(--accent, #6ea8fe);
+      background: rgba(110,168,254,0.08); padding: 0.6rem 0.85rem;
+      border-radius: 0 8px 8px 0; margin: 0.5rem 0 0.8rem;
+    }
+    .help-badge {
+      display: inline-block; font-weight: 700; padding: 0 0.25rem; border-radius: 4px;
+    }
+    .help-badge.bull { color: #22c55e; }
+    .help-badge.bear { color: #ef4444; }
+    .help-badge.neutral { color: #f59e0b; }
+    .help-figure { margin: 0.8rem 0; text-align: center; }
+    .help-figure svg { max-width: 100%; height: auto; background: #0b1220; border-radius: 10px; border: 1px solid var(--border); }
+    .help-figure figcaption { font-size: 0.82rem; color: var(--muted, #9aa8bc); margin-top: 0.4rem; }
     .fib-legend-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1839,12 +1923,107 @@
   </header>
   <div id="toast" hidden></div>
 
+  <div id="patternsHelp" class="help-modal-backdrop" hidden onclick="onPatternsHelpBackdrop(event)">
+    <div class="help-modal" role="dialog" aria-modal="true" aria-labelledby="patternsHelpTitle">
+      <div class="help-modal-head">
+        <h3 id="patternsHelpTitle">Reading Patterns &amp; Tech Signals</h3>
+        <button type="button" class="help-modal-close" onclick="closePatternsHelp()" aria-label="Close">&times;</button>
+      </div>
+      <div class="help-modal-body">
+        <div class="help-caveat">
+          <strong>Big caveat first.</strong> Chart patterns are <em>probabilistic — one input among
+          many</em>. They are deterministic geometric reads of recent price pivots, not predictions.
+          Use them alongside fundamentals, valuation, notes, and the assessment rationale. All signals
+          are computed from ~2 years of daily history using an adaptive, volatility-scaled zig-zag.
+        </div>
+
+        <h4>1 · Status: forming vs confirmed</h4>
+        <table class="help-table">
+          <tr><th>Status</th><th>Meaning</th></tr>
+          <tr><td><code>forming</code></td><td>The shape is in place, but price has <strong>not yet broken the key level</strong> in the pattern's direction. A <em>watch item</em>, not a trigger.</td></tr>
+          <tr><td><code>confirmed</code></td><td>Price has <strong>broken through the key level</strong> (neckline / support / resistance) in the pattern's direction. The measured-move target becomes active.</td></tr>
+        </table>
+        <p>Example: a <strong>Double Top</strong> is <code>forming</code> while price is above its neckline, and only <code>confirmed</code> once price closes below it — which is why a stock near its highs can show "Double Top · forming" without it being a sell signal yet.</p>
+
+        <h4>2 · Direction &amp; color</h4>
+        <table class="help-table">
+          <tr><th>Direction</th><th>Color</th><th>Badges</th></tr>
+          <tr><td><span class="help-badge bull">Bullish</span></td><td>Green</td><td><code>iH&amp;S</code>, <code>DB</code>, <code>Asc△</code></td></tr>
+          <tr><td><span class="help-badge bear">Bearish</span></td><td>Red</td><td><code>H&amp;S</code>, <code>DT</code>, <code>Desc△</code></td></tr>
+          <tr><td><span class="help-badge neutral">Neutral</span></td><td>Amber</td><td><code>Sym△</code></td></tr>
+        </table>
+        <p>Badge codes: <code>H&amp;S</code> Head &amp; Shoulders · <code>iH&amp;S</code> Inverse H&amp;S · <code>DT</code> Double Top · <code>DB</code> Double Bottom · <code>Asc△</code> Ascending · <code>Desc△</code> Descending · <code>Sym△</code> Symmetrical Triangle. Hover any badge for full name, direction, status, and confidence.</p>
+
+        <h4>4 · Key level (Neckline) &amp; Target</h4>
+        <p><strong>Key level</strong> — the line price must break to confirm: <code>neckline</code> (doubles, H&amp;S), <code>resistance</code>/<code>support</code> (triangles), or <code>apex</code> (symmetrical). Shown in the <strong>Neckline</strong> column.</p>
+        <p><strong>Target</strong> — the projected move after a confirmed break, equal to the pattern's height measured from the key level (green for bullish, red for bearish). Triangles report no target.</p>
+
+        <h4>5 · The patterns</h4>
+        <figure class="help-figure">
+          <svg viewBox="0 0 760 330" role="img" aria-label="Annotated Head and Shoulders pattern">
+            <!-- price line through the pivots -->
+            <polyline points="40,255 120,175 195,212 300,120 405,212 480,175 545,212 600,248 690,300"
+              fill="none" stroke="#9aa8bc" stroke-width="2.5" />
+            <!-- neckline (key level) -->
+            <line x1="40" y1="212" x2="720" y2="212" stroke="#f59e0b" stroke-width="2" stroke-dasharray="7 5" />
+            <text x="556" y="205" fill="#f59e0b" font-size="13">Neckline (key level)</text>
+            <!-- target (measured move) -->
+            <line x1="40" y1="300" x2="720" y2="300" stroke="#ef4444" stroke-width="2" stroke-dasharray="2 5" />
+            <text x="556" y="294" fill="#ef4444" font-size="13">Target (measured move)</text>
+            <!-- pivots as amber diamonds -->
+            <g fill="#f59e0b" stroke="#0b1220" stroke-width="1.5">
+              <rect x="112" y="167" width="16" height="16" transform="rotate(45 120 175)" />
+              <rect x="292" y="112" width="16" height="16" transform="rotate(45 300 120)" />
+              <rect x="472" y="167" width="16" height="16" transform="rotate(45 480 175)" />
+            </g>
+            <g fill="#6ea8fe" stroke="#0b1220" stroke-width="1.5">
+              <rect x="188" y="205" width="13" height="13" transform="rotate(45 195 212)" />
+              <rect x="398" y="205" width="13" height="13" transform="rotate(45 405 212)" />
+            </g>
+            <!-- labels -->
+            <text x="120" y="158" fill="#cbd5e1" font-size="13" text-anchor="middle">Left Shoulder</text>
+            <text x="300" y="103" fill="#cbd5e1" font-size="13" text-anchor="middle">Head</text>
+            <text x="480" y="158" fill="#cbd5e1" font-size="13" text-anchor="middle">Right Shoulder</text>
+            <text x="610" y="243" fill="#ef4444" font-size="12">break ↓ confirms</text>
+          </svg>
+          <figcaption>Head &amp; Shoulders (bearish): two shoulders around a higher head. Confirms on a close below the neckline; the measured-move target sits one pattern-height below. Double Top/Bottom and triangles follow the same idea with fewer pivots.</figcaption>
+        </figure>
+        <table class="help-table">
+          <tr><th>Pattern</th><th>Shape · confirms when · reads as</th></tr>
+          <tr><td><span class="help-badge bear">Double Top</span></td><td>Top → Neckline (trough) → Top at similar levels. Confirms below the neckline. Failed retest of resistance.</td></tr>
+          <tr><td><span class="help-badge bull">Double Bottom</span></td><td>Bottom → Neckline (peak) → Bottom at similar levels. Confirms above the neckline. Support holding twice.</td></tr>
+          <tr><td><span class="help-badge bear">Head &amp; Shoulders</span></td><td>LS → Head (higher) → RS. Neckline = avg of the two troughs. Confirms below. Classic topping structure.</td></tr>
+          <tr><td><span class="help-badge bull">Inverse H&amp;S</span></td><td>The mirror — LS → Head (lower) → RS. Confirms above the neckline. Classic bottoming structure.</td></tr>
+          <tr><td><span class="help-badge bull">Ascending △</span></td><td>Flat highs (≥3 touches) + rising lows. Confirms above the highs. Breakout bias.</td></tr>
+          <tr><td><span class="help-badge bear">Descending △</span></td><td>Flat lows (≥3 touches) + falling highs. Confirms below the lows. Breakdown bias.</td></tr>
+          <tr><td><span class="help-badge neutral">Symmetrical △</span></td><td>Falling highs and rising lows converging. Always forming until it breaks; watch the direction.</td></tr>
+        </table>
+        <p><em>Only one pattern per symbol is shown</em> — the most structurally complete read (H&amp;S &gt; triangles &gt; doubles).</p>
+
+        <h4>6 · Trends (the legs)</h4>
+        <p>The <strong>Trends</strong> column counts the dominant zig-zag legs over the adaptive window, e.g. <code>5 Legs (3 ↑, 2 ↓)</code>. On the Inspector chart these are the colored <code>T1 ↑ … T2 ↓ …</code> waves, alternating bullish/bearish. The window auto-sizes per symbol so relevant swings aren't cropped.</p>
+
+        <h4>7 · Technical Stance</h4>
+        <p>A quick read of where price sits versus its Fibonacci structure (hover the cell for the trigger):</p>
+        <table class="help-table">
+          <tr><th>Stance</th><th>Trigger</th></tr>
+          <tr><td><span class="screening-tech-stance strong">Strong</span></td><td>Price at/above the 50% center Fib level (bullish baseline).</td></tr>
+          <tr><td><span class="screening-tech-stance alert">Alert</span></td><td>Within 2% of the nearest Fib level — imminent retest/breakout.</td></tr>
+          <tr><td><span class="screening-tech-stance cautious">Cautious</span></td><td>Below the 50% center level — wait for stabilization.</td></tr>
+          <tr><td><span class="screening-tech-stance neutral">Neutral</span></td><td>No center level available; monitor key boundaries.</td></tr>
+          <tr><td><span class="screening-tech-stance unknown">Unknown</span></td><td>Not enough technical data.</td></tr>
+        </table>
+        <p style="margin-top:1rem;font-size:0.82rem;color:var(--muted,#9aa8bc);">Full guide: <code>docs/PATTERNS.md</code>.</p>
+      </div>
+    </div>
+  </div>
+
   <nav class="tabs">
     <button class="active" data-view="overview" onclick="showView('overview')">Summary</button>
     <button data-view="holdings" onclick="showView('holdings')">Holdings</button>
     <button data-view="portfolio" onclick="showView('portfolio')">Target</button>
     <button data-view="screening" onclick="showView('screening')">Screening</button>
-    <button data-view="fib" onclick="showView('fib')">Fib Proximity</button>
+    <button data-view="fib" onclick="showView('fib')">Patterns &amp; Tech Signals</button>
     <button data-view="inspector" onclick="showView('inspector')">Inspector</button>
     <button data-view="fundamentals" onclick="showView('fundamentals')">Fundamentals</button>
   </nav>
@@ -2067,8 +2246,11 @@
   <div id="view-fib" class="view" hidden>
     <div class="wide-panel">
       <div class="fib-map-header">
-        <h2>Fibonacci Proximity Map</h2>
-        <button class="secondary" onclick="loadFibMap(true)">Refresh</button>
+        <h2>Patterns &amp; Tech Signals</h2>
+        <div class="fib-map-header-actions">
+          <button type="button" class="help-btn" onclick="openPatternsHelp()" title="How to read this view" aria-label="How to read this view">?</button>
+          <button class="secondary" onclick="loadFibMap(true)">Refresh</button>
+        </div>
       </div>
       <div class="fib-legend-grid">
         <section class="fib-legend-card critical">
@@ -3864,6 +4046,7 @@
       { key: "gainPct", label: "Gain %", coloredPercent: true, sortValue: (row) => row.gainPct, render: (row) => renderColoredPercentCell(row.gainPct) },
       { key: "analystTarget1y", label: "1YT", sortValue: (row) => row.analystTarget1y, render: (row) => formatMoney(row.analystTarget1y) },
       { key: "analystUpsidePct", label: "1YT %", coloredPercent: true, sortValue: (row) => row.analystUpsidePct, render: (row) => renderColoredPercentCell(row.analystUpsidePct) },
+      { key: "personalTarget", label: "PT", sortValue: (row) => row.personalTarget, render: (row) => formatMoney(row.personalTarget) },
       { key: "annualDividend", label: "Annual Div.", sortValue: (row) => row.annualDividend, render: (row) => formatMoney(row.annualDividend) },
     ];
 
@@ -4013,15 +4196,18 @@
 
     function renderScreeningAlertsCell(row) {
       const count = Number(row.alertCount) || 0;
-      if (!count) {
-        return `<span class="empty">0</span>`;
-      }
-      return screeningInspectorLink(
-        row.symbol,
-        "alerts",
-        `<span class="screening-alert-link">${count}</span>`,
-        `${count} active alert(s) — open in Inspector`
-      );
+      const flags = (row.flags || []).join(", ");
+      const countHtml = count
+        ? screeningInspectorLink(
+            row.symbol,
+            "alerts",
+            `<span class="screening-alert-link">(${count})</span>`,
+            `${count} active alert(s) — open in Inspector`
+          )
+        : `<span class="empty">(0)</span>`;
+      return flags
+        ? `${countHtml} <span class="screening-flags">${escapeHtml(flags)}</span>`
+        : countHtml;
     }
 
     function renderScreeningTechStanceCell(row) {
@@ -4062,16 +4248,13 @@
         sortValue: (row) => row.noteCount || 0,
         render: (row) => renderScreeningNotesCell(row),
       },
+      { key: "upsidePct", label: "Upside", sortValue: (row) => row.upsidePct, render: (row) => `${row.upsidePct ?? "—"}%` },
       {
         key: "alertCount",
         label: "Alerts",
         sortValue: (row) => row.alertCount,
         render: (row) => renderScreeningAlertsCell(row),
       },
-      { key: "score", label: "Score", sortValue: (row) => row.score, render: (row) => row.score },
-      { key: "upsidePct", label: "Upside", sortValue: (row) => row.upsidePct, render: (row) => `${row.upsidePct ?? "—"}%` },
-      { key: "fibDistancePct", label: "Fib Dist", sortValue: (row) => row.fibDistancePct, render: (row) => `${row.fibDistancePct ?? "—"}%` },
-      { key: "flags", label: "Flags", sortValue: (row) => row.flags.join(", "), render: (row) => row.flags.join(", ") },
     ];
 
     function renderScreeningTable(rows) {
@@ -4104,7 +4287,9 @@
       if (!level) return null;
       const kind = fibLevelKind(level);
       const base = level.label || "—";
-      return kind ? `${base} · ${kind}` : base;
+      const labelKind = kind ? `${base} · ${kind}` : base;
+      const price = level.price != null ? ` · ${formatMoney(level.price)}` : "";
+      return `${labelKind}${price}`;
     }
 
     function fibProximityZone(distancePct) {
@@ -4122,6 +4307,80 @@
       return `<span class="fib-proximity-cell fib-${zone}">${content}</span>`;
     }
 
+    // One-line "reading" per pattern (condensed from docs/PATTERNS.md §5) shown on
+    // badge hover, plus the §7 stance triggers shown on Tech Stance hover.
+    const PATTERN_READING = {
+      "Head & Shoulders": "Bearish topping structure: Left Shoulder → Head (higher) → Right Shoulder. Confirms on a close below the neckline; target = neckline − (head − neckline).",
+      "Inverse Head & Shoulders": "Bullish bottoming structure: the mirror of H&S. Confirms on a close above the neckline; target = neckline + (neckline − head).",
+      "Double Top": "Bearish: two tops at a similar level. Confirms on a close below the neckline (the trough between); target = neckline − pattern height. Reads as a failed retest of resistance.",
+      "Double Bottom": "Bullish: two bottoms at a similar level. Confirms on a close above the neckline (the peak between); target = neckline + pattern height. Reads as support holding twice.",
+      "Ascending Triangle": "Bullish: flat highs (resistance touched ≥3×) + rising lows. Confirms on a close above the highs. Buyers stepping up into a ceiling — breakout bias.",
+      "Descending Triangle": "Bearish: flat lows (support touched ≥3×) + falling highs. Confirms on a close below the lows. Sellers pressing a floor — breakdown bias.",
+      "Symmetrical Triangle": "Neutral: falling highs and rising lows converging. Always 'forming' until it breaks either way — watch the break direction.",
+    };
+    const STANCE_TRIGGER = {
+      Strong: "Price at/above the 50% center Fib level (bullish baseline).",
+      Alert: "Within 2% of the nearest Fib level — imminent retest/breakout.",
+      Cautious: "Below the 50% center level — wait for stabilization.",
+      Neutral: "No center level available; monitor key boundaries.",
+      Unknown: "Not enough technical data.",
+    };
+
+    function fibPatternColorClass(type) {
+      const t = String(type || "").toLowerCase();
+      return t === "bullish" ? "is-bullish" : t === "bearish" ? "is-bearish" : "is-neutral";
+    }
+
+    function fibPatternSortKey(row) {
+      const p = row.pattern;
+      if (!p || !p.name) return null;
+      const conf = String(Math.round((p.confidence || 0) * 100)).padStart(3, "0");
+      return `${p.name}|${conf}`;
+    }
+
+    function renderFibPatternCell(row) {
+      const p = row.pattern;
+      if (!p || !p.name) return `<span class="empty">—</span>`;
+      const abbrev = PATTERN_ABBREV[p.name] || p.name;
+      const cls = fibPatternColorClass(p.type);
+      const conf = p.confidence != null ? ` (${Math.round(p.confidence * 100)}%)` : "";
+      const status = p.status ? ` ${p.status}` : "";
+      const statusNote = p.status === "confirmed"
+        ? "Confirmed: price has broken the key level in the pattern's direction; the measured-move target is active."
+        : "Forming: shape in place but the key level is not broken yet — a watch item, not a trigger.";
+      const reading = PATTERN_READING[p.name] || p.name;
+      const title = `${p.name} (${p.type || "?"})\n${reading}\n${statusNote}`;
+      return `<span class="fib-pattern ${cls}" title="${escapeHtml(title)}">◆ ${abbrev}${status}${conf}</span>`;
+    }
+
+    function renderFibNecklineCell(row) {
+      const price = row.pattern?.neckline;
+      if (price == null) return `<span class="empty">—</span>`;
+      const label = row.pattern?.keyLabel ? `${row.pattern.keyLabel}: ${formatMoney(price)}` : formatMoney(price);
+      return `<span title="${escapeHtml(label)}">${formatMoney(price)}</span>`;
+    }
+
+    function renderFibTargetCell(row) {
+      const p = row.pattern;
+      if (!p || p.target == null) return `<span class="empty">—</span>`;
+      const t = String(p.type || "").toLowerCase();
+      const cls = t === "bullish" ? "gain-pos" : t === "bearish" ? "gain-neg" : "";
+      return `<span class="${cls}" title="Measured-move target after a confirmed break">${formatMoney(p.target)}</span>`;
+    }
+
+    function renderFibTrendsCell(row) {
+      const t = row.trends;
+      if (!t || !t.legs) return `<span class="empty">—</span>`;
+      const title = `${t.legs} detected trend-wave legs (${t.ups} up, ${t.downs} down)`;
+      return `<span class="fib-trends" title="${escapeHtml(title)}">${t.legs} Legs (${t.ups} ↑, ${t.downs} ↓)</span>`;
+    }
+
+    function renderFibTechStanceCell(row) {
+      const stance = row.techStance || "Unknown";
+      const trigger = STANCE_TRIGGER[stance] || row.techStanceMessage || "";
+      return `<span class="screening-tech-stance ${stance.toLowerCase()}" title="${escapeHtml(trigger)}">${stance}</span>`;
+    }
+
     const fibColumns = [
       {
         key: "symbol",
@@ -4131,19 +4390,27 @@
       },
       { key: "currentPrice", label: "Price", sortValue: (row) => row.currentPrice, render: (row) => formatMoney(row.currentPrice) },
       {
+        key: "pattern",
+        label: "Pattern",
+        sortValue: (row) => fibPatternSortKey(row),
+        render: (row) => renderFibPatternCell(row),
+      },
+      { key: "neckline", label: "Neckline", sortValue: (row) => row.pattern?.neckline, render: (row) => renderFibNecklineCell(row) },
+      { key: "target", label: "Target", sortValue: (row) => row.pattern?.target, render: (row) => renderFibTargetCell(row) },
+      { key: "trends", label: "Trends", sortValue: (row) => row.trends?.legs, render: (row) => renderFibTrendsCell(row) },
+      { key: "techStance", label: "Tech Stance", sortValue: (row) => row.techStance || "", render: (row) => renderFibTechStanceCell(row) },
+      {
         key: "nearestFibLabel",
         label: "Nearest Fib",
         sortValue: (row) => row.nearestFib?.label,
         render: (row) => renderFibProximityCell(row, formatNearestFibDisplay(row.nearestFib)),
       },
-      { key: "nearestFibPrice", label: "Level", sortValue: (row) => row.nearestFib?.price, render: (row) => row.nearestFib ? formatMoney(row.nearestFib.price) : "—" },
       {
         key: "distancePct",
         label: "Distance",
         sortValue: (row) => row.distancePct,
         render: (row) => renderFibProximityCell(row, row.distancePct == null ? null : `${row.distancePct}%`),
       },
-      { key: "withinBand", label: "In Band", sortValue: (row) => row.withinBand ? 1 : 0, render: (row) => row.withinBand ? "Yes" : "No" },
     ];
 
     function applyFibMapFilters(rows) {
@@ -4175,6 +4442,27 @@
       fibMapTicker = value || "";
       renderFibMapView();
     }
+
+    function openPatternsHelp() {
+      const modal = document.getElementById("patternsHelp");
+      if (modal) modal.hidden = false;
+    }
+
+    function closePatternsHelp() {
+      const modal = document.getElementById("patternsHelp");
+      if (modal) modal.hidden = true;
+    }
+
+    function onPatternsHelpBackdrop(event) {
+      if (event.target && event.target.id === "patternsHelp") closePatternsHelp();
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        const modal = document.getElementById("patternsHelp");
+        if (modal && !modal.hidden) closePatternsHelp();
+      }
+    });
 
     function renderFibMapTable() {
       const rows = applyFibMapFilters(fibMapData);

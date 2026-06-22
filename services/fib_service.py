@@ -4,7 +4,7 @@ import time
 from collections import OrderedDict
 from typing import Any
 
-import yfinance as yf
+from services.market_cache import make_ticker
 
 FIB_RATIOS = (0.236, 0.382, 0.5, 0.618, 0.786)
 
@@ -82,7 +82,7 @@ class FibService:
         symbol = symbol.upper()
         data = None
         try:
-            data = yf.Ticker(symbol).history(period=self.period, auto_adjust=True)
+            data = make_ticker(symbol).history(period=self.period, auto_adjust=True)
             if data.empty:
                 return None
 

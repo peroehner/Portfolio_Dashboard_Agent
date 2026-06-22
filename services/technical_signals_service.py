@@ -20,6 +20,7 @@ without the network; ``get_signals(symbol)`` adds fetching + TTL caching.
 from __future__ import annotations
 
 import os
+import threading
 from typing import Any
 
 import numpy as np
@@ -36,10 +37,33 @@ _history_ttl = float(os.environ.get("TECHNICAL_SIGNALS_CACHE_TTL_SECONDS", "900"
 _history_max = int(os.environ.get("TECHNICAL_SIGNALS_CACHE_MAX_ENTRIES", "64"))
 _history_cache: TtlCache = TtlCache(_history_ttl, _history_max)
 
+# A *failed* history fetch (None/empty) is cached only briefly, not for the full
+# success TTL. Otherwise one bad burst -- e.g. a parallel pattern/Fib-map fetch
+# colliding with the background sync's yfinance calls -- would freeze a symbol's
+# patterns and trend waves blank for 15 min across the whole app (the "view shows
+# patterns in the Inspector but the table is empty" symptom). With a short
+# cooldown the next request retries and the data fills in. 0 disables the cooldown
+# (always retry on the next request).
+_history_fail_ttl = float(os.environ.get("TECHNICAL_HISTORY_FAIL_COOLDOWN_SECONDS", "120"))
+_history_fail_cache: TtlCache = TtlCache(max(1.0, _history_fail_ttl), 256)
+
+# Cap concurrent yfinance history fetches process-wide. The Fib-map and /patterns
+# endpoints each fan out across a ThreadPoolExecutor, and the assessment runs its
+# own pool, so without a brake several bursts can hit Yahoo at once (on top of the
+# background price sync) and trip rate limiting -- which is what leaves patterns
+# and trend waves blank. This semaphore lets the pools keep their width for cache
+# hits while serialising the actual network calls to a safe number.
+_history_max_concurrency = int(os.environ.get("TECHNICAL_HISTORY_MAX_CONCURRENCY", "3"))
+_history_fetch_semaphore = threading.Semaphore(max(1, _history_max_concurrency))
+
 
 class TechnicalSignalsService:
     def __init__(self) -> None:
-        self.period = os.environ.get("TECHNICAL_SIGNALS_PERIOD", "2y")
+        # Defensive: strip any stray inline `# comment` / whitespace so a
+        # mis-parsed .env value (e.g. injected verbatim by the editor's debugger)
+        # can't reach yfinance as an invalid period like "2y  # ...".
+        raw_period = os.environ.get("TECHNICAL_SIGNALS_PERIOD", "2y")
+        self.period = (raw_period.split("#", 1)[0].strip() or "2y")
         # Pivot (zig-zag) reversal threshold. 0 = adaptive from ATR%.
         self.pivot_pct = float(os.environ.get("TECHNICAL_PIVOT_PCT", "0"))
         self.pivot_atr_mult = float(os.environ.get("TECHNICAL_PIVOT_ATR_MULT", "2.5"))
@@ -70,14 +94,36 @@ class TechnicalSignalsService:
         cached = _history_cache.peek(key)
         if cached is not CACHE_MISS:
             return cached
-        try:
-            history = make_ticker(symbol).history(period=self.period, auto_adjust=True)
-        except Exception:  # noqa: BLE001 - network/parse issues are non-fatal
-            history = None
-        if history is not None and getattr(history, "empty", True):
-            history = None
-        _history_cache.put(key, history)  # cache misses too, to avoid hammering
-        return history
+        if _history_fail_ttl > 0 and _history_fail_cache.peek(key) is not CACHE_MISS:
+            return None  # recently failed; cool down before retrying
+        with _history_fetch_semaphore:
+            # Re-check after waiting: another thread may have filled (or failed)
+            # this symbol while we queued behind the concurrency limit.
+            cached = _history_cache.peek(key)
+            if cached is not CACHE_MISS:
+                return cached
+            if _history_fail_ttl > 0 and _history_fail_cache.peek(key) is not CACHE_MISS:
+                return None
+            try:
+                history = make_ticker(symbol).history(period=self.period, auto_adjust=True)
+            except Exception:  # noqa: BLE001 - network/parse issues are non-fatal
+                history = None
+            if history is not None and getattr(history, "empty", True):
+                history = None
+            if history is None:
+                # A failure often means this thread's Yahoo session went stale
+                # (expired cookie/crumb). Drop it so the next call rebuilds a
+                # fresh one instead of reusing the dead session forever.
+                from services.market_cache import reset_yf_session
+
+                reset_yf_session()
+                # Brief negative cache so a transient failure doesn't hammer Yahoo
+                # but also doesn't freeze the symbol blank for the full success TTL.
+                if _history_fail_ttl > 0:
+                    _history_fail_cache.put(key, True)
+            else:
+                _history_cache.put(key, history)
+            return history
 
     def get_signals(self, symbol: str) -> dict[str, Any] | None:
         df = self._history(symbol)
@@ -98,6 +144,7 @@ class TechnicalSignalsService:
     @staticmethod
     def clear_cache() -> None:
         _history_cache.clear()
+        _history_fail_cache.clear()
 
     # ------------------------------------------------------------------ #
     # Pure computation (no network) — safe to unit test with a synthetic df

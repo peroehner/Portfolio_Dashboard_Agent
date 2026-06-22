@@ -5,7 +5,7 @@ from typing import Any
 import yfinance as yf
 
 from services.alerts_service import AlertsService
-from services.market_cache import TtlCache
+from services.market_cache import TtlCache, yf_throttle
 from services.assessment_service import AssessmentService
 from services.holdings_service import HoldingsService
 from services.portfolio_service import PortfolioService
@@ -54,13 +54,14 @@ class OverviewService:
             prices = {symbol: None for symbol in symbols}
             data = None
             try:
-                data = yf.download(
-                    symbols,
-                    start=start,
-                    progress=False,
-                    auto_adjust=True,
-                    group_by="column",
-                )
+                with yf_throttle():
+                    data = yf.download(
+                        symbols,
+                        start=start,
+                        progress=False,
+                        auto_adjust=True,
+                        group_by="column",
+                    )
                 if data.empty:
                     return prices
 
