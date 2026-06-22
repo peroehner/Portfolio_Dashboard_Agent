@@ -2003,7 +2003,21 @@
         <h4>6 · Trends (the legs)</h4>
         <p>The <strong>Trends</strong> column counts the dominant zig-zag legs over the adaptive window, e.g. <code>5 Legs (3 ↑, 2 ↓)</code>. On the Inspector chart these are the colored <code>T1 ↑ … T2 ↓ …</code> waves, alternating bullish/bearish. The window auto-sizes per symbol so relevant swings aren't cropped.</p>
 
-        <h4>7 · Technical Stance</h4>
+        <h4>7 · Fibonacci Levels</h4>
+        <p>Fibonacci levels turn a recent price range into a ladder of <strong>support / resistance lines</strong>. They're anchored to the <strong>swing high</strong> and <strong>swing low</strong> of a ~90-day window (<code>FIB_LOOKBACK_PERIOD</code>) — shorter than the ~2y pattern window, so they track the current range. <strong>0% is the high</strong>, <strong>100% is the low</strong>; a "61.8% retracement" has given back 61.8% of the up-move.</p>
+        <table class="help-table">
+          <tr><th>Level</th><th>Name</th><th>What it means</th></tr>
+          <tr><td><code>0%</code></td><td>High</td><td>Top of the range — overhead resistance / the line a full recovery must reclaim.</td></tr>
+          <tr><td><code>23.6%</code></td><td>Retracement (shallow)</td><td>A minor pullback; strong trends often hold above it.</td></tr>
+          <tr><td><code>38.2%</code></td><td>Retracement</td><td>A healthy, moderate pullback; a common bounce zone in an uptrend.</td></tr>
+          <tr><td><code>50%</code></td><td>Center Line</td><td>Range midpoint — the <strong>bull/bear baseline</strong> (above constructive, below cautious). Drives the Technical Stance below.</td></tr>
+          <tr><td><code>61.8%</code></td><td>Golden Pocket</td><td>The most-watched level; holding it keeps the up-move intact, losing it opens the path to the base.</td></tr>
+          <tr><td><code>78.6%</code></td><td>Retracement (deep)</td><td>The last line before a full give-back.</td></tr>
+          <tr><td><code>100%</code></td><td>Base</td><td>Bottom of the range — the floor / support.</td></tr>
+        </table>
+        <p>On the chart the lines are color-coded: <strong>0% High</strong> (purple), <strong>38.2% Fib</strong> (blue), <strong>50% Center</strong> (amber), <strong>61.8% Golden</strong> (red), <strong>100% Base</strong> (grey). The <strong>Nearest Fib</strong> column shows the closest level, its kind, and price (e.g. <code>61.8% · Golden Pocket · $158.38</code>) — the closer price sits, the more likely a retest/breakout.</p>
+
+        <h4>8 · Technical Stance</h4>
         <p>A quick read of where price sits versus its Fibonacci structure (hover the cell for the trigger):</p>
         <table class="help-table">
           <tr><th>Stance</th><th>Trigger</th></tr>

@@ -167,14 +167,60 @@ zig-zag legs detected over the adaptive window:
 - The window auto-sizes per symbol so relevant swings aren't cropped — that's
   why the start date under "Detected Trend Waves" varies by symbol.
 - Source is labeled **computed** (derived here) or **import** (from a TA
-  snapshot), and the global "Computed trends" toggle forces computed everywhere.
+  snapshot), and   the global "Computed trends" toggle forces computed everywhere.
 
 ---
 
-## 7. Technical Risk Advisory (the "Stance")
+## 7. Fibonacci Levels (the horizontal price lines)
+
+Fibonacci levels turn a recent price range into a ladder of **support /
+resistance lines** that traders watch for bounces, retests, and breakouts. We
+anchor the ladder to the **swing high** and **swing low** of a lookback window
+(default ~90 trading days, `FIB_LOOKBACK_PERIOD`) — deliberately shorter than the
+~2y window used for patterns and trend waves, so the levels track the *current*
+range rather than the multi-year one.
+
+Each level sits a Fibonacci fraction of the way **down** from the high:
+
+```
+level price = swing_high − (swing_high − swing_low) × ratio
+```
+
+So **0% is the high** (top of the range) and **100% is the low** (bottom). A
+"61.8% retracement" means price has given back 61.8% of the prior up-move.
+
+| Level | Name | What it means |
+|-------|------|---------------|
+| **0%** | High | Top of the measured range — overhead resistance / the line a full recovery must reclaim. |
+| **23.6%** | Retracement (shallow) | A minor pullback; strong trends often hold above it. |
+| **38.2%** | Retracement | A healthy, moderate pullback; a common bounce zone in an uptrend. |
+| **50%** | Center Line | Range midpoint (not a true Fib ratio, but widely watched). We treat it as the **bull/bear baseline** — above is constructive, below is cautious — and it drives the Technical Stance (§8). |
+| **61.8%** | Golden Pocket | The "golden ratio" and the most-watched level. Holding it keeps the larger up-move intact; losing it opens the path back to the base. |
+| **78.6%** | Retracement (deep) | The last line before a full give-back; a deep test of the move. |
+| **100%** | Base | Bottom of the range — the floor / support. |
+
+**On the Inspector chart** the levels are horizontal lines, color-coded:
+**0% High** (purple), **38.2% Fib** (blue), **50% Center** (amber),
+**61.8% Golden** (red), **100% Base** (grey). The 23.6% and 78.6% retracements
+are still used for *proximity* (below) even though the chart keeps the drawn line
+set uncluttered.
+
+**In the Patterns & Tech Signals table**, the **Nearest Fib** column shows the
+closest level to the current price, its kind, and its dollar value
+(e.g. `61.8% · Golden Pocket · $158.38`). The closer price sits to a level, the
+more likely a retest or breakout — which is exactly what the `Alert` stance
+flags (§8).
+
+> Levels are **recomputed as the window rolls**, so they drift over time. They
+> are reference zones, not hard predictions — strongest when they line up with a
+> pattern's key level or a trend-wave pivot.
+
+---
+
+## 8. Technical Risk Advisory (the "Stance")
 
 The Inspector's **Technical Stance** is a quick read of where price sits versus
-its Fibonacci structure:
+its Fibonacci structure (§7):
 
 | Stance | Trigger |
 |--------|---------|
@@ -184,12 +230,9 @@ its Fibonacci structure:
 | `Neutral` | No center level available; monitor key boundaries. |
 | `Unknown` | Not enough technical data. |
 
-Fibonacci levels on the chart: **0% High**, **38.2% Fib**, **50% Center**,
-**61.8% Golden**, **100% Base**.
-
 ---
 
-## 8. Signal Track Record (Summary)
+## 9. Signal Track Record (Summary)
 
 Every assessment captures its recommendation **and** any detected pattern as a
 forward-looking "bet". Once the horizon elapses they're scored:
@@ -207,7 +250,7 @@ future signals (auto-calibration is a planned next step).
 
 ---
 
-## 9. Related config knobs
+## 10. Related config knobs
 
 All optional; see [.env.example](../.env.example).
 
@@ -215,11 +258,12 @@ All optional; see [.env.example](../.env.example).
 |----------|---------|--------|
 | `ASSESSMENT_PATTERNS` | `1` | Enable/disable pattern detection |
 | `TECHNICAL_PATTERN_TOL_PCT` | `3` | How close pivots must be to count as "similar" |
-| `TECHNICAL_SIGNALS_PERIOD` | `2y` | History pulled per symbol |
+| `TECHNICAL_SIGNALS_PERIOD` | `2y` | History pulled per symbol (patterns/trends) |
+| `FIB_LOOKBACK_PERIOD` | `90d` | Window for the Fibonacci swing high/low |
 | `TRACK_RECORD` | `1` | Capture/score signals |
 | `TRACK_RECORD_HORIZON_DAYS` | `21` | Scoring horizon |
 | `TRACK_RECORD_BAND_PCT` | `2.0` | Win/loss dead-band |
 
 Implementation lives in `services/technical_signals_service.py` (detection),
-`services/inspector_service.py` (stance + chart wiring), and
-`services/track_record_service.py` (scoring).
+`services/fib_service.py` (Fibonacci levels), `services/inspector_service.py`
+(stance + chart wiring), and `services/track_record_service.py` (scoring).
