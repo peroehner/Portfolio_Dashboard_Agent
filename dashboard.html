@@ -1714,7 +1714,8 @@
       border-color: var(--border);
     }
     .fib-filter-bar,
-    .screening-filter-bar {
+    .screening-filter-bar,
+    .holdings-filter-bar {
       display: flex;
       align-items: center;
       gap: 0.5rem;
@@ -2111,6 +2112,13 @@
         </label>
       </div>
       <p class="empty" style="margin-top:0;">Click a symbol to inspect it. Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows; totals then apply to the selection.</p>
+      <div class="holdings-filter-bar">
+        <button type="button" class="secondary filter-btn active" data-holdings-filter="all" onclick="setHoldingsFilter('all')">All</button>
+        <button type="button" class="secondary filter-btn" data-holdings-filter="large" onclick="setHoldingsFilter('large')" title="Top 20% by share count">Large</button>
+        <button type="button" class="secondary filter-btn" data-holdings-filter="medium" onclick="setHoldingsFilter('medium')" title="Middle 60% by share count">Medium</button>
+        <button type="button" class="secondary filter-btn" data-holdings-filter="small" onclick="setHoldingsFilter('small')" title="Bottom 20% by share count">Small</button>
+        <button type="button" class="secondary filter-btn" data-holdings-filter="watch" onclick="setHoldingsFilter('watch')" title="Tracked symbols with no shares">Watch-only</button>
+      </div>
       <div id="holdingsTable"></div>
     </section>
     <section class="panel holdings-inspector-panel">
@@ -4032,13 +4040,96 @@
 
     async function loadHoldings() {
       const data = await api("/overview");
-      const present = new Set((data.holdings || []).map((h) => h.symbol));
+      // Positions with actual shares drive the All/Large/Medium/Small filters;
+      // tracked symbols without shares become the Watch-only list.
+      holdingsRows = (data.holdings || []).filter((h) => (Number(h.quantity) || 0) > 0);
+      holdingsWatchRows = buildWatchOnlyRows(data);
+      const present = new Set([...holdingsRows, ...holdingsWatchRows].map((h) => h.symbol));
       holdingsSelection = new Set([...holdingsSelection].filter((s) => present.has(s)));
       if (holdingsAnchor && !present.has(holdingsAnchor)) holdingsAnchor = null;
-      document.getElementById("holdingsTable").innerHTML = renderHoldingsTable(data.holdings);
-      if (selectedSymbol && data.holdings.some((holding) => holding.symbol === selectedSymbol)) {
+      renderHoldingsView();
+      if (selectedSymbol && present.has(selectedSymbol)) {
         await openHoldingsInspector(selectedSymbol, false);
       }
+    }
+
+    function buildWatchOnlyRows(data) {
+      const held = new Set(
+        (data.holdings || [])
+          .filter((h) => (Number(h.quantity) || 0) > 0)
+          .map((h) => h.symbol)
+      );
+      return (data.symbols || [])
+        .filter((sym) => !held.has(sym.symbol))
+        .map((sym) => {
+          const price = sym.currentPrice;
+          const analyst = sym.analystTarget1y;
+          const analystUpsidePct =
+            analyst != null && price
+              ? Math.round(((analyst - price) / price) * 10000) / 100
+              : null;
+          return {
+            symbol: sym.symbol,
+            currentPrice: price,
+            dayChangePct: sym.dayChangePct,
+            quantity: 0,
+            marketValue: null,
+            weightPct: null,
+            unrealizedGain: null,
+            gainPct: null,
+            analystTarget1y: analyst,
+            analystUpsidePct,
+            personalTarget: sym.targetPrice,
+            annualDividend: sym.annualDividend,
+            watchOnly: true,
+          };
+        });
+    }
+
+    function quantileSorted(sorted, q) {
+      if (!sorted.length) return null;
+      const pos = (sorted.length - 1) * q;
+      const base = Math.floor(pos);
+      const rest = pos - base;
+      return sorted[base + 1] !== undefined
+        ? sorted[base] + rest * (sorted[base + 1] - sorted[base])
+        : sorted[base];
+    }
+
+    function holdingsRowsForFilter() {
+      if (holdingsFilter === "watch") return holdingsWatchRows;
+      const rows = holdingsRows;
+      if (holdingsFilter === "all" || rows.length === 0) return rows;
+      // Classify by share count only (price ignored): top 20% Large, bottom 20%
+      // Small, the middle 60% Medium.
+      const qtys = rows.map((h) => Number(h.quantity) || 0).sort((a, b) => a - b);
+      const p20 = quantileSorted(qtys, 0.2);
+      const p80 = quantileSorted(qtys, 0.8);
+      if (holdingsFilter === "large") return rows.filter((h) => (Number(h.quantity) || 0) >= p80);
+      if (holdingsFilter === "small") return rows.filter((h) => (Number(h.quantity) || 0) <= p20);
+      if (holdingsFilter === "medium") {
+        return rows.filter((h) => {
+          const q = Number(h.quantity) || 0;
+          return q > p20 && q < p80;
+        });
+      }
+      return rows;
+    }
+
+    function updateHoldingsFilterButtons() {
+      document.querySelectorAll("#view-holdings .filter-btn").forEach((button) => {
+        button.classList.toggle("active", button.dataset.holdingsFilter === holdingsFilter);
+      });
+    }
+
+    function setHoldingsFilter(filter) {
+      holdingsFilter = filter;
+      renderHoldingsView();
+    }
+
+    function renderHoldingsView() {
+      document.getElementById("holdingsTable").innerHTML = renderHoldingsTable(holdingsRowsForFilter());
+      updateHoldingsFilterButtons();
     }
 
     const holdingsColumns = [
@@ -4059,13 +4150,24 @@
     let holdingsSelection = new Set();
     let holdingsAnchor = null;
     let holdingsShowTotal = true;
+    let holdingsFilter = "all";
+    let holdingsRows = [];
+    let holdingsWatchRows = [];
+
+    const HOLDINGS_EMPTY_MESSAGES = {
+      all: "No positions yet. Import an analysis file or add holdings via API.",
+      large: "No positions in the top 20% by share count.",
+      medium: "No positions in the middle band by share count.",
+      small: "No positions in the bottom 20% by share count.",
+      watch: "No watch-only symbols — every tracked symbol has shares.",
+    };
 
     function renderHoldingsTable(holdings) {
       return renderSortableTable(
         "holdings",
         holdingsColumns,
         holdings,
-        "No positions yet. Import an analysis file or add holdings via API.",
+        HOLDINGS_EMPTY_MESSAGES[holdingsFilter] || HOLDINGS_EMPTY_MESSAGES.all,
         {
           selectedKeys: holdingsSelection,
           footerHtml: holdingsShowTotal ? holdingsTotalsFooterHtml() : "",
@@ -4078,14 +4180,15 @@
     }
 
     function holdingsTotalsFooterHtml() {
-      const all = tableDataCache.holdings || [];
-      if (!all.length) return "";
+      const displayed = tableDataCache.holdings || [];
+      if (!displayed.length) return "";
       const useSelection = holdingsSelection.size > 1;
-      const rows = useSelection ? all.filter((h) => holdingsSelection.has(h.symbol)) : all;
+      const rows = useSelection ? displayed.filter((h) => holdingsSelection.has(h.symbol)) : displayed;
       const sumOf = (arr, key) => arr.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
       // Weight % and Gain % are always expressed as a share of the ENTIRE
-      // portfolio value, so the selected rows read as their slice of the whole.
-      const portfolioValue = sumOf(all, "marketValue");
+      // portfolio value (all shares-holding positions, not just the filtered
+      // view), so a filtered/selected subset reads as its slice of the whole.
+      const portfolioValue = sumOf(holdingsRows.length ? holdingsRows : displayed, "marketValue");
       const totalValue = sumOf(rows, "marketValue");
       const totalGain = sumOf(rows, "unrealizedGain");
       const totalDiv = sumOf(rows, "annualDividend");
