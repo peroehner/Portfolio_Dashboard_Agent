@@ -108,6 +108,16 @@
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
+    /* Highlighted section title, matching the large/bold wide-panel headings
+       (Screening, Patterns & Tech Signals) so panel titles read consistently. */
+    .panel h2.section-title {
+      margin: 0 0 0.75rem;
+      font-size: 1.5em;
+      font-weight: 700;
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: normal;
+    }
     .panel-symbol-head {
       display: flex;
       flex-direction: column;
@@ -2105,7 +2115,7 @@
   <main id="view-holdings" class="view" hidden>
     <section class="panel holdings-table-panel">
       <div class="holdings-head">
-        <h2>Positions (Holdings)</h2>
+        <h2 class="section-title">Holdings</h2>
         <label class="toggle-inline" title="Show a totals row at the bottom">
           <input type="checkbox" id="holdingsShowTotal" checked onchange="toggleHoldingsTotal(this.checked)">
           Show Total
@@ -2315,7 +2325,7 @@
 
   <main id="view-fundamentals" class="view" hidden>
     <section class="panel">
-      <h2>Fundamentals Comparison</h2>
+      <h2 class="section-title">Fundamentals Comparison</h2>
       <p class="empty" style="margin-top:0;">Compare every tracked symbol side by side. Split across three tabs; click a column header to sort, or a symbol to open the Inspector.</p>
       <div class="fundamentals-tabbar">
         <button class="fund-tab active" data-fund-tab="val" onclick="setFundamentalsTab('val')">Valuation · Growth · Profitability</button>
@@ -2459,6 +2469,17 @@
       }
     }
 
+    function loadView(name) {
+      if (name === "overview") return loadOverview();
+      if (name === "holdings") return loadHoldings();
+      if (name === "portfolio") return loadPortfolio();
+      if (name === "screening") return loadScreening();
+      if (name === "fib") return loadFibMap();
+      if (name === "inspector") return loadInspectorOptions();
+      if (name === "fundamentals") return loadFundamentals();
+      return Promise.resolve();
+    }
+
     function showView(name) {
       currentView = name;
       document.querySelectorAll(".view").forEach((el) => el.hidden = true);
@@ -2466,13 +2487,7 @@
       document.querySelectorAll("nav.tabs button").forEach((btn) => {
         btn.classList.toggle("active", btn.dataset.view === name);
       });
-      if (name === "overview") loadOverview();
-      if (name === "holdings") loadHoldings();
-      if (name === "portfolio") loadPortfolio();
-      if (name === "screening") loadScreening();
-      if (name === "fib") loadFibMap();
-      if (name === "inspector") loadInspectorOptions();
-      if (name === "fundamentals") loadFundamentals();
+      loadView(name);
     }
 
     // ---- Auto-refresh (every 30s) -------------------------------------------
@@ -3431,7 +3446,10 @@
           const data = await api("/sync", { method: "POST" });
           invalidateViewCaches();
           symbolPatternsFetched = false;
-          await loadPortfolio();
+          // Reload whatever the user is currently looking at so freshly synced
+          // prices show immediately (not only after switching tabs). The symbol
+          // list/Target detail refresh lazily via showView when next opened.
+          await loadView(currentView);
           setStatus(`Synced ${data.sync.updated} symbols. ${data.newAlerts.length} new alerts.`, "success");
         } catch (error) {
           setStatus(error.message, "error");
