@@ -50,15 +50,20 @@ class InspectorService:
         if ASSESSMENT_TECHNICALS and not imported_trends:
             computed_chart = self.technical_signals_service.get_chart(symbol)
 
-        # Chart patterns are derived from price history and are source-independent,
-        # so surface them for imported symbols too (cached signals fetch).
+        # Chart patterns and volume context are derived from price history and are
+        # source-independent, so surface them for imported symbols too (cached
+        # signals fetch reuses the same DataFrame).
         chart_patterns: list[dict[str, Any]] = []
+        volume_meta: dict[str, Any] | None = None
+        volume_profile_meta: dict[str, Any] | None = None
         if ASSESSMENT_TECHNICALS:
-            if computed_chart:
-                chart_patterns = computed_chart.get("patterns") or []
-            else:
-                signals = self.technical_signals_service.get_signals(symbol)
-                chart_patterns = (signals or {}).get("patterns") or []
+            source = computed_chart
+            if source is None:
+                source = self.technical_signals_service.get_signals(symbol)
+            if source:
+                chart_patterns = source.get("patterns") or []
+                volume_meta = source.get("volume")
+                volume_profile_meta = source.get("volumeProfile")
 
         # Fib precedence: imported anchor > computed swing > generic 90d lookback
         # (imported anchor skipped when computed is preferred).
@@ -120,6 +125,8 @@ class InspectorService:
             ),
             "technicalAdvisory": technical_advisory,
             "chartPatterns": chart_patterns,
+            "volume": volume_meta,
+            "volumeProfile": volume_profile_meta,
             "chartPoints": self._chart_points(symbol_data, holding, fib),
         }
 

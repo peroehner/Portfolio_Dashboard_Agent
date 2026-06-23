@@ -416,6 +416,10 @@ class AssessmentService:
             name = pattern.get("name")
             if not name:
                 continue
+            # Don't record patterns the Risk agent vetoed on weak volume as
+            # forward-looking bets — they'd pollute the track record.
+            if (pattern.get("validation") or {}).get("verdict") == "veto":
+                continue
             captures.append(("pattern", name, _pattern_direction(pattern.get("type"))))
 
         for kind, label, direction in captures:

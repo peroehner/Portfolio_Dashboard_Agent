@@ -27,6 +27,8 @@ import numpy as np
 import pandas as pd
 
 from services.market_cache import CACHE_MISS, TtlCache, make_ticker
+from services.risk_service import validate_patterns
+from services.volume_service import volume_block, volume_profile
 
 FIB_RATIOS = (0.236, 0.382, 0.5, 0.618, 0.786)
 _TIMEFRAMES = (("1M", 21), ("3M", 63), ("6M", 126), ("1Y", 252))
@@ -198,11 +200,17 @@ class TechnicalSignalsService:
         dates = [d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d) for d in close.index]
         pivots = _zigzag(prices, threshold)
         signals["swing"] = _swing_block(close, price, threshold, pivots=pivots)
-        signals["patterns"] = (
+        # Volume context rides the same DataFrame (Volume was previously discarded).
+        profile = volume_profile(df)
+        signals["volume"] = volume_block(df)
+        signals["volumeProfile"] = profile
+        detected = (
             _detect_patterns(prices, dates, pivots, price, pattern_tol_pct)
             if pattern_tol_pct > 0
             else []
         )
+        # Risk agent: validate each pattern against volume (Phase 2).
+        signals["patterns"] = validate_patterns(detected, df, profile, price)
         return signals
 
     @staticmethod
@@ -293,17 +301,21 @@ class TechnicalSignalsService:
                 "anchorTrend": f"Computed swing · {swing['structure']}",
                 "source": "computed",
             }
-        patterns = (
+        profile = volume_profile(df)
+        detected = (
             _detect_patterns(prices, dates, pivots, price, pattern_tol_pct)
             if pattern_tol_pct > 0
             else []
         )
+        patterns = validate_patterns(detected, df, profile, price)
         return {
             "trendWaves": waves,
             "chartTimeline": timeline,
             "fib": fib,
             "swing": swing,
             "patterns": patterns,
+            "volume": volume_block(df),
+            "volumeProfile": profile,
         }
 
 

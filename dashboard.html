@@ -1092,6 +1092,34 @@
       color: var(--muted);
       font-variant-numeric: tabular-nums;
     }
+    .vc-badge {
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      padding: 0.05rem 0.4rem;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .vc-badge.vc-confirmed { color: #22c55e; background: rgba(34, 197, 94, 0.12); border-color: rgba(34, 197, 94, 0.4); }
+    .vc-badge.vc-weak { color: #f59e0b; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.4); }
+    .vc-badge.vc-veto { color: #ef4444; background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.4); }
+    .vc-badge.vc-pending { color: #93c5fd; background: rgba(147, 197, 253, 0.1); border-color: rgba(147, 197, 253, 0.35); }
+    .pattern-validation-reasons {
+      margin: 0.1rem 0 0.35rem 1.05rem;
+      padding: 0;
+      list-style: disc;
+      color: var(--muted);
+      font-size: 0.68rem;
+      line-height: 1.35;
+    }
+    .fib-volume { font-variant-numeric: tabular-nums; }
+    .vc-mark { font-weight: 700; cursor: help; }
+    .vc-mark.vc-confirmed { color: #22c55e; }
+    .vc-mark.vc-weak { color: #f59e0b; }
+    .vc-mark.vc-veto { color: #ef4444; }
+    .vc-mark.vc-pending { color: #93c5fd; }
     .fib-toggle {
       color: inherit;
     }
@@ -4477,7 +4505,19 @@
         : "Forming: shape in place but the key level is not broken yet — a watch item, not a trigger.";
       const reading = PATTERN_READING[p.name] || p.name;
       const title = `${p.name} (${p.type || "?"})\n${reading}\n${statusNote}`;
-      return `<span class="fib-pattern ${cls}" title="${escapeHtml(title)}">◆ ${abbrev}${status}${conf}</span>`;
+      const mark = renderFibValidationMark(p.validation);
+      return `<span class="fib-pattern ${cls}" title="${escapeHtml(title)}">◆ ${abbrev}${status}${conf}</span>${mark}`;
+    }
+
+    function renderFibValidationMark(validation) {
+      if (!validation || !validation.verdict) return "";
+      const meta = PATTERN_VALIDATION_META[validation.verdict];
+      if (!meta) return "";
+      const glyph = validation.verdict === "confirmed" ? "✓"
+        : validation.verdict === "veto" ? "✕"
+        : validation.verdict === "weak" ? "!" : "·";
+      const score = validation.score != null ? ` (score ${validation.score})` : "";
+      return ` <span class="vc-mark ${meta.cls}" title="Volume validation: ${escapeHtml(meta.label)}${score}">${glyph}</span>`;
     }
 
     function renderFibNecklineCell(row) {
@@ -4508,6 +4548,24 @@
       return `<span class="screening-tech-stance ${stance.toLowerCase()}" title="${escapeHtml(trigger)}">${stance}</span>`;
     }
 
+    const VOLUME_STATE_CLASS = { surging: "gain-pos", elevated: "gain-pos", light: "gain-neg", normal: "" };
+
+    function fibVolumeSortKey(row) {
+      const v = row.volume;
+      return v && v.rvol != null ? v.rvol : -1;
+    }
+
+    function renderFibVolumeCell(row) {
+      const v = row.volume;
+      if (!v || v.rvol == null) return `<span class="empty">—</span>`;
+      const cls = VOLUME_STATE_CLASS[v.state] || "";
+      const state = v.state ? ` · ${v.state}` : "";
+      const titleBits = [`Relative volume ${v.rvol}× the 20-day average${v.state ? ` (${v.state})` : ""}`];
+      if (v.trend) titleBits.push(`20d vs 50d participation: ${v.trend}`);
+      if (v.poc != null) titleBits.push(`Point of Control ≈ ${formatMoney(v.poc)}${v.priceNode ? ` · price on ${v.priceNode}-volume node` : ""}`);
+      return `<span class="fib-volume ${cls}" title="${escapeHtml(titleBits.join("\n"))}">${v.rvol}×${state}</span>`;
+    }
+
     const fibColumns = [
       {
         key: "symbol",
@@ -4525,6 +4583,7 @@
       { key: "neckline", label: "Neckline", sortValue: (row) => row.pattern?.neckline, render: (row) => renderFibNecklineCell(row) },
       { key: "target", label: "Target", sortValue: (row) => row.pattern?.target, render: (row) => renderFibTargetCell(row) },
       { key: "trends", label: "Trends", sortValue: (row) => row.trends?.legs, render: (row) => renderFibTrendsCell(row) },
+      { key: "volume", label: "Volume", sortValue: (row) => fibVolumeSortKey(row), render: (row) => renderFibVolumeCell(row) },
       { key: "techStance", label: "Tech Stance", sortValue: (row) => row.techStance || "", render: (row) => renderFibTechStanceCell(row) },
       {
         key: "nearestFibLabel",
@@ -5159,6 +5218,60 @@
       `;
     }
 
+    const PATTERN_VALIDATION_META = {
+      confirmed: { label: "volume-confirmed", cls: "vc-confirmed" },
+      weak: { label: "weak volume", cls: "vc-weak" },
+      veto: { label: "volume veto", cls: "vc-veto" },
+      pending: { label: "confirmation pending", cls: "vc-pending" },
+    };
+
+    function renderPatternValidationBadge(validation) {
+      if (!validation || !validation.verdict) return "";
+      const meta = PATTERN_VALIDATION_META[validation.verdict];
+      if (!meta) return "";
+      const reasons = (validation.reasons || []).join("\n");
+      return `<span class="vc-badge ${meta.cls}" title="${escapeHtml(reasons)}">${meta.label}</span>`;
+    }
+
+    function renderPatternValidationReasons(validation) {
+      if (!validation || !(validation.reasons || []).length) return "";
+      const items = validation.reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("");
+      return `<ul class="pattern-validation-reasons">${items}</ul>`;
+    }
+
+    function formatVolumeShort(value) {
+      if (value == null || isNaN(value)) return "—";
+      const abs = Math.abs(value);
+      if (abs >= 1e9) return `${(value / 1e9).toFixed(1)}B`;
+      if (abs >= 1e6) return `${(value / 1e6).toFixed(1)}M`;
+      if (abs >= 1e3) return `${(value / 1e3).toFixed(0)}K`;
+      return String(Math.round(value));
+    }
+
+    function renderInspectorVolume(volume, profile) {
+      if (!volume && !profile) return "";
+      const v = volume || {};
+      const p = profile || {};
+      const rvolClass = v.rvol == null ? "" : v.rvol >= 1.3 ? "gain-pos" : v.rvol <= 0.6 ? "gain-neg" : "";
+      const nodeLabel = (p.priceNode && p.priceNode.node)
+        ? `${p.priceNode.node}-volume node`
+        : "—";
+      const metrics = [
+        v.rvol != null ? `<div class="valuation-metric"><span class="label">Rel. Volume</span><span class="value ${rvolClass}">${v.rvol}×${v.state ? ` · ${v.state}` : ""}</span></div>` : "",
+        v.avgVolume20 != null ? `<div class="valuation-metric"><span class="label">Avg Vol (20d)</span><span class="value">${formatVolumeShort(v.avgVolume20)}</span></div>` : "",
+        v.obvSlopePct != null ? `<div class="valuation-metric"><span class="label">OBV Trend</span><span class="value ${v.obvSlopePct >= 0 ? "gain-pos" : "gain-neg"}">${v.obvSlopePct >= 0 ? "Accumulation" : "Distribution"}</span></div>` : "",
+        p.poc != null ? `<div class="valuation-metric"><span class="label" title="Point of Control — most-traded price over the lookback (approx. from daily bars)">POC</span><span class="value">${formatMoney(p.poc)}</span></div>` : "",
+        (p.val != null && p.vah != null) ? `<div class="valuation-metric"><span class="label" title="Value Area — price band holding ~${p.valueAreaPct ?? 70}% of volume">Value Area</span><span class="value">${formatMoney(p.val)} – ${formatMoney(p.vah)}</span></div>` : "",
+        (p.priceNode) ? `<div class="valuation-metric"><span class="label" title="How much volume has traded at the current price vs the POC">Price Node</span><span class="value">${nodeLabel}</span></div>` : "",
+      ].filter(Boolean).join("");
+      if (!metrics) return "";
+      return `
+        <section class="valuation-scoring volume-card">
+          <h3>Volume &amp; Liquidity <span class="pattern-caveat">POC approximated from daily bars</span></h3>
+          <div class="valuation-grid">${metrics}</div>
+        </section>`;
+    }
+
     function isHoldingsInspectorPanel(panelId) {
       return panelId === "holdingsInspectorPanel";
     }
@@ -5214,13 +5327,16 @@
                     <span class="pattern-name" style="color:${color};">
                       <span class="pattern-dot" style="background:${color};"></span>
                       ${escapeHtml(p.name)}
+                      ${renderPatternValidationBadge(p.validation)}
                     </span>
                     <span class="pattern-meta">${escapeHtml(p.status || "")}${conf ? ` · ${conf}` : ""}${keyTxt}${target}</span>
-                  </div>`;
+                  </div>
+                  ${renderPatternValidationReasons(p.validation)}`;
               }).join("")}
             </div>
           </div>`
         : "";
+      const volumeHtml = (!isHoldingsPreview) ? renderInspectorVolume(data.volume, data.volumeProfile) : "";
       const stanceClass = String(advisory.stance || "neutral").toLowerCase();
       const setupHint = data._inspectorNeedsServerRefresh
         ? `<div class="alert" style="margin-bottom:0.85rem;">Inspector analytics are partial. Restart the server from <code>Portfolio_Dashboard_Agent</code> with <code>python3 main.py</code>, then use <strong>Sync Prices</strong> so Fib levels, valuation metrics, and trend waves can load.</div>`
@@ -5279,6 +5395,7 @@
                 </div>`
               : ""}
             ${patternsHtml}
+            ${volumeHtml}
             <div class="inspector-chart-wrap" style="${chartMode === "timeline" && canSwitchChart ? "height:320px;" : ""}">
               <canvas id="inspectorChart-${panelId}" aria-label="Fibonacci and trend timeline chart for ${data.symbol}"></canvas>
             </div>

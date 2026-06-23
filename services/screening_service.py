@@ -109,6 +109,7 @@ class ScreeningService:
                     "swingLow": fib.get("swingLow") if fib else None,
                     "pattern": self._top_pattern(charts.get(symbol)),
                     "trends": self._trend_summary(charts.get(symbol)),
+                    "volume": self._volume_summary(charts.get(symbol)),
                     "techStance": advisory.get("stance"),
                     "techStanceMessage": advisory.get("message"),
                 }
@@ -125,6 +126,7 @@ class ScreeningService:
             return None
         p = patterns[0]
         key = p.get("keyLevel") or {}
+        validation = p.get("validation") or {}
         return {
             "name": p.get("name"),
             "type": p.get("type"),
@@ -133,6 +135,10 @@ class ScreeningService:
             "keyLabel": key.get("label"),
             "neckline": key.get("price"),
             "target": p.get("target"),
+            "validation": {
+                "verdict": validation.get("verdict"),
+                "score": validation.get("score"),
+            } if validation else None,
         }
 
     @staticmethod
@@ -143,6 +149,23 @@ class ScreeningService:
         ups = sum(1 for w in waves if w.get("direction") == "up")
         downs = sum(1 for w in waves if w.get("direction") == "down")
         return {"legs": len(waves), "ups": ups, "downs": downs}
+
+    @staticmethod
+    def _volume_summary(chart: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Compact liquidity context for the Patterns & Tech Signals table:
+        relative volume, regime, and the Point of Control."""
+        chart = chart or {}
+        vol = chart.get("volume") or {}
+        profile = chart.get("volumeProfile") or {}
+        if not vol and not profile:
+            return None
+        return {
+            "rvol": vol.get("rvol"),
+            "state": vol.get("state"),
+            "trend": vol.get("trend"),
+            "poc": profile.get("poc"),
+            "priceNode": (profile.get("priceNode") or {}).get("node"),
+        }
 
     def _score_symbol(
         self,
