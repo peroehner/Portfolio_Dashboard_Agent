@@ -278,8 +278,18 @@ class TechnicalSignalsService:
             )
 
         first_idx = selected[0][0]
+        vol_series = (
+            pd.to_numeric(df["Volume"], errors="coerce").reindex(close.index).fillna(0.0)
+            if "Volume" in df
+            else None
+        )
         points = [
-            {"date": dates[j], "price": round(prices[j], 2)} for j in range(first_idx, len(prices))
+            {
+                "date": dates[j],
+                "price": round(prices[j], 2),
+                **({"volume": int(vol_series.iloc[j])} if vol_series is not None else {}),
+            }
+            for j in range(first_idx, len(prices))
         ]
         timeline = {
             "windowStart": dates[first_idx][:7],

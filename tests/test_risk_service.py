@@ -104,6 +104,53 @@ class ValidatePatternTests(unittest.TestCase):
         self.assertFalse(v["volumeConfirmed"])
 
 
+class StalenessTests(unittest.TestCase):
+    def _inverse_hs(self, dates, *, key, target, end_offset=3):
+        return {
+            "name": "Inverse Head & Shoulders",
+            "type": "bullish",
+            "status": "confirmed",
+            "confidence": 0.9,
+            "startDate": dates[0],
+            "endDate": dates[-end_offset],
+            "keyLevel": {"label": "neckline", "price": key},
+            "target": target,
+            "points": [
+                {"date": dates[0], "price": key * 0.95, "role": "Left Shoulder"},
+                {"date": dates[len(dates) // 2], "price": key * 0.8, "role": "Head"},
+                {"date": dates[-end_offset], "price": key * 0.95, "role": "Right Shoulder"},
+            ],
+        }
+
+    def test_played_out_pattern_is_stale(self):
+        # SNDK-like: target long achieved, price has run far beyond it.
+        prices = list(np.linspace(700, 2200, 200))
+        df, dates = _df(prices, [1_000_000] * 200)
+        profile = _profile([
+            {"low": 650.0, "high": 720.0, "volume": 1_000_000},
+            {"low": 2100.0, "high": 2200.0, "volume": 300_000},
+        ])
+        pattern = self._inverse_hs(dates, key=719.0, target=911.0)
+        v = validate_pattern(pattern, df, profile, 2200.0)
+        self.assertEqual(v["verdict"], "stale")
+        self.assertTrue(v["staleness"]["playedOut"])
+        self.assertTrue(any("target reached" in r for r in v["reasons"]))
+
+    def test_recent_break_near_target_not_stale(self):
+        # Confirmed break that has only just cleared the neckline → still live.
+        prices = list(np.linspace(95, 100, 37)) + [108, 110, 112]
+        volumes = [1_000_000] * 37 + [4_000_000] * 3
+        df, dates = _df(prices, volumes)
+        profile = _profile([
+            {"low": 99.0, "high": 101.0, "volume": 1_000_000},
+            {"low": 110.0, "high": 113.0, "volume": 700_000},
+        ])
+        pattern = self._inverse_hs(dates, key=100.0, target=125.0)
+        v = validate_pattern(pattern, df, profile, 112.0)
+        self.assertNotEqual(v["verdict"], "stale")
+        self.assertFalse(v["staleness"]["stale"])
+
+
 class ValidatePatternsTests(unittest.TestCase):
     def test_downgrade_keeps_veto_pattern_with_validation(self):
         prices = list(np.linspace(110, 95, 25)) + list(np.linspace(95, 97, 15))

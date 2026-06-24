@@ -147,6 +147,7 @@ def list_patterns():
             "type": p.get("type"),
             "status": p.get("status"),
             "confidence": p.get("confidence"),
+            "verdict": (p.get("validation") or {}).get("verdict"),
         }
 
     out: dict[str, dict] = {}

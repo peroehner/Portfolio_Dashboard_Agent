@@ -47,9 +47,28 @@ BREAKOUT_RVOL = float(os.environ.get("VOLUME_BREAKOUT_RVOL", "1.3"))
 _CONFIRM_AT = float(os.environ.get("RISK_PATTERN_CONFIRM_SCORE", "0.62"))
 _VETO_BELOW = float(os.environ.get("RISK_PATTERN_VETO_SCORE", "0.40"))
 
+# Staleness / exhaustion gating. A pattern stops being actionable once its move
+# has played out or it is simply old and price has walked away from its decision
+# zone — e.g. an inverse H&S whose $911 target was hit long ago while price ran
+# to $2,200. Such patterns are relabelled "stale" so they don't masquerade as
+# live setups.
+# Fraction of the measured move completed at/above which the pattern is "played
+# out" (1.0 = price has reached the target).
+_TARGET_DONE = float(os.environ.get("RISK_PATTERN_TARGET_DONE", "1.0"))
+# Sessions since the pattern's last pivot beyond which it is considered aged.
+_STALE_AGE_BARS = int(os.environ.get("RISK_PATTERN_STALE_AGE_BARS", "90"))
+# How far (%) price must have left the key level for an aged pattern to be stale.
+_STALE_MOVE_PCT = float(os.environ.get("RISK_PATTERN_STALE_MOVE_PCT", "12"))
+
 # Confidence multipliers applied to the pattern's shape-confidence per verdict
-# (downgrade mode). Veto-grade patterns are heavily discounted but still shown.
-_CONF_FACTOR = {"confirmed": 1.0, "weak": 0.7, "veto": 0.4, "pending": 0.85}
+# (downgrade mode). Veto/stale patterns are heavily discounted but still shown.
+_CONF_FACTOR = {
+    "confirmed": 1.0,
+    "weak": 0.7,
+    "veto": 0.4,
+    "pending": 0.85,
+    "stale": 0.25,
+}
 
 
 def _aligned_series(df: pd.DataFrame) -> tuple[pd.Series, pd.Series, list[str]] | None:
@@ -116,6 +135,64 @@ def _reversal_level(pattern: dict[str, Any]) -> float | None:
     return sum(prices) / len(prices)
 
 
+def _staleness(
+    pattern: dict[str, Any], price: float | None, dates: list[str]
+) -> dict[str, Any]:
+    """Decide whether a pattern has played out or simply gone stale.
+
+    * **Played out** — price has completed (or blown past) the measured move, so
+      the edge is gone.
+    * **Aged & departed** — the pattern's last pivot is old *and* price has since
+      left the key-level zone, so it no longer describes the current structure.
+    """
+    key = (pattern.get("keyLevel") or {}).get("price")
+    key_label = (pattern.get("keyLevel") or {}).get("label") or "key level"
+    target = pattern.get("target")
+    ptype = str(pattern.get("type") or "").lower()
+
+    progress: float | None = None
+    played_out = False
+    if price and key is not None and target is not None:
+        span = target - key
+        if span != 0:
+            ratio = (price - key) / span
+            progress = round(ratio, 2)
+            # ratio>=1 means price reached the target; works for bearish too since
+            # span and (price-key) are both negative when the move progresses.
+            if ratio >= _TARGET_DONE:
+                played_out = True
+
+    age_bars: int | None = None
+    end = pattern.get("endDate")
+    if end and end in dates:
+        age_bars = (len(dates) - 1) - dates.index(end)
+
+    moved_pct = (
+        abs(price - key) / key * 100 if (price and key) else None
+    )
+    aged = age_bars is not None and age_bars > _STALE_AGE_BARS
+    moved_away = moved_pct is not None and moved_pct > _STALE_MOVE_PCT
+    stale = played_out or (aged and moved_away)
+
+    reason = None
+    if played_out:
+        pct = int(round((progress or 1.0) * 100))
+        reason = f"Measured-move target reached (~{pct}% of the projected move done) — pattern likely spent"
+    elif aged and moved_away:
+        reason = (
+            f"{age_bars} sessions old and price has moved {moved_pct:.0f}% from the "
+            f"{key_label} — structure likely stale"
+        )
+
+    return {
+        "stale": stale,
+        "playedOut": played_out,
+        "progressRatio": progress,
+        "ageBars": age_bars,
+        "reason": reason,
+    }
+
+
 def validate_pattern(
     pattern: dict[str, Any],
     df: pd.DataFrame,
@@ -127,6 +204,7 @@ def validate_pattern(
     if series is None:
         return None
     close, vol, dates = series
+    ref_price = price if price else float(close.iloc[-1])
     ptype = str(pattern.get("type") or "neutral").lower()
     status = str(pattern.get("status") or "").lower()
     name = str(pattern.get("name") or "")
@@ -202,6 +280,14 @@ def validate_pattern(
     else:
         verdict = "confirmed" if score >= _CONFIRM_AT else "weak"
 
+    # Staleness/exhaustion overrides the volume verdict: a played-out or aged
+    # pattern shouldn't read as a live signal regardless of how it broke out.
+    staleness = _staleness(pattern, ref_price, dates)
+    if staleness["stale"]:
+        verdict = "stale"
+        if staleness.get("reason"):
+            reasons.insert(0, staleness["reason"])
+
     return {
         "verdict": verdict,
         "score": score,
@@ -209,6 +295,7 @@ def validate_pattern(
         "breakoutRvol": round(breakout_rvol, 2) if breakout_rvol is not None else None,
         "keyLevelNode": node,
         "obvSlopePct": round(obv, 2) if obv is not None else None,
+        "staleness": staleness,
         "reasons": reasons,
         "adjustedConfidence": _adjusted_confidence(pattern, verdict),
     }
@@ -254,7 +341,7 @@ def validate_patterns(
         if validation is None:
             out.append(pattern)
             continue
-        if ACTION == "veto" and validation["verdict"] == "veto":
+        if ACTION == "veto" and validation["verdict"] in ("veto", "stale"):
             continue
         out.append({**pattern, "validation": validation})
     return out

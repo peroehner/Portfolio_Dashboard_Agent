@@ -217,6 +217,7 @@
     .sym-pattern.is-bullish { color: #22c55e; }
     .sym-pattern.is-bearish { color: #ef4444; }
     .sym-pattern.is-neutral { color: #f59e0b; }
+    .sym-pattern.is-stale { color: #94a3b8; opacity: 0.85; }
     #view-portfolio .panel-detail,
     #view-inspector .panel-detail {
       position: sticky;
@@ -1106,6 +1107,7 @@
     .vc-badge.vc-weak { color: #f59e0b; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.4); }
     .vc-badge.vc-veto { color: #ef4444; background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.4); }
     .vc-badge.vc-pending { color: #93c5fd; background: rgba(147, 197, 253, 0.1); border-color: rgba(147, 197, 253, 0.35); }
+    .vc-badge.vc-stale { color: #94a3b8; background: rgba(148, 163, 184, 0.12); border-color: rgba(148, 163, 184, 0.4); }
     .pattern-validation-reasons {
       margin: 0.1rem 0 0.35rem 1.05rem;
       padding: 0;
@@ -1120,6 +1122,7 @@
     .vc-mark.vc-weak { color: #f59e0b; }
     .vc-mark.vc-veto { color: #ef4444; }
     .vc-mark.vc-pending { color: #93c5fd; }
+    .vc-mark.vc-stale { color: #94a3b8; }
     .fib-toggle {
       color: inherit;
     }
@@ -2742,11 +2745,17 @@
       const abbrev = PATTERN_ABBREV[p.name] || p.name;
       // Backend emits lowercase types ("bullish"/"bearish"/"neutral").
       const type = String(p.type || "").toLowerCase();
-      const cls =
-        type === "bullish" ? "is-bullish" : type === "bearish" ? "is-bearish" : "is-neutral";
+      const verdict = String(p.verdict || "").toLowerCase();
+      // A played-out/stale pattern is greyed regardless of its bullish/bearish
+      // type so the list stops advertising spent setups as live.
+      const cls = verdict === "stale"
+        ? "is-stale"
+        : type === "bullish" ? "is-bullish" : type === "bearish" ? "is-bearish" : "is-neutral";
       const conf = p.confidence != null ? ` · ${Math.round(p.confidence * 100)}%` : "";
-      const title = `${p.name} (${p.type || "?"}, ${p.status || "?"}${conf})`;
-      return `<span class="sym-pattern ${cls}" title="${title}">◆ ${abbrev}</span>`;
+      const verdictTxt = verdict ? `, ${verdict}` : "";
+      const title = `${p.name} (${p.type || "?"}, ${p.status || "?"}${conf}${verdictTxt})`;
+      const mark = verdict === "stale" ? " ⊘" : "";
+      return `<span class="sym-pattern ${cls}" title="${title}">◆ ${abbrev}${mark}</span>`;
     }
 
     // The Inspector fetches a symbol's signals fresh on every open, so its top
@@ -2762,6 +2771,7 @@
           type: top.type,
           status: top.status,
           confidence: top.confidence,
+          verdict: (top.validation || {}).verdict,
         };
       } else {
         delete symbolPatterns[symbol];
@@ -4515,7 +4525,8 @@
       if (!meta) return "";
       const glyph = validation.verdict === "confirmed" ? "✓"
         : validation.verdict === "veto" ? "✕"
-        : validation.verdict === "weak" ? "!" : "·";
+        : validation.verdict === "weak" ? "!"
+        : validation.verdict === "stale" ? "⊘" : "·";
       const score = validation.score != null ? ` (score ${validation.score})` : "";
       return ` <span class="vc-mark ${meta.cls}" title="Volume validation: ${escapeHtml(meta.label)}${score}">${glyph}</span>`;
     }
@@ -5223,6 +5234,7 @@
       weak: { label: "weak volume", cls: "vc-weak" },
       veto: { label: "volume veto", cls: "vc-veto" },
       pending: { label: "confirmation pending", cls: "vc-pending" },
+      stale: { label: "played out / stale", cls: "vc-stale" },
     };
 
     function renderPatternValidationBadge(validation) {
@@ -5499,6 +5511,34 @@
       if (!extents.min || !extents.max) return false;
 
       const datasets = [];
+
+      // Volume bars pinned to the bottom of the chart (under the price), green on
+      // up days / red on down days. Rendered first (high order) so it sits behind
+      // the price line, trend legs, and pattern markers.
+      const volPoints = (timeline?.points || []).filter((p) => p.volume != null);
+      let maxVol = 0;
+      volPoints.forEach((p) => { if (p.volume > maxVol) maxVol = p.volume; });
+      const hasVolumeBars = volPoints.length > 1 && maxVol > 0;
+      if (hasVolumeBars) {
+        const pts = timeline.points;
+        const barColors = pts.map((p, i) => {
+          const prev = i > 0 ? pts[i - 1].price : p.price;
+          return (p.price >= prev) ? "rgba(34, 197, 94, 0.32)" : "rgba(248, 113, 113, 0.32)";
+        });
+        datasets.push({
+          type: "bar",
+          label: "Volume",
+          data: pts.map((p) => ({ x: p.date, y: p.volume ?? 0 })),
+          backgroundColor: barColors,
+          borderWidth: 0,
+          yAxisID: "yVolume",
+          order: 100,
+          barPercentage: 1.0,
+          categoryPercentage: 1.0,
+          _volume: true,
+        });
+      }
+
       if (timeline?.points?.length) {
         datasets.push({
           label: "Window price",
@@ -5548,7 +5588,7 @@
 
       const pattern = (data.chartPatterns || [])[0];
       if (pattern && (pattern.points || []).length >= 2) {
-        const pColor = "#f59e0b";
+        const pColor = (pattern.validation?.verdict === "stale") ? "#94a3b8" : "#f59e0b";
         const patternPts = pattern.points.map((pt) => ({ x: pt.date, y: pt.price, role: pt.role }));
         datasets.push({
           label: pattern.name,
@@ -5625,6 +5665,33 @@
         });
       });
 
+      const timelineScales = {
+        x: {
+          type: "time",
+          time: { unit: "day", tooltipFormat: "yyyy-MM-dd" },
+          grid: { color: "rgba(45, 58, 79, 0.55)" },
+          ticks: { color: "#9aa8bc", maxRotation: 0, autoSkip: true },
+        },
+        y: {
+          grid: { color: "rgba(45, 58, 79, 0.55)" },
+          ticks: {
+            color: "#9aa8bc",
+            callback: (value) => formatMoney(value),
+          },
+        },
+      };
+      if (hasVolumeBars) {
+        // Cap the volume axis well above the peak so bars only fill the bottom
+        // ~25% of the plot and never crowd the price action.
+        timelineScales.yVolume = {
+          display: false,
+          position: "right",
+          beginAtZero: true,
+          max: maxVol * 4,
+          grid: { display: false },
+        };
+      }
+
       inspectorCharts[panelId] = new Chart(canvas, {
         type: "line",
         data: { datasets },
@@ -5646,27 +5713,16 @@
                 label(context) {
                   const raw = context.raw;
                   if (raw?.y == null) return `${context.dataset.label}: —`;
+                  if (context.dataset?._volume) {
+                    return `Volume: ${formatVolumeShort(raw.y)}`;
+                  }
                   const role = raw.role ? ` (${raw.role})` : "";
                   return `${context.dataset.label}${role}: ${formatMoney(raw.y)}`;
                 },
               },
             },
           },
-          scales: {
-            x: {
-              type: "time",
-              time: { unit: "day", tooltipFormat: "yyyy-MM-dd" },
-              grid: { color: "rgba(45, 58, 79, 0.55)" },
-              ticks: { color: "#9aa8bc", maxRotation: 0, autoSkip: true },
-            },
-            y: {
-              grid: { color: "rgba(45, 58, 79, 0.55)" },
-              ticks: {
-                color: "#9aa8bc",
-                callback: (value) => formatMoney(value),
-              },
-            },
-          },
+          scales: timelineScales,
         },
       });
       renderInspectorTrendLegend(panelId, waves, pattern);
