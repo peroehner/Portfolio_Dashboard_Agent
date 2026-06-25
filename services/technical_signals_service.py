@@ -26,6 +26,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from services.confluence_service import compute_confluence
 from services.market_cache import CACHE_MISS, TtlCache, make_ticker
 from services.risk_service import validate_patterns
 from services.volume_service import volume_block, volume_profile
@@ -211,6 +212,9 @@ class TechnicalSignalsService:
         )
         # Risk agent: validate each pattern against volume (Phase 2).
         signals["patterns"] = validate_patterns(detected, df, profile, price)
+        # Confluence agent: fuse trend + structure + momentum + validated
+        # patterns + volume into a single bias with agreements/conflicts (Phase 3).
+        signals["confluence"] = compute_confluence(signals)
         return signals
 
     @staticmethod
@@ -318,14 +322,30 @@ class TechnicalSignalsService:
             else []
         )
         patterns = validate_patterns(detected, df, profile, price)
+        vol_block = volume_block(df)
+        # Confluence rides the chart path too so the Patterns & Tech Signals tab
+        # and the Inspector show the same fused bias. Trend/momentum are recomputed
+        # cheaply (SMAs/RSI only) so the fusion matches compute_signals exactly.
+        confluence = compute_confluence(
+            {
+                "price": round(price, 2),
+                "trend": _trend_block(close, price),
+                "momentum": _momentum_block(close),
+                "swing": swing,
+                "patterns": patterns,
+                "volume": vol_block,
+                "volumeProfile": profile,
+            }
+        )
         return {
             "trendWaves": waves,
             "chartTimeline": timeline,
             "fib": fib,
             "swing": swing,
             "patterns": patterns,
-            "volume": volume_block(df),
+            "volume": vol_block,
             "volumeProfile": profile,
+            "confluence": confluence,
         }
 
 

@@ -56,6 +56,7 @@ class InspectorService:
         chart_patterns: list[dict[str, Any]] = []
         volume_meta: dict[str, Any] | None = None
         volume_profile_meta: dict[str, Any] | None = None
+        confluence_meta: dict[str, Any] | None = None
         if ASSESSMENT_TECHNICALS:
             source = computed_chart
             if source is None:
@@ -64,6 +65,7 @@ class InspectorService:
                 chart_patterns = source.get("patterns") or []
                 volume_meta = source.get("volume")
                 volume_profile_meta = source.get("volumeProfile")
+                confluence_meta = source.get("confluence")
 
         # Fib precedence: imported anchor > computed swing > generic 90d lookback
         # (imported anchor skipped when computed is preferred).
@@ -127,6 +129,7 @@ class InspectorService:
             "chartPatterns": chart_patterns,
             "volume": volume_meta,
             "volumeProfile": volume_profile_meta,
+            "confluence": confluence_meta,
             "chartPoints": self._chart_points(symbol_data, holding, fib),
         }
 

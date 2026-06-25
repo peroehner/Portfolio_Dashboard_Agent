@@ -354,9 +354,24 @@ def wait_until_ready(port, timeout=120):
     raise TimeoutError(f"Server did not become ready on port {port} within {timeout}s")
 
 
+def _quiet_yfinance_logs() -> None:
+    """Silence yfinance's own ERROR spam for *expected*, already-recovered Yahoo
+    blocks (401 Invalid Crumb / "unable to access this feature").
+
+    These come from Yahoo rate-limiting Render's datacenter IP, not from a bug —
+    our session-reset + cooldown + throttle recover automatically, so the noise
+    just makes the logs look alarming. Raise the threshold (default CRITICAL) so
+    they stop flooding; set YFINANCE_LOG_LEVEL=ERROR to see them again.
+    """
+    level_name = os.environ.get("YFINANCE_LOG_LEVEL", "CRITICAL").upper()
+    level = getattr(logging, level_name, logging.CRITICAL)
+    logging.getLogger("yfinance").setLevel(level)
+
+
 def start_server(port=None, block=True, wait_timeout=120):
     """Start Flask; use block=False in notebooks before opening an ngrok tunnel."""
     logging.basicConfig(level=logging.INFO)
+    _quiet_yfinance_logs()
     port = resolve_port(port)
 
     init_db()

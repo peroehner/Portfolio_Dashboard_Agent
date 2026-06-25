@@ -787,6 +787,64 @@
     .screening-tech-stance.cautious,
     .screening-tech-stance.neutral,
     .screening-tech-stance.unknown { color: var(--warn); }
+    /* Confluence-aware Tech Stance (Patterns & Tech Signals tab) */
+    .screening-tech-stance.conf-bull { color: var(--accent-2); }
+    .screening-tech-stance.conf-lean-bull { color: #4ade80; }
+    .screening-tech-stance.conf-mixed { color: var(--warn); }
+    .screening-tech-stance.conf-lean-bear { color: #fb923c; }
+    .screening-tech-stance.conf-bear { color: #f87171; }
+    .screening-tech-stance .conf-tally { opacity: 0.65; font-weight: 500; font-size: 0.74rem; margin-left: 0.2rem; }
+    .screening-tech-stance { display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap; }
+    .conf-mini-meter {
+      position: relative; display: inline-block; width: 44px; height: 6px; border-radius: 999px;
+      vertical-align: middle; overflow: hidden;
+      background: linear-gradient(90deg, rgba(248,113,113,0.25), rgba(148,163,184,0.18), rgba(34,197,94,0.25));
+    }
+    .conf-mini-fill { position: absolute; top: 0; left: 0; height: 100%; opacity: 0.9; border-radius: 999px; }
+    .conf-mini-fill.conf-bull, .conf-mini-fill.conf-lean-bull { background: var(--accent-2); }
+    .conf-mini-fill.conf-mixed { background: var(--warn); }
+    .conf-mini-fill.conf-bear, .conf-mini-fill.conf-lean-bear { background: #f87171; }
+    .conf-mini-mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(230, 237, 246, 0.45); }
+    .screening-tech-stance .conf-score { opacity: 0.7; font-weight: 500; font-size: 0.74rem; }
+    /* Inspector Confluence card */
+    .confluence-card .confluence-head {
+      display: flex; align-items: center; gap: 0.6rem; margin: 0.2rem 0 0.6rem;
+    }
+    .confluence-bias {
+      font-weight: 700; font-size: 0.95rem; padding: 0.1rem 0.5rem; border-radius: 6px;
+      background: rgba(148, 163, 184, 0.12);
+    }
+    .confluence-bias.conf-bull { color: var(--accent-2); background: rgba(34, 197, 94, 0.12); }
+    .confluence-bias.conf-lean-bull { color: #4ade80; background: rgba(74, 222, 128, 0.1); }
+    .confluence-bias.conf-mixed { color: var(--warn); background: rgba(250, 204, 21, 0.1); }
+    .confluence-bias.conf-lean-bear { color: #fb923c; background: rgba(251, 146, 60, 0.1); }
+    .confluence-bias.conf-bear { color: #f87171; background: rgba(248, 113, 113, 0.12); }
+    .confluence-strength { color: var(--muted); font-size: 0.82rem; text-transform: capitalize; }
+    .confluence-meter {
+      position: relative; height: 8px; border-radius: 999px;
+      background: linear-gradient(90deg, rgba(248,113,113,0.25), rgba(148,163,184,0.18), rgba(34,197,94,0.25));
+      overflow: hidden; margin-bottom: 0.7rem;
+    }
+    .confluence-meter-fill { position: absolute; top: 0; left: 0; height: 100%; opacity: 0.85; border-radius: 999px; }
+    .confluence-meter-fill.conf-bull, .confluence-meter-fill.conf-lean-bull { background: var(--accent-2); }
+    .confluence-meter-fill.conf-mixed { background: var(--warn); }
+    .confluence-meter-fill.conf-bear, .confluence-meter-fill.conf-lean-bear { background: #f87171; }
+    .confluence-meter-mid { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: rgba(230, 237, 246, 0.4); }
+    .confluence-votes { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.7rem; }
+    .conf-vote {
+      font-size: 0.74rem; padding: 0.12rem 0.45rem; border-radius: 999px;
+      border: 1px solid var(--border); text-transform: capitalize; cursor: default;
+    }
+    .conf-vote.conf-vote-bull { color: var(--accent-2); border-color: rgba(34, 197, 94, 0.4); }
+    .conf-vote.conf-vote-bear { color: #f87171; border-color: rgba(248, 113, 113, 0.4); }
+    .conf-vote.conf-vote-neutral { color: var(--muted); }
+    .confluence-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .confluence-col h4 { margin: 0 0 0.3rem; font-size: 0.8rem; }
+    .confluence-col h4.conf-agree { color: var(--accent-2); }
+    .confluence-col h4.conf-conflict { color: #f87171; }
+    .confluence-col ul { margin: 0; padding-left: 1.05rem; }
+    .confluence-col li { font-size: 0.8rem; color: var(--text); margin-bottom: 0.15rem; }
+    .confluence-col li.empty { color: var(--muted); list-style: none; margin-left: -1.05rem; }
     #inspector-recommendation.inspector-section-focus,
     #inspector-notes.inspector-section-focus,
     #inspector-alerts.inspector-section-focus {
@@ -931,6 +989,63 @@
     }
     .inspector-chart-wrap canvas {
       width: 100% !important;
+      height: 100% !important;
+    }
+    .inspector-chart-wrap { cursor: zoom-in; }
+    .chart-fs {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(5, 8, 15, 0.92);
+      backdrop-filter: blur(2px);
+      display: flex;
+    }
+    .chart-fs[hidden] { display: none; }
+    .chart-fs-inner {
+      margin: auto;
+      width: 96vw;
+      height: 92vh;
+      background: var(--panel, #0f1626);
+      border: 1px solid var(--border, #2d3a4f);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    }
+    .chart-fs-head {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border, #2d3a4f);
+      flex: 0 0 auto;
+    }
+    .chart-fs-title { font-weight: 700; font-size: 1.05rem; color: var(--text, #e6edf6); }
+    .chart-fs-hint { color: var(--muted, #9aa8bc); font-size: 0.8rem; }
+    .chart-fs-close {
+      margin-left: auto;
+      background: var(--panel-2, #1a2336);
+      color: var(--text, #e6edf6);
+      border: 1px solid var(--border, #2d3a4f);
+      border-radius: 8px;
+      padding: 0.35rem 0.75rem;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .chart-fs-close:hover { background: #243049; }
+    .chart-fs-scroll {
+      flex: 1 1 auto;
+      overflow-x: auto;
+      overflow-y: hidden;
+      position: relative;
+    }
+    .chart-fs-canvas-wrap {
+      height: 100%;
+      min-width: 100%;
+      position: relative;
+    }
+    .chart-fs-canvas-wrap canvas {
       height: 100% !important;
     }
     .trend-waves-row {
@@ -1958,6 +2073,21 @@
     </div>
   </header>
   <div id="toast" hidden></div>
+
+  <div id="inspectorChartFullscreen" class="chart-fs" hidden onclick="onInspectorFsBackdrop(event)">
+    <div class="chart-fs-inner">
+      <div class="chart-fs-head">
+        <span class="chart-fs-title" id="inspectorFsTitle">Chart</span>
+        <span class="chart-fs-hint">Scroll horizontally · ~2-month view</span>
+        <button type="button" class="chart-fs-close" onclick="closeInspectorChartFullscreen()" aria-label="Close">&times; Close</button>
+      </div>
+      <div class="chart-fs-scroll" id="inspectorFsScroll">
+        <div class="chart-fs-canvas-wrap" id="inspectorFsCanvasWrap">
+          <canvas id="inspectorChart-inspectorFullscreen" aria-label="Full-screen timeline chart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div id="patternsHelp" class="help-modal-backdrop" hidden onclick="onPatternsHelpBackdrop(event)">
     <div class="help-modal" role="dialog" aria-modal="true" aria-labelledby="patternsHelpTitle">
@@ -4376,9 +4506,7 @@
     }
 
     function renderScreeningTechStanceCell(row) {
-      const stance = row.techStance || "Unknown";
-      const cls = stance.toLowerCase();
-      return `<span class="screening-tech-stance ${cls}">${stance}</span>`;
+      return renderTechStanceCell(row);
     }
 
     const screeningColumns = [
@@ -4392,7 +4520,7 @@
       {
         key: "techStance",
         label: "Tech Stance",
-        sortValue: (row) => row.techStance || "",
+        sortValue: (row) => (row.confluence?.score != null ? row.confluence.score : -2),
         render: (row) => renderScreeningTechStanceCell(row),
       },
       {
@@ -4554,6 +4682,26 @@
     }
 
     function renderFibTechStanceCell(row) {
+      return renderTechStanceCell(row);
+    }
+
+    // Shared Tech Stance cell used by both the Screening and Patterns & Tech Signals
+    // tabs so the stance is identical. When the Confluence agent has a verdict it
+    // renders the fused bias plus a compact version of the Inspector's score meter;
+    // otherwise it falls back to the Fib-position stance.
+    function renderTechStanceCell(row) {
+      const conf = row.confluence;
+      if (conf && conf.bias) {
+        const cls = CONFLUENCE_BIAS_CLASS[conf.bias] || "mixed";
+        const score100 = conf.score100 != null ? conf.score100 : 50;
+        const scoreTxt = conf.score != null ? (conf.score > 0 ? `+${conf.score}` : `${conf.score}`) : "";
+        const title = conf.message || conf.summary || "";
+        return `<span class="screening-tech-stance conf-${cls}" title="${escapeHtml(title)}">`
+          + `${escapeHtml(conf.bias)}`
+          + `<span class="conf-mini-meter" aria-hidden="true"><span class="conf-mini-fill conf-${cls}" style="width:${score100}%;"></span><span class="conf-mini-mid"></span></span>`
+          + (scoreTxt ? `<span class="conf-score">${scoreTxt}</span>` : "")
+          + `</span>`;
+      }
       const stance = row.techStance || "Unknown";
       const trigger = STANCE_TRIGGER[stance] || row.techStanceMessage || "";
       return `<span class="screening-tech-stance ${stance.toLowerCase()}" title="${escapeHtml(trigger)}">${stance}</span>`;
@@ -4595,7 +4743,7 @@
       { key: "target", label: "Target", sortValue: (row) => row.pattern?.target, render: (row) => renderFibTargetCell(row) },
       { key: "trends", label: "Trends", sortValue: (row) => row.trends?.legs, render: (row) => renderFibTrendsCell(row) },
       { key: "volume", label: "Volume", sortValue: (row) => fibVolumeSortKey(row), render: (row) => renderFibVolumeCell(row) },
-      { key: "techStance", label: "Tech Stance", sortValue: (row) => row.techStance || "", render: (row) => renderFibTechStanceCell(row) },
+      { key: "techStance", label: "Tech Stance", sortValue: (row) => (row.confluence?.score != null ? row.confluence.score : -2), render: (row) => renderFibTechStanceCell(row) },
       {
         key: "nearestFibLabel",
         label: "Nearest Fib",
@@ -5284,6 +5432,54 @@
         </section>`;
     }
 
+    const CONFLUENCE_BIAS_CLASS = {
+      "Bullish": "bull",
+      "Lean Bullish": "lean-bull",
+      "Mixed": "mixed",
+      "Lean Bearish": "lean-bear",
+      "Bearish": "bear",
+    };
+
+    function renderInspectorConfluence(conf) {
+      if (!conf || !conf.bias) return "";
+      const cls = CONFLUENCE_BIAS_CLASS[conf.bias] || "mixed";
+      const score100 = conf.score100 != null ? conf.score100 : 50;
+      const agreements = conf.agreements || [];
+      const conflicts = conf.conflicts || [];
+      const voteChips = (conf.votes || []).map((v) => {
+        const dirCls = v.direction === "bull" ? "conf-vote-bull" : v.direction === "bear" ? "conf-vote-bear" : "conf-vote-neutral";
+        const arrow = v.direction === "bull" ? "↑" : v.direction === "bear" ? "↓" : "·";
+        const tip = (v.label || "") + (v.detail ? ` — ${v.detail}` : "");
+        return `<span class="conf-vote ${dirCls}" title="${escapeHtml(tip)}">${arrow} ${escapeHtml(v.agent)}</span>`;
+      }).join("");
+      const agreeHtml = agreements.length ? agreements.map((a) => `<li>${escapeHtml(a)}</li>`).join("") : `<li class="empty">—</li>`;
+      const conflictHtml = conflicts.length ? conflicts.map((c) => `<li>${escapeHtml(c)}</li>`).join("") : `<li class="empty">none</li>`;
+      const strengthTxt = [conf.strength, `${conf.agreeCount ?? 0}/${conf.totalSignals ?? 0} agree`].filter(Boolean).join(" · ");
+      return `
+        <section class="valuation-scoring confluence-card">
+          <h3>Technical Confluence <span class="pattern-caveat">fused agent verdict — one input among many</span></h3>
+          <div class="confluence-head">
+            <span class="confluence-bias conf-${cls}">${escapeHtml(conf.bias)}</span>
+            <span class="confluence-strength">${escapeHtml(strengthTxt)}</span>
+          </div>
+          <div class="confluence-meter" title="Net bias: 0 = bearish, 50 = neutral, 100 = bullish">
+            <div class="confluence-meter-fill conf-${cls}" style="width:${score100}%;"></div>
+            <span class="confluence-meter-mid"></span>
+          </div>
+          <div class="confluence-votes">${voteChips}</div>
+          <div class="confluence-cols">
+            <div class="confluence-col">
+              <h4 class="conf-agree">Agreeing (${agreements.length})</h4>
+              <ul>${agreeHtml}</ul>
+            </div>
+            <div class="confluence-col">
+              <h4 class="conf-conflict">Conflicting (${conflicts.length})</h4>
+              <ul>${conflictHtml}</ul>
+            </div>
+          </div>
+        </section>`;
+    }
+
     function isHoldingsInspectorPanel(panelId) {
       return panelId === "holdingsInspectorPanel";
     }
@@ -5349,6 +5545,7 @@
           </div>`
         : "";
       const volumeHtml = (!isHoldingsPreview) ? renderInspectorVolume(data.volume, data.volumeProfile) : "";
+      const confluenceHtml = (!isHoldingsPreview) ? renderInspectorConfluence(data.confluence) : "";
       const stanceClass = String(advisory.stance || "neutral").toLowerCase();
       const setupHint = data._inspectorNeedsServerRefresh
         ? `<div class="alert" style="margin-bottom:0.85rem;">Inspector analytics are partial. Restart the server from <code>Portfolio_Dashboard_Agent</code> with <code>python3 main.py</code>, then use <strong>Sync Prices</strong> so Fib levels, valuation metrics, and trend waves can load.</div>`
@@ -5365,6 +5562,7 @@
             </section>
             ${isHoldingsPreview ? "" : renderInspectorHoldingsCard(data)}
           </div>
+          ${confluenceHtml}
           <section class="valuation-scoring">
             <h3>Valuation & Scoring</h3>
             <div class="valuation-grid">
@@ -5408,7 +5606,7 @@
               : ""}
             ${patternsHtml}
             ${volumeHtml}
-            <div class="inspector-chart-wrap" style="${chartMode === "timeline" && canSwitchChart ? "height:320px;" : ""}">
+            <div class="inspector-chart-wrap" style="${chartMode === "timeline" && canSwitchChart ? "height:320px;" : ""}" ondblclick="openInspectorChartFullscreen('${panelId}')" title="Double-click to zoom full screen">
               <canvas id="inspectorChart-${panelId}" aria-label="Fibonacci and trend timeline chart for ${data.symbol}"></canvas>
             </div>
             ${canSwitchChart && !isHoldingsPreview
@@ -5855,6 +6053,81 @@
 
       renderInspectorBlueprintChart(canvas, panelId, data, blueprint);
     }
+
+    // ---- Full-screen, horizontally-scrollable timeline (double-click to zoom) ----
+    const INSPECTOR_FS_PANEL = "inspectorFullscreen";
+    const INSPECTOR_FS_MONTHS_PER_VIEW = 2;
+
+    function openInspectorChartFullscreen(panelId) {
+      const data = inspectorChartData[panelId];
+      if (!data || typeof Chart === "undefined") return;
+      const timeline = data.chartTimeline;
+      if (!(timeline?.points || []).length) {
+        if (typeof setStatus === "function") setStatus("No timeline history to zoom into for this symbol.");
+        return;
+      }
+      const isHoldingsPreview = isHoldingsInspectorPanel(panelId);
+      const waves = isHoldingsPreview ? [] : (data.trendWaves || []);
+
+      const overlay = document.getElementById("inspectorChartFullscreen");
+      const titleEl = document.getElementById("inspectorFsTitle");
+      if (titleEl) titleEl.textContent = `${data.symbol || "Chart"} · Timeline`;
+      overlay.hidden = false;
+
+      // Wait for layout so the scroll container has a measurable width.
+      requestAnimationFrame(() => {
+        const scroll = document.getElementById("inspectorFsScroll");
+        const wrap = document.getElementById("inspectorFsCanvasWrap");
+        const canvas = document.getElementById(`inspectorChart-${INSPECTOR_FS_PANEL}`);
+        if (!scroll || !wrap || !canvas) return;
+
+        const extents = inspectorChartExtents(timeline, waves);
+        const minMs = extents.min ? new Date(extents.min).getTime() : NaN;
+        const maxMs = extents.max ? new Date(extents.max).getTime() : NaN;
+        const totalDays = (Number.isFinite(minMs) && Number.isFinite(maxMs))
+          ? Math.max(1, (maxMs - minMs) / 86400000)
+          : 1;
+
+        const viewport = scroll.clientWidth || wrap.clientWidth || 1000;
+        const daysPerView = INSPECTOR_FS_MONTHS_PER_VIEW * 31;
+        const pxPerDay = viewport / daysPerView;
+        const width = Math.max(viewport, Math.round(totalDays * pxPerDay));
+        wrap.style.width = `${width}px`;
+
+        if (inspectorCharts[INSPECTOR_FS_PANEL]) {
+          inspectorCharts[INSPECTOR_FS_PANEL].destroy();
+          inspectorCharts[INSPECTOR_FS_PANEL] = null;
+        }
+        renderInspectorTimelineChart(canvas, INSPECTOR_FS_PANEL, data, timeline, waves, data.fibBlueprint);
+
+        // Open scrolled to the most recent price action (right edge).
+        scroll.scrollLeft = scroll.scrollWidth;
+      });
+    }
+
+    function closeInspectorChartFullscreen() {
+      const overlay = document.getElementById("inspectorChartFullscreen");
+      if (overlay) overlay.hidden = true;
+      if (inspectorCharts[INSPECTOR_FS_PANEL]) {
+        inspectorCharts[INSPECTOR_FS_PANEL].destroy();
+        inspectorCharts[INSPECTOR_FS_PANEL] = null;
+      }
+      const wrap = document.getElementById("inspectorFsCanvasWrap");
+      if (wrap) wrap.style.width = "";
+    }
+
+    function onInspectorFsBackdrop(event) {
+      if (event.target && event.target.id === "inspectorChartFullscreen") {
+        closeInspectorChartFullscreen();
+      }
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        const overlay = document.getElementById("inspectorChartFullscreen");
+        if (overlay && !overlay.hidden) closeInspectorChartFullscreen();
+      }
+    });
 
     function renderInspectorHtml(data, panelId = "inspectorPanel") {
       if (isHoldingsInspectorPanel(panelId)) {

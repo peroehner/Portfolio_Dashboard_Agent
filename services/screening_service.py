@@ -20,16 +20,22 @@ class ScreeningService:
         self.fib_proximity_pct = float(os.environ.get("FIB_PROXIMITY_PCT", "1.0"))
 
     def run_screen(self, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-        from services.assessment_service import AssessmentService
+        from services.assessment_service import ASSESSMENT_TECHNICALS, AssessmentService
         from services.inspector_service import build_symbol_recommendation
 
         filters = filters or {}
         results = []
         assessment_service = AssessmentService()
 
-        for symbol_data in self.portfolio_service.list_symbols():
+        symbols_data = self.portfolio_service.list_symbols()
+        # Confluence rides the same cached price history the Patterns & Tech Signals
+        # tab uses, computed in parallel so both tabs show an identical Tech Stance.
+        charts = self._charts_for(symbols_data) if ASSESSMENT_TECHNICALS else {}
+
+        for symbol_data in symbols_data:
             symbol = symbol_data["symbol"]
             row = self._score_symbol(symbol_data)
+            self._apply_confluence_stance(row, charts.get(symbol))
             fib_closest = row.pop("_fibClosest", None)
             full_symbol = self.portfolio_service.get_symbol(symbol)
             assessments = assessment_service.list_assessments(symbol, limit=20)
@@ -69,23 +75,12 @@ class ScreeningService:
         "Patterns & Tech Signals" view."""
         from services.assessment_service import ASSESSMENT_TECHNICALS
         from services.inspector_service import build_technical_advisory
-        from services.market_cache import yf_pool
-        from services.technical_signals_service import TechnicalSignalsService
 
         symbols_data = [
             s for s in self.portfolio_service.list_symbols() if s.get("currentPrice") is not None
         ]
 
-        # Chart pattern + trend waves come from cached price history and are
-        # user-independent, so compute them in parallel on the shared, persistent
-        # yfinance worker pool (mirrors /patterns). The pool is reused across
-        # requests so yfinance's per-thread cache handles stay bounded.
-        charts: dict[str, dict[str, Any] | None] = {}
-        if ASSESSMENT_TECHNICALS and symbols_data:
-            tsvc = TechnicalSignalsService()
-            symbols = [s["symbol"] for s in symbols_data]
-            for symbol, chart in zip(symbols, yf_pool.map(tsvc.get_chart, symbols)):
-                charts[symbol] = chart
+        charts = self._charts_for(symbols_data) if ASSESSMENT_TECHNICALS else {}
 
         rows = []
         for symbol_data in symbols_data:
@@ -94,6 +89,12 @@ class ScreeningService:
             closest = self.fib_service.closest_level(symbol, price)
             fib = closest["fib"] if closest else self.fib_service.get_levels(symbol)
             advisory = build_technical_advisory(price, fib, closest)
+            confluence = self._confluence_summary(charts.get(symbol))
+            # Confluence agent (Phase 3) drives the Tech Stance when available; the
+            # Fib-position advisory remains the fallback for symbols without enough
+            # history to fuse.
+            tech_stance = confluence["bias"] if confluence else advisory.get("stance")
+            tech_message = confluence["message"] if confluence else advisory.get("message")
             rows.append(
                 {
                     "symbol": symbol,
@@ -110,8 +111,10 @@ class ScreeningService:
                     "pattern": self._top_pattern(charts.get(symbol)),
                     "trends": self._trend_summary(charts.get(symbol)),
                     "volume": self._volume_summary(charts.get(symbol)),
-                    "techStance": advisory.get("stance"),
-                    "techStanceMessage": advisory.get("message"),
+                    "confluence": confluence,
+                    "techStance": tech_stance,
+                    "techStanceMessage": tech_message,
+                    "fibStance": advisory.get("stance"),
                 }
             )
         rows.sort(
@@ -165,6 +168,56 @@ class ScreeningService:
             "trend": vol.get("trend"),
             "poc": profile.get("poc"),
             "priceNode": (profile.get("priceNode") or {}).get("node"),
+        }
+
+    @staticmethod
+    def _charts_for(symbols_data: list[dict[str, Any]]) -> dict[str, dict[str, Any] | None]:
+        """Fetch computed charts (patterns + volume + confluence) for each symbol in
+        parallel on the shared, persistent yfinance worker pool. Chart data is
+        derived from cached price history and is user-independent, so the same
+        results back both the Screening and Patterns & Tech Signals tabs."""
+        from services.market_cache import yf_pool
+        from services.technical_signals_service import TechnicalSignalsService
+
+        charts: dict[str, dict[str, Any] | None] = {}
+        symbols = [s["symbol"] for s in symbols_data if s.get("symbol")]
+        if not symbols:
+            return charts
+        tsvc = TechnicalSignalsService()
+        for symbol, chart in zip(symbols, yf_pool.map(tsvc.get_chart, symbols)):
+            charts[symbol] = chart
+        return charts
+
+    def _apply_confluence_stance(
+        self, row: dict[str, Any], chart: dict[str, Any] | None
+    ) -> None:
+        """Overlay the Confluence agent's fused bias onto a screening row so the
+        Tech Stance matches the Patterns & Tech Signals tab. Falls back to the
+        existing Fib-position stance when there isn't enough history to fuse."""
+        confluence = self._confluence_summary(chart)
+        row["confluence"] = confluence
+        row["fibStance"] = row.get("techStance")
+        if confluence:
+            row["techStance"] = confluence["bias"]
+            row["techStanceMessage"] = confluence["message"]
+
+    @staticmethod
+    def _confluence_summary(chart: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Compact fused-bias context for the Patterns & Tech Signals table:
+        the Confluence agent's bias, strength, and agreement tally."""
+        conf = (chart or {}).get("confluence")
+        if not conf:
+            return None
+        return {
+            "bias": conf.get("bias"),
+            "score": conf.get("score"),
+            "score100": conf.get("score100"),
+            "strength": conf.get("strength"),
+            "agreeCount": conf.get("agreeCount"),
+            "conflictCount": conf.get("conflictCount"),
+            "totalSignals": conf.get("totalSignals"),
+            "summary": conf.get("summary"),
+            "message": conf.get("message"),
         }
 
     def _score_symbol(
