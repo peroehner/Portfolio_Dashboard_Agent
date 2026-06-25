@@ -54,6 +54,15 @@ def _pattern_direction(pattern_type: str | None) -> str:
     return "neutral"
 
 
+def _confluence_direction(bias: str | None) -> str:
+    b = (bias or "").strip().lower()
+    if "bull" in b:
+        return "bullish"
+    if "bear" in b:
+        return "bearish"
+    return "neutral"
+
+
 class AssessmentService:
     MAX_ASSESSMENTS_PER_SYMBOL = 3
 
@@ -421,6 +430,15 @@ class AssessmentService:
             if (pattern.get("validation") or {}).get("verdict") in ("veto", "stale"):
                 continue
             captures.append(("pattern", name, _pattern_direction(pattern.get("type"))))
+
+        # Capture the Confluence agent's fused bias as its own forward-looking bet
+        # so its track record can be scored alongside patterns/recommendations. Only
+        # directional verdicts are falsifiable, so skip 'Mixed'. Label by direction
+        # so a later bias flip records a distinct, scorable signal.
+        confluence = technical.get("confluence") or {}
+        conf_dir = _confluence_direction(confluence.get("bias"))
+        if conf_dir in ("bullish", "bearish"):
+            captures.append(("confluence", conf_dir.title(), conf_dir))
 
         for kind, label, direction in captures:
             pending = conn.execute(

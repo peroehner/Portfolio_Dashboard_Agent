@@ -473,6 +473,22 @@ class LLMClient:
         momentum = technical.get("momentum") or {}
         swing = technical.get("swing") or {}
 
+        # Lead with the Confluence agent's fused verdict — it already weighs the
+        # individual lenses, so it belongs at the top of the technical factors.
+        confluence = technical.get("confluence") or {}
+        bias = confluence.get("bias")
+        if bias and bias != "Mixed":
+            strength = confluence.get("strength") or ""
+            agree = confluence.get("agreeCount")
+            total = confluence.get("totalSignals")
+            tally = f" ({agree}/{total} technical signals agree)" if agree is not None and total else ""
+            factors.append(f"Confluence: {strength} {bias.lower()}{tally}.".replace("  ", " "))
+            conflicts = confluence.get("conflicts") or []
+            if conflicts:
+                factors.append("Confluence conflict: " + "; ".join(conflicts[:2]) + ".")
+        elif bias == "Mixed":
+            factors.append("Confluence: mixed technical signals — no clear directional edge.")
+
         stack = trend.get("maStack")
         if stack == "bullish":
             factors.append("Uptrend: price above rising 20/50/200-day averages.")
@@ -566,8 +582,17 @@ class LLMClient:
             "If the technical block contains 'patterns' (e.g. Head & Shoulders, Double "
             "Top/Bottom, triangles), treat each as ONE probabilistic input weighted by its "
             "'confidence' and 'status' (a 'confirmed' break matters more than a 'forming' "
-            "one) — classic chart patterns are subjective with mixed reliability, so let "
+            "one) and by its 'validation' verdict from the volume Risk agent "
+            "('confirmed'/'weak'/'pending'/'veto'/'stale') — a veto or stale pattern carries "
+            "little weight. Classic chart patterns are subjective with mixed reliability, so let "
             "them nuance timing/conviction and never override the fundamental thesis. "
+            "When a 'confluence' block is present, treat it as the FUSED verdict of the technical "
+            "agents (trend, structure, momentum, the volume-validated pattern, and volume/OBV): "
+            "its 'bias' (Bullish…Bearish), 'score', 'strength', and especially its explicit "
+            "'agreements' and 'conflicts' are your primary technical read. Lead the technical "
+            "reasoning from it — a strong, high-agreement bias raises timing conviction, while "
+            "listed conflicts or a 'Mixed'/weak verdict should temper it — and cite it in a "
+            "factor when it is decisive. It still modulates, never overrides, the fundamental thesis. "
             "Technical signals modulate timing and confidence; fundamentals and notes drive "
             "the core thesis. "
             "Respond only with JSON using keys: action, confidence, rationale, factors, noteSynthesis. "

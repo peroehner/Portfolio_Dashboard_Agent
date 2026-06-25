@@ -230,12 +230,102 @@ its Fibonacci structure (§7):
 | `Neutral` | No center level available; monitor key boundaries. |
 | `Unknown` | Not enough technical data. |
 
+This Fib-position read stays on the Inspector's **Technical Risk Advisory** card.
+The **Tech Stance** column in the *Screening* and *Patterns & Tech Signals* tables
+is now driven by the **Confluence agent** (§11) instead — it shows the fused bias
+(Bullish … Bearish) with a mini score meter, falling back to this Fib stance only
+when there isn't enough history to fuse.
+
 ---
 
-## 9. Signal Track Record (Summary)
+## 9. Volume & Liquidity (RVOL, OBV, Volume Profile)
 
-Every assessment captures its recommendation **and** any detected pattern as a
-forward-looking "bet". Once the horizon elapses they're scored:
+Volume is read straight from the same daily history (no extra fetch). The
+Inspector's **Volume & Liquidity** card and the table's **Volume** column expose:
+
+| Metric | Meaning |
+|--------|---------|
+| **Rel. Volume (RVOL)** | Latest day's volume ÷ its 20-day average. State labels: `light` (≤0.6×), `normal`, `elevated` (≥1.3×), `surging` (≥2.0×). |
+| **Volume trend** | 20-day vs 50-day average participation — `rising`, `flat`, or `falling` (drying up). |
+| **OBV trend** | On-Balance-Volume slope — rising = **accumulation**, falling = **distribution**. |
+| **POC** | **Point of Control** — the most-traded price over the lookback (strongest support/resistance shelf). |
+| **Value Area (VAH–VAL)** | The band that held ~70% of volume (`VOLUME_VALUE_AREA_PCT`); inside it price is "accepted", outside it is "discovery". |
+| **Price node** | Whether the *current* price sits on a `high` / `medium` / `low`-volume node (thin nodes move fast). |
+
+> **POC caveat.** A true tick-level POC needs intraday volume-at-price no free
+> feed provides. We approximate it by spreading each day's volume across that
+> day's High–Low range into fixed bins — enough to judge high- vs low-volume
+> zones, not a tick-exact profile.
+
+---
+
+## 10. Risk Agent — volume validation & staleness
+
+A pattern's *shape* says nothing about whether real conviction backs it. The
+**Risk agent** cross-checks each detected pattern against volume and attaches a
+**validation verdict** (shown as a glyph next to the pattern and as a badge in the
+Inspector):
+
+| Verdict | Glyph | Meaning |
+|---------|-------|---------|
+| `confirmed` | ✓ | Broke out on expanding volume with supporting conviction. |
+| `weak` | ! | Broke out, but volume/conviction is unconvincing. |
+| `pending` | · | Still forming — volume confirmation not possible yet. |
+| `veto` | ✕ | Conviction so poor the setup is rejected (e.g. a double bottom on a low-volume floor). |
+| `stale` | ⊘ | Played out (measured-move target reached) or aged & departed from its key level. |
+
+The verdict comes from a 0–1 score built from: **breakout RVOL** (a real break
+expands volume), **key-level conviction** (the reversal extreme should sit on a
+high-volume node near the POC — the motivating example: a double bottom at $95
+where only ~30% of POC volume traded → veto), **OBV alignment** with the
+pattern's bias, and **triangle volume contraction**. Veto/stale patterns are
+down-weighted everywhere and kept out of the track record.
+
+---
+
+## 11. Confluence Agent — the fused verdict
+
+The **Confluence agent** fuses the independent technical lenses into one verdict
+so a recommendation can lean on consensus rather than a single signal. Each lens
+casts a **weighted directional vote**:
+
+| Lens | Reads | Weight |
+|------|-------|--------|
+| **Trend** | MA stack, golden/death cross, 3-month slope | `CONFLUENCE_WEIGHT_TREND` (1.0) |
+| **Structure** | zig-zag higher-highs / lower-lows | `CONFLUENCE_WEIGHT_STRUCTURE` (0.8) |
+| **Momentum** | MACD histogram / RSI regime | `CONFLUENCE_WEIGHT_MOMENTUM` (0.5) |
+| **Pattern** | the Risk-validated pattern (verdict-weighted) | `CONFLUENCE_WEIGHT_PATTERN` (1.0) |
+| **Volume** | RVOL regime + OBV accumulation/distribution | `CONFLUENCE_WEIGHT_VOLUME` (0.6) |
+
+Votes aggregate into a normalised **score** (−1 … +1) mapped to a **bias**:
+
+| Bias | Score band |
+|------|-----------|
+| `Bullish` | ≥ +0.45 |
+| `Lean Bullish` | +0.15 … +0.45 |
+| `Mixed` | −0.15 … +0.15 |
+| `Lean Bearish` | −0.45 … −0.15 |
+| `Bearish` | ≤ −0.45 |
+
+The Inspector's **Technical Confluence** card shows the bias, a score meter (0 =
+bearish, 50 = neutral, 100 = bullish), the per-lens vote chips, and explicit
+**Agreeing** vs **Conflicting** lists. **Strength** (`weak`/`moderate`/`strong`)
+combines how far the score is from neutral with how unanimous the lenses are.
+
+This fused verdict drives the Tech Stance in both tables (§8), is captured in the
+track record (§12), and is fed to the LLM as the primary technical read (a strong
+high-agreement bias raises timing conviction; conflicts or a Mixed/weak verdict
+temper it) — always modulating, never overriding, the fundamental thesis.
+
+---
+
+## 12. Signal Track Record (Summary)
+
+Every assessment captures its recommendation, any detected pattern, **and** the
+fused confluence bias as a forward-looking "bet" (each in its own section —
+*Recommendations*, *Chart patterns*, *Confluence bias*). Vetoed/stale patterns and
+a `Mixed` confluence are skipped (not falsifiable). Once the horizon elapses
+they're scored:
 
 | Term | Meaning |
 |------|---------|
@@ -250,7 +340,7 @@ future signals (auto-calibration is a planned next step).
 
 ---
 
-## 10. Related config knobs
+## 13. Related config knobs
 
 All optional; see [.env.example](../.env.example).
 
@@ -260,10 +350,21 @@ All optional; see [.env.example](../.env.example).
 | `TECHNICAL_PATTERN_TOL_PCT` | `3` | How close pivots must be to count as "similar" |
 | `TECHNICAL_SIGNALS_PERIOD` | `2y` | History pulled per symbol (patterns/trends) |
 | `FIB_LOOKBACK_PERIOD` | `90d` | Window for the Fibonacci swing high/low |
+| `VOLUME_PROFILE_LOOKBACK` | `252` | Days used to build the volume profile / POC |
+| `VOLUME_VALUE_AREA_PCT` | `0.70` | Share of volume defining the Value Area |
+| `ASSESSMENT_PATTERN_VOLUME` | `1` | Enable the Risk agent (volume validation) |
+| `RISK_PATTERN_ACTION` | `downgrade` | `downgrade` (flag + down-weight) or `veto` (drop) |
+| `VOLUME_BREAKOUT_RVOL` | `1.3` | RVOL on the break to call it volume-confirmed |
+| `RISK_PATTERN_STALE_AGE_BARS` | `90` | Sessions before an aged pattern can go stale |
+| `CONFLUENCE_WEIGHT_TREND` … `_VOLUME` | `1.0 … 0.6` | Per-lens confluence vote weights |
+| `CONFLUENCE_LEAN_SCORE` / `_STRONG_SCORE` | `0.15` / `0.45` | Bias band edges |
 | `TRACK_RECORD` | `1` | Capture/score signals |
 | `TRACK_RECORD_HORIZON_DAYS` | `21` | Scoring horizon |
 | `TRACK_RECORD_BAND_PCT` | `2.0` | Win/loss dead-band |
 
 Implementation lives in `services/technical_signals_service.py` (detection),
+`services/volume_service.py` (volume metrics + profile/POC),
+`services/risk_service.py` (pattern validation + staleness),
+`services/confluence_service.py` (fused verdict),
 `services/fib_service.py` (Fibonacci levels), `services/inspector_service.py`
 (stance + chart wiring), and `services/track_record_service.py` (scoring).

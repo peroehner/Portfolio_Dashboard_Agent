@@ -845,6 +845,10 @@
     .confluence-col ul { margin: 0; padding-left: 1.05rem; }
     .confluence-col li { font-size: 0.8rem; color: var(--text); margin-bottom: 0.15rem; }
     .confluence-col li.empty { color: var(--muted); list-style: none; margin-left: -1.05rem; }
+    .confluence-fib-note {
+      margin: 0.7rem 0 0; padding-top: 0.6rem; border-top: 1px solid var(--border);
+      font-size: 0.8rem; color: var(--muted); line-height: 1.45;
+    }
     #inspector-recommendation.inspector-section-focus,
     #inspector-notes.inspector-section-focus,
     #inspector-alerts.inspector-section-focus {
@@ -936,7 +940,8 @@
       align-items: stretch;
     }
     .inspector-top-row .inspector-side-card,
-    .inspector-top-row .inspector-holdings-card {
+    .inspector-top-row .inspector-holdings-card,
+    .inspector-top-row .valuation-scoring {
       margin-bottom: 0;
     }
     @media (max-width: 960px) {
@@ -1739,6 +1744,23 @@
     .alert { border-left-color: var(--warn); }
     .note { border-left-color: var(--accent-2); }
     .assessment { border-left-color: #a78bfa; }
+    .assessment-latest {
+      border-left-width: 3px;
+      background: rgba(167, 139, 250, 0.1);
+      border: 1px solid rgba(167, 139, 250, 0.32);
+      border-left: 3px solid #a78bfa;
+    }
+    .chip.latest-chip { background: rgba(167, 139, 250, 0.25); color: #c4b5fd; }
+    .assessment-rationale-collapsed {
+      margin-top: 0.4rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--muted);
+      font-style: italic;
+      cursor: help;
+    }
+    .section-hint { font-weight: 400; font-size: 0.76rem; color: var(--muted); text-transform: none; letter-spacing: normal; }
     .empty { color: var(--muted); font-size: 0.9rem; }
     .status { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; }
     nav.tabs {
@@ -2255,7 +2277,7 @@
         <h2>Signal Track Record</h2>
         <span class="track-record-sub" id="trackRecordMeta"></span>
       </div>
-      <p class="visual-subtitle">How past recommendations and detected chart patterns actually played out over the evaluation horizon. Self-scoring only — signals are measured, not yet auto-weighted.</p>
+      <p class="visual-subtitle">How past recommendations, detected chart patterns, and the fused confluence bias actually played out over the evaluation horizon. Self-scoring only — signals are measured, not yet auto-weighted.</p>
       <div id="trackRecordBody"><div class="empty">Loading…</div></div>
     </div>
     <div class="wide-panel import-bar">
@@ -4125,6 +4147,7 @@
       }
       const recos = (data.byLabel || []).filter((b) => b.kind === "recommendation");
       const patterns = (data.byLabel || []).filter((b) => b.kind === "pattern");
+      const confluence = (data.byLabel || []).filter((b) => b.kind === "confluence");
       const section = (title, buckets) =>
         buckets.length
           ? `
@@ -4146,7 +4169,8 @@
           </div>
         </div>
         ${section("Recommendations", recos)}
-        ${section("Chart patterns", patterns)}`;
+        ${section("Chart patterns", patterns)}
+        ${section("Confluence bias", confluence)}`;
     }
 
     async function loadTrackRecord() {
@@ -5060,22 +5084,32 @@
         </div>`;
     }
 
-    function renderInspectorAssessmentItem(item, { history = false, panelId = "inspectorPanel" } = {}) {
+    function renderInspectorAssessmentItem(item, { history = false, panelId = "inspectorPanel", latest = false, recRationale = null } = {}) {
       const factors = cleanFactors(item.factors);
       const deleteBtn = history
         ? `<button type="button" class="btn-danger" data-delete-assessment="${item.id}" data-inspector-panel="${panelId}">Delete</button>`
         : "";
+      // Avoid repeating the Recommendation's rationale verbatim: when this
+      // assessment's rationale is the one the Recommendation card already shows,
+      // collapse it to a single ellipsised line so the factors (the unique value)
+      // lead. Hover shows the full text.
+      const rationale = item.rationale || "";
+      const isDuplicateOfRec = recRationale && rationale.trim() === String(recRationale).trim();
+      const rationaleHtml = isDuplicateOfRec
+        ? `<div class="assessment-rationale-collapsed" title="${escapeHtml(rationale)}">${rationale}</div>`
+        : `<div style="margin-top:0.4rem;">${rationale}</div>`;
       return `
-        <div class="assessment">
+        <div class="assessment${latest ? " assessment-latest" : ""}">
           <div class="inspector-item-head">
             <div>
+              ${latest ? `<span class="chip latest-chip">Latest</span> ` : ""}
               <span class="chip ${item.action}">${item.action}</span>
               <span class="chip hold">${item.confidence}</span>
             </div>
             ${deleteBtn}
           </div>
           ${item.llmFallback ? `<div class="empty" style="color:var(--warn);margin-top:0.35rem;">Gemini unavailable — rules-based assessment.</div>` : ""}
-          <div style="margin-top:0.4rem;">${item.rationale}</div>
+          ${rationaleHtml}
           ${factors.length ? `<ul style="margin:0.4rem 0 0 1.1rem;font-size:0.88rem;color:var(--muted);">${factors.map((f) => `<li>${f}</li>`).join("")}</ul>` : ""}
           <div class="empty" style="margin-top:0.35rem;">${item.createdAt} · ${item.provider}</div>
         </div>`;
@@ -5440,7 +5474,7 @@
       "Bearish": "bear",
     };
 
-    function renderInspectorConfluence(conf) {
+    function renderInspectorConfluence(conf, advisory) {
       if (!conf || !conf.bias) return "";
       const cls = CONFLUENCE_BIAS_CLASS[conf.bias] || "mixed";
       const score100 = conf.score100 != null ? conf.score100 : 50;
@@ -5477,6 +5511,7 @@
               <ul>${conflictHtml}</ul>
             </div>
           </div>
+          ${advisory && advisory.message ? `<p class="confluence-fib-note">${escapeHtml(advisory.message)}</p>` : ""}
         </section>`;
     }
 
@@ -5545,8 +5580,18 @@
           </div>`
         : "";
       const volumeHtml = (!isHoldingsPreview) ? renderInspectorVolume(data.volume, data.volumeProfile) : "";
-      const confluenceHtml = (!isHoldingsPreview) ? renderInspectorConfluence(data.confluence) : "";
+      const confluenceHtml = (!isHoldingsPreview) ? renderInspectorConfluence(data.confluence, advisory) : "";
       const stanceClass = String(advisory.stance || "neutral").toLowerCase();
+      // The Confluence card subsumes the Fib-only Technical Risk Advisory, so it
+      // takes the top slot. The Advisory is the fallback only when there isn't
+      // enough history to fuse a confluence verdict.
+      const advisoryCard = `
+            <section class="inspector-side-card advisory ${stanceClass}">
+              <h3>Technical Risk Advisory</h3>
+              <div class="advisory-stance">Technical Stance: ${advisory.stance || "Unknown"}</div>
+              <p>${advisory.message || "Insufficient technical data to assess support positioning."}</p>
+            </section>`;
+      const topLeftCard = confluenceHtml || advisoryCard;
       const setupHint = data._inspectorNeedsServerRefresh
         ? `<div class="alert" style="margin-bottom:0.85rem;">Inspector analytics are partial. Restart the server from <code>Portfolio_Dashboard_Agent</code> with <code>python3 main.py</code>, then use <strong>Sync Prices</strong> so Fib levels, valuation metrics, and trend waves can load.</div>`
         : "";
@@ -5555,14 +5600,9 @@
         ${setupHint}
         <div class="inspector-dashboard">
           <div class="inspector-top-row">
-            <section class="inspector-side-card advisory ${stanceClass}">
-              <h3>Technical Risk Advisory</h3>
-              <div class="advisory-stance">Technical Stance: ${advisory.stance || "Unknown"}</div>
-              <p>${advisory.message || "Insufficient technical data to assess support positioning."}</p>
-            </section>
+            ${topLeftCard}
             ${isHoldingsPreview ? "" : renderInspectorHoldingsCard(data)}
           </div>
-          ${confluenceHtml}
           <section class="valuation-scoring">
             <h3>Valuation & Scoring</h3>
             <div class="valuation-grid">
@@ -6138,13 +6178,23 @@
       const assessments = data.assessments || [];
       const latestNote = notes[0];
       const olderNotes = notes.slice(1);
-      const latestAssessment = assessments[0];
       const olderAssessments = assessments.slice(1);
       return `
         ${renderInspectorDashboard(data, panelId)}
         <div class="inspector-lower-grid">
           <div class="inspector-lower-col inspector-lower-col-main">
             ${renderRecommendationCard(rec)}
+            <div class="inspector-section" id="inspector-assessments">
+              <h3>
+                <span>Assessments${assessments.length ? ` (${assessments.length})` : ""} <span class="section-hint">the analysis behind the recommendation</span></span>
+                ${olderAssessments.length ? `<button type="button" class="btn-danger inspector-section-delete" data-delete-assessment-history data-inspector-panel="${panelId}">Clear history</button>` : ""}
+              </h3>
+              <div class="inspector-scroll">
+                ${assessments.length
+                  ? assessments.map((a, i) => renderInspectorAssessmentItem(a, { history: i > 0, panelId, latest: i === 0, recRationale: rec.rationale })).join("")
+                  : `<div class="empty">No assessments yet — run Assess Symbol.</div>`}
+              </div>
+            </div>
             <div class="inspector-section">
               <h3>
                 <span>Older Notes${olderNotes.length ? ` (${olderNotes.length})` : ""}</span>
@@ -6156,23 +6206,8 @@
                   : `<div class="empty">No older notes.</div>`}
               </div>
             </div>
-            <div class="inspector-section">
-              <h3>
-                <span>Assessment History${olderAssessments.length ? ` (${olderAssessments.length})` : ""}</span>
-                ${olderAssessments.length ? `<button type="button" class="btn-danger inspector-section-delete" data-delete-assessment-history data-inspector-panel="${panelId}">Delete all</button>` : ""}
-              </h3>
-              <div class="inspector-scroll">
-                ${olderAssessments.length
-                  ? olderAssessments.map((a) => renderInspectorAssessmentItem(a, { history: true, panelId })).join("")
-                  : `<div class="empty">No assessment history.</div>`}
-              </div>
-            </div>
           </div>
           <div class="inspector-lower-col inspector-lower-col-side">
-            <div class="inspector-section">
-              <h3>Latest Assessment</h3>
-              ${latestAssessment ? renderInspectorAssessmentItem(latestAssessment, { panelId }) : `<div class="empty">No assessments yet — run Assess Symbol.</div>`}
-            </div>
             <div class="inspector-section" id="inspector-alerts">
               <h3>Active Alerts</h3>
               ${data.alerts.length
