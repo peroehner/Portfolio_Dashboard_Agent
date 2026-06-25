@@ -1493,15 +1493,24 @@
       gap: 1rem;
       align-items: start;
     }
-    /* Same in-view behavior as the Holdings tab: the 52-week symbol list scrolls
-       internally (sticky header) while the News panel sticks, so selecting any
-       row — even far down the list — always keeps its News visible. */
-    .fund-range-layout .fund-table-scroll {
+    /* Mirror the Holdings tab exactly: the symbol-list column is a sticky flex
+       panel whose INNER scroller holds the table (sticky header) — separating the
+       sticky element from the scroll container, as Holdings does — while the News
+       panel sticks. So selecting any row, even far down the list, keeps its News
+       in view. */
+    .fund-range-layout .fund-table-panel {
       position: sticky;
       top: 1rem;
       align-self: start;
       max-height: calc(100vh - 2rem);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .fund-range-layout .fund-table-panel .fund-table-scroll {
       overflow-y: auto;
+      flex: 1 1 auto;
+      min-height: 0;
     }
     .fund-range-layout .fund-table-scroll table.data thead th {
       position: sticky;
@@ -1524,8 +1533,11 @@
     }
     @media (max-width: 1100px) {
       .fund-range-layout { grid-template-columns: 1fr; }
-      .fund-range-layout .fund-table-scroll {
+      .fund-range-layout .fund-table-panel {
         position: static;
+        max-height: none;
+      }
+      .fund-range-layout .fund-table-panel .fund-table-scroll {
         max-height: 60vh;
       }
       .fund-range-layout .fund-news-panel {
@@ -6741,7 +6753,9 @@
       if (fundamentalsTab === "range") {
         container.innerHTML = `
           <div class="fund-range-layout">
-            <div class="fund-table-scroll">${table}</div>
+            <div class="fund-table-panel">
+              <div class="fund-table-scroll">${table}</div>
+            </div>
             <aside class="fund-news-panel" id="fundamentalsNewsPanel"></aside>
           </div>`;
         renderFundamentalsNewsPanel();
