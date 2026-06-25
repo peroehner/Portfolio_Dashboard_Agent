@@ -1086,19 +1086,24 @@
       color: var(--muted);
     }
     .trend-wave-list {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
       gap: 0.45rem;
     }
     .trend-wave-card {
       display: grid;
-      gap: 0.2rem;
-      padding: 0.55rem 0.7rem;
+      gap: 0.15rem;
+      padding: 0.45rem 0.6rem;
       border-radius: 10px;
-      font-size: 0.78rem;
+      font-size: 0.74rem;
       border: 1px solid var(--border);
       background: var(--bg);
+      cursor: pointer;
+      transition: opacity 0.12s ease, border-color 0.12s ease, background 0.12s ease;
     }
+    .trend-wave-card:hover { background: var(--panel-2); }
+    .trend-wave-card.is-hidden { opacity: 0.4; }
+    .trend-wave-card.is-hidden .trend-wave-title { text-decoration: line-through; }
     .trend-wave-card.up { border-color: rgba(34, 197, 94, 0.35); }
     .trend-wave-card.down { border-color: rgba(239, 68, 68, 0.35); }
     .trend-wave-title {
@@ -1112,8 +1117,34 @@
     .trend-wave-title.down { color: #fca5a5; }
     .trend-wave-detail {
       color: var(--muted);
-      line-height: 1.35;
-      font-size: 0.76rem;
+      line-height: 1.3;
+      font-size: 0.72rem;
+    }
+    /* Chart Patterns + Volume & Liquidity sit side by side so the volume metrics
+       fill the empty space next to the (narrow) patterns panel. */
+    .pattern-volume-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: stretch;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+    .pattern-volume-row .pattern-panel {
+      flex: 1 1 280px;
+      margin-top: 0;
+    }
+    .pattern-volume-row .volume-card {
+      flex: 1.6 1 380px;
+      margin-top: 0;
+    }
+    .pattern-volume-row .volume-card .valuation-grid {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 0.5rem;
+    }
+    @media (max-width: 900px) {
+      .pattern-volume-row .volume-card .valuation-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
     }
     .inspector-chart-title-row {
       display: flex;
@@ -1358,6 +1389,19 @@
     }
     .valuation-scoring {
       margin-bottom: 1rem;
+    }
+    /* Valuation metrics embedded inside the Holdings card (upper row). */
+    .holdings-valuation {
+      margin-top: 0.85rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid var(--border);
+    }
+    .valuation-grid.valuation-inline {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.55rem;
+    }
+    @media (max-width: 760px) {
+      .valuation-grid.valuation-inline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     .inspector-holdings-card .holdings-condensed {
       display: flex;
@@ -5350,15 +5394,19 @@
       return `${sign}${amount.toFixed(1)}%`;
     }
 
-    function renderInspectorHoldingsCard(data) {
+    function renderInspectorHoldingsCard(data, metricsHtml = "") {
       const symbol = data.symbol || "—";
       const pm = data.positionMechanics;
       const holding = data.holding;
+      const metricsBlock = metricsHtml
+        ? `<div class="holdings-valuation"><div class="valuation-grid valuation-inline">${metricsHtml}</div></div>`
+        : "";
       if (!pm && !holding) {
         return `
           <section class="valuation-scoring inspector-holdings-card">
             <h3>${symbol} Holdings</h3>
             <div class="empty">No holding recorded for this symbol.</div>
+            ${metricsBlock}
           </section>`;
       }
 
@@ -5403,6 +5451,7 @@
               <span class="muted">(${formatInspectorTargetUpside(personalUpside)})</span>
             </p>
           </div>
+          ${metricsBlock}
         </section>`;
     }
 
@@ -5584,6 +5633,11 @@
           </div>`
         : "";
       const volumeHtml = (!isHoldingsPreview) ? renderInspectorVolume(data.volume, data.volumeProfile) : "";
+      // Pair the (narrow) Chart Patterns panel with Volume & Liquidity so the volume
+      // metrics fill the empty horizontal space instead of stacking below.
+      const patternVolumeRow = (patternsHtml || volumeHtml)
+        ? `<div class="pattern-volume-row">${patternsHtml}${volumeHtml}</div>`
+        : "";
       const confluenceHtml = (!isHoldingsPreview) ? renderInspectorConfluence(data.confluence, advisory) : "";
       const stanceClass = String(advisory.stance || "neutral").toLowerCase();
       // The Confluence card subsumes the Fib-only Technical Risk Advisory, so it
@@ -5596,6 +5650,16 @@
               <p>${advisory.message || "Insufficient technical data to assess support positioning."}</p>
             </section>`;
       const topLeftCard = confluenceHtml || advisoryCard;
+      // Valuation metrics now fill the empty space inside the Holdings card (upper
+      // row) rather than living in their own section below. P-Score was dropped.
+      const valuationMetricsHtml = [
+        renderValuationMetric("Est. Dividend", formatMoney(val.estDividend), (val.estDividend ?? 0) > 0 ? "gain-pos" : ""),
+        renderValuationMetric("Trailing P/E", formatInspectorMetric(val.trailingPe)),
+        renderValuationMetric("Forward P/E", formatInspectorMetric(val.forwardPe)),
+        renderValuationMetric("PEG Ratio", formatInspectorMetric(val.pegRatio)),
+        renderValuationMetric("Rev Growth", formatInspectorMetric(val.revenueGrowth, "%")),
+        renderValuationMetric("Op Margin", formatInspectorMetric(val.operatingMargin, "%")),
+      ].join("");
       const setupHint = data._inspectorNeedsServerRefresh
         ? `<div class="alert" style="margin-bottom:0.85rem;">Inspector analytics are partial. Restart the server from <code>Portfolio_Dashboard_Agent</code> with <code>python3 main.py</code>, then use <strong>Sync Prices</strong> so Fib levels, valuation metrics, and trend waves can load.</div>`
         : "";
@@ -5605,20 +5669,14 @@
         <div class="inspector-dashboard">
           <div class="inspector-top-row">
             ${topLeftCard}
-            ${isHoldingsPreview ? "" : renderInspectorHoldingsCard(data)}
+            ${isHoldingsPreview ? "" : renderInspectorHoldingsCard(data, valuationMetricsHtml)}
           </div>
-          <section class="valuation-scoring">
-            <h3>Valuation & Scoring</h3>
-            <div class="valuation-grid">
-              ${isHoldingsPreview ? "" : renderValuationMetric("P-Score", formatInspectorMetric(val.pScore))}
-              ${isHoldingsPreview ? "" : renderValuationMetric("Est. Dividend", formatMoney(val.estDividend), (val.estDividend ?? 0) > 0 ? "gain-pos" : "")}
-              ${renderValuationMetric("Trailing P/E", formatInspectorMetric(val.trailingPe))}
-              ${renderValuationMetric("Forward P/E", formatInspectorMetric(val.forwardPe))}
-              ${renderValuationMetric("PEG Ratio", formatInspectorMetric(val.pegRatio))}
-              ${renderValuationMetric("Rev Growth", formatInspectorMetric(val.revenueGrowth, "%"))}
-              ${renderValuationMetric("Op Margin", formatInspectorMetric(val.operatingMargin, "%"))}
-            </div>
-          </section>
+          ${isHoldingsPreview
+            ? `<section class="valuation-scoring">
+                <h3>Valuation & Scoring</h3>
+                <div class="valuation-grid valuation-inline">${valuationMetricsHtml}</div>
+              </section>`
+            : ""}
           <section class="inspector-chart-card">
             <div class="inspector-chart-head">
               <div class="inspector-chart-title-row">
@@ -5648,8 +5706,7 @@
                   </div>
                 </div>`
               : ""}
-            ${patternsHtml}
-            ${volumeHtml}
+            ${patternVolumeRow}
             <div class="inspector-chart-wrap" style="${chartMode === "timeline" && canSwitchChart ? "height:320px;" : ""}" ondblclick="openInspectorChartFullscreen('${panelId}')" title="Double-click to zoom full screen">
               <canvas id="inspectorChart-${panelId}" aria-label="Fibonacci and trend timeline chart for ${data.symbol}"></canvas>
             </div>
@@ -5686,7 +5743,10 @@
                         detailParts.push("Fib levels use T1");
                       }
                       return `
-                        <article class="trend-wave-card ${wave.direction || "up"}">
+                        <article class="trend-wave-card ${wave.direction || "up"}" role="button" tabindex="0"
+                          title="Click to show/hide this leg on the chart"
+                          onclick="onInspectorTrendToggle('${panelId}', '${wave.label}', this)"
+                          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();onInspectorTrendToggle('${panelId}', '${wave.label}', this);}">
                           <div class="trend-wave-title ${wave.direction || "up"}">${headline}</div>
                           <div class="trend-wave-detail">${detailParts.join(" · ")}</div>
                         </article>
@@ -5710,6 +5770,23 @@
         });
         chart.update();
       });
+    }
+
+    // Toggle a single trend-wave leg's visibility on the timeline chart when its
+    // card is clicked. Operates on the live chart only (resets on re-render).
+    function onInspectorTrendToggle(panelId, label, el) {
+      const chart = inspectorCharts[panelId];
+      if (!chart) return;
+      let nowHidden = null;
+      chart.data.datasets.forEach((dataset) => {
+        if (dataset._trendKey === label) {
+          dataset.hidden = !dataset.hidden;
+          nowHidden = dataset.hidden;
+        }
+      });
+      if (nowHidden === null) return;
+      chart.update();
+      if (el) el.classList.toggle("is-hidden", nowHidden);
     }
 
     function inspectorChartExtents(timeline, waves) {
