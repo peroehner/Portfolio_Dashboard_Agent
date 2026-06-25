@@ -258,6 +258,15 @@ def update_state():
     })
 
 
+@app.route("/manifest.webmanifest")
+def serve_manifest():
+    """Serve the PWA manifest so the installed (Chrome) app uses the real logo."""
+    path = BASE_DIR / "manifest.webmanifest"
+    if not path.is_file():
+        return jsonify({"error": "manifest not found"}), 404
+    return send_file(path, mimetype="application/manifest+json")
+
+
 @app.route("/docs/api")
 def serve_api_docs():
     docs_path = BASE_DIR / "docs" / "API.md"

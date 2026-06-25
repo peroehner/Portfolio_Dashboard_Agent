@@ -4,7 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Portfolio Dashboard Agent</title>
-  <link rel="icon" href="/assets/logo.png" type="image/png">
+  <link rel="icon" href="/assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="/assets/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0f1419">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Portfolio">
   <style>
     :root {
       --bg: #0f1419;
@@ -1486,16 +1493,45 @@
       gap: 1rem;
       align-items: start;
     }
-    @media (max-width: 1100px) {
-      .fund-range-layout { grid-template-columns: 1fr; }
+    /* Same in-view behavior as the Holdings tab: the 52-week symbol list scrolls
+       internally (sticky header) while the News panel sticks, so selecting any
+       row — even far down the list — always keeps its News visible. */
+    .fund-range-layout .fund-table-scroll {
+      position: sticky;
+      top: 1rem;
+      align-self: start;
+      max-height: calc(100vh - 2rem);
+      overflow-y: auto;
+    }
+    .fund-range-layout .fund-table-scroll table.data thead th {
+      position: sticky;
+      top: 0;
+      background: var(--panel);
+      z-index: 2;
     }
     .fund-news-panel {
       background: var(--panel-2);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 1rem;
-      max-height: calc(100vh - 16rem);
       overflow-y: auto;
+    }
+    .fund-range-layout .fund-news-panel {
+      position: sticky;
+      top: 1rem;
+      align-self: start;
+      max-height: calc(100vh - 2rem);
+    }
+    @media (max-width: 1100px) {
+      .fund-range-layout { grid-template-columns: 1fr; }
+      .fund-range-layout .fund-table-scroll {
+        position: static;
+        max-height: 60vh;
+      }
+      .fund-range-layout .fund-news-panel {
+        position: static;
+        max-height: none;
+      }
     }
     .fund-news-head {
       margin: 0 0 0.75rem;

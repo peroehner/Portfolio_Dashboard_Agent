@@ -33,7 +33,7 @@ _ALLOWED_EMAILS = {
 }
 
 # Paths reachable without a session.
-_PUBLIC_EXACT = {"/health", "/login", "/favicon.ico"}
+_PUBLIC_EXACT = {"/health", "/login", "/favicon.ico", "/manifest.webmanifest"}
 _PUBLIC_PREFIXES = ("/auth/", "/assets/", "/docs/")
 
 auth_bp = Blueprint("auth", __name__)
