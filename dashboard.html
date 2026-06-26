@@ -2202,6 +2202,11 @@
       position: sticky;
       bottom: 0;
     }
+    table.data tfoot tr.total-row .total-day-amt {
+      font-size: 0.85em;
+      font-weight: 600;
+      white-space: nowrap;
+    }
     .holdings-head {
       display: flex;
       align-items: center;
@@ -4241,6 +4246,14 @@
       const data = await api("/overview");
       const gainYieldClass = (data.unrealizedGainPct ?? 0) < 0 ? "subvalue negative" : "subvalue";
       const analystYieldClass = (data.totalAnalystUpsidePct ?? 0) < 0 ? "subvalue negative" : "subvalue";
+      const dayChange = data.totalDayChange;
+      const dayChangePct = data.totalDayChangePct;
+      const dayClass = (dayChangePct ?? 0) < 0 ? "subvalue negative" : "subvalue";
+      const daySign = dayChange > 0 ? "+" : dayChange < 0 ? "-" : "";
+      const dayPctStr = dayChangePct != null ? `${dayChangePct >= 0 ? "+" : ""}${dayChangePct.toFixed(2)}%` : "—";
+      const dayChangeHtml = dayChange != null
+        ? `<div class="${dayClass}">${daySign}${formatSummaryMoney(Math.abs(dayChange))} (${dayPctStr}) DAY</div>`
+        : "";
       const watchOnly = data.watchlistOnlyCount || 0;
       const watchOnlyNote = watchOnly === 1
         ? "(1 watch only)"
@@ -4249,6 +4262,7 @@
         <div class="metric">
           <div class="label">Market Value</div>
           <div class="value">${formatSummaryMoney(data.totalMarketValue)}</div>
+          ${dayChangeHtml}
         </div>
         <div class="metric">
           <div class="label">Cost Basis</div>
@@ -4760,9 +4774,26 @@
       const totalDiv = sumOf(rows, "annualDividend");
       const weightPct = portfolioValue ? (totalValue / portfolioValue) * 100 : null;
       const gainPct = portfolioValue ? (totalGain / portfolioValue) * 100 : null;
+      // Value-weighted Day %: dollar move = Σ(value × dayPct), and the % is that
+      // dollar move over the value of the positions that actually have a quote
+      // (so missing day quotes don't dilute the average).
+      let dayChangeAmt = 0;
+      let dayWeightBase = 0;
+      rows.forEach((r) => {
+        const v = Number(r.marketValue) || 0;
+        const p = Number(r.dayChangePct);
+        if (Number.isFinite(p)) {
+          dayChangeAmt += (v * p) / 100;
+          dayWeightBase += v;
+        }
+      });
+      const dayPct = dayWeightBase ? (dayChangeAmt / dayWeightBase) * 100 : null;
       const label = useSelection ? `TOTAL · ${rows.length} selected` : "TOTAL";
       const cellByKey = {
         symbol: `<strong>${label}</strong>`,
+        dayChangePct: dayPct == null
+          ? "—"
+          : `<strong>${renderColoredPercentCell(dayPct)}</strong> <span class="total-day-amt">(${renderColoredMoneyCell(dayChangeAmt)})</span>`,
         marketValue: `<strong>${formatMoney(totalValue)}</strong>`,
         weightPct: weightPct == null ? "—" : `${weightPct.toFixed(2)}%`,
         unrealizedGain: `<strong>${renderColoredMoneyCell(totalGain)}</strong>`,
@@ -6044,8 +6075,14 @@
                         moveText,
                         dateRange,
                       ].filter(Boolean).join(" · ");
+                      // Show the price arrow in the leg's actual direction: bearish
+                      // (Peak → Low) reads high → low, bullish (Low → Peak) low → high.
+                      const isDownLeg = wave.direction === "down"
+                        || (wave.movePct != null && Number(wave.movePct) < 0);
                       const legPrices = wave.displayLow != null && wave.displayHigh != null
-                        ? `${formatMoney(wave.displayLow)} → ${formatMoney(wave.displayHigh)}`
+                        ? (isDownLeg
+                            ? `${formatMoney(wave.displayHigh)} → ${formatMoney(wave.displayLow)}`
+                            : `${formatMoney(wave.displayLow)} → ${formatMoney(wave.displayHigh)}`)
                         : `${formatMoney(wave.priceStart)} → ${formatMoney(wave.priceEnd)}`;
                       const detailParts = [legPrices];
                       if (wave.peakHigh != null && wave.peakLow != null) {
@@ -7009,7 +7046,8 @@
         ? `<button class="fund-news-analyze" onclick="analyzeFundamentalsNews()" ${fundamentalsNewsLoading ? "disabled" : ""}>${analyzeLabel}</button>`
         : "";
       const sortToggle = fundamentalsNewsAnalyzed
-        ? `<div class="fund-news-sort" role="group" aria-label="Sort news">
+        ? `<span class="news-controls-label">Sorting</span>
+           <div class="fund-news-sort" role="group" aria-label="Sort news">
              <button class="${fundamentalsNewsSort === "relevance" ? "active" : ""}" onclick="setFundamentalsNewsSort('relevance')">Relevance</button>
              <button class="${fundamentalsNewsSort === "time" ? "active" : ""}" onclick="setFundamentalsNewsSort('time')">Time</button>
            </div>`

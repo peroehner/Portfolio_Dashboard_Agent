@@ -153,6 +153,21 @@ class OverviewService:
             if holding.get("marketValue") is not None and total_market_value > 0:
                 holding["weightPct"] = round(holding["marketValue"] / total_market_value * 100, 2)
 
+        # Value-weighted day change: dollar move = Σ(value × dayPct); the % is that
+        # move over the value of positions that actually have a day quote (so names
+        # without a fresh quote don't dilute the figure).
+        total_day_change = 0.0
+        day_weight_base = 0.0
+        for holding in holdings:
+            mv = holding.get("marketValue")
+            day_pct = holding.get("dayChangePct")
+            if mv is not None and day_pct is not None:
+                total_day_change += mv * day_pct / 100.0
+                day_weight_base += mv
+        total_day_change_pct = (
+            round(total_day_change / day_weight_base * 100, 2) if day_weight_base else None
+        )
+
         unrealized_gain = (
             round(total_market_value - total_cost, 2)
             if valued_holdings and total_cost
@@ -214,6 +229,8 @@ class OverviewService:
                 [symbol for symbol in symbols if symbol["symbol"] not in holding_symbols]
             ),
             "totalMarketValue": round(total_market_value, 2) if valued_holdings else None,
+            "totalDayChange": round(total_day_change, 2) if day_weight_base else None,
+            "totalDayChangePct": total_day_change_pct,
             "totalCostBasis": round(total_cost, 2) if total_cost else None,
             "unrealizedGain": unrealized_gain,
             "unrealizedGainPct": unrealized_gain_pct,
