@@ -479,6 +479,16 @@ class AssessmentService:
                 ),
             )
 
+    def count_recommendation_changes(self) -> int:
+        """Total number of logged recommendation changes (for the Summary header)."""
+        user_id = get_current_user_id()
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM recommendation_changelog WHERE user_id = %s",
+                (user_id,),
+            ).fetchone()
+        return int(row["n"]) if row else 0
+
     def list_recommendation_changes(self, limit: int = 8) -> list[dict[str, Any]]:
         user_id = get_current_user_id()
         with get_connection() as conn:

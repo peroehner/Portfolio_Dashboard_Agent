@@ -1546,9 +1546,86 @@
       }
     }
     .fund-news-head {
-      margin: 0 0 0.75rem;
+      margin: 0;
       font-size: 0.95rem;
       color: var(--text);
+    }
+    .fund-news-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin: 0 0 0.75rem;
+    }
+    .fund-news-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .fund-news-analyze {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 0.3rem 0.6rem;
+      cursor: pointer;
+    }
+    .fund-news-analyze:hover:not(:disabled) {
+      border-color: var(--accent-2);
+      color: #c4b5fd;
+    }
+    .fund-news-analyze:disabled { opacity: 0.6; cursor: progress; }
+    .fund-news-sort {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      overflow: hidden;
+    }
+    .fund-news-sort button {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--muted);
+      background: var(--panel);
+      border: none;
+      padding: 0.3rem 0.55rem;
+      cursor: pointer;
+    }
+    .fund-news-sort button + button { border-left: 1px solid var(--border); }
+    .fund-news-sort button.active {
+      color: #fff;
+      background: var(--accent-2);
+    }
+    .fund-news-error {
+      font-size: 0.78rem;
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 7px;
+      padding: 0.4rem 0.6rem;
+      margin-bottom: 0.6rem;
+    }
+    .news-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .news-meta-row .news-meta-text { color: var(--muted); }
+    .news-window-tag {
+      flex: 0 0 auto;
+      font-size: 0.66rem;
+      font-weight: 600;
+      color: var(--muted);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.05rem 0.35rem;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
     }
     .fund-news-link.active strong { color: #c4b5fd; }
     .news-list {
@@ -1710,6 +1787,32 @@
       font-size: 0.95rem;
     }
     .topnews-feed { display: flex; flex-direction: column; gap: 0.5rem; }
+    .nc-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .nc-head h3 { margin: 0 0 0.6rem 0; }
+    .news-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      margin: 0 0 0.6rem 0;
+    }
+    .news-controls .fund-news-sort button { white-space: nowrap; }
+    /* "1 per Symbol" is a filter, not a sort — give it a distinct (amber) accent. */
+    #newsGroupBtn { color: #f59e0b; }
+    #newsGroupBtn.active { background: #f59e0b; color: #1a1206; }
+    .news-controls-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text);
+      white-space: nowrap;
+    }
     .reco-change, .topnews-item {
       background: var(--bg);
       border: 1px solid var(--border);
@@ -1747,6 +1850,50 @@
       font-weight: 700;
       color: var(--accent);
       margin-right: 0.4rem;
+    }
+    .topnews-item .news-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .topnews-item .news-meta-text {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .news-react {
+      margin-left: auto;
+      flex: 0 0 auto;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.1rem 0.4rem;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      cursor: help;
+    }
+    .news-react b { font-weight: 800; }
+    .news-react.react-up {
+      color: #22c55e;
+      background: rgba(34, 197, 94, 0.12);
+      border-color: rgba(34, 197, 94, 0.35);
+    }
+    .news-react.react-down {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.35);
+    }
+    .news-react.react-flat {
+      color: var(--muted);
+      background: var(--panel-2);
+      border-color: var(--border);
+    }
+    .news-react.react-na {
+      color: var(--muted);
+      background: transparent;
+      border-color: var(--border);
     }
     .inspector-section {
       margin-top: 1.25rem;
@@ -2352,13 +2499,26 @@
             <div class="nc-scroll nc-scroll-assess" id="latestAssessmentsBody"><div class="empty">Loading…</div></div>
           </section>
           <section class="nc-area">
-            <h3>Recommendation Changes</h3>
+            <h3>Recommendation Changes <span class="nc-count" id="recoChangesMeta"></span></h3>
             <div class="nc-scroll nc-scroll-reco" id="recoChangesList"><div class="empty">Loading…</div></div>
           </section>
         </div>
         <div class="news-changes-col">
           <section class="nc-area">
-            <h3>Latest News</h3>
+            <div class="nc-head">
+              <h3>Latest News <span class="nc-count" id="topNewsMeta"></span></h3>
+              <div class="news-controls">
+                <div class="fund-news-sort" role="group" aria-label="Group news">
+                  <button type="button" id="newsGroupBtn" onclick="toggleNewsGroup()" title="Show only each symbol's single highest-relevance article">1 per Symbol</button>
+                </div>
+                <span class="news-controls-label">Sorting</span>
+                <div class="fund-news-sort" id="newsSortToggle" role="group" aria-label="Sort news">
+                  <button type="button" data-sort="relevance" class="active" onclick="setNewsSort('relevance')">Relevance</button>
+                  <button type="button" data-sort="symbol" onclick="setNewsSort('symbol')">Symbol</button>
+                  <button type="button" data-sort="time" onclick="setNewsSort('time')">Time</button>
+                </div>
+              </div>
+            </div>
             <div class="nc-scroll nc-scroll-news" id="topNewsList"><div class="empty">Loading…</div></div>
           </section>
         </div>
@@ -4165,13 +4325,95 @@
         </div>`;
     }
 
+    function renderNewsReactBadge(item) {
+      const score = item.relevanceScore;
+      if (score == null) {
+        return `<span class="news-react react-na" title="No price-reaction data for this article's date">—</span>`;
+      }
+      const dir = item.direction;
+      const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "•";
+      const cls = dir === "up" ? "react-up" : dir === "down" ? "react-down" : "react-flat";
+      const react = item.reactionPct != null ? ` ${arrow} ${Math.abs(item.reactionPct).toFixed(1)}%` : "";
+      const sig = item.sigma != null ? ` · ${Math.abs(item.sigma).toFixed(1)}σ` : "";
+      const volTxt = item.volumeRatio != null ? `, volume ${item.volumeRatio.toFixed(2)}× normal` : "";
+      const title = `Relevance ${score}/100 — market-adjusted price reaction on the news day${react ? ` (${react.trim()}${sig})` : ""}${volTxt}`;
+      return `<span class="news-react ${cls}" title="${escapeHtml(title)}"><b>${score}</b>${react}${sig}</span>`;
+    }
+
     function renderTopNewsItem(item) {
       const meta = [item.publisher, item.published].filter(Boolean).join(" · ");
+      const badge = renderNewsReactBadge(item);
       return `
         <div class="topnews-item" onclick="openFundamentalsNews('${item.symbol}')" title="Open ${item.symbol} news in Fundamentals">
           <div class="news-title"><span class="news-symbol">${item.symbol}</span>${escapeHtml(item.title || "Untitled")}</div>
-          ${meta ? `<div class="news-meta">${escapeHtml(meta)}</div>` : ""}
+          <div class="news-meta"><span class="news-meta-text">${escapeHtml(meta)}</span>${badge}</div>
         </div>`;
+    }
+
+    let topNewsAll = [];
+    let topNewsCheckedAt = "";
+    let topNewsSort = "relevance";
+    let topNewsGroup = false;
+
+    function setNewsSort(mode) {
+      topNewsSort = mode;
+      updateNewsControlStates();
+      renderTopNews();
+    }
+
+    function toggleNewsGroup() {
+      topNewsGroup = !topNewsGroup;
+      updateNewsControlStates();
+      renderTopNews();
+    }
+
+    function updateNewsControlStates() {
+      document.querySelectorAll("#newsSortToggle button").forEach((b) => {
+        b.classList.toggle("active", b.dataset.sort === topNewsSort);
+      });
+      const g = document.getElementById("newsGroupBtn");
+      if (g) g.classList.toggle("active", topNewsGroup);
+    }
+
+    function renderTopNews() {
+      const newsEl = document.getElementById("topNewsList");
+      if (!newsEl) return;
+
+      let list = topNewsAll.slice();
+
+      // Group by symbol: keep each symbol's single highest-relevance article
+      // (unscored items rank below any scored one for that symbol).
+      if (topNewsGroup) {
+        const best = new Map();
+        topNewsAll.forEach((item, idx) => {
+          const sym = item.symbol;
+          const score = item.relevanceScore == null ? -1 : item.relevanceScore;
+          const cur = best.get(sym);
+          if (!cur || score > cur._score) best.set(sym, Object.assign({ _score: score, _idx: idx }, item));
+        });
+        list = Array.from(best.values());
+        // Preserve the original (relevance×recency) ranking order between symbols.
+        list.sort((a, b) => a._idx - b._idx);
+      }
+
+      if (topNewsSort === "symbol") {
+        list.sort((a, b) => String(a.symbol).localeCompare(String(b.symbol)));
+      } else if (topNewsSort === "time") {
+        list.sort((a, b) => String(b.published || "").localeCompare(String(a.published || "")));
+      }
+      // "relevance": leave the relevance×recency order from the backend as-is.
+
+      const meta = document.getElementById("topNewsMeta");
+      if (meta) {
+        const tsTxt = topNewsCheckedAt ? formatAssessmentRunTs(topNewsCheckedAt) : "";
+        meta.textContent = list.length
+          ? `${list.length} news${tsTxt ? ` · ${tsTxt}` : ""}`
+          : "";
+      }
+
+      newsEl.innerHTML = list.length
+        ? `<div class="topnews-feed">${list.map(renderTopNewsItem).join("")}</div>`
+        : `<div class="empty">No recent news.</div>`;
     }
 
     async function loadTopNews() {
@@ -4179,15 +4421,20 @@
       const newsEl = document.getElementById("topNewsList");
       if (!recoEl || !newsEl) return;
       try {
-        const data = await api("/news-feed?newsLimit=8&changesLimit=6");
+        const data = await api("/news-feed?newsLimit=0&changesLimit=6");
         const changes = data.recommendationChanges || [];
-        const news = data.topNews || [];
+        topNewsAll = data.topNews || [];
+        topNewsCheckedAt = data.newsCheckedAt || "";
+        const recoMeta = document.getElementById("recoChangesMeta");
+        if (recoMeta) {
+          const total = data.recommendationChangesTotal != null ? data.recommendationChangesTotal : changes.length;
+          recoMeta.textContent = total ? `${total}` : "";
+        }
         recoEl.innerHTML = changes.length
           ? `<div class="topnews-feed">${changes.map(renderRecoChange).join("")}</div>`
           : `<div class="empty">No recommendation changes yet. Run Assess Portfolio to start tracking.</div>`;
-        newsEl.innerHTML = news.length
-          ? `<div class="topnews-feed">${news.map(renderTopNewsItem).join("")}</div>`
-          : `<div class="empty">No recent news.</div>`;
+        updateNewsControlStates();
+        renderTopNews();
       } catch (err) {
         recoEl.innerHTML = `<div class="empty">Could not load feed: ${escapeHtml(err.message)}</div>`;
         newsEl.innerHTML = "";
@@ -4299,7 +4546,6 @@
       const conf = a.confidence ? `<span class="la-conf">${escapeHtml(a.confidence)}</span>` : "";
       const pattern = patternBadgeHtml(a.symbol);
       const thesis = shortenThesis(a.rationale);
-      const day = a.assessedAt ? String(a.assessedAt).slice(0, 10) : "";
       return `
         <div class="nc-item" onclick="openInspectorSymbol('${a.symbol}', 'recommendation')" title="Open ${a.symbol} in Inspector">
           <div class="nc-line">
@@ -4309,15 +4555,26 @@
             <span class="nc-upside">${latestUpsideCell(a)}</span>
           </div>
           ${thesis ? `<div class="nc-thesis" title="${escapeHtml(a.rationale || "")}">${escapeHtml(thesis)}</div>` : ""}
-          ${day ? `<div class="nc-meta">Assessed ${day}</div>` : ""}
         </div>`;
+    }
+
+    // The assessment run completed at the newest assessedAt (overview is sorted
+    // newest-first), shown in the Latest Assessments header as "YYYY-MM-DD HH:MM:SS".
+    function formatAssessmentRunTs(ts) {
+      if (!ts) return "";
+      return String(ts).slice(0, 19).replace("T", " ");
     }
 
     function renderLatestAssessments(list) {
       const body = document.getElementById("latestAssessmentsBody");
       const meta = document.getElementById("latestAssessmentsMeta");
       if (!body) return;
-      if (meta) meta.textContent = list.length ? `${list.length} symbols` : "";
+      if (meta) {
+        const runTs = list.length ? formatAssessmentRunTs(list[0].assessedAt) : "";
+        meta.textContent = list.length
+          ? `${list.length} symbols${runTs ? ` · ${runTs}` : ""}`
+          : "";
+      }
       body.innerHTML = list.length
         ? `<div class="topnews-feed">${list.map(renderLatestAssessmentItem).join("")}</div>`
         : `<div class="empty">No assessments yet. Run Assess Portfolio to populate this overview.</div>`;
@@ -4335,6 +4592,13 @@
     }
 
     async function openFundamentalsNews(symbol) {
+      if (symbol !== fundamentalsNewsSymbol) {
+        fundamentalsNewsAnalyzed = false;
+        fundamentalsNewsLoading = false;
+        fundamentalsNewsData = null;
+        fundamentalsNewsSort = "relevance";
+        fundamentalsNewsError = "";
+      }
       fundamentalsNewsSymbol = symbol;
       fundamentalsTab = "range";
       showView("fundamentals");
@@ -6510,6 +6774,12 @@
     let fundamentalsRows = [];
     let fundamentalsTab = "val";
     let fundamentalsNewsSymbol = null;
+    // Phase 2: on-demand intraday reaction analysis for the selected symbol's news.
+    let fundamentalsNewsAnalyzed = false;
+    let fundamentalsNewsLoading = false;
+    let fundamentalsNewsSort = "relevance"; // "relevance" | "time"
+    let fundamentalsNewsData = null; // merged news items (relevance fields attached)
+    let fundamentalsNewsError = "";
     const FUND_TABLE_IDS = { val: "fundVal", health: "fundHealth", range: "fundRange" };
 
     function fundVal(row, group, key) {
@@ -6705,6 +6975,11 @@
       ];
     }
 
+    function fundNewsKey(item) {
+      if (item.link) return `L:${item.link}`;
+      return `T:${item.title || ""}|${item.published || ""}`;
+    }
+
     function renderFundamentalsNewsPanel() {
       const panel = document.getElementById("fundamentalsNewsPanel");
       if (!panel) return;
@@ -6717,9 +6992,38 @@
         row = fundamentalsRows[0];
         fundamentalsNewsSymbol = row.symbol;
       }
-      const news = row.recentNews || [];
+
+      const baseNews = row.recentNews || [];
+      let news = baseNews;
+      if (fundamentalsNewsAnalyzed && Array.isArray(fundamentalsNewsData)) {
+        news = fundamentalsNewsData.slice();
+        if (fundamentalsNewsSort === "relevance") {
+          news.sort((a, b) => (b.relevanceScore == null ? -1 : b.relevanceScore) - (a.relevanceScore == null ? -1 : a.relevanceScore));
+        } else {
+          news.sort((a, b) => String(b.published || "").localeCompare(String(a.published || "")));
+        }
+      }
+
+      const analyzeLabel = fundamentalsNewsLoading ? "Analyzing…" : (fundamentalsNewsAnalyzed ? "Re-analyze" : "Analyze reactions");
+      const analyzeBtn = news.length || baseNews.length
+        ? `<button class="fund-news-analyze" onclick="analyzeFundamentalsNews()" ${fundamentalsNewsLoading ? "disabled" : ""}>${analyzeLabel}</button>`
+        : "";
+      const sortToggle = fundamentalsNewsAnalyzed
+        ? `<div class="fund-news-sort" role="group" aria-label="Sort news">
+             <button class="${fundamentalsNewsSort === "relevance" ? "active" : ""}" onclick="setFundamentalsNewsSort('relevance')">Relevance</button>
+             <button class="${fundamentalsNewsSort === "time" ? "active" : ""}" onclick="setFundamentalsNewsSort('time')">Time</button>
+           </div>`
+        : "";
+      const errHtml = fundamentalsNewsError
+        ? `<div class="fund-news-error">${escapeHtml(fundamentalsNewsError)}</div>`
+        : "";
+
       panel.innerHTML = `
-        <h3 class="fund-news-head">${row.symbol} — Recent News${news.length ? ` (${news.length})` : ""}</h3>
+        <div class="fund-news-toolbar">
+          <h3 class="fund-news-head">${row.symbol} — Recent News${news.length ? ` (${news.length})` : ""}</h3>
+          <div class="fund-news-actions">${analyzeBtn}${sortToggle}</div>
+        </div>
+        ${errHtml}
         ${news.length
           ? `<ul class="news-list">${news.map((item) => {
               const title = escapeHtml(item.title || "");
@@ -6727,10 +7031,15 @@
                 ? `<a class="news-title-link" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${title} ↗</a>`
                 : `<span class="news-title">${title}</span>`;
               const summary = item.summary ? `<div class="news-summary">${escapeHtml(item.summary)}</div>` : "";
+              const metaText = `${escapeHtml(item.publisher || "—")}${item.published ? ` · ${escapeHtml(String(item.published).slice(0, 10))}` : ""}`;
+              const badge = fundamentalsNewsAnalyzed ? renderNewsReactBadge(item) : "";
+              const winTag = fundamentalsNewsAnalyzed && item.reactionWindow
+                ? `<span class="news-window-tag" title="Reaction window used for this score">${escapeHtml(item.reactionWindow)}</span>`
+                : "";
               return `
               <li class="news-item">
                 <div class="news-title">${titleHtml}</div>
-                <div class="news-meta">${escapeHtml(item.publisher || "—")}${item.published ? ` · ${escapeHtml(String(item.published).slice(0, 10))}` : ""}</div>
+                <div class="news-meta news-meta-row"><span class="news-meta-text">${metaText}</span>${badge}${winTag}</div>
                 ${summary}
               </li>`;
             }).join("")}</ul>`
@@ -6738,11 +7047,61 @@
     }
 
     function selectFundamentalsNews(symbol) {
+      if (symbol !== fundamentalsNewsSymbol) {
+        // Switching symbols resets the analyzed state — badges clear until re-run.
+        fundamentalsNewsAnalyzed = false;
+        fundamentalsNewsLoading = false;
+        fundamentalsNewsData = null;
+        fundamentalsNewsSort = "relevance";
+        fundamentalsNewsError = "";
+      }
       fundamentalsNewsSymbol = symbol;
       document.querySelectorAll(".fund-news-link").forEach((link) => {
         link.classList.toggle("active", link.textContent.trim() === symbol);
       });
       renderFundamentalsNewsPanel();
+    }
+
+    function setFundamentalsNewsSort(mode) {
+      fundamentalsNewsSort = mode;
+      renderFundamentalsNewsPanel();
+    }
+
+    async function analyzeFundamentalsNews() {
+      const symbol = fundamentalsNewsSymbol;
+      if (!symbol || fundamentalsNewsLoading) return;
+      fundamentalsNewsLoading = true;
+      fundamentalsNewsError = "";
+      renderFundamentalsNewsPanel();
+      try {
+        const data = await api(`/news-relevance/${encodeURIComponent(symbol)}`);
+        // The user may have switched symbols while the request was in flight.
+        if (symbol !== fundamentalsNewsSymbol) return;
+        const returned = data.news || [];
+        const relMap = new Map();
+        returned.forEach((it) => relMap.set(fundNewsKey(it), it));
+        const row = fundamentalsRows.find((r) => r.symbol === symbol);
+        const baseNews = (row && row.recentNews) || [];
+        const relFields = ["relevanceScore", "reactionPct", "abnormalPct", "sigma", "volumeRatio", "direction", "reactionWindow"];
+        let merged = baseNews.map((it) => {
+          const m = relMap.get(fundNewsKey(it));
+          const out = Object.assign({}, it);
+          if (m) relFields.forEach((f) => { out[f] = m[f]; });
+          return out;
+        });
+        // If the fundamentals snapshot had no cached news but the endpoint did, show those.
+        if (!merged.length && returned.length) merged = returned.slice();
+        fundamentalsNewsData = merged;
+        fundamentalsNewsAnalyzed = true;
+        fundamentalsNewsSort = "relevance";
+      } catch (err) {
+        if (symbol === fundamentalsNewsSymbol) {
+          fundamentalsNewsError = `Could not analyze reactions: ${err.message}`;
+        }
+      } finally {
+        fundamentalsNewsLoading = false;
+        if (symbol === fundamentalsNewsSymbol) renderFundamentalsNewsPanel();
+      }
     }
 
     function renderFundamentalsTable() {

@@ -12,6 +12,7 @@ from services.holdings_service import HoldingsService
 from services.import_service import ImportService
 from services.inspector_service import InspectorService
 from services.notes_service import NotesService
+from services import news_relevance_service
 from services.overview_service import OverviewService
 from services.portfolio_service import PortfolioService
 from services.screening_service import ScreeningService
@@ -537,10 +538,13 @@ def list_fundamentals():
 @v1_bp.route("/news-feed", methods=["GET"])
 def news_feed():
     """Compact Summary feed: latest recommendation changes + top recent news."""
-    news_limit = request.args.get("newsLimit", default=8, type=int)
+    # Default 0 == return the full ranked list (the feed is scrollable). A
+    # positive newsLimit still caps the response for any callers that want it.
+    news_limit = request.args.get("newsLimit", default=0, type=int)
     changes_limit = request.args.get("changesLimit", default=6, type=int)
 
     changes = assessment_service.list_recommendation_changes(limit=changes_limit)
+    changes_total = assessment_service.count_recommendation_changes()
 
     symbols_meta = portfolio_service.list_symbols()
     enrichment = fundamentals_service.get_enrichment_bulk([s["symbol"] for s in symbols_meta])
@@ -556,12 +560,23 @@ def news_feed():
                 "link": article.get("link"),
                 "summary": article.get("summary"),
             })
-    # Newest first; fall back to stable order when dates are missing/equal.
-    items.sort(key=lambda a: (a.get("published") or ""), reverse=True)
+    # Rank by market reaction (relevance) blended with recency, not raw recency,
+    # so a few heavily-covered names can't crowd out genuinely market-moving news.
+    # Annotates each article with relevanceScore / reactionPct / sigma / direction.
+    items = news_relevance_service.score_and_rank(items)
+
+    # news_limit <= 0 means "return everything" so the scrollable feed can show the
+    # full ranked list for auditing the algorithm.
+    top_news = items if news_limit <= 0 else items[:news_limit]
+
+    from datetime import datetime as _dt
+    news_checked_at = _dt.now().strftime("%Y-%m-%dT%H:%M:%S")
 
     return jsonify({
         "recommendationChanges": changes,
-        "topNews": items[: max(0, news_limit)],
+        "recommendationChangesTotal": changes_total,
+        "topNews": top_news,
+        "newsCheckedAt": news_checked_at,
     })
 
 
@@ -593,6 +608,29 @@ def get_fundamentals(symbol):
         "fundamentals": enrichment.get("fundamentals", {}),
         "recentNews": enrichment.get("recentNews", []),
     })
+
+
+@v1_bp.route("/news-relevance/<symbol>", methods=["GET"])
+def get_news_relevance(symbol):
+    """On-demand intraday (30-min) reaction scores for one symbol's recent news.
+
+    Pulls the symbol's recent headlines and annotates each with an intraday
+    relevance score, falling back to the Phase 1 daily score when intraday data
+    isn't available for that article. Best-effort: never raises on scoring."""
+    raw_news = fundamentals_service.fetch_recent_news(symbol) or []
+    items = [
+        {
+            "symbol": symbol.upper(),
+            "title": article.get("title"),
+            "publisher": article.get("publisher"),
+            "published": article.get("published"),
+            "link": article.get("link"),
+            "summary": article.get("summary"),
+        }
+        for article in raw_news
+    ]
+    annotated = news_relevance_service.score_symbol_intraday(symbol.upper(), items)
+    return jsonify({"symbol": symbol.upper(), "news": annotated})
 
 
 @v1_bp.route("/symbols/<symbol>/fib-levels", methods=["GET"])
