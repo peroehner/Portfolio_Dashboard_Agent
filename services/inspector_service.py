@@ -100,9 +100,12 @@ class InspectorService:
             symbol_data, assessments, alerts, screen_row, nearest
         )
 
+        valuation = self._valuation_metrics(symbol, symbol_data, screen_row, holding)
+
         return {
             "symbol": symbol,
             "quote": symbol_data,
+            "companyName": valuation.get("companyName"),
             "holding": holding,
             "alerts": alerts,
             "fib": fib,
@@ -113,7 +116,7 @@ class InspectorService:
             "assessments": assessments,
             "recommendation": recommendation,
             "positionMechanics": self._position_mechanics(holding),
-            "valuation": self._valuation_metrics(symbol, symbol_data, screen_row, holding),
+            "valuation": valuation,
             "trendWaves": self._resolve_trend_waves(symbol, technical_snapshot, imported_trends, computed_chart),
             "trendWaveSource": self._trend_wave_source(imported_trends, computed_chart),
             "importedFibLevels": (
@@ -335,6 +338,7 @@ class InspectorService:
             "pegRatio": None,
             "revenueGrowth": None,
             "operatingMargin": None,
+            "companyName": None,
         }
         try:
             from services.market_cache import make_ticker, ticker_info_cache
@@ -347,6 +351,7 @@ class InspectorService:
                     "pegRatio": self._safe_round(info.get("pegRatio")),
                     "revenueGrowth": self._safe_pct(info.get("revenueGrowth")),
                     "operatingMargin": self._safe_pct(info.get("operatingMargins")),
+                    "companyName": info.get("longName") or info.get("shortName"),
                 }
             )
         except Exception:

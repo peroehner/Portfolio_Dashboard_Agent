@@ -150,6 +150,16 @@
     .panel-symbol-head .symbol-head-quote .quote-day {
       font-weight: 700;
     }
+    .panel-symbol-head .symbol-head-company {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .panel-symbol-head .symbol-head-company::before {
+      content: "·";
+      margin-right: 0.55rem;
+      color: var(--muted);
+    }
     .panel-symbol-head .symbol-head-ticker {
       font-size: 0.95rem;
       font-weight: 600;
@@ -297,7 +307,7 @@
     }
     .target-fields-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 0.65rem 0.85rem;
     }
     @media (max-width: 720px) {
@@ -1072,9 +1082,10 @@
     }
     .trend-waves-details summary {
       cursor: pointer;
-      color: var(--muted);
-      font-size: 0.88rem;
-      font-weight: 600;
+      color: #c4b5fd;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
       user-select: none;
     }
     .trend-waves-details[open] summary {
@@ -2145,14 +2156,23 @@
       border-color: var(--accent);
     }
     .fib-ticker-filter {
-      margin-left: auto;
-      min-width: 12rem;
+      flex: 0 1 14rem;
+      min-width: 10rem;
       background: var(--panel-2);
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 0.55rem 0.65rem;
       font: inherit;
       color: var(--text);
+    }
+    .fib-filter-label {
+      margin-left: 0.5rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      white-space: nowrap;
     }
     .fib-proximity-cell {
       display: inline-block;
@@ -2596,6 +2616,7 @@
         <span class="symbol-head-row">
           <span class="symbol-head-ticker" id="detailSymbol">Select a symbol</span>
           <span class="symbol-head-quote" id="detailSymbolQuote" hidden></span>
+          <span class="symbol-head-company" id="detailCompanyName" hidden></span>
         </span>
       </h2>
       <div id="detailEmpty" class="empty">Choose a symbol to view thresholds, notes, and recommendations.</div>
@@ -2621,12 +2642,12 @@
                   <input name="shares" type="text" inputmode="decimal" autocomplete="off" placeholder="Amount held">
                 </div>
                 <div class="target-field">
-                  <label>Avg Cost <span class="field-hint">USD / share</span></label>
-                  <input name="avgCost" type="text" inputmode="decimal" autocomplete="off" placeholder="Cost per share">
-                </div>
-                <div class="target-field">
                   <label>Purchase Date</label>
                   <input name="purchaseDate" type="date" autocomplete="off">
+                </div>
+                <div class="target-field">
+                  <label>Avg Cost <span class="field-hint">USD / share</span></label>
+                  <input name="avgCost" type="text" inputmode="decimal" autocomplete="off" placeholder="Cost per share">
                 </div>
               </div>
             </div>
@@ -2705,7 +2726,6 @@
       <div class="screening-filter-bar">
         <button type="button" class="secondary filter-btn active" data-screen-filter="all" onclick="setScreeningFilter('all')">All</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
-        <button type="button" class="secondary filter-btn" data-screen-filter="nearFib" onclick="setScreeningFilter('nearFib')">Near Fib</button>
       </div>
       <div id="screeningTable"></div>
     </div>
@@ -2720,25 +2740,13 @@
           <button class="secondary" onclick="loadFibMap(true)">Refresh</button>
         </div>
       </div>
-      <div class="fib-legend-grid">
-        <section class="fib-legend-card critical">
-          <strong><span aria-hidden="true">!</span> Critical Proximity Block (&lt;2% Dist)</strong>
-          <p>Immediate target retest or breakout setup. High alert required.</p>
-        </section>
-        <section class="fib-legend-card warning">
-          <strong><span aria-hidden="true">⚠</span> Near Support/Retest Block (2% - 5%)</strong>
-          <p>Localized consolidation building momentum. Primary watching zone.</p>
-        </section>
-        <section class="fib-legend-card neutral">
-          <strong><span aria-hidden="true">✓</span> Neutral Range (&gt;5% Dist)</strong>
-          <p>Stable range operations. Healthy distance from technical boundaries.</p>
-        </section>
-      </div>
       <div class="fib-filter-bar">
-        <button type="button" class="secondary filter-btn active" data-fib-band="all" onclick="setFibMapBand('all')">All Levels</button>
-        <button type="button" class="secondary filter-btn" data-fib-band="critical" onclick="setFibMapBand('critical')">Critical Only (&lt;2%)</button>
-        <button type="button" class="secondary filter-btn" data-fib-band="warning" onclick="setFibMapBand('warning')">Warning Only (2%-5%)</button>
+        <button type="button" class="secondary filter-btn active" data-fib-band="all" onclick="setFibMapBand('all')" title="Show all symbols regardless of distance to the nearest Fibonacci level.">All Levels</button>
         <input type="text" id="fibTickerFilter" class="fib-ticker-filter" placeholder="Filter by ticker..." oninput="setFibTickerFilter(this.value)">
+        <span class="fib-filter-label">Fib Proximity</span>
+        <button type="button" class="secondary filter-btn" data-fib-band="critical" onclick="setFibMapBand('critical')" title="Critical (&lt;2% from nearest Fib): immediate target retest or breakout setup. High alert required.">Critical</button>
+        <button type="button" class="secondary filter-btn" data-fib-band="warning" onclick="setFibMapBand('warning')" title="Near (2%–5% from nearest Fib): localized consolidation building momentum. Primary watching zone.">Near</button>
+        <button type="button" class="secondary filter-btn" data-fib-band="neutral" onclick="setFibMapBand('neutral')" title="Neutral (&gt;5% from nearest Fib): stable range operations. Healthy distance from technical boundaries.">Neutral</button>
       </div>
       <div id="fibMapTable"></div>
     </div>
@@ -2756,6 +2764,7 @@
         <span class="symbol-head-row">
           <span class="symbol-head-ticker" id="inspectorSymbol">Inspector</span>
           <span class="symbol-head-quote" id="inspectorSymbolQuote" hidden></span>
+          <span class="symbol-head-company" id="inspectorCompanyName" hidden></span>
         </span>
       </h2>
       <div id="inspectorEmpty" class="empty">Choose a symbol to inspect holdings, alerts, notes, and assessments.</div>
@@ -3236,10 +3245,11 @@
       loadSymbolPatterns();
     }
 
-    function setDetailSymbolHead(symbol, quote = null) {
+    function setDetailSymbolHead(symbol, quote = null, companyName = null) {
       const el = document.getElementById("detailSymbol");
       const head = document.getElementById("detailTitleHead");
       const quoteEl = document.getElementById("detailSymbolQuote");
+      const companyEl = document.getElementById("detailCompanyName");
       if (!el) return;
       if (symbol) {
         el.textContent = symbol;
@@ -3255,6 +3265,15 @@
           } else {
             quoteEl.innerHTML = "";
             quoteEl.hidden = true;
+          }
+        }
+        if (companyEl) {
+          if (companyName) {
+            companyEl.textContent = companyName;
+            companyEl.hidden = false;
+          } else {
+            companyEl.textContent = "";
+            companyEl.hidden = true;
           }
         }
       } else {
@@ -3265,13 +3284,18 @@
           quoteEl.innerHTML = "";
           quoteEl.hidden = true;
         }
+        if (companyEl) {
+          companyEl.textContent = "";
+          companyEl.hidden = true;
+        }
       }
     }
 
-    function setInspectorSymbolHead(symbol, quote = null) {
+    function setInspectorSymbolHead(symbol, quote = null, companyName = null) {
       const el = document.getElementById("inspectorSymbol");
       const head = document.getElementById("inspectorTitleHead");
       const quoteEl = document.getElementById("inspectorSymbolQuote");
+      const companyEl = document.getElementById("inspectorCompanyName");
       if (!el) return;
       if (symbol) {
         el.textContent = symbol;
@@ -3289,6 +3313,15 @@
             quoteEl.hidden = true;
           }
         }
+        if (companyEl) {
+          if (companyName) {
+            companyEl.textContent = companyName;
+            companyEl.hidden = false;
+          } else {
+            companyEl.textContent = "";
+            companyEl.hidden = true;
+          }
+        }
       } else {
         el.textContent = "Inspector";
         el.classList.remove("is-active");
@@ -3296,6 +3329,10 @@
         if (quoteEl) {
           quoteEl.innerHTML = "";
           quoteEl.hidden = true;
+        }
+        if (companyEl) {
+          companyEl.textContent = "";
+          companyEl.hidden = true;
         }
       }
     }
@@ -3529,7 +3566,7 @@
       ]);
       const inspectorData = inspector ? normalizeInspectorData(inspector) : null;
       targetCurrentPrice = item.currentPrice ?? null;
-      setDetailSymbolHead(symbol, item);
+      setDetailSymbolHead(symbol, item, inspector?.companyName);
       document.getElementById("detailEmpty").hidden = true;
       document.getElementById("detailPanel").hidden = false;
 
@@ -4250,9 +4287,9 @@
       const dayChangePct = data.totalDayChangePct;
       const dayClass = (dayChangePct ?? 0) < 0 ? "subvalue negative" : "subvalue";
       const daySign = dayChange > 0 ? "+" : dayChange < 0 ? "-" : "";
-      const dayPctStr = dayChangePct != null ? `${dayChangePct >= 0 ? "+" : ""}${dayChangePct.toFixed(2)}%` : "—";
+      const dayPctStr = dayChangePct != null ? `${dayChangePct.toFixed(2)}%` : "—";
       const dayChangeHtml = dayChange != null
-        ? `<div class="${dayClass}">${daySign}${formatSummaryMoney(Math.abs(dayChange))} (${dayPctStr}) DAY</div>`
+        ? `<div class="${dayClass}">${daySign}${formatSummaryMoney(Math.abs(dayChange))}(${dayPctStr}) Day</div>`
         : "";
       const watchOnly = data.watchlistOnlyCount || 0;
       const watchOnlyNote = watchOnly === 1
@@ -4712,6 +4749,16 @@
       updateHoldingsFilterButtons();
     }
 
+    // Upside (%) from the current price to the user's personal target, preferring
+    // the backend-computed value and falling back to an on-the-fly calculation.
+    function holdingsPtUpside(row) {
+      if (row.personalUpsidePct != null) return row.personalUpsidePct;
+      if (row.personalTarget != null && row.currentPrice) {
+        return ((row.personalTarget - row.currentPrice) / row.currentPrice) * 100;
+      }
+      return null;
+    }
+
     const holdingsColumns = [
       { key: "symbol", label: "Symbol", sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="openHoldingsInspector('${row.symbol}'); return false;">${row.symbol}</a>` },
       { key: "currentPrice", label: "Price", sortValue: (row) => row.currentPrice, render: (row) => formatMoney(row.currentPrice) },
@@ -4724,6 +4771,7 @@
       { key: "analystTarget1y", label: "1YT", sortValue: (row) => row.analystTarget1y, render: (row) => formatMoney(row.analystTarget1y) },
       { key: "analystUpsidePct", label: "1YT %", coloredPercent: true, sortValue: (row) => row.analystUpsidePct, render: (row) => renderColoredPercentCell(row.analystUpsidePct) },
       { key: "personalTarget", label: "PT", sortValue: (row) => row.personalTarget, render: (row) => formatMoney(row.personalTarget) },
+      { key: "personalUpsidePct", label: "PT %", coloredPercent: true, sortValue: (row) => holdingsPtUpside(row), render: (row) => renderColoredPercentCell(holdingsPtUpside(row)) },
       { key: "annualDividend", label: "Annual Div.", sortValue: (row) => row.annualDividend, render: (row) => formatMoney(row.annualDividend) },
     ];
 
@@ -5182,6 +5230,7 @@
         const zone = fibProximityZone(row.distancePct);
         if (fibMapBand === "critical") return zone === "critical";
         if (fibMapBand === "warning") return zone === "warning";
+        if (fibMapBand === "neutral") return zone === "neutral";
         return true;
       });
     }
@@ -5336,7 +5385,6 @@
     const SCREENING_FILTER_QUERIES = {
       all: "",
       upside: "?minUpside=30",
-      nearFib: "?nearFib=1",
     };
 
     function screeningFilterForQuery(query) {
@@ -5747,7 +5795,7 @@
       if (!pm && !holding) {
         return `
           <section class="valuation-scoring inspector-holdings-card">
-            <h3>${symbol} Holdings</h3>
+            <h3>Holdings</h3>
             <div class="empty">No holding recorded for this symbol.</div>
             ${metricsBlock}
           </section>`;
@@ -5780,7 +5828,7 @@
 
       return `
         <section class="valuation-scoring inspector-holdings-card">
-          <h3>${symbol} Holdings</h3>
+          <h3>Holdings</h3>
           <div class="holdings-condensed">
             <p class="holdings-line">
               Entry: <strong>${entryDate}</strong>
@@ -6755,7 +6803,7 @@
       if (panelId === "inspectorPanel") {
         document.getElementById("inspectorEmpty").hidden = true;
         document.getElementById("inspectorPanel").hidden = false;
-        setInspectorSymbolHead(symbol, data.quote);
+        setInspectorSymbolHead(symbol, data.quote, data.companyName);
       }
       if (focusSection) {
         window.requestAnimationFrame(() => focusInspectorSection(panelId, focusSection));
