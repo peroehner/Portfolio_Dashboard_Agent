@@ -29,6 +29,28 @@ Z_REF = max(0.1, float(os.environ.get("NEWS_RELEVANCE_Z_REF", "2.0")))
 RECENCY_HALFLIFE_DAYS = max(0.5, float(os.environ.get("NEWS_RELEVANCE_HALFLIFE_DAYS", "5")))
 _CACHE_TTL = float(os.environ.get("NEWS_RELEVANCE_CACHE_TTL_SECONDS", "900"))
 
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+# --- News-derived sentiment (Phase 1) ---------------------------------------
+# An article only counts toward sentiment if the market reacted to it at least
+# this strongly (relevanceScore is 0-100, already recency-weighted).
+NEWS_SENTIMENT_MIN_RELEVANCE = _env_int("NEWS_SENTIMENT_MIN_RELEVANCE", 25)
+# |net| at or beyond this band flips the label off "neutral".
+NEWS_SENTIMENT_BAND = _env_float("NEWS_SENTIMENT_BAND", 0.20)
+
 _PRICE_CACHE = TtlCache(ttl_seconds=_CACHE_TTL, max_entries=8)
 
 # --- Phase 2: on-demand, per-symbol intraday deep dive -----------------------
@@ -287,6 +309,107 @@ def score_and_rank(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         it.pop("_rank", None)
         it.pop("_published_dt", None)
     return ordered
+
+
+def _neutral_sentiment(detail: str) -> dict[str, Any]:
+    return {
+        "sentiment": "neutral",
+        "net": 0.0,
+        "bull": 0,
+        "bear": 0,
+        "count": 0,
+        "topRelevance": 0,
+        "detail": detail,
+    }
+
+
+def aggregate_symbol_sentiment(
+    scored_items: list[dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
+    """Group already-scored news items by symbol and compute a relevance-weighted
+    directional sentiment.
+
+    Each input item is expected to carry the annotations added by
+    :func:`score_and_rank` / :func:`score_symbol_intraday` — namely
+    ``relevanceScore`` (int 0-100) and ``direction`` ("up"/"down"/"flat").
+
+    Returns ``{SYMBOL: {"sentiment", "net", "bull", "bear", "count",
+    "topRelevance", "detail"}}`` where ``net`` is in -1..+1 and ``detail`` is a
+    concise plain-text sourcing string suitable for an HTML title attribute (the
+    frontend escapes it).
+    """
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for it in scored_items or []:
+        sym = str(it.get("symbol") or "").upper()
+        if not sym:
+            continue
+        groups.setdefault(sym, []).append(it)
+
+    result: dict[str, dict[str, Any]] = {}
+    for sym, items in groups.items():
+        weight_sum = 0.0
+        signed_sum = 0.0
+        bull = 0
+        bear = 0
+        count = 0
+        top_relevance = 0
+        max_relevance = 0
+        for it in items:
+            score = it.get("relevanceScore")
+            direction = it.get("direction")
+            if score is None or direction is None:
+                continue
+            try:
+                w = max(float(score), 0.0)
+            except (TypeError, ValueError):
+                continue
+            sign = 1 if direction == "up" else -1 if direction == "down" else 0
+            weight_sum += w
+            signed_sum += w * sign
+            count += 1
+            if direction == "up":
+                bull += 1
+            elif direction == "down":
+                bear += 1
+            rel = int(round(w))
+            top_relevance = max(top_relevance, rel)
+            max_relevance = max(max_relevance, rel)
+
+        # Materiality gate: require at least one genuinely market-moving article.
+        if (
+            count == 0
+            or weight_sum <= 0
+            or max_relevance < NEWS_SENTIMENT_MIN_RELEVANCE
+        ):
+            result[sym] = _neutral_sentiment(
+                "No materially-relevant news — defaulting to neutral"
+            )
+            continue
+
+        net = signed_sum / weight_sum
+        if net >= NEWS_SENTIMENT_BAND:
+            label = "bullish"
+        elif net <= -NEWS_SENTIMENT_BAND:
+            label = "bearish"
+        else:
+            label = "neutral"
+
+        article_word = "article" if count == 1 else "articles"
+        detail = (
+            f"News: {bull}\u2191 / {bear}\u2193 across {count} recent {article_word} "
+            f"\u00b7 net {net:+.2f} \u00b7 top relevance {top_relevance}"
+        )
+        result[sym] = {
+            "sentiment": label,
+            "net": round(net, 4),
+            "bull": bull,
+            "bear": bear,
+            "count": count,
+            "topRelevance": top_relevance,
+            "detail": detail,
+        }
+
+    return result
 
 
 # --- Phase 2: intraday (30-minute) reaction scoring --------------------------

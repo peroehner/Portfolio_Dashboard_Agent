@@ -45,6 +45,7 @@ class PortfolioEngine:
 
         day_changes = {ticker: None for ticker in tickers}
         prices = {ticker: None for ticker in tickers}
+        price_as_of = {ticker: None for ticker in tickers}
         data = None
         multi = len(tickers) > 1
         try:
@@ -61,6 +62,10 @@ class PortfolioEngine:
                         continue
                     price = float(closes.iloc[-1])
                     prices[ticker] = price
+                    try:
+                        price_as_of[ticker] = closes.index[-1].strftime("%Y-%m-%d")
+                    except (AttributeError, ValueError, TypeError):
+                        price_as_of[ticker] = None
                     if len(closes) >= 2:
                         previous = float(closes.iloc[-2])
                         if previous:
@@ -87,6 +92,7 @@ class PortfolioEngine:
                 ),
                 "dayChangePct": day_pct,
                 "analystTarget1y": analyst_target,
+                "priceAsOf": price_as_of.get(ticker),
             }
         return quotes
 

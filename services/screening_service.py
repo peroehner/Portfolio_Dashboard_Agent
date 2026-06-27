@@ -3,6 +3,7 @@ from typing import Any
 
 from services.alerts_service import AlertsService
 from services.fib_service import FibService
+from services.fundamentals_service import FundamentalsService
 from services.holdings_service import HoldingsService
 from services.notes_service import NotesService
 from services.portfolio_service import PortfolioService
@@ -17,6 +18,7 @@ class ScreeningService:
         self.notes_service = NotesService()
         self.fib_service = FibService()
         self.technical_service = TechnicalService()
+        self.fundamentals_service = FundamentalsService()
         self.fib_proximity_pct = float(os.environ.get("FIB_PROXIMITY_PCT", "1.0"))
 
     def run_screen(self, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -31,6 +33,10 @@ class ScreeningService:
         # Confluence rides the same cached price history the Patterns & Tech Signals
         # tab uses, computed in parallel so both tabs show an identical Tech Stance.
         charts = self._charts_for(symbols_data) if ASSESSMENT_TECHNICALS else {}
+        # Market-grounded sentiment from the news we already fetch + score. One
+        # bulk fetch for all symbols; best-effort so screening still works if it
+        # fails (recommendations then fall back to note-synthesis sentiment).
+        sentiment_by_symbol = self._news_sentiment_map(symbols_data)
 
         for symbol_data in symbols_data:
             symbol = symbol_data["symbol"]
@@ -52,11 +58,14 @@ class ScreeningService:
                 alerts,
                 row,
                 nearest,
+                news_sentiment=sentiment_by_symbol.get(symbol.upper()),
             )
             row["recommendation"] = {
                 "action": rec.get("action") or "hold",
                 "confidence": rec.get("confidence") or "medium",
                 "sentiment": rec.get("sentiment") or "neutral",
+                "sentimentSource": rec.get("sentimentSource"),
+                "sentimentDetail": rec.get("sentimentDetail"),
             }
             latest = assessments[0] if assessments else None
             row["assessedAt"] = latest.get("createdAt") if latest else None
@@ -68,6 +77,40 @@ class ScreeningService:
         reverse = filters.get("order", "desc") != "asc"
         results.sort(key=lambda item: item.get(sort_key) or 0, reverse=reverse)
         return results
+
+    def _news_sentiment_map(
+        self, symbols_data: list[dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
+        """One bulk news fetch for all screened symbols, scored and aggregated into
+        a per-symbol market-grounded sentiment. Best-effort: returns ``{}`` on any
+        failure so recommendations fall back to note-synthesis sentiment."""
+        from services import news_relevance_service
+
+        try:
+            symbols = [s["symbol"] for s in symbols_data if s.get("symbol")]
+            if not symbols:
+                return {}
+            enrichment = self.fundamentals_service.get_enrichment_bulk(symbols)
+            items = []
+            for meta in symbols_data:
+                symbol = meta.get("symbol")
+                if not symbol:
+                    continue
+                for article in (
+                    enrichment.get(symbol.upper(), {}).get("recentNews") or []
+                ):
+                    items.append({
+                        "symbol": symbol,
+                        "title": article.get("title"),
+                        "publisher": article.get("publisher"),
+                        "published": article.get("published"),
+                        "link": article.get("link"),
+                        "summary": article.get("summary"),
+                    })
+            scored = news_relevance_service.score_and_rank(items)
+            return news_relevance_service.aggregate_symbol_sentiment(scored)
+        except Exception:  # noqa: BLE001 - sentiment is best-effort
+            return {}
 
     def fib_proximity_map(self) -> list[dict[str, Any]]:
         """Per-symbol Fibonacci proximity enriched with the detected chart pattern,

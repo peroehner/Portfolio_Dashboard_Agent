@@ -88,6 +88,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         annual_dividend DOUBLE PRECISION,
         analyst_target_1y DOUBLE PRECISION,
         day_change_pct DOUBLE PRECISION,
+        price_as_of TEXT,
         created_at TEXT NOT NULL DEFAULT app_now_text(),
         updated_at TEXT NOT NULL DEFAULT app_now_text(),
         PRIMARY KEY (user_id, symbol)
@@ -228,6 +229,7 @@ MIGRATION_STATEMENTS: tuple[str, ...] = (
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS annual_dividend DOUBLE PRECISION",
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS analyst_target_1y DOUBLE PRECISION",
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS day_change_pct DOUBLE PRECISION",
+    "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS price_as_of TEXT",
     "ALTER TABLE assessments ADD COLUMN IF NOT EXISTS note_synthesis TEXT",
     "ALTER TABLE assessments ADD COLUMN IF NOT EXISTS trading_recommendation TEXT",
     "ALTER TABLE notes ADD COLUMN IF NOT EXISTS synthesis TEXT",

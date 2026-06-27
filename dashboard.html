@@ -529,6 +529,8 @@
     table.data th.sortable:hover { color: var(--text); }
     table.data th.sortable.active { color: var(--accent); }
     table.data th .sort-indicator { font-size: 0.7rem; margin-left: 0.2rem; opacity: 0.85; }
+    table.data th .th-help { font-size: 0.7rem; margin-left: 0.25rem; opacity: 0.5; cursor: help; }
+    table.data th.sortable:hover .th-help { opacity: 0.85; }
     .overview-visuals-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -741,16 +743,39 @@
     .chip.watch { background: rgba(245,158,11,0.2); color: var(--warn); }
     .chip.add { background: rgba(34,197,94,0.15); color: #86efac; }
     .chip.reduce { background: rgba(239,68,68,0.15); color: #fca5a5; }
+    .chip.sentiment-bullish { background: rgba(34,197,94,0.18); color: #4ade80; }
+    .chip.sentiment-bearish { background: rgba(239,68,68,0.18); color: #f87171; }
+    .chip.sentiment-neutral { background: rgba(148,163,184,0.16); color: #94a3b8; }
     .screening-rec-chips {
       display: inline-flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       align-items: center;
-      gap: 0.3rem;
+      gap: 0.4rem;
     }
     .screening-rec-chips .chip {
       font-size: 0.72rem;
       padding: 0.15rem 0.45rem;
+      text-align: center;
     }
+    /* Captions live once in the column header (.rec-head-captions); the per-row
+       chips below are width-matched via nth-child so they line up as columns. */
+    table.data th .th-sublabel { display: block; margin-top: 0.32rem; font-weight: 400; }
+    .rec-head-captions { display: inline-flex; gap: 0.4rem; }
+    .rec-head-captions span {
+      font-size: 0.56rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1;
+    }
+    .rec-head-captions span:nth-child(1),
+    .screening-rec-chips .chip:nth-child(1) { min-width: 4rem; }
+    .rec-head-captions span:nth-child(2),
+    .screening-rec-chips .chip:nth-child(2) { min-width: 5.1rem; }
+    .rec-head-captions span:nth-child(3),
+    .screening-rec-chips .chip:nth-child(3) { min-width: 5.1rem; }
     .screening-inspector-link {
       display: inline-flex;
       align-items: center;
@@ -2292,6 +2317,7 @@
       color: var(--muted);
     }
     .badge.llm { color: #a78bfa; border-color: rgba(167,139,250,0.4); }
+    .badge .price-asof-stale { color: var(--danger); font-weight: 700; }
     .links a { color: var(--accent); font-size: 0.85rem; text-decoration: none; }
     .links a:hover { text-decoration: underline; }
     .toast {
@@ -2950,6 +2976,8 @@
     let lastTopNewsAt = 0;
     let autoRefreshTimer = null;
     let autoRefreshInProgress = false;
+    // ISO YYYY-MM-DD date of the market session the displayed prices reflect.
+    let pricesAsOfIso = null;
 
     // Limited to read-only, price-driven views. Editable views (Target) and
     // heavy ones (Fundamentals) are intentionally excluded so we never clobber
@@ -2959,6 +2987,44 @@
       holdings: () => loadHoldings(),
     };
 
+    // Parse an ISO YYYY-MM-DD date into a short "Mon DD" label (e.g. "Jun 26").
+    // Returns "" for falsy/invalid input.
+    function formatAsOf(iso) {
+      if (!iso) return "";
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
+      if (!match) return "";
+      const [, y, m, d] = match;
+      const dt = new Date(Number(y), Number(m) - 1, Number(d));
+      if (Number.isNaN(dt.getTime())) return "";
+      return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    }
+
+    // True when the ISO date differs from today's LOCAL date, so the indicator
+    // is hidden on a normal live trading day and shown on weekends/lagged data.
+    function isPriceDateStale(iso) {
+      if (!iso) return false;
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
+      if (!match) return false;
+      const now = new Date();
+      const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      return match[0] !== todayIso;
+    }
+
+    // Whole calendar days between the price date and today (0 = today, 1 = e.g.
+    // Friday's close viewed Saturday). >1 means abnormally stale (a more recent
+    // session should exist) and is flagged in red.
+    function priceDaysBehind(iso) {
+      if (!iso) return 0;
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
+      if (!match) return 0;
+      const [, y, m, d] = match;
+      const priceDate = new Date(Number(y), Number(m) - 1, Number(d));
+      if (Number.isNaN(priceDate.getTime())) return 0;
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return Math.round((today - priceDate) / 86400000);
+    }
+
     function markRefreshed(success = true) {
       const badge = document.getElementById("refreshBadge");
       if (!badge) return;
@@ -2967,7 +3033,13 @@
         const hh = String(now.getHours()).padStart(2, "0");
         const mm = String(now.getMinutes()).padStart(2, "0");
         const ss = String(now.getSeconds()).padStart(2, "0");
-        badge.textContent = `updated ${hh}:${mm}:${ss}`;
+        let html = `updated ${hh}:${mm}:${ss}`;
+        if (pricesAsOfIso && isPriceDateStale(pricesAsOfIso)) {
+          const staleClass = priceDaysBehind(pricesAsOfIso) > 1 ? " price-asof-stale" : "";
+          html += ` · <span class="price-asof${staleClass}">prices as of ${escapeHtml(formatAsOf(pricesAsOfIso))}</span>`;
+        }
+        badge.innerHTML = html;
+        badge.title = "updated = last refresh time; prices as of = the market session the displayed prices reflect (red when more than a day behind).";
       }
     }
 
@@ -3431,9 +3503,9 @@
       if (support) {
         buy = support.price;
         buyNote = `${support.label} support · ${formatMoney(support.price)}`;
-        if (action === "buy") buyNote += " · Assessment: buy";
-        else if (action === "watch") buyNote += " · Assessment: watch";
-        else if (sentiment === "bullish") buyNote += " · Bullish note sentiment";
+        if (action !== "buy" && action !== "watch" && sentiment === "bullish") {
+          buyNote += " · Bullish note sentiment";
+        }
       }
 
       let sell = null;
@@ -4049,7 +4121,10 @@
       const headers = columns.map((column) => {
         const active = tableSortState[tableId]?.key === column.key ? " active" : "";
         const indicator = sortIndicator(tableId, column.key);
-        return `<th class="sortable${active}" data-table-id="${tableId}" data-sort-key="${column.key}">${column.label}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></th>`;
+        const helpAttr = column.help ? ` title="${escapeHtml(column.help)}"` : "";
+        const helpMark = column.help ? `<span class="th-help" aria-hidden="true">ⓘ</span>` : "";
+        const subLabel = column.subLabel ? `<span class="th-sublabel">${column.subLabel}</span>` : "";
+        return `<th class="sortable${active}"${helpAttr} data-table-id="${tableId}" data-sort-key="${column.key}"><span class="th-label">${column.label}${helpMark}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></span>${subLabel}</th>`;
       }).join("");
       const keyColumn = columns.find((column) => column.rowKey) || columns[0];
       const selectedKey = tableSelection[selectionKeyFor(tableId)];
@@ -4281,6 +4356,7 @@
 
     async function loadOverview() {
       const data = await api("/overview");
+      pricesAsOfIso = data.pricesAsOf || null;
       const gainYieldClass = (data.unrealizedGainPct ?? 0) < 0 ? "subvalue negative" : "subvalue";
       const analystYieldClass = (data.totalAnalystUpsidePct ?? 0) < 0 ? "subvalue negative" : "subvalue";
       const dayChange = data.totalDayChange;
@@ -4883,10 +4959,14 @@
       const action = rec?.action || "hold";
       const confidence = rec?.confidence || "medium";
       const sentiment = rec?.sentiment || "neutral";
+      const sentimentTitle = escapeHtml(rec?.sentimentDetail || "Sentiment");
+      const sentClass = sentiment === "bullish" ? "sentiment-bullish"
+        : sentiment === "bearish" ? "sentiment-bearish"
+        : "sentiment-neutral";
       const chips = `
           <span class="chip ${action}" title="Action">${action}</span>
           <span class="chip hold" title="Confidence Level">${confidence}</span>
-          <span class="chip watch" title="Sentiment">${sentiment}</span>`;
+          <span class="chip ${sentClass}" title="${sentimentTitle}">${sentiment}</span>`;
       if (bare) return chips;
       if (wrapperClass) {
         return `<span class="${wrapperClass}">${chips}</span>`;
@@ -4969,16 +5049,19 @@
     }
 
     const screeningColumns = [
-      { key: "symbol", label: "Symbol", sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
+      { key: "symbol", label: "Symbol", help: "Ticker. Click to open it in the Target view.", sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
       {
         key: "recommendation",
         label: "Recommendation",
+        subLabel: `<span class="rec-head-captions"><span>Action</span><span>Confidence</span><span>Sentiment</span></span>`,
+        help: "From your latest Assess Symbol run — three chips: ACTION (Buy/Watch/Hold/Sell) · CONFIDENCE (High/Medium/Low) · SENTIMENT (relevance-weighted reaction of recent news; falls back to your synthesized notes). Hover the Sentiment chip for its sourcing; click a row to open the full recommendation.",
         sortValue: (row) => `${row.recommendation?.action || ""}|${row.recommendation?.confidence || ""}|${row.recommendation?.sentiment || ""}`,
         render: (row) => renderScreeningRecommendationCell(row),
       },
       {
         key: "techStance",
         label: "Tech Stance",
+        help: "The Confluence agent's purely technical read (independent of the Recommendation): directional bias (Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish), a 0–100 score bar (left = bearish, center = neutral, right = bullish), and strength · how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume).",
         sortValue: (row) => (row.confluence?.score != null ? row.confluence.score : -2),
         render: (row) => renderScreeningTechStanceCell(row),
       },

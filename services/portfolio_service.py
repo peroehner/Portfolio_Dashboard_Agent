@@ -141,16 +141,18 @@ class PortfolioService:
                 price = quote.get("currentPrice")
                 day_change_pct = quote.get("dayChangePct")
                 analyst_target = quote.get("analystTarget1y")
+                as_of = quote.get("priceAsOf")
                 if price is not None:
                     conn.execute(
                         """
                         UPDATE symbols
                         SET current_price = %s,
                             day_change_pct = COALESCE(%s, day_change_pct),
+                            price_as_of = COALESCE(%s, price_as_of),
                             updated_at = app_now_text()
                         WHERE user_id = %s AND symbol = %s
                         """,
-                        (price, day_change_pct, user_id, symbol),
+                        (price, day_change_pct, as_of, user_id, symbol),
                     )
                     updated_prices += 1
                 if analyst_target is not None:
@@ -215,6 +217,7 @@ class PortfolioService:
             "symbol": row["symbol"],
             "currentPrice": row["current_price"],
             "dayChangePct": row["day_change_pct"] if "day_change_pct" in keys else None,
+            "priceAsOf": row["price_as_of"] if "price_as_of" in keys else None,
             "targetPrice": row["target_price"],
             "analystTarget1y": row["analyst_target_1y"],
             "buyBelow": row["buy_below"],

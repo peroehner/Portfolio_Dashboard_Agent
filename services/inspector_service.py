@@ -3,9 +3,11 @@ from typing import Any
 
 import yfinance as yf  # noqa: F401 - retained as a patch target for tests
 
+from services import news_relevance_service
 from services.alerts_service import AlertsService
 from services.assessment_service import ASSESSMENT_TECHNICALS, AssessmentService
 from services.fib_service import FibService
+from services.fundamentals_service import FundamentalsService
 from services.holdings_service import HoldingsService
 from services.portfolio_service import PortfolioService
 from services.screening_service import ScreeningService
@@ -23,6 +25,7 @@ class InspectorService:
         self.screening_service = ScreeningService()
         self.technical_service = TechnicalService()
         self.technical_signals_service = TechnicalSignalsService()
+        self.fundamentals_service = FundamentalsService()
 
     def inspect(self, symbol: str) -> dict[str, Any] | None:
         symbol = symbol.upper()
@@ -96,8 +99,10 @@ class InspectorService:
         assessments = self.assessment_service.list_assessments(symbol=symbol, limit=20)
         alerts = self.alerts_service.list_alerts(symbol=symbol, status="active")
         holding = self.holdings_service.get_holding(symbol)
+        news_sentiment = self._news_sentiment_for_symbol(symbol)
         recommendation = build_symbol_recommendation(
-            symbol_data, assessments, alerts, screen_row, nearest
+            symbol_data, assessments, alerts, screen_row, nearest,
+            news_sentiment=news_sentiment,
         )
 
         valuation = self._valuation_metrics(symbol, symbol_data, screen_row, holding)
@@ -135,6 +140,29 @@ class InspectorService:
             "confluence": confluence_meta,
             "chartPoints": self._chart_points(symbol_data, holding, fib),
         }
+
+    def _news_sentiment_for_symbol(self, symbol: str) -> dict[str, Any] | None:
+        """Compute the market-grounded news sentiment for one symbol, reusing the
+        cached news + price pipeline. Best-effort: returns None on any failure so
+        the inspector falls back to note-synthesis sentiment."""
+        try:
+            raw_news = self.fundamentals_service.fetch_recent_news(symbol) or []
+            items = [
+                {
+                    "symbol": symbol.upper(),
+                    "title": article.get("title"),
+                    "publisher": article.get("publisher"),
+                    "published": article.get("published"),
+                    "link": article.get("link"),
+                    "summary": article.get("summary"),
+                }
+                for article in raw_news
+            ]
+            scored = news_relevance_service.score_and_rank(items)
+            by_symbol = news_relevance_service.aggregate_symbol_sentiment(scored)
+            return by_symbol.get(symbol.upper())
+        except Exception:  # noqa: BLE001 - sentiment is best-effort
+            return None
 
     def _build_recommendation(
         self,
@@ -532,6 +560,7 @@ def build_symbol_recommendation(
     alerts: list[dict[str, Any]],
     screening: dict[str, Any],
     nearest_fib: dict[str, Any] | None,
+    news_sentiment: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     notes = symbol_data.get("notes", [])
     syntheses = [note["synthesis"] for note in notes if note.get("synthesis")]
@@ -544,7 +573,23 @@ def build_symbol_recommendation(
         combined = InspectorService._merge_syntheses(syntheses)
 
     thesis = combined.get("integratedSummary") or combined.get("summary") or ""
-    sentiment = combined.get("sentiment") or "neutral"
+    note_sentiment = combined.get("sentiment") or "neutral"
+
+    # Prefer a market-grounded signal derived from recent, materially-relevant
+    # news; fall back to private note synthesis when there's no qualifying news.
+    if news_sentiment and news_sentiment.get("count"):
+        sentiment = news_sentiment.get("sentiment") or "neutral"
+        sentiment_source = "news"
+        sentiment_detail = news_sentiment.get("detail") or "From recent market news"
+    elif note_sentiment != "neutral":
+        sentiment = note_sentiment
+        sentiment_source = "notes"
+        sentiment_detail = "From your synthesized notes"
+    else:
+        sentiment = "neutral"
+        sentiment_source = "none"
+        sentiment_detail = "No relevant news or note sentiment — neutral"
+
     growth = (combined.get("growthTrajectory") or [])[:5]
     projections = (combined.get("revenueProjections") or [])[:3]
     catalysts = (combined.get("catalystsToWatch") or [])[:5]
@@ -585,6 +630,8 @@ def build_symbol_recommendation(
         "drivers": drivers[:6],
         "thesis": thesis,
         "sentiment": sentiment,
+        "sentimentSource": sentiment_source,
+        "sentimentDetail": sentiment_detail,
         "growthHighlights": growth,
         "projections": projections,
         "catalysts": catalysts,

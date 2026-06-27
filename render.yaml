@@ -6,11 +6,19 @@ services:
     runtime: python
     plan: starter
     buildCommand: pip install -r requirements-deploy.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 --max-requests 500 --max-requests-jitter 50 main:app
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 --max-requests 300 --max-requests-jitter 50 main:app
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.0"
+      # Cap glibc malloc arenas and trim freed memory back to the OS more
+      # aggressively. The long-lived worker churns large pandas DataFrames via
+      # the 300s background sync loop; without this, freed native buffers stay
+      # in per-thread arenas and RSS ramps to saturation (see memory analysis).
+      - key: MALLOC_ARENA_MAX
+        value: "2"
+      - key: MALLOC_TRIM_THRESHOLD_
+        value: "65536"
       - key: FLASK_DEBUG
         value: "0"
       - key: SKIP_TRANSFORMERS

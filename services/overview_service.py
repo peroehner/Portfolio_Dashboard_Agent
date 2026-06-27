@@ -222,6 +222,13 @@ class OverviewService:
         year_start_prices = self._year_start_prices([holding["symbol"] for holding in holdings])
         ytd_candidates = self._ytd_performers(holdings, year_start_prices)
 
+        as_of_dates = [
+            symbol["priceAsOf"]
+            for symbol in symbols
+            if symbol.get("priceAsOf")
+        ]
+        prices_as_of = max(as_of_dates) if as_of_dates else None
+
         return {
             "symbolCount": len(symbols),
             "holdingCount": len(holdings),
@@ -231,6 +238,7 @@ class OverviewService:
             "totalMarketValue": round(total_market_value, 2) if valued_holdings else None,
             "totalDayChange": round(total_day_change, 2) if day_weight_base else None,
             "totalDayChangePct": total_day_change_pct,
+            "pricesAsOf": prices_as_of,
             "totalCostBasis": round(total_cost, 2) if total_cost else None,
             "unrealizedGain": unrealized_gain,
             "unrealizedGainPct": unrealized_gain_pct,
