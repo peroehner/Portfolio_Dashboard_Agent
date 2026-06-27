@@ -11,6 +11,9 @@ class AlertsService:
         self.portfolio_service = PortfolioService()
         self.fib_service = FibService()
         self.fib_proximity_pct = float(os.environ.get("FIB_PROXIMITY_PCT", "1.0"))
+        # How close (in %) the price must be to a planned-trade threshold before
+        # an "approaching" (near) alert fires ahead of the "reached" alert.
+        self.trade_near_pct = float(os.environ.get("TRADE_NEAR_PCT", "5"))
 
     def list_alerts(
         self,
@@ -77,37 +80,109 @@ class AlertsService:
             conn.commit()
             return cursor.rowcount
 
+    @staticmethod
+    def _plan_clause(shares: float | None, *, stop_loss: bool = False) -> str:
+        """The ' — plan: ...' fragment describing the planned action + quantity.
+
+        Sign of ``shares`` encodes direction: >0 add/buy, <0 sell/trim. Returns
+        an empty string when there is no quantity (None or 0) so the caller emits
+        the generic "...trade level." message."""
+        if not shares:
+            return ""
+        if shares > 0:
+            return f" — plan: add {shares:g} shares."
+        tag = " (stop-loss)" if stop_loss else ""
+        return f" — plan: sell {abs(shares):g} shares{tag}."
+
     def _check_thresholds(self, symbol_data: dict[str, Any]) -> list[dict[str, Any]]:
         created = []
         symbol = symbol_data["symbol"]
         price = symbol_data.get("currentPrice")
-        buy_below = symbol_data.get("buyBelow")
-        sell_above = symbol_data.get("sellAbove")
+        trade_below_price = symbol_data.get("tradeBelowPrice")
+        trade_below_shares = symbol_data.get("tradeBelowShares")
+        trade_above_price = symbol_data.get("tradeAbovePrice")
+        trade_above_shares = symbol_data.get("tradeAboveShares")
 
         if price is None:
             return created
 
-        if buy_below is not None and price <= buy_below:
-            created.append(
-                self._create_alert(
-                    symbol=symbol,
-                    alert_type="buy_below",
-                    message=f"{symbol} at ${price:.2f} is at or below your buy-below level of ${buy_below:.2f}.",
-                    price=price,
-                    reference_value=buy_below,
-                )
-            )
+        near = self.trade_near_pct / 100.0
 
-        if sell_above is not None and price >= sell_above:
-            created.append(
-                self._create_alert(
-                    symbol=symbol,
-                    alert_type="sell_above",
-                    message=f"{symbol} at ${price:.2f} is at or above your sell-above level of ${sell_above:.2f}.",
-                    price=price,
-                    reference_value=sell_above,
+        # Trade@Below: a price floor. Default direction Buy (add on the dip), but
+        # a negative quantity makes it a stop-loss (sell on the way down).
+        if trade_below_price is not None:
+            if price <= trade_below_price:
+                # REACHED — urgent.
+                clause = self._plan_clause(
+                    trade_below_shares, stop_loss=bool(trade_below_shares and trade_below_shares < 0)
                 )
-            )
+                msg = (
+                    f"{symbol} reached your lower ${trade_below_price:.2f} trade level"
+                    + (clause if clause else ".")
+                )
+                created.append(
+                    self._create_alert(
+                        symbol=symbol,
+                        alert_type="trade_below",
+                        message=msg,
+                        price=price,
+                        reference_value=trade_below_price,
+                    )
+                )
+            elif price <= trade_below_price * (1 + near):
+                # APPROACHING — near.
+                away_pct = (price - trade_below_price) / trade_below_price * 100
+                clause = self._plan_clause(trade_below_shares)
+                msg = (
+                    f"{symbol} is {away_pct:.1f}% above your ${trade_below_price:.2f} buy level"
+                    + (clause if clause else ".")
+                )
+                created.append(
+                    self._create_alert(
+                        symbol=symbol,
+                        alert_type="trade_below_near",
+                        message=msg,
+                        price=price,
+                        reference_value=trade_below_price,
+                    )
+                )
+
+        # Trade@Above: a price ceiling. Default direction Sell (trim into
+        # strength), but a positive quantity makes it a planned add.
+        if trade_above_price is not None:
+            if price >= trade_above_price:
+                # REACHED — urgent.
+                clause = self._plan_clause(trade_above_shares)
+                msg = (
+                    f"{symbol} reached your upper ${trade_above_price:.2f} trade level"
+                    + (clause if clause else ".")
+                )
+                created.append(
+                    self._create_alert(
+                        symbol=symbol,
+                        alert_type="trade_above",
+                        message=msg,
+                        price=price,
+                        reference_value=trade_above_price,
+                    )
+                )
+            elif price >= trade_above_price * (1 - near):
+                # APPROACHING — near.
+                away_pct = (trade_above_price - price) / trade_above_price * 100
+                clause = self._plan_clause(trade_above_shares)
+                msg = (
+                    f"{symbol} is {away_pct:.1f}% below your ${trade_above_price:.2f} sell level"
+                    + (clause if clause else ".")
+                )
+                created.append(
+                    self._create_alert(
+                        symbol=symbol,
+                        alert_type="trade_above_near",
+                        message=msg,
+                        price=price,
+                        reference_value=trade_above_price,
+                    )
+                )
 
         return [alert for alert in created if alert is not None]
 

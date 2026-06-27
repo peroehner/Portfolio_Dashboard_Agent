@@ -5,7 +5,16 @@ from services.notes_service import NotesService
 
 
 class PortfolioService:
-    SYMBOL_FIELDS = ("current_price", "target_price", "buy_below", "sell_above")
+    SYMBOL_FIELDS = (
+        "current_price",
+        "target_price",
+        "buy_below",
+        "sell_above",
+        "trade_below_price",
+        "trade_below_shares",
+        "trade_above_price",
+        "trade_above_shares",
+    )
 
     def list_symbols(self) -> list[dict[str, Any]]:
         user_id = get_current_user_id()
@@ -45,6 +54,18 @@ class PortfolioService:
                     "target_price": payload.get("target_price", existing["target_price"]),
                     "buy_below": payload.get("buy_below", existing["buy_below"]),
                     "sell_above": payload.get("sell_above", existing["sell_above"]),
+                    "trade_below_price": payload.get(
+                        "trade_below_price", existing["trade_below_price"]
+                    ),
+                    "trade_below_shares": payload.get(
+                        "trade_below_shares", existing["trade_below_shares"]
+                    ),
+                    "trade_above_price": payload.get(
+                        "trade_above_price", existing["trade_above_price"]
+                    ),
+                    "trade_above_shares": payload.get(
+                        "trade_above_shares", existing["trade_above_shares"]
+                    ),
                     "annual_dividend": payload.get("annual_dividend", existing["annual_dividend"]),
                     "analyst_target_1y": payload.get(
                         "analyst_target_1y", existing["analyst_target_1y"]
@@ -54,6 +75,8 @@ class PortfolioService:
                     """
                     UPDATE symbols
                     SET current_price = %s, target_price = %s, buy_below = %s, sell_above = %s,
+                        trade_below_price = %s, trade_below_shares = %s,
+                        trade_above_price = %s, trade_above_shares = %s,
                         annual_dividend = %s, analyst_target_1y = %s, updated_at = app_now_text()
                     WHERE user_id = %s AND symbol = %s
                     """,
@@ -62,6 +85,10 @@ class PortfolioService:
                         merged["target_price"],
                         merged["buy_below"],
                         merged["sell_above"],
+                        merged["trade_below_price"],
+                        merged["trade_below_shares"],
+                        merged["trade_above_price"],
+                        merged["trade_above_shares"],
                         merged["annual_dividend"],
                         merged["analyst_target_1y"],
                         user_id,
@@ -73,9 +100,11 @@ class PortfolioService:
                     """
                     INSERT INTO symbols (
                         user_id, symbol, current_price, target_price, buy_below, sell_above,
+                        trade_below_price, trade_below_shares,
+                        trade_above_price, trade_above_shares,
                         annual_dividend, analyst_target_1y
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         user_id,
@@ -84,6 +113,10 @@ class PortfolioService:
                         payload.get("target_price"),
                         payload.get("buy_below"),
                         payload.get("sell_above"),
+                        payload.get("trade_below_price"),
+                        payload.get("trade_below_shares"),
+                        payload.get("trade_above_price"),
+                        payload.get("trade_above_shares"),
                         payload.get("annual_dividend"),
                         payload.get("analyst_target_1y"),
                     ),
@@ -141,6 +174,8 @@ class PortfolioService:
                 price = quote.get("currentPrice")
                 day_change_pct = quote.get("dayChangePct")
                 analyst_target = quote.get("analystTarget1y")
+                analyst_low = quote.get("analystTargetLow")
+                analyst_high = quote.get("analystTargetHigh")
                 as_of = quote.get("priceAsOf")
                 if price is not None:
                     conn.execute(
@@ -165,6 +200,17 @@ class PortfolioService:
                         (analyst_target, user_id, symbol),
                     )
                     updated_targets += 1
+                if analyst_low is not None or analyst_high is not None:
+                    conn.execute(
+                        """
+                        UPDATE symbols
+                        SET analyst_target_low = COALESCE(%s, analyst_target_low),
+                            analyst_target_high = COALESCE(%s, analyst_target_high),
+                            updated_at = app_now_text()
+                        WHERE user_id = %s AND symbol = %s
+                        """,
+                        (analyst_low, analyst_high, user_id, symbol),
+                    )
             conn.commit()
 
         return {
@@ -188,11 +234,14 @@ class PortfolioService:
 
     def _normalize_symbol_input(self, data: dict[str, Any]) -> dict[str, float | None]:
         normalized: dict[str, float | None] = {}
+        # Price-like fields: rounded to 2dp.
         mappings = {
             "current_price": ("current_price", "currentPrice", "price"),
             "target_price": ("target_price", "targetPrice"),
             "buy_below": ("buy_below", "buyBelow"),
             "sell_above": ("sell_above", "sellAbove"),
+            "trade_below_price": ("trade_below_price", "tradeBelowPrice"),
+            "trade_above_price": ("trade_above_price", "tradeAbovePrice"),
             "annual_dividend": ("annual_dividend", "annualDividend"),
             "analyst_target_1y": (
                 "analyst_target_1y",
@@ -209,6 +258,21 @@ class PortfolioService:
                 normalized[field] = None
             else:
                 normalized[field] = round(float(value), 2)
+
+        # Signed share-quantity fields: sign encodes direction (+ buy/add,
+        # - sell/trim). Allow negatives; no abs/clamp. Rounded to 4dp.
+        share_mappings = {
+            "trade_below_shares": ("trade_below_shares", "tradeBelowShares"),
+            "trade_above_shares": ("trade_above_shares", "tradeAboveShares"),
+        }
+        for field, keys in share_mappings.items():
+            if not any(key in data for key in keys):
+                continue
+            value = next(data[key] for key in keys if key in data)
+            if value is None or value == "":
+                normalized[field] = None
+            else:
+                normalized[field] = round(float(value), 4)
         return normalized
 
     def _row_to_symbol(self, row, include_notes: bool) -> dict[str, Any]:
@@ -220,8 +284,14 @@ class PortfolioService:
             "priceAsOf": row["price_as_of"] if "price_as_of" in keys else None,
             "targetPrice": row["target_price"],
             "analystTarget1y": row["analyst_target_1y"],
+            "analystTargetLow": row["analyst_target_low"] if "analyst_target_low" in keys else None,
+            "analystTargetHigh": row["analyst_target_high"] if "analyst_target_high" in keys else None,
             "buyBelow": row["buy_below"],
             "sellAbove": row["sell_above"],
+            "tradeBelowPrice": row["trade_below_price"] if "trade_below_price" in keys else None,
+            "tradeBelowShares": row["trade_below_shares"] if "trade_below_shares" in keys else None,
+            "tradeAbovePrice": row["trade_above_price"] if "trade_above_price" in keys else None,
+            "tradeAboveShares": row["trade_above_shares"] if "trade_above_shares" in keys else None,
             "annualDividend": row["annual_dividend"],
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],

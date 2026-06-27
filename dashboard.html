@@ -307,10 +307,14 @@
     }
     .target-fields-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 0.65rem 0.85rem;
+      align-items: start;
     }
-    @media (max-width: 720px) {
+    @media (max-width: 980px) {
+      .target-fields-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
       .target-fields-grid { grid-template-columns: 1fr; }
     }
     .target-position-group {
@@ -327,6 +331,28 @@
       text-transform: uppercase;
       letter-spacing: 0.04em;
       color: var(--muted);
+    }
+    .target-planned-group { margin-top: 0.85rem; }
+    .planned-trade-pair {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.6rem 1.5rem;
+    }
+    .planned-trade-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.3fr);
+      align-items: start;
+      gap: 0.5rem 0.7rem;
+      margin-bottom: 0.6rem;
+    }
+    .planned-trade-side label { white-space: nowrap; }
+    .planned-trade-side .trade-dir-toggle { margin-top: 0.05rem; }
+    .trade-dir-toggle button { min-width: 2.6rem; }
+    @media (max-width: 980px) {
+      .planned-trade-pair { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 720px) {
+      .planned-trade-row { grid-template-columns: 1fr; }
     }
     .target-field label {
       display: flex;
@@ -807,6 +833,15 @@
     .screening-alert-link:hover {
       color: #fde68a;
     }
+    .screening-trade-link {
+      font-weight: 600;
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+    .screening-trade-link .trade-alert-near { color: var(--warn); }
+    .screening-trade-link .trade-alert-reached { color: var(--danger); }
+    .screening-trade-link:hover .trade-alert-near,
+    .screening-trade-link:hover .trade-alert-reached { filter: brightness(1.2); }
     .screening-tech-stance {
       font-weight: 600;
       font-size: 0.82rem;
@@ -1810,6 +1845,7 @@
     .nc-upside .neg { color: #ef4444; }
     .nc-meta { color: var(--muted); font-size: 0.75rem; margin-top: 0.2rem; }
     .screening-assessed { white-space: nowrap; }
+    .screening-assessed-date { font-size: 0.82rem; }
     .topnews-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
@@ -2318,6 +2354,104 @@
     }
     .badge.llm { color: #a78bfa; border-color: rgba(167,139,250,0.4); }
     .badge .price-asof-stale { color: var(--danger); font-weight: 700; }
+    .trade-band { position: relative; width: 100%; min-width: 180px; height: 40px; }
+    .trade-band-pct {
+      position: absolute; top: 2px;
+      font-size: 0.66rem; font-weight: 700; line-height: 1;
+      white-space: nowrap; pointer-events: none;
+      transform: translateX(-50%);
+      text-shadow: 0 0 2px var(--panel), 0 0 2px var(--panel);
+    }
+    .trade-band-track {
+      position: absolute; top: 20px; left: 0; right: 0; height: 5px;
+      transform: translateY(-50%);
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(148,163,184,0.18), rgba(148,163,184,0.4), rgba(148,163,184,0.18));
+    }
+    .trade-band-half {
+      position: absolute; top: 11px; height: 5px;
+      transform: translateY(-50%);
+      border-radius: 999px;
+      background: rgba(148,163,184,0.3);
+    }
+    .trade-band-track.ghost,
+    .trade-band-half.ghost {
+      background: none;
+      border: 1px dashed var(--border);
+      opacity: 0.6;
+    }
+    .trade-band-knob {
+      position: absolute; top: 20px; width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #60a5fa;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px rgba(96,165,250,0.35);
+    }
+    .trade-band-mark {
+      position: absolute; top: 20px; width: 3px; height: 15px;
+      transform: translate(-50%, -50%);
+      border-radius: 1px;
+      box-shadow: 0 0 0 1px var(--panel);
+    }
+    .trade-band-mark.off-scale { opacity: 0.5; }
+    .trade-band-heat {
+      position: absolute; top: 20px; height: 6px;
+      transform: translateY(-50%);
+      border-radius: 999px;
+      opacity: 0.92;
+    }
+    .trade-band-track.analyst {
+      background: linear-gradient(90deg, rgba(96,165,250,0.18), rgba(96,165,250,0.5), rgba(96,165,250,0.18));
+    }
+    .trade-band-glyph {
+      position: absolute; top: 11px;
+      transform: translate(-50%, -50%);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.9rem; line-height: 1; font-weight: 700;
+      pointer-events: none;
+      text-shadow: 0 0 2px var(--panel);
+    }
+    .trade-band-glyph.off-scale { opacity: 0.6; }
+    .trade-band-knob.off-scale { opacity: 0.55; }
+    .trade-bar-marker {
+      display: inline-block; width: 3px; height: 0.85em;
+      border-radius: 1px; margin-right: 0.4rem; vertical-align: -0.1em;
+    }
+    .trade-bar-marker.low { background: #ef4444; }
+    .trade-bar-marker.high { background: #22c55e; }
+    .trade-band-label {
+      position: absolute; top: 28px;
+      font-size: 0.68rem; font-weight: 600; color: var(--muted);
+      white-space: nowrap; pointer-events: none;
+    }
+    .trade-band-label.center { color: var(--text); }
+    .trade-band-add {
+      position: absolute; top: 11px;
+      transform: translate(-50%, -50%);
+      font-size: 0.85rem; font-weight: 700; color: var(--muted);
+      opacity: 0.5; pointer-events: none;
+    }
+    .trade-band-hint {
+      position: absolute; top: 11px; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 0.68rem; color: var(--muted);
+      opacity: 0.7; pointer-events: none; white-space: nowrap;
+    }
+    .screening-trade-link .trade-band { color: var(--text); text-decoration: none; }
+    .screening-alert-kinds { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
+    .alert-kind {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 0.05rem 0.35rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .alert-kind.reached { color: var(--danger); border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.12); }
+    .alert-kind.near { color: var(--warn); border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.12); }
+    .alert-kind.info { color: #93c5fd; border-color: rgba(96,165,250,0.4); background: rgba(96,165,250,0.1); }
     .links a { color: var(--accent); font-size: 0.85rem; text-decoration: none; }
     .links a:hover { text-decoration: underline; }
     .toast {
@@ -2675,23 +2809,54 @@
                   <label>Avg Cost <span class="field-hint">USD / share</span></label>
                   <input name="avgCost" type="text" inputmode="decimal" autocomplete="off" placeholder="Cost per share">
                 </div>
+                <div class="target-field">
+                  <label>Personal Target</label>
+                  <input name="targetPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="Your price target">
+                  <div class="target-field-meta" id="targetUpsideMeta"></div>
+                </div>
               </div>
             </div>
-            <div class="target-fields-grid">
-              <div class="target-field">
-                <label>Personal Target</label>
-                <input name="targetPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="Your price target">
-                <div class="target-field-meta" id="targetUpsideMeta"></div>
+            <div class="target-planned-group">
+              <div class="target-group-label">Planned trades</div>
+              <div class="planned-trade-pair">
+              <div class="planned-trade-row">
+                <div class="target-field planned-trade-qty">
+                  <label>Quantity <span class="field-hint">shares</span></label>
+                  <input name="tradeBelowQty" type="text" inputmode="decimal" autocomplete="off" placeholder="Shares">
+                </div>
+                <div class="planned-trade-side">
+                  <label>Direction</label>
+                  <div class="fund-news-sort trade-dir-toggle" id="tradeBelowDirToggle" role="group" aria-label="Trade @ Below direction">
+                    <button type="button" data-dir="buy" onclick="setTradeDir('Below','buy')">Buy</button>
+                    <button type="button" data-dir="sell" onclick="setTradeDir('Below','sell')">Sell</button>
+                  </div>
+                  <input type="hidden" name="tradeBelowDir" value="buy">
+                </div>
+                <div class="target-field planned-trade-price">
+                  <label><span class="trade-bar-marker low"></span>Trade @ Below</label>
+                  <input name="tradeBelowPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="Price level">
+                  <div class="threshold-proposal" id="tradeBelowProposal"></div>
+                </div>
               </div>
-              <div class="target-field">
-                <label>Buy Below</label>
-                <input name="buyBelow" type="text" inputmode="decimal" autocomplete="off" placeholder="Entry alert level">
-                <div class="threshold-proposal" id="buyBelowProposal"></div>
+              <div class="planned-trade-row">
+                <div class="target-field planned-trade-qty">
+                  <label>Quantity <span class="field-hint">shares</span></label>
+                  <input name="tradeAboveQty" type="text" inputmode="decimal" autocomplete="off" placeholder="Shares">
+                </div>
+                <div class="planned-trade-side">
+                  <label>Direction</label>
+                  <div class="fund-news-sort trade-dir-toggle" id="tradeAboveDirToggle" role="group" aria-label="Trade @ Above direction">
+                    <button type="button" data-dir="buy" onclick="setTradeDir('Above','buy')">Buy</button>
+                    <button type="button" data-dir="sell" onclick="setTradeDir('Above','sell')">Sell</button>
+                  </div>
+                  <input type="hidden" name="tradeAboveDir" value="sell">
+                </div>
+                <div class="target-field planned-trade-price">
+                  <label><span class="trade-bar-marker high"></span>Trade @ Above</label>
+                  <input name="tradeAbovePrice" type="text" inputmode="decimal" autocomplete="off" placeholder="Price level">
+                  <div class="threshold-proposal" id="tradeAboveProposal"></div>
+                </div>
               </div>
-              <div class="target-field">
-                <label>Sell Above</label>
-                <input name="sellAbove" type="text" inputmode="decimal" autocomplete="off" placeholder="Exit alert level">
-                <div class="threshold-proposal" id="sellAboveProposal"></div>
               </div>
             </div>
             <div class="target-fib-strip" id="fibLevels">
@@ -2752,6 +2917,8 @@
       <div class="screening-filter-bar">
         <button type="button" class="secondary filter-btn active" data-screen-filter="all" onclick="setScreeningFilter('all')">All</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
+        <button type="button" class="secondary filter-btn" data-screen-filter="close" onclick="setScreeningFilter('close')" title="Nearest planned-trade threshold is within 10% of the current price">Close Trades</button>
+        <button type="button" class="secondary filter-btn" data-screen-filter="far" onclick="setScreeningFilter('far')" title="Nearest planned-trade threshold is more than 100% from the current price">Far Trades</button>
       </div>
       <div id="screeningTable"></div>
     </div>
@@ -2768,6 +2935,7 @@
       </div>
       <div class="fib-filter-bar">
         <button type="button" class="secondary filter-btn active" data-fib-band="all" onclick="setFibMapBand('all')" title="Show all symbols regardless of distance to the nearest Fibonacci level.">All Levels</button>
+        <button type="button" class="secondary filter-btn" data-fib-confirmed="1" onclick="toggleFibConfirmed()" title="Show only symbols whose chart pattern is confirmed — price has broken the key level in the pattern's direction (the measured-move target is active).">Confirmed Patterns</button>
         <input type="text" id="fibTickerFilter" class="fib-ticker-filter" placeholder="Filter by ticker..." oninput="setFibTickerFilter(this.value)">
         <span class="fib-filter-label">Fib Proximity</span>
         <button type="button" class="secondary filter-btn" data-fib-band="critical" onclick="setFibMapBand('critical')" title="Critical (&lt;2% from nearest Fib): immediate target retest or breakout setup. High alert required.">Critical</button>
@@ -3547,7 +3715,55 @@
       const form = document.getElementById("symbolForm");
       if (!form || !form[fieldName]) return;
       form[fieldName].value = formatPriceInput(value);
-      setStatus(`Applied ${fieldName === "buyBelow" ? "Buy Below" : "Sell Above"} proposal.`);
+      const label = fieldName === "tradeBelowPrice" ? "Trade @ Below" : "Trade @ Above";
+      setStatus(`Applied ${label} proposal.`);
+    }
+
+    // Planned-trade direction toggle: persists the chosen side in a hidden input
+    // and reflects it on the segmented Buy/Sell buttons. ``side`` is "Below"|"Above".
+    function setTradeDir(side, dir) {
+      const form = document.getElementById("symbolForm");
+      if (!form) return;
+      const hidden = form[`trade${side}Dir`];
+      if (hidden) hidden.value = dir;
+      const toggle = document.getElementById(`trade${side}DirToggle`);
+      if (toggle) {
+        toggle.querySelectorAll("button").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.dir === dir);
+        });
+      }
+    }
+
+    // Load: derive the Buy/Sell toggle from the sign of the stored signed
+    // quantity and show its absolute value (blank when null/0).
+    function applyTradeShareToForm(side, shares, defaultDir) {
+      const form = document.getElementById("symbolForm");
+      if (!form) return;
+      let dir = defaultDir;
+      if (shares != null && shares !== 0) dir = shares < 0 ? "sell" : "buy";
+      setTradeDir(side, dir);
+      const qtyInput = form[`trade${side}Qty`];
+      if (qtyInput) {
+        qtyInput.value = (shares != null && shares !== 0) ? String(Math.abs(shares)) : "";
+      }
+    }
+
+    function parseQuantity(value) {
+      if (value == null || String(value).trim() === "") return null;
+      const amount = Number(String(value).replace(/[,\s]/g, ""));
+      if (!Number.isFinite(amount)) return null;
+      return Math.round(amount * 10000) / 10000;
+    }
+
+    // Save: combine the positive quantity input with the Buy/Sell toggle into a
+    // single SIGNED quantity (sell → negative). 0/blank → null.
+    function signedTradeShares(side) {
+      const form = document.getElementById("symbolForm");
+      if (!form) return null;
+      const qty = parseQuantity(form[`trade${side}Qty`].value);
+      const magnitude = qty == null ? 0 : Math.abs(qty);
+      if (!magnitude) return null;
+      return form[`trade${side}Dir`].value === "sell" ? -magnitude : magnitude;
     }
 
     function renderTargetFibStrip(levels, currentPrice) {
@@ -3623,8 +3839,8 @@
       const recommendation = inspector?.recommendation || null;
       const proposals = proposeThresholds(item, levels, recommendation);
       renderTargetFibStrip(levels, item.currentPrice);
-      renderThresholdProposal("buyBelowProposal", "buyBelow", proposals.buy, proposals.buyNote);
-      renderThresholdProposal("sellAboveProposal", "sellAbove", proposals.sell, proposals.sellNote);
+      renderThresholdProposal("tradeBelowProposal", "tradeBelowPrice", proposals.buy, proposals.buyNote);
+      renderThresholdProposal("tradeAboveProposal", "tradeAbovePrice", proposals.sell, proposals.sellNote);
       renderTargetMeta(item, recommendation);
     }
 
@@ -3648,8 +3864,10 @@
       form.avgCost.value = formatPriceInput(holding?.costBasis);
       form.purchaseDate.value = (holding?.purchaseDate || "").slice(0, 10);
       form.targetPrice.value = formatPriceInput(item.targetPrice);
-      form.buyBelow.value = formatPriceInput(item.buyBelow);
-      form.sellAbove.value = formatPriceInput(item.sellAbove);
+      form.tradeBelowPrice.value = formatPriceInput(item.tradeBelowPrice);
+      form.tradeAbovePrice.value = formatPriceInput(item.tradeAbovePrice);
+      applyTradeShareToForm("Below", item.tradeBelowShares, "buy");
+      applyTradeShareToForm("Above", item.tradeAboveShares, "sell");
       resetNoteForm();
       editingNoteId = null;
       currentNotes = item.notes || [];
@@ -3928,8 +4146,10 @@
           method: "PUT",
           body: JSON.stringify({
             targetPrice: parsePrice(form.targetPrice.value),
-            buyBelow: parsePrice(form.buyBelow.value),
-            sellAbove: parsePrice(form.sellAbove.value),
+            tradeBelowPrice: parsePrice(form.tradeBelowPrice.value),
+            tradeBelowShares: signedTradeShares("Below"),
+            tradeAbovePrice: parsePrice(form.tradeAbovePrice.value),
+            tradeAboveShares: signedTradeShares("Above"),
           }),
         });
         const shares = parsePrice(form.shares.value);
@@ -5005,13 +5225,9 @@
     }
 
     function renderScreeningAssessedCell(row) {
-      const action = row.recommendation?.action;
-      const chip = action ? actionChip(action) : "";
-      if (!row.assessedAt) {
-        return chip ? `<span class="screening-assessed">${chip}</span>` : `<span class="empty">—</span>`;
-      }
+      if (!row.assessedAt) return `<span class="empty">—</span>`;
       const day = String(row.assessedAt).slice(0, 10);
-      return `<span class="screening-assessed" title="${escapeHtml(row.assessedAt)}">${chip} ${day}</span>`;
+      return `<span class="screening-assessed" title="${escapeHtml(row.assessedAt)}"><span class="screening-assessed-date">${day}</span></span>`;
     }
 
     function renderScreeningNotesCell(row) {
@@ -5028,24 +5244,220 @@
       );
     }
 
+    function formatQty(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "";
+      return (Math.round(n * 10000) / 10000).toString();
+    }
+
+    // Navigate to the Target tab for a symbol (to see/edit the planned-trade spec),
+    // mirroring how the Symbol cell links to Target.
+    function screeningTargetLink(symbol, innerHtml, title = "") {
+      const safeSymbol = String(symbol || "").replace(/'/g, "\\'");
+      const safeTitle = String(title || "").replace(/"/g, "&quot;");
+      return `<a href="#" class="screening-trade-link" title="${safeTitle}" onclick="selectSymbol('${safeSymbol}'); showView('portfolio'); return false;">${innerHtml}</a>`;
+    }
+
+    // Short codes for every alert-trigger kind shown in the Screening Alerts cell.
+    const ALERT_KIND_ABBR = {
+      trade_below: "T@B",
+      trade_below_near: "T@B",
+      trade_above: "T@A",
+      trade_above_near: "T@A",
+      fib_proximity: "Fib",
+      screener_upside: "1YT",
+    };
+    function alertKindAbbr(type) {
+      if (ALERT_KIND_ABBR[type]) return ALERT_KIND_ABBR[type];
+      return String(type || "?")
+        .split(/[_\s]+/)
+        .map((s) => (s ? s[0].toUpperCase() : ""))
+        .join("")
+        .slice(0, 3) || "?";
+    }
+
+    // Show WHICH kinds of alert triggered, as compact badges: T@B / T@A
+    // (planned-trade thresholds, urgency-colored, click → Target), Fib / 1YT and
+    // any other active alert (click → Inspector). "(0)" when nothing is live.
     function renderScreeningAlertsCell(row) {
-      const count = Number(row.alertCount) || 0;
-      const flags = (row.flags || []).join(", ");
-      const countHtml = count
-        ? screeningInspectorLink(
+      const badges = [];
+      const tradeAlerts = [...(row.tradeAlerts || [])].sort((a, b) => {
+        const rank = (x) => (x.urgency === "reached" ? 0 : 1);
+        if (rank(a) !== rank(b)) return rank(a) - rank(b);
+        return (a.awayPct ?? 0) - (b.awayPct ?? 0);
+      });
+      for (const ta of tradeAlerts) {
+        const abbr = ta.side === "above" ? "T@A" : "T@B";
+        const cls = ta.urgency === "reached" ? "reached" : "near";
+        badges.push(
+          screeningTargetLink(
+            row.symbol,
+            `<span class="alert-kind ${cls}">${abbr}</span>`,
+            ta.message || abbr
+          )
+        );
+      }
+      for (const oa of row.otherAlerts || []) {
+        const abbr = alertKindAbbr(oa.type);
+        badges.push(
+          screeningInspectorLink(
             row.symbol,
             "alerts",
-            `<span class="screening-alert-link">(${count})</span>`,
-            `${count} active alert(s) — open in Inspector`
+            `<span class="alert-kind info">${escapeHtml(abbr)}</span>`,
+            oa.message || abbr
           )
-        : `<span class="empty">(0)</span>`;
-      return flags
-        ? `${countHtml} <span class="screening-flags">${escapeHtml(flags)}</span>`
-        : countHtml;
+        );
+      }
+      if (!badges.length) return `<span class="empty">(0)</span>`;
+      return `<span class="screening-alert-kinds">${badges.join("")}</span>`;
     }
 
     function renderScreeningTechStanceCell(row) {
       return renderTechStanceCell(row);
+    }
+
+    // Percent distance from the current price to the nearest planned-trade
+    // threshold. Drives the Trade Band "heat" and the column sort (closest first).
+    function tradeBandClosestDist(row) {
+      const price = row.currentPrice;
+      if (price == null || price === 0) return Infinity;
+      const dists = [];
+      if (row.tradeBelowPrice != null) dists.push(Math.abs(price - row.tradeBelowPrice) / price * 100);
+      if (row.tradeAbovePrice != null) dists.push(Math.abs(row.tradeAbovePrice - price) / price * 100);
+      return dists.length ? Math.min(...dists) : Infinity;
+    }
+
+    // Proximity gauge. The track spans a corridor sized to show every marker:
+    // the analyst Low→High (±MAX_SPAN% fallback, ghost track), widened to include
+    // the price, both thresholds and the personal target. The current price is the
+    // blue knob; Trade Below is a red bar and Trade Above a green bar. A "heat" bar
+    // bridges the price and its CLOSEST threshold — hotter (redder) the closer,
+    // cooler (greener) the farther — forced to a minimum visible width, with the
+    // true rounded % deviation written above it.
+    function renderTradeBandCell(row) {
+      const MAX_SPAN = 20;
+      const NEAR_PCT = 5;
+      const HEAT_MAX = 15;
+      const price = row.currentPrice;
+      if (price == null) return `<span class="empty">—</span>`;
+
+      const aLow = row.analystTargetLow;
+      const aHigh = row.analystTargetHigh;
+      const pt = (row.personalTarget != null && row.personalTarget > 0) ? row.personalTarget : null;
+      const analystMode = aLow != null && aHigh != null && aHigh > aLow;
+      // Widen the corridor so every marker stays on-scale: start from the analyst
+      // Low→High (or ±MAX_SPAN% fallback), then extend to include the current
+      // price, both planned-trade thresholds, and the personal target.
+      let low = analystMode ? aLow : price * (1 - MAX_SPAN / 100);
+      let high = analystMode ? aHigh : price * (1 + MAX_SPAN / 100);
+      low = Math.min(low, price);
+      high = Math.max(high, price);
+      if (row.tradeBelowPrice != null) low = Math.min(low, row.tradeBelowPrice);
+      if (row.tradeAbovePrice != null) high = Math.max(high, row.tradeAbovePrice);
+      if (pt != null) high = Math.max(high, pt);
+      const span = high - low;
+
+      const PAD = 4; // keep markers sitting at the extremes fully visible
+      const clamp = (v) => Math.max(0, Math.min(100, v));
+      const rawPos = (v) => span > 0 ? ((v - low) / span) * 100 : 50;
+      const pos = (v) => PAD + clamp(rawPos(v)) * (100 - 2 * PAD) / 100;
+      const offScale = (v) => {
+        const r = rawPos(v);
+        if (r < -0.01) return "low";
+        if (r > 100.01) return "high";
+        return null;
+      };
+      // Heat: red (hot) when the gap is ~0, cooling toward green by HEAT_MAX%.
+      const heatColor = (distPct) => {
+        const t = Math.max(0, Math.min(1, distPct / HEAT_MAX));
+        return `hsl(${(t * 130).toFixed(0)}, 75%, 48%)`;
+      };
+      const planText = (shares) => {
+        if (shares == null || Number(shares) === 0) return "";
+        const qty = Math.abs(Number(shares));
+        const qtyStr = Number.isInteger(qty) ? String(qty) : qty.toFixed(2);
+        return ` · plan ${Number(shares) > 0 ? "Buy" : "Sell"} ${qtyStr}`;
+      };
+      const statusText = (away, reached, off) =>
+        reached
+          ? "reached"
+          : (off ? `${Math.abs(away).toFixed(1)}% away, off-scale`
+                 : `${Math.abs(away).toFixed(1)}% away, ${Math.abs(away) <= NEAR_PCT ? "approaching" : "far"}`);
+
+      const below = row.tradeBelowPrice;
+      const above = row.tradeAbovePrice;
+      const hasBelow = below != null;
+      const hasAbove = above != null;
+      const belowDist = hasBelow ? Math.abs(price - below) / price * 100 : Infinity;
+      const aboveDist = hasAbove ? Math.abs(above - price) / price * 100 : Infinity;
+      // Closest present threshold gets the heat bar + % readout.
+      const closest = (hasBelow || hasAbove)
+        ? (belowDist <= aboveDist ? "below" : "above")
+        : null;
+
+      // Render positions. Start from true positions, then guarantee the
+      // price→closest-threshold gap is at least MIN_GAP% wide and slide that pair
+      // inward if it would run off an end — so the heat bar is always visible even
+      // when a far personal target makes the corridor very wide.
+      const MIN_GAP = 15;
+      let pPrice = pos(price);
+      let pBelow = hasBelow ? pos(below) : null;
+      let pAbove = hasAbove ? pos(above) : null;
+      let pClose = null;
+      if (closest) {
+        pClose = closest === "below" ? pBelow : pAbove;
+        const dir = pClose >= pPrice ? 1 : -1;
+        if (Math.abs(pClose - pPrice) < MIN_GAP) pClose = pPrice + dir * MIN_GAP;
+        let lo = Math.min(pPrice, pClose);
+        if (lo < PAD) { const d = PAD - lo; pPrice += d; pClose += d; }
+        let hi = Math.max(pPrice, pClose);
+        if (hi > 100 - PAD) { const d = hi - (100 - PAD); pPrice -= d; pClose -= d; }
+        if (closest === "below") pBelow = pClose; else pAbove = pClose;
+      }
+
+      const pieces = [];
+      pieces.push(`<div class="trade-band-track${analystMode ? " analyst" : " ghost"}"></div>`);
+
+      // Heat bar bridging the price and its closest threshold, with the rounded
+      // % deviation written above it.
+      if (closest) {
+        const dist = closest === "below" ? belowDist : aboveDist;
+        pieces.push(
+          `<div class="trade-band-heat" style="left:${Math.min(pPrice, pClose).toFixed(2)}%; width:${Math.abs(pClose - pPrice).toFixed(2)}%; background:${heatColor(dist)};"></div>`
+        );
+        pieces.push(
+          `<span class="trade-band-pct" style="left:${((pPrice + pClose) / 2).toFixed(2)}%; color:${heatColor(dist)};">${Math.round(dist)}%</span>`
+        );
+      }
+
+      // Threshold bars: red = Below (lower bound), green = Above (upper bound).
+      const titleLines = [];
+      if (hasBelow) {
+        const away = (price - below) / price * 100;
+        const reached = price <= below;
+        pieces.push(`<span class="trade-band-mark" style="left:${pBelow.toFixed(2)}%; background:#ef4444;"></span>`);
+        titleLines.push(`Below ${formatMoney(below)} (${statusText(away, reached)})${planText(row.tradeBelowShares)}`);
+      } else {
+        titleLines.push("Below: none set");
+      }
+
+      if (hasAbove) {
+        const away = (above - price) / price * 100;
+        const reached = price >= above;
+        pieces.push(`<span class="trade-band-mark" style="left:${pAbove.toFixed(2)}%; background:#22c55e;"></span>`);
+        titleLines.push(`Above ${formatMoney(above)} (${statusText(away, reached)})${planText(row.tradeAboveShares)}`);
+      } else {
+        titleLines.push("Above: none set");
+      }
+
+      titleLines.push(`(Range ${formatMoney(low)}-${formatMoney(high)})`);
+
+      const title = escapeHtml(titleLines.join(" · "));
+      return `<div class="trade-band" title="${title}">`
+        + pieces.join("")
+        + `<div class="trade-band-knob" style="left:${pPrice.toFixed(2)}%;"></div>`
+        + `<span class="trade-band-label center" style="left:${pPrice.toFixed(2)}%; transform:translateX(-50%);">${formatMoney(price)}</span>`
+        + `</div>`;
     }
 
     const screeningColumns = [
@@ -5072,23 +5484,31 @@
         render: (row) => renderScreeningPatternCell(row),
       },
       {
-        key: "assessedAt",
-        label: "Assessed",
-        sortValue: (row) => row.assessedAt || "",
-        render: (row) => renderScreeningAssessedCell(row),
+        key: "tradeBand",
+        label: "Trade Range",
+        help: "Your Trade Below threshold is a red bar, Trade Above a green bar. A heat bar bridges the price (blue knob) and its closest threshold: the closer, the hotter (red); the farther, the cooler (green). Sort by distance to the nearest threshold (closest first).",
+        sortValue: (row) => tradeBandClosestDist(row),
+        render: (row) => screeningTargetLink(row.symbol, renderTradeBandCell(row), `Edit ${row.symbol} planned trades in Target`),
       },
+      { key: "upsidePct", label: "Upside", sortValue: (row) => row.upsidePct, render: (row) => `${row.upsidePct ?? "—"}%` },
       {
         key: "noteCount",
         label: "Notes",
         sortValue: (row) => row.noteCount || 0,
         render: (row) => renderScreeningNotesCell(row),
       },
-      { key: "upsidePct", label: "Upside", sortValue: (row) => row.upsidePct, render: (row) => `${row.upsidePct ?? "—"}%` },
       {
         key: "alertCount",
         label: "Alerts",
+        help: "The kinds of alert that triggered, as badges: T@B = Trade Below, T@A = Trade Above (red = reached, amber = approaching; click → Target), Fib = Fibonacci proximity, 1YT = 1-year target upside (click → Inspector). Hover a badge for the full message; (0) means none active.",
         sortValue: (row) => row.alertCount,
         render: (row) => renderScreeningAlertsCell(row),
+      },
+      {
+        key: "assessedAt",
+        label: "Assessed",
+        sortValue: (row) => row.assessedAt || "",
+        render: (row) => renderScreeningAssessedCell(row),
       },
     ];
 
@@ -5104,6 +5524,7 @@
     let fibMapData = [];
     let fibMapBand = "all";
     let fibMapTicker = "";
+    let fibConfirmedOnly = false;
 
     function fibLevelKind(level) {
       if (!level) return null;
@@ -5310,6 +5731,9 @@
         if (ticker && !String(row.symbol || "").toLowerCase().includes(ticker)) {
           return false;
         }
+        if (fibConfirmedOnly && !(row.pattern && row.pattern.status === "confirmed")) {
+          return false;
+        }
         const zone = fibProximityZone(row.distancePct);
         if (fibMapBand === "critical") return zone === "critical";
         if (fibMapBand === "warning") return zone === "warning";
@@ -5320,12 +5744,22 @@
 
     function updateFibFilterButtons() {
       document.querySelectorAll(".fib-filter-bar .filter-btn").forEach((button) => {
-        button.classList.toggle("active", button.dataset.fibBand === fibMapBand);
+        if (button.dataset.fibConfirmed) {
+          button.classList.toggle("active", fibConfirmedOnly);
+        } else if (button.dataset.fibBand) {
+          button.classList.toggle("active", button.dataset.fibBand === fibMapBand);
+        }
       });
     }
 
     function setFibMapBand(band) {
       fibMapBand = band;
+      updateFibFilterButtons();
+      renderFibMapView();
+    }
+
+    function toggleFibConfirmed() {
+      fibConfirmedOnly = !fibConfirmedOnly;
       updateFibFilterButtons();
       renderFibMapView();
     }
@@ -5465,14 +5899,25 @@
     }
 
     let screeningFilter = "all";
-    const SCREENING_FILTER_QUERIES = {
-      all: "",
-      upside: "?minUpside=30",
-    };
 
-    function screeningFilterForQuery(query) {
-      const entry = Object.entries(SCREENING_FILTER_QUERIES).find(([, q]) => q === (query || ""));
-      return entry ? entry[0] : "all";
+    // Client-side row filters (everything they need is already on each row).
+    const TRADE_CLOSE_PCT = 10;
+    const TRADE_FAR_PCT = 100;
+    function applyScreeningFilter(rows) {
+      if (!rows) return [];
+      if (screeningFilter === "upside") {
+        return rows.filter((r) => r.upsidePct != null && r.upsidePct >= 30);
+      }
+      if (screeningFilter === "close") {
+        return rows.filter((r) => tradeBandClosestDist(r) <= TRADE_CLOSE_PCT);
+      }
+      if (screeningFilter === "far") {
+        return rows.filter((r) => {
+          const d = tradeBandClosestDist(r);
+          return Number.isFinite(d) && d > TRADE_FAR_PCT;
+        });
+      }
+      return rows;
     }
 
     function updateScreeningFilterButtons() {
@@ -5482,32 +5927,36 @@
     }
 
     function setScreeningFilter(filter) {
-      loadScreening(SCREENING_FILTER_QUERIES[filter] || "");
+      screeningFilter = filter || "all";
+      updateScreeningFilterButtons();
+      loadScreening("", false);
     }
 
     async function loadScreening(query = "", force = false) {
-      screeningFilter = screeningFilterForQuery(query);
       updateScreeningFilterButtons();
       const cache = viewDataCache.screening;
       const now = Date.now();
+      const renderFiltered = (rows) => {
+        document.getElementById("screeningTable").innerHTML = renderScreeningTable(applyScreeningFilter(rows));
+      };
       if (
         !force
         && cache.data
         && cache.query === query
         && now - cache.fetchedAt < VIEW_CACHE_TTL_MS
       ) {
-        document.getElementById("screeningTable").innerHTML = renderScreeningTable(cache.data);
+        renderFiltered(cache.data);
         return;
       }
       const data = await api(`/screen${query}`);
       cache.query = query;
       cache.data = data.results;
       cache.fetchedAt = now;
-      document.getElementById("screeningTable").innerHTML = renderScreeningTable(data.results);
+      renderFiltered(data.results);
       // Pattern badges come from the shared /patterns map; fill them in once loaded.
       loadSymbolPatterns().then(() => {
         if (currentView === "screening" && cache.data) {
-          document.getElementById("screeningTable").innerHTML = renderScreeningTable(cache.data);
+          renderFiltered(cache.data);
         }
       });
     }
@@ -7415,7 +7864,7 @@
 
     document.getElementById("symbolForm").addEventListener("focusout", (event) => {
       const input = event.target;
-      if (!input.name || !["avgCost", "targetPrice", "buyBelow", "sellAbove"].includes(input.name)) return;
+      if (!input.name || !["avgCost", "targetPrice", "tradeBelowPrice", "tradeAbovePrice"].includes(input.name)) return;
       const parsed = parsePrice(input.value);
       input.value = parsed == null ? "" : formatPriceInput(parsed);
     });

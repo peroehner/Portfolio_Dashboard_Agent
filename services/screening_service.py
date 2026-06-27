@@ -20,6 +20,9 @@ class ScreeningService:
         self.technical_service = TechnicalService()
         self.fundamentals_service = FundamentalsService()
         self.fib_proximity_pct = float(os.environ.get("FIB_PROXIMITY_PCT", "1.0"))
+        # Mirror AlertsService: how close (%) before a planned-trade threshold
+        # counts as "approaching" rather than just on the radar.
+        self.trade_near_pct = float(os.environ.get("TRADE_NEAR_PCT", "5"))
 
     def run_screen(self, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         from services.assessment_service import ASSESSMENT_TECHNICALS, AssessmentService
@@ -330,13 +333,39 @@ class ScreeningService:
                 self.fib_service,
             )["stance"]
 
+        trade_below_price = symbol_data.get("tradeBelowPrice")
+        trade_below_shares = symbol_data.get("tradeBelowShares")
+        trade_above_price = symbol_data.get("tradeAbovePrice")
+        trade_above_shares = symbol_data.get("tradeAboveShares")
+        trade_alerts = self._compute_trade_alerts(
+            symbol,
+            price,
+            trade_below_price,
+            trade_below_shares,
+            trade_above_price,
+            trade_above_shares,
+        )
+
         return {
             "symbol": symbol,
             "currentPrice": price,
             "targetPrice": target,
+            "personalTarget": symbol_data.get("targetPrice"),
             "analystTarget1y": symbol_data.get("analystTarget1y"),
+            "analystTargetLow": symbol_data.get("analystTargetLow"),
+            "analystTargetHigh": symbol_data.get("analystTargetHigh"),
             "buyBelow": buy_below,
             "sellAbove": sell_above,
+            "tradeBelowPrice": trade_below_price,
+            "tradeBelowShares": trade_below_shares,
+            "tradeAbovePrice": trade_above_price,
+            "tradeAboveShares": trade_above_shares,
+            "tradeAlerts": trade_alerts,
+            "otherAlerts": [
+                {"type": a.get("type"), "message": a.get("message")}
+                for a in alerts
+                if not str(a.get("type", "")).startswith("trade_")
+            ],
             "upsidePct": upside_pct,
             "buyDistancePct": buy_distance_pct,
             "sellDistancePct": sell_distance_pct,
@@ -350,6 +379,99 @@ class ScreeningService:
             "score": round(score, 2),
             "_fibClosest": fib_closest,
         }
+
+    def _compute_trade_alerts(
+        self,
+        symbol: str,
+        price: float | None,
+        trade_below_price: float | None,
+        trade_below_shares: float | None,
+        trade_above_price: float | None,
+        trade_above_shares: float | None,
+    ) -> list[dict[str, Any]]:
+        """Compact, frontend-ready summary of which planned-trade thresholds the
+        current price is reaching/approaching — mirrors AlertsService._check_thresholds
+        so the Screening cell matches the alerts the evaluator would raise.
+
+        Each entry: {side, action, shares (abs for display, None when unset),
+        signedShares, price, awayPct, urgency ("reached"|"near"), message}."""
+        if price is None:
+            return []
+        near = self.trade_near_pct / 100.0
+        alerts: list[dict[str, Any]] = []
+
+        def action_for(side: str, shares: float | None) -> str:
+            if shares:
+                return "buy" if shares > 0 else "sell"
+            return "buy" if side == "below" else "sell"
+
+        def display_shares(shares: float | None) -> float | None:
+            return abs(shares) if shares else None
+
+        if trade_below_price is not None:
+            action = action_for("below", trade_below_shares)
+            if price <= trade_below_price:
+                clause = AlertsService._plan_clause(
+                    trade_below_shares,
+                    stop_loss=bool(trade_below_shares and trade_below_shares < 0),
+                )
+                alerts.append({
+                    "side": "below",
+                    "action": action,
+                    "shares": display_shares(trade_below_shares),
+                    "signedShares": trade_below_shares,
+                    "price": trade_below_price,
+                    "awayPct": 0.0,
+                    "urgency": "reached",
+                    "message": f"{symbol} reached your lower ${trade_below_price:.2f} trade level"
+                    + (clause if clause else "."),
+                })
+            elif price <= trade_below_price * (1 + near):
+                away_pct = (price - trade_below_price) / trade_below_price * 100
+                clause = AlertsService._plan_clause(trade_below_shares)
+                alerts.append({
+                    "side": "below",
+                    "action": action,
+                    "shares": display_shares(trade_below_shares),
+                    "signedShares": trade_below_shares,
+                    "price": trade_below_price,
+                    "awayPct": round(away_pct, 2),
+                    "urgency": "near",
+                    "message": f"{symbol} is {away_pct:.1f}% above your ${trade_below_price:.2f} buy level"
+                    + (clause if clause else "."),
+                })
+
+        if trade_above_price is not None:
+            action = action_for("above", trade_above_shares)
+            if price >= trade_above_price:
+                clause = AlertsService._plan_clause(trade_above_shares)
+                alerts.append({
+                    "side": "above",
+                    "action": action,
+                    "shares": display_shares(trade_above_shares),
+                    "signedShares": trade_above_shares,
+                    "price": trade_above_price,
+                    "awayPct": 0.0,
+                    "urgency": "reached",
+                    "message": f"{symbol} reached your upper ${trade_above_price:.2f} trade level"
+                    + (clause if clause else "."),
+                })
+            elif price >= trade_above_price * (1 - near):
+                away_pct = (trade_above_price - price) / trade_above_price * 100
+                clause = AlertsService._plan_clause(trade_above_shares)
+                alerts.append({
+                    "side": "above",
+                    "action": action,
+                    "shares": display_shares(trade_above_shares),
+                    "signedShares": trade_above_shares,
+                    "price": trade_above_price,
+                    "awayPct": round(away_pct, 2),
+                    "urgency": "near",
+                    "message": f"{symbol} is {away_pct:.1f}% below your ${trade_above_price:.2f} sell level"
+                    + (clause if clause else "."),
+                })
+
+        return alerts
 
     def _passes_filters(self, row: dict[str, Any], filters: dict[str, Any]) -> bool:
         if filters.get("minUpside") is not None:

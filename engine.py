@@ -79,7 +79,11 @@ class PortfolioEngine:
 
         quotes = {}
         for ticker in tickers:
-            analyst_target = self._fetch_analyst_target(ticker) if include_analyst_targets else None
+            analyst_targets = (
+                self._fetch_analyst_targets(ticker)
+                if include_analyst_targets
+                else {"mean": None, "low": None, "high": None}
+            )
             price = prices[ticker]
             day_pct = day_changes.get(ticker)
             if day_pct is None:
@@ -91,7 +95,9 @@ class PortfolioEngine:
                     else None
                 ),
                 "dayChangePct": day_pct,
-                "analystTarget1y": analyst_target,
+                "analystTarget1y": analyst_targets["mean"],
+                "analystTargetLow": analyst_targets["low"],
+                "analystTargetHigh": analyst_targets["high"],
                 "priceAsOf": price_as_of.get(ticker),
             }
         return quotes
@@ -122,16 +128,26 @@ class PortfolioEngine:
         return None
 
     def _fetch_analyst_target(self, ticker: str) -> float | None:
+        return self._fetch_analyst_targets(ticker)["mean"]
+
+    def _fetch_analyst_targets(self, ticker: str) -> dict[str, float | None]:
+        """Analyst 1Y target mean/low/high from the cached yfinance info."""
         from services.market_cache import make_ticker, ticker_info_cache
 
+        result: dict[str, float | None] = {"mean": None, "low": None, "high": None}
         try:
             info = ticker_info_cache.get(ticker.upper(), lambda: make_ticker(ticker).info)
-            target_mean = info.get("targetMeanPrice")
-            if target_mean is not None:
-                return round(float(target_mean), 2)
+            for key, field in (
+                ("mean", "targetMeanPrice"),
+                ("low", "targetLowPrice"),
+                ("high", "targetHighPrice"),
+            ):
+                value = info.get(field)
+                if value is not None:
+                    result[key] = round(float(value), 2)
         except Exception as e:
-            logging.warning(f"Failed to fetch analyst target for {ticker}: {e}")
-        return None
+            logging.warning(f"Failed to fetch analyst targets for {ticker}: {e}")
+        return result
 
     def analyze_asset_sentiment(self, texts):
         """AI analysis of stock news or fundamental text."""

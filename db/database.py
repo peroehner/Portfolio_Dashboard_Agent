@@ -85,8 +85,14 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         target_price DOUBLE PRECISION,
         buy_below DOUBLE PRECISION,
         sell_above DOUBLE PRECISION,
+        trade_below_price DOUBLE PRECISION,
+        trade_below_shares DOUBLE PRECISION,
+        trade_above_price DOUBLE PRECISION,
+        trade_above_shares DOUBLE PRECISION,
         annual_dividend DOUBLE PRECISION,
         analyst_target_1y DOUBLE PRECISION,
+        analyst_target_low DOUBLE PRECISION,
+        analyst_target_high DOUBLE PRECISION,
         day_change_pct DOUBLE PRECISION,
         price_as_of TEXT,
         created_at TEXT NOT NULL DEFAULT app_now_text(),
@@ -228,6 +234,12 @@ INDEX_STATEMENTS: tuple[str, ...] = (
 MIGRATION_STATEMENTS: tuple[str, ...] = (
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS annual_dividend DOUBLE PRECISION",
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS analyst_target_1y DOUBLE PRECISION",
+    "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS analyst_target_low DOUBLE PRECISION",
+    "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS analyst_target_high DOUBLE PRECISION",
+    "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS trade_below_price DOUBLE PRECISION",
+    "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS trade_below_shares DOUBLE PRECISION",
+    "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS trade_above_price DOUBLE PRECISION",
+    "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS trade_above_shares DOUBLE PRECISION",
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS day_change_pct DOUBLE PRECISION",
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS price_as_of TEXT",
     "ALTER TABLE assessments ADD COLUMN IF NOT EXISTS note_synthesis TEXT",
@@ -500,6 +512,38 @@ def _run_data_migrations(conn: psycopg.Connection) -> None:
     )
 
 
+def _seed_trade_thresholds(conn: psycopg.Connection) -> None:
+    """One-time seed of the new planned-trade price columns from the legacy
+    buy_below/sell_above zones. Runs exactly once (guarded by an app_meta key);
+    only fills NULL prices so it never clobbers user edits, and leaves the
+    share-quantity columns NULL. Idempotent and safe on fresh installs (no rows
+    to seed yet, but the guard is still set so it never re-runs)."""
+    row = conn.execute(
+        "SELECT 1 FROM app_meta WHERE key = %s", ("trade_thresholds_seeded",)
+    ).fetchone()
+    if row is not None:
+        return
+    conn.execute(
+        """
+        UPDATE symbols
+        SET trade_below_price = buy_below
+        WHERE trade_below_price IS NULL AND buy_below IS NOT NULL
+        """
+    )
+    conn.execute(
+        """
+        UPDATE symbols
+        SET trade_above_price = sell_above
+        WHERE trade_above_price IS NULL AND sell_above IS NOT NULL
+        """
+    )
+    conn.execute(
+        "INSERT INTO app_meta (key, value) VALUES (%s, app_now_text()) "
+        "ON CONFLICT (key) DO NOTHING",
+        ("trade_thresholds_seeded",),
+    )
+
+
 def init_db() -> None:
     with get_connection() as conn:
         # 1. Base tables (fresh installs get the new per-user shape directly).
@@ -515,4 +559,6 @@ def init_db() -> None:
             conn.execute(statement)
         # 5. Data-level migrations / cleanups.
         _run_data_migrations(conn)
+        # 6. One-time seed of planned-trade prices from legacy buy/sell zones.
+        _seed_trade_thresholds(conn)
         conn.commit()
