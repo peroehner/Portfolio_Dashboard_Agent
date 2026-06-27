@@ -924,8 +924,18 @@
     .confluence-col li.empty { color: var(--muted); list-style: none; margin-left: -1.05rem; }
     .confluence-fib-note {
       margin: 0.7rem 0 0; padding-top: 0.6rem; border-top: 1px solid var(--border);
-      font-size: 0.8rem; color: var(--muted); line-height: 1.45;
+      font-size: 0.8rem; color: var(--text); line-height: 1.45;
     }
+    .confluence-watch {
+      margin: 0.7rem 0 0; padding-top: 0.6rem; border-top: 1px solid var(--border);
+      font-size: 0.8rem; line-height: 1.45; color: var(--text);
+      display: flex; gap: 0.45rem; align-items: baseline;
+    }
+    .confluence-watch-glyph { font-size: 0.85rem; line-height: 1.4; flex-shrink: 0; }
+    .confluence-watch-text { flex: 1; }
+    .confluence-watch-label { font-weight: 700; }
+    .confluence-watch.is-watch .confluence-watch-label { color: var(--accent-2); }
+    .confluence-watch.is-risk .confluence-watch-label { color: #fb923c; }
     #inspector-recommendation.inspector-section-focus,
     #inspector-notes.inspector-section-focus,
     #inspector-alerts.inspector-section-focus {
@@ -1341,9 +1351,9 @@
       margin: 0.1rem 0 0.35rem 1.05rem;
       padding: 0;
       list-style: disc;
-      color: var(--muted);
-      font-size: 0.68rem;
-      line-height: 1.35;
+      color: var(--text);
+      font-size: 0.76rem;
+      line-height: 1.4;
     }
     .fib-volume { font-variant-numeric: tabular-nums; }
     .vc-mark { font-weight: 700; cursor: help; }
@@ -5662,7 +5672,9 @@
         const tally = (conf.agreeCount != null && conf.totalSignals != null)
           ? `${conf.agreeCount}/${conf.totalSignals}` : "";
         const subTxt = [conf.strength, tally].filter(Boolean).join(" · ");
-        const title = conf.message || conf.summary || "";
+        const baseTitle = conf.message || conf.summary || "";
+        const watchTitle = (conf.watch && conf.watch.headline) ? conf.watch.headline : "";
+        const title = [baseTitle, watchTitle].filter(Boolean).join("\n");
         return `<span class="screening-tech-stance conf-${cls}" title="${escapeHtml(title)}">`
           + `${escapeHtml(conf.bias)}`
           + `<span class="conf-mini-meter" aria-hidden="true"><span class="conf-mini-fill conf-${cls}" style="width:${score100}%;"></span><span class="conf-mini-mid"></span></span>`
@@ -6450,6 +6462,24 @@
       "Bearish": "bear",
     };
 
+    function renderConfluenceWatch(watch) {
+      const isRisk = watch.direction === "down";
+      const cls = isRisk ? "is-risk" : "is-watch";
+      const glyph = isRisk ? "⚠️" : "👉";
+      const raw = String(watch.headline || "").trim();
+      const idx = raw.indexOf(":");
+      let label = isRisk ? "Risk:" : "Watch:";
+      let body = raw;
+      if (idx !== -1) {
+        label = raw.slice(0, idx + 1);
+        body = raw.slice(idx + 1).trim();
+      }
+      return `<p class="confluence-watch ${cls}">`
+        + `<span class="confluence-watch-glyph" aria-hidden="true">${glyph}</span>`
+        + `<span class="confluence-watch-text"><strong class="confluence-watch-label">${escapeHtml(label)}</strong> ${escapeHtml(body)}</span>`
+        + `</p>`;
+    }
+
     function renderInspectorConfluence(conf, advisory) {
       if (!conf || !conf.bias) return "";
       const cls = CONFLUENCE_BIAS_CLASS[conf.bias] || "mixed";
@@ -6487,6 +6517,7 @@
               <ul>${conflictHtml}</ul>
             </div>
           </div>
+          ${conf.watch && conf.watch.headline ? renderConfluenceWatch(conf.watch) : ""}
           ${advisory && advisory.message ? `<p class="confluence-fib-note">${escapeHtml(advisory.message)}</p>` : ""}
         </section>`;
     }

@@ -211,6 +211,11 @@ def validate_pattern(
 
     score = 0.5
     reasons: list[str] = []
+    # Structured, machine-readable twin of ``reasons``: each per-check signed delta
+    # plus the observed value / threshold it branched on. The Confluence agent uses
+    # these to phrase a precise "what would move the verdict" precondition; the
+    # aggregate ``score`` and ``reasons`` strings are unchanged.
+    contributions: list[dict[str, Any]] = []
     breakout_rvol: float | None = None
 
     # 1) Breakout confirmation (only meaningful once the pattern has broken out).
@@ -226,6 +231,14 @@ def validate_pattern(
             else:
                 score -= 0.25
                 reasons.append(f"Breakout lacked volume ({breakout_rvol:.1f}×) — unconvincing")
+            _delta = 0.30 if breakout_rvol >= BREAKOUT_RVOL else 0.10 if breakout_rvol >= 1.0 else -0.25
+            contributions.append({
+                "check": "breakout_rvol",
+                "delta": _delta,
+                "value": round(breakout_rvol, 2),
+                "threshold": BREAKOUT_RVOL,
+                "passed": breakout_rvol >= BREAKOUT_RVOL,
+            })
     else:
         reasons.append("Not yet broken out — volume confirmation pending")
 
@@ -247,6 +260,17 @@ def validate_pattern(
         else:
             score -= 0.28
             reasons.append(f"Key level in a low-volume zone ({(pct or 0):.0f}% of POC) — weak {('demand' if ptype=='bullish' else 'supply')}")
+        _delta = 0.20 if kind == "high" else 0.05 if kind == "medium" else -0.28
+        contributions.append({
+            "check": "key_level",
+            "delta": _delta,
+            # The reversal extreme's traded volume as a % of the Point of Control.
+            "value": round(float(pct), 1) if isinstance(pct, (int, float)) else None,
+            # 35% is the medium-node floor: below it the level is a "low-volume" zone.
+            "threshold": 35.0,
+            "passed": kind in ("high", "medium"),
+            "node": kind,
+        })
 
     # 3) OBV alignment with the pattern's directional bias.
     obv = _obv_slope_pct(close, vol)
@@ -258,6 +282,13 @@ def validate_pattern(
         else:
             score -= 0.15
             reasons.append(f"OBV diverges from a {ptype} read")
+        contributions.append({
+            "check": "obv",
+            "delta": 0.15 if aligned else -0.15,
+            "value": round(float(obv), 2),
+            "threshold": 0.0,
+            "passed": bool(aligned),
+        })
 
     # 4) Triangles should coil on contracting volume.
     if "triangle" in name.lower():
@@ -267,6 +298,14 @@ def validate_pattern(
             reasons.append("Volume contracting into the apex (textbook)")
         elif contracting is False:
             reasons.append("Volume not contracting — weaker triangle")
+        if contracting is not None:
+            contributions.append({
+                "check": "triangle",
+                "delta": 0.10 if contracting else 0.0,
+                "value": bool(contracting),
+                "threshold": True,
+                "passed": bool(contracting),
+            })
 
     score = round(max(0.0, min(1.0, score)), 2)
 
@@ -297,6 +336,7 @@ def validate_pattern(
         "obvSlopePct": round(obv, 2) if obv is not None else None,
         "staleness": staleness,
         "reasons": reasons,
+        "contributions": contributions,
         "adjustedConfidence": _adjusted_confidence(pattern, verdict),
     }
 

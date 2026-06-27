@@ -359,6 +359,11 @@ def export_portfolio():
             "analystTarget1y": sym.get("analystTarget1y"),
             "buyBelow": sym.get("buyBelow"),
             "sellAbove": sym.get("sellAbove"),
+            # Planned-trade thresholds + signed share amounts (sign = direction).
+            "tradeBelowPrice": sym.get("tradeBelowPrice"),
+            "tradeBelowShares": sym.get("tradeBelowShares"),
+            "tradeAbovePrice": sym.get("tradeAbovePrice"),
+            "tradeAboveShares": sym.get("tradeAboveShares"),
             "annualDividend": sym.get("annualDividend"),
         }))
         if notes_out:

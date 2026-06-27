@@ -38,6 +38,11 @@ W_VOLUME = float(os.environ.get("CONFLUENCE_WEIGHT_VOLUME", "0.6"))
 _LEAN_AT = float(os.environ.get("CONFLUENCE_LEAN_SCORE", "0.15"))
 _STRONG_AT = float(os.environ.get("CONFLUENCE_STRONG_SCORE", "0.45"))
 
+# RVOL the Risk agent wants on a breakout — mirrored here only for phrasing the
+# "what would confirm this pattern" watch precondition (kept in sync via the same
+# env var so the wording can't drift from the actual gate).
+BREAKOUT_RVOL_HINT = float(os.environ.get("VOLUME_BREAKOUT_RVOL", "1.3"))
+
 # How much a Risk-agent verdict scales a pattern's vote weight.
 _VERDICT_FACTOR = {
     "confirmed": 1.0,
@@ -230,6 +235,260 @@ def _bias_from_score(score: float) -> str:
     return "Mixed"
 
 
+def _score_from_votes(votes: list[dict[str, Any]]) -> float | None:
+    """The fusion math, factored out so the real verdict and the ``watch``
+    counterfactuals score on an identical path: net Σ(sign×weight) over Σweight,
+    clamped to [-1, 1]."""
+    total = sum(v["weight"] for v in votes)
+    if total <= _EPS:
+        return None
+    net = sum(v["sign"] * v["weight"] for v in votes)
+    return max(-1.0, min(1.0, net / total))
+
+
+def _score100(score: float) -> int:
+    return int(round((score + 1) / 2 * 100))
+
+
+# Base (full-magnitude) weight per lens — the vote weight a lens contributes once
+# it resolves decisively in some direction. Mirrors the W_* constants above.
+_BASE_WEIGHT = {
+    "trend": W_TREND,
+    "structure": W_STRUCTURE,
+    "momentum": W_MOMENTUM,
+    "pattern": W_PATTERN,
+    "volume": W_VOLUME,
+}
+
+
+def _money(value: Any) -> str:
+    try:
+        return f"${float(value):,.2f}"
+    except (TypeError, ValueError):
+        return "the level"
+
+
+def _pattern_lead(patterns: list[dict[str, Any]] | None) -> dict[str, Any] | None:
+    """The single pattern that dominates the Pattern lens (highest verdict-scaled
+    weight) — the one the counterfactual "if it confirmed" reasons about."""
+    if not patterns:
+        return None
+    best: dict[str, Any] | None = None
+    best_w = 0.0
+    for p in patterns:
+        ptype = str(p.get("type") or "neutral").lower()
+        if ptype not in ("bullish", "bearish"):
+            continue
+        validation = p.get("validation") or {}
+        factor = _VERDICT_FACTOR.get(validation.get("verdict"), 0.5)
+        conf = validation.get("adjustedConfidence")
+        if not isinstance(conf, (int, float)):
+            conf = p.get("confidence") if isinstance(p.get("confidence"), (int, float)) else 0.5
+        w = factor * float(conf)
+        if w > best_w:
+            best_w, best = w, p
+    return best
+
+
+def _contrib_phrase(contrib: dict[str, Any]) -> str | None:
+    """Render one Risk-agent contribution as a concrete, threshold-bearing clause."""
+    check = contrib.get("check")
+    value = contrib.get("value")
+    threshold = contrib.get("threshold")
+    if check == "key_level":
+        if isinstance(value, (int, float)) and isinstance(threshold, (int, float)):
+            return f"key level at {value:.0f}% of POC vs ≥{threshold:.0f}% needed"
+        return "the key level reclaiming a real volume node"
+    if check == "breakout_rvol":
+        if isinstance(value, (int, float)) and isinstance(threshold, (int, float)):
+            return f"breakout volume {value:.1f}× vs ≥{threshold:.1f}× needed"
+        return "a volume-backed breakout"
+    if check == "obv":
+        return "OBV aligning with the pattern"
+    if check == "triangle":
+        return "volume contracting into the apex"
+    return None
+
+
+def _pattern_preconditions(lead: dict[str, Any]) -> list[str]:
+    """What it would take for the lead pattern to flip to a *confirmed* vote: a
+    volume-backed break of its key level, plus its single worst pending check."""
+    validation = lead.get("validation") or {}
+    key = lead.get("keyLevel") or {}
+    label = key.get("label") or "key level"
+    price = key.get("price")
+    out: list[str] = []
+    rvol_thr = BREAKOUT_RVOL_HINT
+    if price is not None:
+        out.append(f"a confirmed break of the {label} at {_money(price)} on ≥{rvol_thr:.1f}× volume")
+    else:
+        out.append(f"a confirmed break of the {label} on ≥{rvol_thr:.1f}× volume")
+    contribs = validation.get("contributions") or []
+    negs = [c for c in contribs if isinstance(c.get("delta"), (int, float)) and c["delta"] < 0]
+    if negs:
+        dom = min(negs, key=lambda c: c["delta"])
+        if dom.get("check") != "breakout_rvol":
+            phrase = _contrib_phrase(dom)
+            if phrase:
+                out.append(phrase)
+    return out
+
+
+def _latent(agent: str, signals: dict[str, Any]) -> tuple[int, float, list[str]] | None:
+    """A lens's *latent* resolution: the (direction, full-magnitude weight,
+    preconditions) it would take on if its underlying signal resolved decisively.
+    Returns None when the underlying data can't imply a direction."""
+    if agent == "volume":
+        obv = (signals.get("volume") or {}).get("obvSlopePct")
+        if not isinstance(obv, (int, float)) or obv == 0:
+            return None
+        if obv > 0:
+            return 1, _BASE_WEIGHT["volume"], ["OBV slope turning positive (accumulation)"]
+        return -1, _BASE_WEIGHT["volume"], ["OBV slope turning negative (distribution)"]
+    if agent == "trend":
+        trend = signals.get("trend") or {}
+        ma = trend.get("maStack")
+        slope = trend.get("slopePctPerYr")
+        cross = trend.get("crossState")
+        if ma == "bullish":
+            return 1, _BASE_WEIGHT["trend"], ["the 50/200-day MA stack holding bullish"]
+        if ma == "bearish":
+            return -1, _BASE_WEIGHT["trend"], ["the 50/200-day MA stack turning bearish"]
+        if isinstance(slope, (int, float)) and slope != 0:
+            if slope > 0:
+                return 1, _BASE_WEIGHT["trend"], ["the trend slope turning decisively up"]
+            return -1, _BASE_WEIGHT["trend"], ["the trend slope rolling over"]
+        if cross == "golden":
+            return 1, _BASE_WEIGHT["trend"], ["a 50/200 golden cross"]
+        if cross == "death":
+            return -1, _BASE_WEIGHT["trend"], ["a 50/200 death cross"]
+        return None
+    if agent == "structure":
+        s = str((signals.get("swing") or {}).get("structure") or "").lower()
+        if "uptrend" in s or "rising" in s:
+            return 1, _BASE_WEIGHT["structure"], ["structure confirming higher highs & higher lows"]
+        if "downtrend" in s or "falling" in s:
+            return -1, _BASE_WEIGHT["structure"], ["structure breaking to lower highs & lower lows"]
+        return None
+    if agent == "momentum":
+        momentum = signals.get("momentum") or {}
+        state = (momentum.get("macd") or {}).get("state")
+        rsi = momentum.get("rsi14")
+        if state == "bullish":
+            return 1, _BASE_WEIGHT["momentum"], ["MACD crossing bullish"]
+        if state == "bearish":
+            return -1, _BASE_WEIGHT["momentum"], ["MACD rolling over bearish"]
+        if isinstance(rsi, (int, float)):
+            if rsi >= 50:
+                return 1, _BASE_WEIGHT["momentum"], ["RSI reclaiming the 55 line"]
+            return -1, _BASE_WEIGHT["momentum"], ["RSI losing the 45 line"]
+        return None
+    if agent == "pattern":
+        lead = _pattern_lead(signals.get("patterns"))
+        if not lead:
+            return None
+        ptype = str(lead.get("type") or "neutral").lower()
+        direction = 1 if ptype == "bullish" else -1 if ptype == "bearish" else 0
+        if direction == 0:
+            return None
+        # A confirmed verdict keeps the pattern's own shape-confidence but drops the
+        # verdict discount (factor → 1.0), so the resolved weight matches the real
+        # _pattern_vote path: W_PATTERN × min(1, confidence).
+        conf = lead.get("confidence")
+        if not isinstance(conf, (int, float)):
+            validation = lead.get("validation") or {}
+            conf = validation.get("adjustedConfidence")
+            if not isinstance(conf, (int, float)):
+                conf = 0.5
+        weight = _BASE_WEIGHT["pattern"] * min(1.0, max(0.0, float(conf)))
+        return direction, weight, _pattern_preconditions(lead)
+    return None
+
+
+_LENS_LABEL = {
+    "trend": "Trend",
+    "structure": "Structure",
+    "momentum": "Momentum",
+    "pattern": "Pattern",
+    "volume": "Volume",
+}
+
+
+def _build_watch(
+    votes: list[dict[str, Any]],
+    signals: dict[str, Any],
+    score: float,
+    bias: str,
+) -> dict[str, Any] | None:
+    """Find the single highest-impact *pending* lens whose resolution would move
+    the fused bias into a new band, and phrase it precisely.
+
+    Only lenses not already pushing toward a more decisive read are candidates
+    (neutral or conflicting). Each is resolved to its full-magnitude *latent*
+    direction and re-scored on the identical fusion path. The signed Δscore says
+    whether the swing lifts the bias (a "Watch") or drops it (a "Risk"); clearing
+    a vetoed *bearish* pattern, for instance, drops confluence rather than lifting
+    it, so we never treat "veto cleared" as automatically bullish.
+    """
+    bias_sign = 1 if score > 0 else -1 if score < 0 else 0
+    candidates: list[dict[str, Any]] = []
+    for i, v in enumerate(votes):
+        # Skip lenses already agreeing with the bias — they aren't what's holding
+        # the verdict back from the next band.
+        if bias_sign != 0 and v["sign"] == bias_sign:
+            continue
+        lat = _latent(v["agent"], signals)
+        if lat is None:
+            continue
+        ldir, lweight, preconds = lat
+        if ldir == 0 or not preconds:
+            continue
+        cf_votes = [dict(x) for x in votes]
+        cf_votes[i] = {**v, "sign": int(ldir), "weight": round(max(0.0, lweight), 3)}
+        cf_score = _score_from_votes(cf_votes)
+        if cf_score is None:
+            continue
+        cf_bias = _bias_from_score(cf_score)
+        if cf_bias == bias:
+            # No band change → not a meaningful "watch".
+            continue
+        delta = cf_score - score
+        candidates.append({
+            "agent": v["agent"],
+            "direction": "up" if delta > 0 else "down",
+            "absDelta": abs(delta),
+            "nextBias": cf_bias,
+            "ifResolvedScore100": _score100(cf_score),
+            "preconditions": preconds,
+        })
+
+    if not candidates:
+        return None
+
+    # Prefer the strongest *constructive* (upward) catalyst — what to watch for to
+    # advance the bias. Only when nothing lifts the band do we surface the largest
+    # downside (a "Risk"). This is what keeps DFRYF's watch on the neutral Volume
+    # lens (OBV) rather than on "clearing" its bearish pattern veto (which drops it).
+    ups = [c for c in candidates if c["direction"] == "up"]
+    pool = ups if ups else candidates
+    best = max(pool, key=lambda c: c["absDelta"])
+
+    joined = " and ".join(best["preconditions"])
+    if best["direction"] == "up":
+        headline = f"Watch: {joined} would lift confluence to {best['nextBias']} (~{best['ifResolvedScore100']})."
+    else:
+        headline = f"Risk: {joined} would drop confluence to {best['nextBias']} (~{best['ifResolvedScore100']})."
+
+    return {
+        "limitingLens": _LENS_LABEL.get(best["agent"], best["agent"]),
+        "direction": best["direction"],
+        "nextBias": best["nextBias"],
+        "ifResolvedScore100": best["ifResolvedScore100"],
+        "preconditions": best["preconditions"],
+        "headline": headline,
+    }
+
+
 def compute_confluence(signals: dict[str, Any] | None) -> dict[str, Any] | None:
     """Fuse the technical lenses in ``signals`` into a single confluence verdict."""
     if not signals:
@@ -252,8 +511,9 @@ def compute_confluence(signals: dict[str, Any] | None) -> dict[str, Any] | None:
     total_weight = sum(v["weight"] for v in votes)
     if total_weight <= _EPS:
         return None
-    net = sum(v["sign"] * v["weight"] for v in votes)
-    score = max(-1.0, min(1.0, net / total_weight))
+    score = _score_from_votes(votes)
+    if score is None:
+        return None
     bias = _bias_from_score(score)
     bias_sign = 1 if score > 0 else -1 if score < 0 else 0
 
@@ -279,6 +539,7 @@ def compute_confluence(signals: dict[str, Any] | None) -> dict[str, Any] | None:
 
     summary = _summary(bias, strength, agreements, conflicts)
     message = _message(bias, agreements, conflicts)
+    watch = _build_watch(votes, signals, score, bias)
 
     return {
         "bias": bias,
@@ -296,6 +557,9 @@ def compute_confluence(signals: dict[str, Any] | None) -> dict[str, Any] | None:
         "stance": bias,
         "summary": summary,
         "message": message,
+        # Highest-impact pending condition that would move the bias to the next
+        # band (signed: a "Watch" lift or a "Risk" drop). Absent when nothing does.
+        "watch": watch,
     }
 
 
