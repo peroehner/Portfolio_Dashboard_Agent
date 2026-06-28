@@ -643,6 +643,32 @@
     .progress-fill.projected { background: var(--accent-2); }
     .progress-fill.personal { background: #a78bfa; }
     .progress-fill.roc { background: var(--warn); }
+    .progress-fill.simulation { background: var(--accent); }
+    .projection-row.simulation {
+      background: rgba(59, 130, 246, 0.08);
+      border-color: rgba(59, 130, 246, 0.28);
+    }
+    .projection-row.simulation .projection-label { color: var(--accent); }
+    .projection-subnote { margin-top: 0.45rem; font-size: 0.72rem; color: var(--muted); }
+    .sim-kpis { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
+    .sim-kpi {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.6rem 0.9rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      min-width: 130px;
+    }
+    .sim-kpi.lead { border-color: rgba(59, 130, 246, 0.45); background: rgba(59, 130, 246, 0.1); }
+    .sim-kpi-label { font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+    .sim-kpi-value { font-size: 1.05rem; font-weight: 700; }
+    .sim-kpi.lead .sim-kpi-value { font-size: 1.25rem; }
+    .sim-caption { margin-top: 0.6rem; font-size: 0.72rem; color: var(--muted); }
+    .sim-legs-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 0.35rem; }
+    .sim-warn { color: var(--warn); font-weight: 700; }
+    .sim-noqty { color: var(--muted); font-size: 0.82rem; }
     @media (max-width: 960px) {
       .overview-visuals-grid { grid-template-columns: 1fr; }
     }
@@ -2679,6 +2705,7 @@
     <button class="active" data-view="overview" onclick="showView('overview')">Summary</button>
     <button data-view="holdings" onclick="showView('holdings')">Holdings</button>
     <button data-view="screening" onclick="showView('screening')">Screening</button>
+    <button data-view="simulation" onclick="showView('simulation')">Simulation</button>
     <button data-view="portfolio" onclick="showView('portfolio')">Target</button>
     <button data-view="fib" onclick="showView('fib')">Patterns &amp; Tech Signals</button>
     <button data-view="inspector" onclick="showView('inspector')">Inspector</button>
@@ -2955,6 +2982,26 @@
     </div>
   </div>
 
+  <div id="view-simulation" class="view" hidden>
+    <div class="wide-panel">
+      <h2>Planned-Trade Simulation</h2>
+      <p class="empty" style="margin-top:0;">Totals cover the whole filtered list by default. ⌘/Ctrl-click a row to scope to just that symbol (toggle more to build a subset, Shift-click for a range); a plain click clears the selection back to the full list.</p>
+      <div id="simulationKpis" class="sim-kpis"></div>
+      <div class="screening-filter-bar">
+        <button type="button" class="secondary filter-btn active" data-sim-filter="all" onclick="setSimulationFilter('all')" title="All symbols that have at least one priced planned-trade threshold">All (with plans)</button>
+        <button type="button" class="secondary filter-btn" data-sim-filter="close" onclick="setSimulationFilter('close')" title="Nearest planned-trade threshold is within 10% of the current price (close to triggering)">Close Trades</button>
+        <button type="button" class="secondary filter-btn" data-sim-filter="far" onclick="setSimulationFilter('far')" title="Nearest planned-trade threshold is more than 100% from the current price (far from triggering)">Far Trades</button>
+        <span class="sim-legs-sep" aria-hidden="true"></span>
+        <button type="button" class="secondary filter-btn active" data-sim-legs="both" onclick="setSimulationLegs('both')" title="Include both buy and sell legs in the totals">Both</button>
+        <button type="button" class="secondary filter-btn" data-sim-legs="buys" onclick="setSimulationLegs('buys')" title="Only buy legs count toward the totals">Buys</button>
+        <button type="button" class="secondary filter-btn" data-sim-legs="sells" onclick="setSimulationLegs('sells')" title="Only sell legs count toward the totals">Sells</button>
+        <button type="button" class="success" style="margin-left:auto;" onclick="saveSimulationSnapshot()">Save to Summary</button>
+      </div>
+      <div id="simulationTable"></div>
+      <div class="sim-caption">assumes every boundary hits · ignores fees/taxes/slippage · flows, not a balance</div>
+    </div>
+  </div>
+
   <div id="view-fib" class="view" hidden>
     <div class="wide-panel">
       <div class="fib-map-header">
@@ -3022,6 +3069,9 @@
     let selectedSymbol = null;
     let targetCurrentPrice = null;
     let currentView = "overview";
+    // Latest portfolio market value (from /overview); used as the base for the
+    // planned-trade Simulation's projected valuation.
+    let portfolioMarketValue = null;
     let allocationChart = null;
     const ALLOCATION_COLORS = ["#3b82f6", "#22c55e", "#60a5fa", "#f97316", "#a78bfa", "#64748b"];
 
@@ -3148,6 +3198,7 @@
       if (name === "holdings") return loadHoldings();
       if (name === "portfolio") return loadPortfolio();
       if (name === "screening") return loadScreening();
+      if (name === "simulation") return loadSimulation();
       if (name === "fib") return loadFibMap();
       if (name === "inspector") return loadInspectorOptions();
       if (name === "fundamentals") return loadFundamentals();
@@ -3296,6 +3347,50 @@
     // all keyed by symbol) so a highlighted row survives switching between them.
     const tableSelectionGroup = { fundVal: "fundamentals", fundHealth: "fundamentals", fundRange: "fundamentals" };
     const selectionKeyFor = (tableId) => tableSelectionGroup[tableId] || tableId;
+
+    // Per-table multi-select (range via shift, toggle via meta/ctrl), keyed by
+    // tableId so each table keeps its own independent selection + anchor. Holdings
+    // and Simulation both register here; behavior matches the original Holdings
+    // shift-range / toggle UX exactly.
+    const multiSelection = {};
+    const multiAnchor = {};
+    const multiSelectConfig = {
+      holdings: { order: () => currentHoldingsOrder(), rerender: () => rerenderTable("holdings") },
+      // Simulation: a plain click clears the selection (scope = whole filtered list);
+      // Cmd/Ctrl-click is the toggle control that single-selects (or adds) rows so the
+      // user can scope the sim down to exactly one symbol.
+      simulation: { order: () => currentSimulationOrder(), rerender: () => renderSimulationView(), plainClickClears: true },
+    };
+
+    function getMultiSelection(tableId) {
+      return multiSelection[tableId] || (multiSelection[tableId] = new Set());
+    }
+
+    function handleMultiSelectClick(tableId, key, event) {
+      const config = multiSelectConfig[tableId];
+      if (!config) return;
+      const ordered = config.order();
+      const selection = getMultiSelection(tableId);
+      const anchor = multiAnchor[tableId];
+      if (event.shiftKey && anchor && ordered.includes(anchor) && ordered.includes(key)) {
+        const a = ordered.indexOf(anchor);
+        const b = ordered.indexOf(key);
+        const [lo, hi] = a <= b ? [a, b] : [b, a];
+        multiSelection[tableId] = new Set(ordered.slice(lo, hi + 1));
+      } else if (event.metaKey || event.ctrlKey) {
+        if (selection.size === 0) multiSelection[tableId] = new Set([key]);
+        else if (selection.has(key)) selection.delete(key);
+        else selection.add(key);
+        multiAnchor[tableId] = key;
+      } else if (config.plainClickClears) {
+        multiSelection[tableId] = new Set();
+        multiAnchor[tableId] = null;
+      } else {
+        multiSelection[tableId] = new Set([key]);
+        multiAnchor[tableId] = key;
+      }
+      config.rerender();
+    }
 
     function formatPercent(value) {
       if (value == null || value === "") return "—";
@@ -4403,6 +4498,9 @@
       if (tableId === "screening") {
         document.getElementById("screeningTable").innerHTML = renderScreeningTable(tableDataCache.screening || []);
       }
+      if (tableId === "simulation") {
+        renderSimulationView();
+      }
       if (tableId === "fib") {
         renderFibMapView();
       }
@@ -4449,14 +4547,16 @@
       return Math.min(100, Math.max(0, (value / maxValue) * 100));
     }
 
-    function renderProjectionRow(label, value, pct, barClass, barWidth) {
+    function renderProjectionRow(label, value, pct, barClass, barWidth, subnote = "") {
       const rowClass = barClass === "projected"
         ? " projected"
         : barClass === "personal"
           ? " personal"
           : barClass === "roc"
             ? " roc"
-            : "";
+            : barClass === "simulation"
+              ? " simulation"
+              : "";
       return `
         <div class="projection-row${rowClass}">
           <div class="projection-row-header">
@@ -4466,6 +4566,7 @@
           <div class="progress-track">
             <div class="progress-fill ${barClass}" style="width:${barWidth.toFixed(1)}%;"></div>
           </div>
+          ${subnote ? `<div class="projection-subnote">${subnote}</div>` : ""}
         </div>
       `;
     }
@@ -4481,7 +4582,15 @@
         return;
       }
 
-      const maxValue = Math.max(current, analyst || 0, personal || 0);
+      const simulation = data.simulation && data.simulation.projectedValuation != null
+        ? data.simulation
+        : null;
+      const maxValue = Math.max(
+        current,
+        analyst || 0,
+        personal || 0,
+        simulation ? simulation.projectedValuation : 0
+      );
       const rows = [
         renderProjectionRow(
           "Current Aggregated Valuation",
@@ -4523,6 +4632,22 @@
           data.totalProjectedRocPct,
           "roc",
           rocBarWidth
+        ));
+      }
+
+      if (simulation) {
+        const scope = simulation.scopeCount;
+        const savedLocal = formatLocalTs(simulation.savedAt);
+        const subnoteParts = ["assumes every boundary hits"];
+        if (savedLocal) subnoteParts.push(`saved ${savedLocal}`);
+        subnoteParts.push(`${scope} symbol${scope === 1 ? "" : "s"}`);
+        rows.push(renderProjectionRow(
+          "Projected Valuation if Planned Trades Execute",
+          simulation.projectedValuation,
+          simulation.projectedUpsidePct,
+          "simulation",
+          projectionBarWidth(simulation.projectedValuation, maxValue),
+          subnoteParts.join(" · ")
         ));
       }
 
@@ -4607,6 +4732,7 @@
 
     async function loadOverview() {
       const data = await api("/overview");
+      portfolioMarketValue = data.totalMarketValue ?? portfolioMarketValue;
       pricesAsOfIso = data.pricesAsOf || null;
       const gainYieldClass = (data.unrealizedGainPct ?? 0) < 0 ? "subvalue negative" : "subvalue";
       const analystYieldClass = (data.totalAnalystUpsidePct ?? 0) < 0 ? "subvalue negative" : "subvalue";
@@ -4999,13 +5125,14 @@
 
     async function loadHoldings() {
       const data = await api("/overview");
+      portfolioMarketValue = data.totalMarketValue ?? portfolioMarketValue;
       // Positions with actual shares drive the All/Large/Medium/Small filters;
       // tracked symbols without shares become the Watch-only list.
       holdingsRows = (data.holdings || []).filter((h) => (Number(h.quantity) || 0) > 0);
       holdingsWatchRows = buildWatchOnlyRows(data);
       const present = new Set([...holdingsRows, ...holdingsWatchRows].map((h) => h.symbol));
-      holdingsSelection = new Set([...holdingsSelection].filter((s) => present.has(s)));
-      if (holdingsAnchor && !present.has(holdingsAnchor)) holdingsAnchor = null;
+      multiSelection.holdings = new Set([...getMultiSelection("holdings")].filter((s) => present.has(s)));
+      if (multiAnchor.holdings && !present.has(multiAnchor.holdings)) multiAnchor.holdings = null;
       renderHoldingsView();
       if (selectedSymbol && present.has(selectedSymbol)) {
         await openHoldingsInspector(selectedSymbol, false);
@@ -5117,8 +5244,6 @@
       { key: "annualDividend", label: "Annual Div.", sortValue: (row) => row.annualDividend, render: (row) => formatMoney(row.annualDividend) },
     ];
 
-    let holdingsSelection = new Set();
-    let holdingsAnchor = null;
     let holdingsShowTotal = true;
     let holdingsFilter = "all";
     let holdingsRows = [];
@@ -5139,7 +5264,7 @@
         holdings,
         HOLDINGS_EMPTY_MESSAGES[holdingsFilter] || HOLDINGS_EMPTY_MESSAGES.all,
         {
-          selectedKeys: holdingsSelection,
+          selectedKeys: getMultiSelection("holdings"),
           footerHtml: holdingsShowTotal ? holdingsTotalsFooterHtml(holdings) : "",
         }
       );
@@ -5151,8 +5276,9 @@
 
     function holdingsTotalsFooterHtml(displayed = tableDataCache.holdings || []) {
       if (!displayed.length) return "";
-      const useSelection = holdingsSelection.size > 1;
-      const rows = useSelection ? displayed.filter((h) => holdingsSelection.has(h.symbol)) : displayed;
+      const holdingsSel = getMultiSelection("holdings");
+      const useSelection = holdingsSel.size > 1;
+      const rows = useSelection ? displayed.filter((h) => holdingsSel.has(h.symbol)) : displayed;
       const sumOf = (arr, key) => arr.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
       // Weight % and Gain % are always expressed as a share of the ENTIRE
       // portfolio value (all shares-holding positions, not just the filtered
@@ -5195,24 +5321,6 @@
         return `<td${cls}>${content}</td>`;
       }).join("");
       return `<tfoot><tr class="total-row">${cells}</tr></tfoot>`;
-    }
-
-    function handleHoldingsSelectClick(symbol, event) {
-      const ordered = currentHoldingsOrder();
-      if (event.shiftKey && holdingsAnchor && ordered.includes(holdingsAnchor) && ordered.includes(symbol)) {
-        const a = ordered.indexOf(holdingsAnchor);
-        const b = ordered.indexOf(symbol);
-        const [lo, hi] = a <= b ? [a, b] : [b, a];
-        holdingsSelection = new Set(ordered.slice(lo, hi + 1));
-      } else if (event.metaKey || event.ctrlKey) {
-        if (holdingsSelection.has(symbol)) holdingsSelection.delete(symbol);
-        else holdingsSelection.add(symbol);
-        holdingsAnchor = symbol;
-      } else {
-        holdingsSelection = new Set([symbol]);
-        holdingsAnchor = symbol;
-      }
-      rerenderTable("holdings");
     }
 
     function toggleHoldingsTotal(show) {
@@ -6002,6 +6110,385 @@
           renderFiltered(cache.data);
         }
       });
+    }
+
+    // ---- Planned-trade Simulation -------------------------------------------
+    // Pure client-side projection from the cached screening rows. Each symbol has
+    // up to two legs (below / above); a leg counts only when its threshold PRICE
+    // is set. Direction is sign-first on the SIGNED share field (>0 buy, <0 sell,
+    // null/0 defaults below→buy / above→sell). Cash uses the THRESHOLD price.
+    let simulationFilter = "all";
+    let simulationLegs = "both";
+
+    function hasPricedLeg(row) {
+      return row.tradeBelowPrice != null || row.tradeAbovePrice != null;
+    }
+
+    function evalTradeLeg(price, shares, side) {
+      if (price == null) return null;
+      let buy;
+      if (shares > 0) buy = true;
+      else if (shares < 0) buy = false;
+      else buy = side === "below";
+      const qty = shares ? Math.abs(shares) : 0;
+      return { side, price, qty, buy, qtyNotSet: !shares };
+    }
+
+    function computeTradePlan(rows, legFilter = "both") {
+      const keepLeg = (leg) =>
+        legFilter === "both" || (legFilter === "buys" ? leg.buy : !leg.buy);
+      const symbols = [];
+      let totalInvested = 0;
+      let totalGenerated = 0;
+      let buyLegs = 0;
+      let sellLegs = 0;
+      let oversellCount = 0;
+      let boughtMktDelta = 0;
+      let soldMktDelta = 0;
+      (rows || []).forEach((row) => {
+        const legs = [
+          evalTradeLeg(row.tradeBelowPrice, row.tradeBelowShares, "below"),
+          evalTradeLeg(row.tradeAbovePrice, row.tradeAboveShares, "above"),
+        ].filter((leg) => leg && keepLeg(leg));
+        if (!legs.length) return;
+        const currentPrice = Number(row.currentPrice) || 0;
+        let cashInvested = 0;
+        let cashGenerated = 0;
+        let sharesIn = 0;
+        let sharesOut = 0;
+        let qtyNotSet = false;
+        const buyLegList = [];
+        const sellLegList = [];
+        legs.forEach((leg) => {
+          if (leg.qtyNotSet) qtyNotSet = true;
+          if (leg.buy) {
+            cashInvested += leg.price * leg.qty;
+            sharesIn += leg.qty;
+            buyLegs += 1;
+            boughtMktDelta += leg.qty * currentPrice;
+            buyLegList.push(leg);
+          } else {
+            cashGenerated += leg.price * leg.qty;
+            sharesOut += leg.qty;
+            sellLegs += 1;
+            soldMktDelta += leg.qty * currentPrice;
+            sellLegList.push(leg);
+          }
+        });
+        const held = (row.holding && Number(row.holding.quantity)) || 0;
+        const oversell = sharesOut > held;
+        if (oversell) oversellCount += 1;
+        totalInvested += cashInvested;
+        totalGenerated += cashGenerated;
+        symbols.push({
+          symbol: row.symbol,
+          currentPrice: row.currentPrice,
+          tradeBelowPrice: row.tradeBelowPrice,
+          tradeAbovePrice: row.tradeAbovePrice,
+          tradeBelowShares: row.tradeBelowShares,
+          tradeAboveShares: row.tradeAboveShares,
+          held,
+          cashInvested,
+          cashGenerated,
+          netCash: cashGenerated - cashInvested,
+          sharesIn,
+          sharesOut,
+          netShares: sharesIn - sharesOut,
+          oversell,
+          qtyNotSet,
+          buyLegList,
+          sellLegList,
+        });
+      });
+      return {
+        symbols,
+        totalInvested,
+        totalGenerated,
+        netCashFlow: totalGenerated - totalInvested,
+        buyLegs,
+        sellLegs,
+        oversellCount,
+        boughtMktDelta,
+        soldMktDelta,
+        scopeCount: symbols.length,
+      };
+    }
+
+    // Marked-to-current ending valuation: current value + net cash realized +
+    // (shares bought − shares sold) valued at current price.
+    function simulationProjection(plan, marketValue) {
+      const base = Number(marketValue);
+      const projectedValuation = Number.isFinite(base)
+        ? base + plan.netCashFlow + plan.boughtMktDelta - plan.soldMktDelta
+        : null;
+      const projectedUpsidePct =
+        projectedValuation != null && base
+          ? ((projectedValuation - base) / base) * 100
+          : null;
+      return { projectedValuation, projectedUpsidePct };
+    }
+
+    function simQty(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "—";
+      return Number.isInteger(n) ? String(n) : n.toFixed(2);
+    }
+
+    function simLegCell(legs) {
+      if (!legs || !legs.length) return "—";
+      return legs
+        .map((leg) => {
+          const qty = leg.qty
+            ? `×${simQty(leg.qty)}`
+            : `<span class="sim-noqty" title="priced leg has no share quantity set (contributes $0)">×0</span>`;
+          return `${formatMoney(leg.price)} ${qty}`;
+        })
+        .join(" + ");
+    }
+
+    function renderSimulationSharesCell(value) {
+      if (!value) return "0";
+      const positive = value > 0;
+      const color = positive ? "#22c55e" : "#ef4444";
+      const cls = positive ? "gain-pos" : "gain-neg";
+      const sign = positive ? "+" : "−";
+      return `<span class="${cls}" style="color:${color};font-weight:600;">${sign}${simQty(Math.abs(value))}</span>`;
+    }
+
+    function simWarnCell(row) {
+      const marks = [];
+      if (row.oversell) {
+        marks.push(`<span class="sim-warn" title="planned sell exceeds shares held (a paired buy leg may cover it)">⚠</span>`);
+      }
+      if (row.qtyNotSet) {
+        marks.push(`<span class="sim-noqty" title="a priced leg has no share quantity set (contributes $0)">$0</span>`);
+      }
+      return marks.length ? marks.join(" ") : "—";
+    }
+
+    // Nearest planned-trade threshold among the legs INCLUDED by the active leg
+    // filter (buyLegList/sellLegList already honor Buys/Sells/Both): its distance
+    // %, whether it's a buy/sell leg, and the threshold price.
+    function simClosestMeta(row) {
+      const price = row.currentPrice;
+      if (price == null || price === 0) return null;
+      const legs = [...(row.buyLegList || []), ...(row.sellLegList || [])]
+        .filter((leg) => leg && leg.price != null);
+      if (!legs.length) return null;
+      let best = null;
+      legs.forEach((leg) => {
+        const dist = Math.abs(leg.price - price) / price * 100;
+        if (best == null || dist < best.dist) best = { dist, isBuy: !!leg.buy, threshold: leg.price };
+      });
+      return best;
+    }
+
+    const simulationColumns = [
+      { key: "symbol", label: "Symbol", rowKey: true, help: "Ticker with at least one priced planned-trade threshold. Click to open it in the Target view.", sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
+      { key: "cashInvested", label: "Invested", sortValue: (row) => row.cashInvested, render: (row) => (row.cashInvested ? formatMoney(row.cashInvested) : "—") },
+      { key: "buy", label: "Buy @ ×Sh", sortValue: (row) => row.cashInvested, render: (row) => simLegCell(row.buyLegList) },
+      { key: "sell", label: "Sell @ ×Sh", sortValue: (row) => row.cashGenerated, render: (row) => simLegCell(row.sellLegList) },
+      { key: "closePct", label: "Close %", help: "Percent distance from the current price to the nearest planned-trade threshold among the legs in the active Buys/Sells/Both filter (smaller = closer to triggering), with the leg direction — ▼ buy / ▲ sell. Sort ascending to surface the trades about to fire.", sortValue: (row) => { const m = simClosestMeta(row); return m ? m.dist : Infinity; }, render: (row) => {
+        const m = simClosestMeta(row);
+        if (!m) return "—";
+        const color = m.isBuy ? "var(--accent-2)" : "#fb923c";
+        const title = `Nearest: ${m.isBuy ? "Buy" : "Sell"} @ ${formatMoney(m.threshold)} (${m.threshold < row.currentPrice ? "below" : "above"} price)`;
+        return `<span title="${title}"><span style="color:${color};font-weight:700;">${m.isBuy ? "▼" : "▲"}</span> ${m.dist.toFixed(1)}%</span>`;
+      } },
+      { key: "cashGenerated", label: "Generated", sortValue: (row) => row.cashGenerated, render: (row) => (row.cashGenerated ? formatMoney(row.cashGenerated) : "—") },
+      { key: "netCash", label: "Net Cash", sortValue: (row) => row.netCash, render: (row) => renderColoredMoneyCell(row.netCash) },
+      { key: "netShares", label: "Net Shares", sortValue: (row) => row.netShares, render: (row) => renderSimulationSharesCell(row.netShares) },
+      { key: "held", label: "Held", sortValue: (row) => row.held, render: (row) => (row.held ? simQty(row.held) : "—") },
+      { key: "warn", label: "⚠", help: "⚠ = planned sell exceeds shares held (a paired buy leg may cover it). $0 = a priced leg has no share quantity set.", sortValue: (row) => (row.oversell ? 1 : 0) + (row.qtyNotSet ? 0.5 : 0), render: (row) => simWarnCell(row) },
+    ];
+
+    // Leg-aware nearest-threshold distance for a raw screening row, honoring the
+    // active Buys/Sells/Both leg filter — mirrors simClosestMeta (Close % column)
+    // so the Close/Far chips and the Close % values can never disagree.
+    function simRowClosestDist(row, legFilter) {
+      const price = Number(row.currentPrice) || 0;
+      if (!price) return Infinity;
+      const keepLeg = (leg) =>
+        legFilter === "both" || (legFilter === "buys" ? leg.buy : !leg.buy);
+      const legs = [
+        evalTradeLeg(row.tradeBelowPrice, row.tradeBelowShares, "below"),
+        evalTradeLeg(row.tradeAbovePrice, row.tradeAboveShares, "above"),
+      ].filter((leg) => leg && leg.price != null && keepLeg(leg));
+      if (!legs.length) return Infinity;
+      return Math.min(...legs.map((leg) => Math.abs(leg.price - price) / price * 100));
+    }
+
+    function simulationCandidates() {
+      const rows = (viewDataCache.screening.data || []).filter(hasPricedLeg);
+      if (simulationFilter === "close") {
+        return rows.filter((row) => simRowClosestDist(row, simulationLegs) <= TRADE_CLOSE_PCT);
+      }
+      if (simulationFilter === "far") {
+        return rows.filter((row) => {
+          const distance = simRowClosestDist(row, simulationLegs);
+          return Number.isFinite(distance) && distance > TRADE_FAR_PCT;
+        });
+      }
+      return rows;
+    }
+
+    function currentSimulationOrder() {
+      return sortRows("simulation", tableDataCache.simulation || [], simulationColumns).map((row) => row.symbol);
+    }
+
+    function simulationTotalsFooterHtml(plan, useSelection) {
+      if (!plan.symbols.length) return "";
+      const label = useSelection ? `TOTAL · ${plan.scopeCount} selected` : "TOTAL";
+      const totalNetShares = plan.symbols.reduce((acc, row) => acc + (Number(row.netShares) || 0), 0);
+      const cellByKey = {
+        symbol: `<strong>${label}</strong>`,
+        cashInvested: `<strong>${plan.totalInvested ? formatMoney(plan.totalInvested) : "—"}</strong>`,
+        cashGenerated: `<strong>${plan.totalGenerated ? formatMoney(plan.totalGenerated) : "—"}</strong>`,
+        netCash: `<strong>${renderColoredMoneyCell(plan.netCashFlow)}</strong>`,
+        netShares: `<strong>${renderSimulationSharesCell(totalNetShares)}</strong>`,
+        warn: plan.oversellCount ? `<strong>${plan.oversellCount} ⚠</strong>` : "",
+      };
+      const cells = simulationColumns
+        .map((col) => `<td>${cellByKey[col.key] ?? ""}</td>`)
+        .join("");
+      return `<tfoot><tr class="total-row">${cells}</tr></tfoot>`;
+    }
+
+    function renderSimulationKpis(plan, useSelection) {
+      const el = document.getElementById("simulationKpis");
+      if (!el) return;
+      const scopeLabel = `${plan.scopeCount} symbol${plan.scopeCount === 1 ? "" : "s"}${useSelection ? " selected" : ""}`;
+      el.innerHTML = `
+        <div class="sim-kpi lead">
+          <span class="sim-kpi-label">Net Cash Flow</span>
+          <span class="sim-kpi-value">${renderColoredMoneyCell(plan.netCashFlow)}</span>
+        </div>
+        <div class="sim-kpi">
+          <span class="sim-kpi-label">Total Invested</span>
+          <span class="sim-kpi-value">${formatMoney(plan.totalInvested)}</span>
+        </div>
+        <div class="sim-kpi">
+          <span class="sim-kpi-label">Total Generated</span>
+          <span class="sim-kpi-value">${formatMoney(plan.totalGenerated)}</span>
+        </div>
+        <div class="sim-kpi">
+          <span class="sim-kpi-label">Buys / Sells</span>
+          <span class="sim-kpi-value">${plan.buyLegs} / ${plan.sellLegs}</span>
+        </div>
+        <div class="sim-kpi">
+          <span class="sim-kpi-label">⚠ Oversell</span>
+          <span class="sim-kpi-value">${plan.oversellCount}</span>
+        </div>
+        <div class="sim-kpi">
+          <span class="sim-kpi-label">Scope</span>
+          <span class="sim-kpi-value">${scopeLabel}</span>
+        </div>
+      `;
+    }
+
+    function updateSimulationFilterButtons() {
+      document.querySelectorAll("#view-simulation [data-sim-filter]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.simFilter === simulationFilter);
+      });
+      document.querySelectorAll("#view-simulation [data-sim-legs]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.simLegs === simulationLegs);
+      });
+    }
+
+    function renderSimulationView() {
+      const tableEl = document.getElementById("simulationTable");
+      if (!tableEl) return;
+      updateSimulationFilterButtons();
+      const candidates = simulationCandidates();
+      const tablePlan = computeTradePlan(candidates, simulationLegs);
+      // Scope rule: any selection (≥1 row) → simulate just that subset; no
+      // selection → simulate the full filtered set. A plain click clears the
+      // selection (whole list); Cmd/Ctrl-click selects a single row.
+      const selection = getMultiSelection("simulation");
+      const present = new Set(tablePlan.symbols.map((row) => row.symbol));
+      const scoped = new Set([...selection].filter((symbol) => present.has(symbol)));
+      const useSelection = scoped.size >= 1;
+      const scopeRows = useSelection
+        ? candidates.filter((row) => scoped.has(row.symbol))
+        : candidates;
+      const scopedPlan = computeTradePlan(scopeRows, simulationLegs);
+      renderSimulationKpis(scopedPlan, useSelection);
+      tableEl.innerHTML = renderSortableTable(
+        "simulation",
+        simulationColumns,
+        tablePlan.symbols,
+        "No symbols with planned trades in this filter.",
+        {
+          selectedKeys: selection,
+          footerHtml: simulationTotalsFooterHtml(scopedPlan, useSelection),
+        }
+      );
+    }
+
+    function setSimulationFilter(filter) {
+      simulationFilter = filter || "all";
+      renderSimulationView();
+    }
+
+    function setSimulationLegs(legs) {
+      simulationLegs = legs || "both";
+      renderSimulationView();
+    }
+
+    async function loadSimulation() {
+      const cache = viewDataCache.screening;
+      const now = Date.now();
+      if (!(cache.data && now - cache.fetchedAt < VIEW_CACHE_TTL_MS)) {
+        const data = await api("/screen");
+        cache.query = "";
+        cache.data = data.results;
+        cache.fetchedAt = now;
+      }
+      const present = new Set((cache.data || []).filter(hasPricedLeg).map((row) => row.symbol));
+      multiSelection.simulation = new Set([...getMultiSelection("simulation")].filter((symbol) => present.has(symbol)));
+      if (multiAnchor.simulation && !present.has(multiAnchor.simulation)) multiAnchor.simulation = null;
+      renderSimulationView();
+    }
+
+    async function saveSimulationSnapshot() {
+      try {
+        const candidates = simulationCandidates();
+        const selection = getMultiSelection("simulation");
+        const tablePlan = computeTradePlan(candidates, simulationLegs);
+        const present = new Set(tablePlan.symbols.map((row) => row.symbol));
+        const scoped = new Set([...selection].filter((symbol) => present.has(symbol)));
+        const useSelection = scoped.size >= 1;
+        const scopeRows = useSelection
+          ? candidates.filter((row) => scoped.has(row.symbol))
+          : candidates;
+        const plan = computeTradePlan(scopeRows, simulationLegs);
+        if (!plan.symbols.length) {
+          setStatus("Nothing to save — no symbols with planned trades in scope.", "error");
+          return;
+        }
+        let marketValue = portfolioMarketValue;
+        if (marketValue == null) {
+          const overview = await api("/overview");
+          marketValue = overview.totalMarketValue;
+          portfolioMarketValue = marketValue ?? portfolioMarketValue;
+        }
+        const projection = simulationProjection(plan, marketValue);
+        const payload = {
+          projectedValuation: projection.projectedValuation,
+          projectedUpsidePct: projection.projectedUpsidePct,
+          netCashFlow: plan.netCashFlow,
+          totalInvested: plan.totalInvested,
+          totalGenerated: plan.totalGenerated,
+          buyLegs: plan.buyLegs,
+          sellLegs: plan.sellLegs,
+          oversellCount: plan.oversellCount,
+          scopeCount: plan.scopeCount,
+        };
+        await api("/simulation/snapshot", { method: "POST", body: JSON.stringify(payload) });
+        setStatus(`Saved simulation snapshot (${plan.scopeCount} symbols) to Summary.`, "success");
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
     }
 
     async function loadFibMap(force = false) {
@@ -7893,13 +8380,13 @@
       if (selectableRow && selectableRow.dataset.rowKey != null) {
         const table = selectableRow.closest("table.data");
         const tableId = table?.dataset.tableId;
-        if (tableId === "holdings") {
+        if (multiSelectConfig[tableId]) {
           const modifier = event.shiftKey || event.metaKey || event.ctrlKey;
           // Modifier+click is selection-only (suppress Inspector nav + text
           // selection); a plain click on the symbol still opens the Inspector
           // AND single-selects.
           if (modifier) event.preventDefault();
-          handleHoldingsSelectClick(selectableRow.dataset.rowKey, event);
+          handleMultiSelectClick(tableId, selectableRow.dataset.rowKey, event);
           return;
         } else if (tableId) {
           tableSelection[selectionKeyFor(tableId)] = selectableRow.dataset.rowKey;

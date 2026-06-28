@@ -23,6 +23,9 @@ class OverviewService:
         self.holdings_service = HoldingsService()
         self.alerts_service = AlertsService()
         self.assessment_service = AssessmentService()
+        from services.simulation_service import SimulationService
+
+        self.simulation_service = SimulationService()
 
     def _best_performer(
         self,
@@ -254,6 +257,7 @@ class OverviewService:
             "activeAlerts": len(alerts),
             "bestPerformer": self._best_performer(overall_candidates),
             "bestYtdPerformer": self._best_performer(ytd_candidates),
+            "simulation": self.simulation_service.get_snapshot(),
             "alerts": alerts[:5],
             "latestAssessments": assessments,
             "holdings": holdings,

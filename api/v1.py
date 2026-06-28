@@ -16,6 +16,7 @@ from services import news_relevance_service
 from services.overview_service import OverviewService
 from services.portfolio_service import PortfolioService
 from services.screening_service import ScreeningService
+from services.simulation_service import SimulationService
 from services.technical_service import TechnicalService
 from services.track_record_service import TrackRecordService
 from services.llm_client import LLMClient
@@ -31,6 +32,7 @@ holdings_service = HoldingsService()
 import_service = ImportService()
 overview_service = OverviewService()
 screening_service = ScreeningService()
+simulation_service = SimulationService()
 inspector_service = InspectorService()
 fundamentals_service = FundamentalsService()
 technical_service = TechnicalService()
@@ -271,6 +273,17 @@ def get_portfolio():
 @v1_bp.route("/overview", methods=["GET"])
 def get_overview():
     return jsonify(overview_service.get_overview())
+
+
+@v1_bp.route("/simulation/snapshot", methods=["GET"])
+def get_simulation_snapshot():
+    return jsonify({"simulation": simulation_service.get_snapshot()})
+
+
+@v1_bp.route("/simulation/snapshot", methods=["POST"])
+def save_simulation_snapshot():
+    data = request.get_json(silent=True) or {}
+    return jsonify({"simulation": simulation_service.save_snapshot(data)})
 
 
 @v1_bp.route("/import", methods=["POST"])

@@ -214,6 +214,13 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         value TEXT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS simulation_snapshots (
+        user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        payload JSONB NOT NULL,
+        saved_at TEXT NOT NULL DEFAULT app_now_text()
+    )
+    """,
 )
 
 # Indexes are created after the multi-user migration so that user_id exists on
