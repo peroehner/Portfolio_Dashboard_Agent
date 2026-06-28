@@ -1052,6 +1052,11 @@
       gap: 1rem;
       align-items: stretch;
     }
+    /* Holdings mini-inspector has no second top-row card, so the Recommendation
+       block spans the full inspector width (flush with the panels below). */
+    .inspector-top-row.inspector-top-row-single {
+      grid-template-columns: minmax(0, 1fr);
+    }
     .inspector-top-row .inspector-side-card,
     .inspector-top-row .inspector-holdings-card,
     .inspector-top-row .valuation-scoring {
@@ -1501,6 +1506,84 @@
       color: var(--muted);
       line-height: 1.45;
     }
+    .rec-summary-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.35rem 0.75rem;
+    }
+    .rec-summary-line .rec-summary-left,
+    .rec-summary-line .rec-summary-chips,
+    .rec-summary-line .rec-summary-stance {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      flex-wrap: wrap;
+    }
+    .rec-summary-line .rec-summary-left {
+      gap: 0.5rem;
+    }
+    .rec-summary-line .rec-summary-title {
+      margin: 0;
+      font-size: 0.95rem;
+      color: var(--text);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .rec-summary-stance-label {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.62rem;
+      font-weight: 600;
+    }
+    .rec-summary-stance-strength {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+    .rec-summary-body {
+      position: relative;
+      margin-top: 0.6rem;
+      cursor: pointer;
+    }
+    .rec-summary-scroll {
+      max-height: 14.4em;
+      overflow-y: auto;
+      padding-bottom: 0.4rem;
+    }
+    .rec-summary-body .rec-summary-lead {
+      font-weight: 600;
+      font-size: 0.84rem;
+      color: var(--text);
+      margin-bottom: 0.3rem;
+      line-height: 1.35;
+    }
+    .rec-summary-body p {
+      margin: 0;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+    /* Bottom fade hints there's more text to scroll; pointer-events:none so it
+       doesn't block the scrollbar or the container click-to-open affordance. */
+    .rec-summary-body::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 1.6em;
+      pointer-events: none;
+      background: linear-gradient(to bottom, rgba(36, 48, 68, 0) 0%, rgba(36, 48, 68, 0.92) 92%);
+    }
+    .rec-summary-body:hover .rec-summary-lead,
+    .rec-summary-body:focus-visible .rec-summary-lead {
+      text-decoration: underline;
+    }
+    .rec-summary-body:focus-visible {
+      outline: none;
+    }
     .valuation-scoring {
       margin-bottom: 1rem;
     }
@@ -1516,6 +1599,49 @@
     }
     @media (max-width: 760px) {
       .valuation-grid.valuation-inline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    /* Holdings mini-inspector — collapse the vertical space BETWEEN the stacked
+       cards (Recommendation / Valuation / Performance) without touching their
+       internal padding. Scoped so the main Inspector view is unaffected. */
+    #holdingsInspectorPanel .inspector-dashboard {
+      gap: 0.45rem;
+      margin-bottom: 0.45rem;
+    }
+    #holdingsInspectorPanel .inspector-dashboard > .inspector-top-row,
+    #holdingsInspectorPanel .inspector-dashboard > .inspector-side-card,
+    #holdingsInspectorPanel .inspector-dashboard > .valuation-scoring,
+    #holdingsInspectorPanel .inspector-dashboard > .inspector-chart-card {
+      margin-bottom: 0;
+    }
+    /* Holdings mini-inspector "Valuation & Scoring" — compressed to one dense
+       row of compact metrics with tighter padding/labels. */
+    #holdingsInspectorPanel .valuation-scoring {
+      padding: 0.7rem 0.85rem;
+    }
+    #holdingsInspectorPanel .valuation-scoring h3 {
+      margin-bottom: 0.45rem;
+    }
+    #holdingsInspectorPanel .valuation-grid.valuation-inline {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 0.4rem;
+    }
+    #holdingsInspectorPanel .valuation-grid.valuation-inline .valuation-metric {
+      padding: 0.35rem 0.5rem;
+    }
+    #holdingsInspectorPanel .valuation-grid.valuation-inline .valuation-metric .label {
+      font-size: 0.58rem;
+      margin-bottom: 0.1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #holdingsInspectorPanel .valuation-grid.valuation-inline .valuation-metric .value {
+      font-size: 0.82rem;
+    }
+    @media (max-width: 1100px) {
+      #holdingsInspectorPanel .valuation-grid.valuation-inline {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
     }
     .inspector-holdings-card .holdings-condensed {
       display: flex;
@@ -2324,6 +2450,52 @@
       font-weight: 600;
       white-space: nowrap;
     }
+    /* GAINS / TAX (and optional Unknown-Wins) presentation in the Simulation
+       KPI header card. */
+    .sim-kpi-gaintax { min-width: 175px; }
+    /* UNKNOWN-WINS sub-line inside the GAINS/TAX KPI card. */
+    .sim-gaintax-block {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      margin-top: 0.1rem;
+    }
+    .sim-gaintax-label {
+      font-size: 0.58rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .sim-gaintax-label sup {
+      font-size: 0.7em;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .sim-gaintax-value {
+      font-size: 0.82rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .sim-gaintax-tax {
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .sim-gaintax-unknown {
+      cursor: help;
+    }
+    .sim-gaintax-unknown .sim-gaintax-label,
+    .sim-gaintax-unknown .sim-gaintax-value {
+      color: #fb923c;
+    }
+    .sim-gains-derived {
+      cursor: help;
+    }
+    .sim-gains-approx {
+      color: var(--muted);
+      font-weight: 600;
+      margin-right: 0.1rem;
+    }
     .holdings-head {
       display: flex;
       align-items: center;
@@ -2702,14 +2874,14 @@
   </div>
 
   <nav class="tabs">
-    <button class="active" data-view="overview" onclick="showView('overview')">Summary</button>
-    <button data-view="holdings" onclick="showView('holdings')">Holdings</button>
-    <button data-view="screening" onclick="showView('screening')">Screening</button>
-    <button data-view="simulation" onclick="showView('simulation')">Simulation</button>
-    <button data-view="portfolio" onclick="showView('portfolio')">Target</button>
-    <button data-view="fib" onclick="showView('fib')">Patterns &amp; Tech Signals</button>
-    <button data-view="inspector" onclick="showView('inspector')">Inspector</button>
-    <button data-view="fundamentals" onclick="showView('fundamentals')">Fundamentals</button>
+    <button class="active" data-view="overview" onclick="showView('overview')" ondblclick="togglePreviousView()">Summary</button>
+    <button data-view="holdings" onclick="showView('holdings')" ondblclick="togglePreviousView()">Holdings</button>
+    <button data-view="screening" onclick="showView('screening')" ondblclick="togglePreviousView()">Screening</button>
+    <button data-view="simulation" onclick="showView('simulation')" ondblclick="togglePreviousView()">Simulation</button>
+    <button data-view="portfolio" onclick="showView('portfolio')" ondblclick="togglePreviousView()">Target</button>
+    <button data-view="fib" onclick="showView('fib')" ondblclick="togglePreviousView()">Patterns &amp; Tech Signals</button>
+    <button data-view="inspector" onclick="showView('inspector')" ondblclick="togglePreviousView()">Inspector</button>
+    <button data-view="fundamentals" onclick="showView('fundamentals')" ondblclick="togglePreviousView()">Fundamentals</button>
   </nav>
 
   <div id="view-overview" class="view">
@@ -2794,10 +2966,6 @@
     <section class="panel holdings-table-panel">
       <div class="holdings-head">
         <h2 class="section-title">Holdings</h2>
-        <label class="toggle-inline" title="Show a totals row at the bottom">
-          <input type="checkbox" id="holdingsShowTotal" checked onchange="toggleHoldingsTotal(this.checked)">
-          Show Total
-        </label>
       </div>
       <p class="empty" style="margin-top:0;">Click a symbol to inspect it. Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows; totals then apply to the selection.</p>
       <div class="holdings-filter-bar">
@@ -3068,7 +3236,11 @@
     };
     let selectedSymbol = null;
     let targetCurrentPrice = null;
-    let currentView = "overview";
+    // `currentView` starts null so the first showView() bootstrap renders even
+    // though the markup defaults to the Summary tab. `previousView` powers the
+    // double-click "toggle back to the last view" nav shortcut.
+    let currentView = null;
+    let previousView = null;
     // Latest portfolio market value (from /overview); used as the base for the
     // planned-trade Simulation's projected valuation.
     let portfolioMarketValue = null;
@@ -3206,6 +3378,10 @@
     }
 
     function showView(name) {
+      // Re-selecting the active view is a no-op so it doesn't clobber
+      // `previousView` (keeps the double-click toggle pair intact).
+      if (name === currentView) return;
+      previousView = currentView;
       currentView = name;
       document.querySelectorAll(".view").forEach((el) => el.hidden = true);
       document.getElementById(`view-${name}`).hidden = false;
@@ -3213,6 +3389,13 @@
         btn.classList.toggle("active", btn.dataset.view === name);
       });
       loadView(name);
+    }
+
+    // Double-clicking a nav tab flips back to the view you were on before the
+    // current one. Because the two single clicks of a double-click on the active
+    // tab are no-ops (see showView), the dblclick swaps current <-> previous.
+    function togglePreviousView() {
+      if (previousView) showView(previousView);
     }
 
     // ---- Auto-refresh (every 30s) -------------------------------------------
@@ -5244,7 +5427,6 @@
       { key: "annualDividend", label: "Annual Div.", sortValue: (row) => row.annualDividend, render: (row) => formatMoney(row.annualDividend) },
     ];
 
-    let holdingsShowTotal = true;
     let holdingsFilter = "all";
     let holdingsRows = [];
     let holdingsWatchRows = [];
@@ -5265,7 +5447,7 @@
         HOLDINGS_EMPTY_MESSAGES[holdingsFilter] || HOLDINGS_EMPTY_MESSAGES.all,
         {
           selectedKeys: getMultiSelection("holdings"),
-          footerHtml: holdingsShowTotal ? holdingsTotalsFooterHtml(holdings) : "",
+          footerHtml: holdingsTotalsFooterHtml(holdings),
         }
       );
     }
@@ -5321,11 +5503,6 @@
         return `<td${cls}>${content}</td>`;
       }).join("");
       return `<tfoot><tr class="total-row">${cells}</tr></tfoot>`;
-    }
-
-    function toggleHoldingsTotal(show) {
-      holdingsShowTotal = show;
-      rerenderTable("holdings");
     }
 
     function renderRecommendationChipRow(rec, { wrapperClass = "", bare = false } = {}) {
@@ -6054,6 +6231,7 @@
     // Client-side row filters (everything they need is already on each row).
     const TRADE_CLOSE_PCT = 10;
     const TRADE_FAR_PCT = 100;
+    const SIM_TAX_RATE = 0.26375; // est. German capital-gains tax on realized gains: 25% Abgeltungssteuer + 5.5% Soli
     function applyScreeningFilter(rows) {
       if (!rows) return [];
       if (screeningFilter === "upside") {
@@ -6145,6 +6323,9 @@
       let oversellCount = 0;
       let boughtMktDelta = 0;
       let soldMktDelta = 0;
+      let totalNetGains = 0;
+      let totalUnknownGains = 0;
+      let unknownGainsCount = 0;
       (rows || []).forEach((row) => {
         const legs = [
           evalTradeLeg(row.tradeBelowPrice, row.tradeBelowShares, "below"),
@@ -6180,6 +6361,42 @@
         if (oversell) oversellCount += 1;
         totalInvested += cashInvested;
         totalGenerated += cashGenerated;
+        // Realized gains from in-scope SELL legs, weighted by share-avg sell vs
+        // an effective cost/share. Cost basis comes from (a) the holding's avg
+        // cost when on file, else (b) the share-weighted planned BUY threshold
+        // (watch-only / plan-to-buy: you can only sell what you'd first buy),
+        // else (c) unknown → tracked as gross proceeds in UNKNOWN-WINS.
+        const costBasis = Number(row.holding?.costBasis);
+        const sellQty = sharesOut;
+        const avgSell = sellQty > 0 ? cashGenerated / sellQty : null;
+        let netGains = null;
+        let gainsBasis = "none";
+        let gainsCostPerShare = null;
+        if (sellQty > 0) {
+          let costPerShare = null;
+          let availableQty = 0;
+          if (Number.isFinite(costBasis)) {
+            costPerShare = costBasis;
+            availableQty = Infinity; // own the shares already
+            gainsBasis = "actual";
+          } else if (buyLegList.length > 0 && sharesIn > 0) {
+            costPerShare = cashInvested / sharesIn; // weighted avg buy threshold
+            availableQty = held + sharesIn; // can't realize on more than acquirable
+            gainsBasis = "derived";
+            gainsCostPerShare = costPerShare;
+          }
+          if (costPerShare != null) {
+            const taxableQty = Math.min(sellQty, availableQty);
+            netGains = (avgSell - costPerShare) * taxableQty;
+            totalNetGains += netGains;
+          } else {
+            // Sells exist but no cost basis and no buy leg to imply one → can't
+            // compute/tax. Surface gross sell proceeds as "unknown wins".
+            totalUnknownGains += cashGenerated;
+            unknownGainsCount += 1;
+            gainsBasis = "unknown";
+          }
+        }
         symbols.push({
           symbol: row.symbol,
           currentPrice: row.currentPrice,
@@ -6191,6 +6408,9 @@
           cashInvested,
           cashGenerated,
           netCash: cashGenerated - cashInvested,
+          netGains,
+          gainsBasis,
+          gainsCostPerShare,
           sharesIn,
           sharesOut,
           netShares: sharesIn - sharesOut,
@@ -6205,6 +6425,9 @@
         totalInvested,
         totalGenerated,
         netCashFlow: totalGenerated - totalInvested,
+        totalNetGains,
+        totalUnknownGains,
+        unknownGainsCount,
         buyLegs,
         sellLegs,
         oversellCount,
@@ -6255,6 +6478,16 @@
       return `<span class="${cls}" style="color:${color};font-weight:600;">${sign}${simQty(Math.abs(value))}</span>`;
     }
 
+    // Net Gains cell. When the cost basis was derived from the planned buy
+    // threshold (watch-only), flag it with a subtle ≈ marker + tooltip so the
+    // gain reads as an estimate rather than a realized figure on owned shares.
+    function renderSimNetGainsCell(row) {
+      const base = renderColoredMoneyCell(row.netGains);
+      if (row.netGains == null || row.gainsBasis !== "derived") return base;
+      const cps = formatMoney(row.gainsCostPerShare);
+      return `<span class="sim-gains-derived" title="Cost basis assumed from planned buy threshold (${cps}/sh) — no average cost on file"><span class="sim-gains-approx">≈</span>${base}</span>`;
+    }
+
     function simWarnCell(row) {
       const marks = [];
       if (row.oversell) {
@@ -6297,6 +6530,7 @@
       } },
       { key: "cashGenerated", label: "Generated", sortValue: (row) => row.cashGenerated, render: (row) => (row.cashGenerated ? formatMoney(row.cashGenerated) : "—") },
       { key: "netCash", label: "Net Cash", sortValue: (row) => row.netCash, render: (row) => renderColoredMoneyCell(row.netCash) },
+      { key: "netGains", label: "Net Gains", help: "Realized gain on the in-scope SELL legs = (avg sell price − cost/share) × shares sold. Cost/share is the holding's average cost when on file, otherwise the share-weighted planned BUY threshold (≈, watch-only). Shows — when there are no in-scope sells, or sells with neither a cost basis nor a buy leg to imply one (those proceeds appear under UNKNOWN-WINS).", sortValue: (row) => (row.netGains == null ? -Infinity : row.netGains), render: (row) => renderSimNetGainsCell(row) },
       { key: "netShares", label: "Net Shares", sortValue: (row) => row.netShares, render: (row) => renderSimulationSharesCell(row.netShares) },
       { key: "held", label: "Held", sortValue: (row) => row.held, render: (row) => (row.held ? simQty(row.held) : "—") },
       { key: "warn", label: "⚠", help: "⚠ = planned sell exceeds shares held (a paired buy leg may cover it). $0 = a priced leg has no share quantity set.", sortValue: (row) => (row.oversell ? 1 : 0) + (row.qtyNotSet ? 0.5 : 0), render: (row) => simWarnCell(row) },
@@ -6340,11 +6574,15 @@
       if (!plan.symbols.length) return "";
       const label = useSelection ? `TOTAL · ${plan.scopeCount} selected` : "TOTAL";
       const totalNetShares = plan.symbols.reduce((acc, row) => acc + (Number(row.netShares) || 0), 0);
+      // Plain Net Gains total — the GAINS/TAX + UNKNOWN-WINS breakdown now lives
+      // in the KPI header card. Show — when nothing was computable.
+      const anyGains = plan.symbols.some((row) => row.netGains != null);
       const cellByKey = {
         symbol: `<strong>${label}</strong>`,
         cashInvested: `<strong>${plan.totalInvested ? formatMoney(plan.totalInvested) : "—"}</strong>`,
         cashGenerated: `<strong>${plan.totalGenerated ? formatMoney(plan.totalGenerated) : "—"}</strong>`,
         netCash: `<strong>${renderColoredMoneyCell(plan.netCashFlow)}</strong>`,
+        netGains: `<strong>${anyGains ? renderColoredMoneyCell(plan.totalNetGains) : "—"}</strong>`,
         netShares: `<strong>${renderSimulationSharesCell(totalNetShares)}</strong>`,
         warn: plan.oversellCount ? `<strong>${plan.oversellCount} ⚠</strong>` : "",
       };
@@ -6358,6 +6596,20 @@
       const el = document.getElementById("simulationKpis");
       if (!el) return;
       const scopeLabel = `${plan.scopeCount} symbol${plan.scopeCount === 1 ? "" : "s"}${useSelection ? " selected" : ""}`;
+      // GAINS / TAX KPI: computable realized gains + est. tax, with an optional
+      // amber UNKNOWN-WINS sub-line for sells lacking a derivable cost basis.
+      const anyGains = plan.symbols.some((row) => row.netGains != null);
+      const unknownGains = Number(plan.totalUnknownGains) || 0;
+      const taxEst = SIM_TAX_RATE * Math.max(plan.totalNetGains, 0);
+      const gainsValue = anyGains
+        ? `${renderColoredMoneyCell(plan.totalNetGains)} <span class="sim-gaintax-tax">(${formatMoney(taxEst)})</span>`
+        : "—";
+      const unknownLine = unknownGains > 0
+        ? `<span class="sim-gaintax-block sim-gaintax-unknown" title="${plan.unknownGainsCount} symbol(s) have sell legs but no cost basis on file, so their realized gain can't be computed or taxed — shown here as gross sell proceeds. Add an average cost per share to include them in Gains/Tax.">`
+          + `<span class="sim-gaintax-label">UNKNOWN-WINS</span>`
+          + `<span class="sim-gaintax-value">${formatMoney(unknownGains)}</span>`
+          + `</span>`
+        : "";
       el.innerHTML = `
         <div class="sim-kpi lead">
           <span class="sim-kpi-label">Net Cash Flow</span>
@@ -6382,6 +6634,11 @@
         <div class="sim-kpi">
           <span class="sim-kpi-label">Scope</span>
           <span class="sim-kpi-value">${scopeLabel}</span>
+        </div>
+        <div class="sim-kpi sim-kpi-gaintax">
+          <span class="sim-kpi-label">GAINS / TAX<sup>est</sup></span>
+          <span class="sim-kpi-value">${gainsValue}</span>
+          ${unknownLine}
         </div>
       `;
     }
@@ -7044,6 +7301,67 @@
       return panelId === "holdingsInspectorPanel";
     }
 
+    // Compressed Recommendation block for the Holdings mini-inspector. Reuses the
+    // same chip rendering as the full Recommendation card and the Confluence bias
+    // chip for Tech Stance on a single top line, then shows the recommendation
+    // narrative (headline + rationale) in a capped, scrollable, clickable area.
+    function renderInspectorRecSummary(data) {
+      const rec = data.recommendation || {};
+      const conf = data.confluence || {};
+      const advisory = data.technicalAdvisory || {};
+      const hasRec = !!(rec.action || rec.headline || rec.sentiment || rec.confidence);
+      const pills = hasRec
+        ? renderRecommendationChipRow(rec, { bare: true })
+        : `<span class="empty" style="font-size:0.78rem;">No recommendation yet</span>`;
+
+      let stanceChip;
+      if (conf.bias) {
+        const cls = CONFLUENCE_BIAS_CLASS[conf.bias] || "mixed";
+        const strength = conf.strength
+          ? `<span class="rec-summary-stance-strength">${escapeHtml(conf.strength)}</span>`
+          : "";
+        stanceChip = `<span class="confluence-bias conf-${cls}">${escapeHtml(conf.bias)}</span>${strength}`;
+      } else if (advisory.stance) {
+        stanceChip = `<span class="confluence-bias conf-mixed">${escapeHtml(advisory.stance)}</span>`;
+      } else {
+        stanceChip = "";
+      }
+
+      const headline = rec.headline ? String(rec.headline).trim() : "";
+      // Same prose the full Recommendation card renders (`.rec-rationale`),
+      // with a sensible fallback to the thesis text.
+      const rationale = (rec.rationale || rec.thesis || "").toString().trim();
+      const safeSymbol = String(data.symbol || "").replace(/'/g, "\\'");
+      const bodyInner = [
+        headline ? `<div class="rec-summary-lead">${escapeHtml(headline)}</div>` : "",
+        rationale ? `<p>${escapeHtml(rationale)}</p>` : "",
+      ].join("");
+      const bodyHtml = bodyInner
+        ? `<div class="rec-summary-body" role="button" tabindex="0" title="Open full Inspector"
+             onclick="openInspectorSymbol('${safeSymbol}')"
+             onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openInspectorSymbol('${safeSymbol}');}">
+             <div class="rec-summary-scroll">${bodyInner}</div>
+           </div>`
+        : "";
+
+      return `
+        <section class="inspector-side-card rec-summary">
+          <div class="rec-summary-line">
+            <span class="rec-summary-left">
+              <h3 class="rec-summary-title">Recommendation</h3>
+              <span class="rec-summary-chips">${pills}</span>
+            </span>
+            ${stanceChip
+              ? `<span class="rec-summary-stance">
+                   <span class="rec-summary-stance-label">Tech Stance</span>
+                   ${stanceChip}
+                 </span>`
+              : ""}
+          </div>
+          ${bodyHtml}
+        </section>`;
+    }
+
     function renderInspectorDashboard(data, panelId) {
       const isHoldingsPreview = isHoldingsInspectorPanel(panelId);
       const val = data.valuation || {};
@@ -7121,7 +7439,11 @@
               <div class="advisory-stance">Technical Stance: ${advisory.stance || "Unknown"}</div>
               <p>${advisory.message || "Insufficient technical data to assess support positioning."}</p>
             </section>`;
-      const topLeftCard = confluenceHtml || advisoryCard;
+      // Holdings mini-inspector shows a compressed Recommendation summary in the
+      // top slot instead of the Fib-only Technical Risk Advisory chip.
+      const topLeftCard = isHoldingsPreview
+        ? renderInspectorRecSummary(data)
+        : (confluenceHtml || advisoryCard);
       // Valuation metrics now fill the empty space inside the Holdings card (upper
       // row) rather than living in their own section below. P-Score was dropped.
       const valuationMetricsHtml = [
@@ -7139,7 +7461,7 @@
       return `
         ${setupHint}
         <div class="inspector-dashboard">
-          <div class="inspector-top-row">
+          <div class="inspector-top-row${isHoldingsPreview ? " inspector-top-row-single" : ""}">
             ${topLeftCard}
             ${isHoldingsPreview ? "" : renderInspectorHoldingsCard(data, valuationMetricsHtml)}
           </div>
