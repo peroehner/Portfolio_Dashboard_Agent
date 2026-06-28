@@ -2356,9 +2356,9 @@
     .bar-edge {
       position: absolute; top: 50%;
       transform: translateY(-50%);
-      font-size: 0.62rem; font-weight: 600; color: var(--muted);
+      font-size: 0.8rem; font-weight: 700; color: var(--text);
       white-space: nowrap; pointer-events: none;
-      background: var(--panel); padding: 0 2px; border-radius: 2px;
+      background: var(--panel); padding: 0 3px; border-radius: 2px;
       opacity: 0; transition: opacity 0.12s ease;
     }
     .bar-edge.low { left: 0; }
@@ -2448,8 +2448,9 @@
     .trade-band-label.center { color: var(--text); }
     .trade-band-edge {
       position: absolute; top: 28px;
-      font-size: 0.62rem; font-weight: 600; color: var(--muted);
+      font-size: 0.8rem; font-weight: 700; color: var(--text);
       white-space: nowrap; pointer-events: none;
+      background: var(--panel); padding: 0 3px; border-radius: 2px;
       opacity: 0; transition: opacity 0.12s ease;
     }
     .trade-band-edge.low { left: 0; }
@@ -7484,18 +7485,25 @@
       if (p == null) return "—";
       const pos = Math.max(0, Math.min(100, p));
       const pct = `${p.toFixed(0)}%`;
-      const low = formatMoney(fundVal(row, "priceRange", "low52w"));
-      const high = formatMoney(fundVal(row, "priceRange", "high52w"));
+      const lowNum = fundNum(fundVal(row, "priceRange", "low52w"));
+      const highNum = fundNum(fundVal(row, "priceRange", "high52w"));
+      const price = fundNum(row.currentPrice);
+      const low = formatMoney(lowNum);
+      const high = formatMoney(highNum);
+      const mid = (lowNum + highNum) / 2;
+      const dev = mid !== 0 ? ((price - mid) / mid) * 100 : null;
+      const midDelta = dev != null ? `${dev < 0 ? "▼" : "▲"}${Math.abs(dev).toFixed(1)}%` : null;
+      const title = [`Mid ${formatMoney(mid)}`, `Price ${formatMoney(price)}${midDelta ? ` (${midDelta})` : ""}`].join(" · ");
       // Keep the % label inside the cell: trail the marker on the left half,
       // lead it on the right half.
       const labelStyle = pos > 55
         ? `right:${(100 - pos).toFixed(2)}%; transform: translate(-9px, -50%); text-align:right;`
         : `left:${pos.toFixed(2)}%; transform: translate(9px, -50%);`;
-      return `<div class="range-bar" title="52W Low ${low} → 52W High ${high}">`
+      return `<div class="range-bar" title="${title}">`
         + `<div class="range-track"><div class="range-knob" style="left:${pos.toFixed(2)}%;"></div></div>`
         + `<span class="range-pct" style="${labelStyle}">${pct}</span>`
-        + `<span class="bar-edge low">52W Low ${low}</span>`
-        + `<span class="bar-edge high">52W High ${high}</span>`
+        + `<span class="bar-edge low">${low}</span>`
+        + `<span class="bar-edge high">${high}</span>`
         + `</div>`;
     }
 
@@ -7523,8 +7531,8 @@
         + `<div class="range-mean" style="left:${meanPos.toFixed(2)}%;"></div>`
         + `<div class="range-knob" style="left:${pricePos.toFixed(2)}%;"></div>`
         + `<span class="range-pct" style="${labelStyle} color:${color};">${label}</span>`
-        + `<span class="bar-edge low">Low ${formatMoney(low)}</span>`
-        + `<span class="bar-edge high">High ${formatMoney(high)}</span>`
+        + `<span class="bar-edge low">${formatMoney(low)}</span>`
+        + `<span class="bar-edge high">${formatMoney(high)}</span>`
         + `</div>`;
     }
 
