@@ -1,10 +1,25 @@
 import json
+import logging
 import os
 import time
 from typing import Any
 
 from db.database import get_connection, get_current_user_id
 from services.llm_client import LLMClient
+
+# Auto-synthesize a note the moment it is saved, so personal notes actually feed
+# assessments/recommendations instead of sitting unsynthesized forever. Default on;
+# set NOTE_AUTOSYNTH=0 to restore the old "synthesize only on explicit request"
+# behaviour. NOTE: the auto path only fires when a real LLM provider is configured
+# (see add_note) — with no key we skip and leave the note unsynthesized rather than
+# persist a low-value rules-extracted synthesis. Explicit synthesis (the Synthesize
+# button / backfill) still uses the deterministic rules fallback as before.
+NOTE_AUTOSYNTH = os.environ.get("NOTE_AUTOSYNTH", "1").lower() not in (
+    "0",
+    "false",
+    "no",
+    "off",
+)
 
 
 class NotesService:
@@ -70,6 +85,22 @@ class NotesService:
 
         note = self.get_note(symbol, note_id)
         assert note is not None
+
+        # Revive the notes->synthesis pipeline: synthesize on save so the note's
+        # structured guidance flows into _build_context (noteSyntheses) automatically.
+        # Gated on a real LLM provider so a no-key install behaves exactly like today
+        # (note left unsynthesized, unsynthesizedNoteCount preserved). Synthesis must
+        # never block note creation, so any failure is swallowed with a warning.
+        if NOTE_AUTOSYNTH and self.llm_client.active_provider() in ("openai", "gemini"):
+            try:
+                note = self.synthesize_note(symbol, note_id)
+            except Exception as exc:  # noqa: BLE001 - note is already saved; synthesis is best-effort
+                logging.warning(
+                    "Auto-synthesis failed for note %s (%s); leaving unsynthesized: %s",
+                    note_id,
+                    symbol,
+                    exc,
+                )
         return note
 
     def update_note(self, symbol: str, note_id: int, data: dict[str, Any]) -> dict[str, Any]:
@@ -168,6 +199,54 @@ class NotesService:
             else:
                 results.append(self.synthesize_note(symbol, note["id"], force=force, guidance=guidance))
         return results
+
+    def synthesize_unsynthesized_notes(
+        self, force: bool = False, guidance: str | None = None
+    ) -> dict[str, Any]:
+        """Backfill: synthesize every note for the CURRENT user that lacks a synthesis
+        (or all notes when ``force``). Reusable by the CLI backfill script / an admin
+        path. Uses the same provider+fallback rules as :meth:`synthesize_note`, with a
+        delay between calls to respect LLM rate limits. Returns a summary dict; never
+        raises on a single-note failure (it is recorded and the loop continues)."""
+        user_id = get_current_user_id()
+        with get_connection() as conn:
+            query = (
+                "SELECT id, symbol FROM notes WHERE user_id = %s ORDER BY symbol, id"
+                if force
+                else "SELECT id, symbol FROM notes WHERE user_id = %s AND synthesis IS NULL "
+                "ORDER BY symbol, id"
+            )
+            rows = conn.execute(query, (user_id,)).fetchall()
+
+        batch_delay = float(os.environ.get("NOTE_SYNTHESIS_BATCH_DELAY", "8"))
+        results: list[dict[str, Any]] = []
+        providers: dict[str, int] = {}
+        for index, row in enumerate(rows):
+            if index > 0:
+                time.sleep(batch_delay)
+            try:
+                note = self.synthesize_note(
+                    row["symbol"], row["id"], force=force, guidance=guidance
+                )
+                provider = note.get("synthesisProvider") or "unknown"
+                providers[provider] = providers.get(provider, 0) + 1
+                results.append(
+                    {"id": row["id"], "symbol": row["symbol"], "provider": provider, "ok": True}
+                )
+            except Exception as exc:  # noqa: BLE001 - keep backfilling the rest
+                logging.warning("Backfill synthesis failed for note %s (%s): %s",
+                                row["id"], row["symbol"], exc)
+                results.append(
+                    {"id": row["id"], "symbol": row["symbol"], "ok": False, "error": str(exc)[:200]}
+                )
+
+        return {
+            "candidates": len(rows),
+            "synthesized": sum(1 for r in results if r["ok"]),
+            "failed": sum(1 for r in results if not r["ok"]),
+            "providers": providers,
+            "results": results,
+        }
 
     def delete_note(self, symbol: str, note_id: int) -> bool:
         symbol = symbol.upper()
