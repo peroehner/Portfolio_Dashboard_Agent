@@ -116,8 +116,68 @@ class LLMClient:
             "provider": valid[0].get("provider", "mixed"),
         }
 
+    @staticmethod
+    def hard_trigger(context: dict[str, Any]) -> dict[str, Any] | None:
+        """Deterministic, unambiguous threshold events that MUST drive the action,
+        regardless of any LLM opinion.
+
+        Mirrors the two high-confidence branches of ``_rule_based_assessment``:
+        price at/above the user's sell-above level -> SELL; price at/below the
+        buy-below level -> BUY. These are the ONLY actions treated as authoritative.
+        Returns ``{action, confidence, reason}`` or ``None`` when nothing fired.
+
+        TODO(stale-threshold guard): a deferred item will down-rank ``confidence``
+        here when the crossed threshold looks stale (e.g. ``sell_above`` far below
+        the live price, as with pre-split GOOGL levels). Slot that adjustment in at
+        this single point so BOTH the rules-only and the LLM-nuanced paths inherit
+        it automatically.
+        """
+        price = context.get("currentPrice")
+        buy_below = context.get("buyBelow")
+        sell_above = context.get("sellAbove")
+        alert_types = {a.get("type") for a in (context.get("alerts") or [])}
+
+        if "sell_above" in alert_types or (
+            sell_above is not None and price is not None and price >= sell_above
+        ):
+            ref = f" ({sell_above})" if sell_above is not None else ""
+            return {
+                "action": "sell",
+                "confidence": "high",
+                "reason": f"price is at or above your sell-above threshold{ref}",
+            }
+        if "buy_below" in alert_types or (
+            buy_below is not None and price is not None and price <= buy_below
+        ):
+            ref = f" ({buy_below})" if buy_below is not None else ""
+            return {
+                "action": "buy",
+                "confidence": "high",
+                "reason": f"price is at or below your buy-below threshold{ref}",
+            }
+        return None
+
     def generate_assessment(self, context: dict[str, Any]) -> dict[str, Any]:
-        """Combined assessment from stored note syntheses + market/portfolio context."""
+        """Combined assessment from stored note syntheses + market/portfolio context.
+
+        Architecture (TASK C — rules authoritative for hard triggers, LLM for
+        nuance + explanation):
+
+          * A HARD trigger (price crossed buy-below/sell-above) is decided
+            deterministically by :meth:`hard_trigger`. When it fires, the final
+            ACTION is the rules action and the LLM may NOT override it — the LLM is
+            still called to write the rationale/nuance for that action (the trigger
+            is passed into the prompt as a hard constraint so the prose stays
+            coherent), but its action/confidence are discarded.
+          * When NO hard trigger fired, the LLM owns the graded action + confidence
+            + rationale exactly as before (valuation / technicals / news).
+          * When no LLM key is available, the same code path yields a pure-rules
+            assessment.
+
+        Every result carries an additive ``actionSource`` field describing what drove
+        the action: ``"rule_hard_trigger" | "llm" | "rules_fallback"``. (Additive only
+        — the persisted row shape is unchanged; consumers that ignore it still work.)
+        """
         note_syntheses = context.get("noteSyntheses") or []
         combined = self.aggregate_note_syntheses(context["symbol"], note_syntheses)
         context = {
@@ -126,24 +186,42 @@ class LLMClient:
             "unsynthesizedNoteCount": context.get("unsynthesizedNoteCount", 0),
         }
 
+        # Decide the unambiguous threshold event up front; this — not the LLM —
+        # owns the action whenever it is present.
+        hard = self.hard_trigger(context)
+
         provider = self.active_provider()
-        if provider == "openai":
+        if provider in ("openai", "gemini"):
             try:
-                return self._normalize_assessment(
-                    self._call_openai_assessment(context), provider="openai", combined=combined
+                raw = (
+                    self._call_openai_assessment(context, hard_trigger=hard)
+                    if provider == "openai"
+                    else self._call_gemini_assessment(context, hard_trigger=hard)
                 )
+                result = self._normalize_assessment(raw, provider=provider, combined=combined)
             except (RuntimeError, json.JSONDecodeError, KeyError, ValueError) as exc:
-                return self._fallback_assessment(context, combined, provider, exc)
-        if provider == "gemini":
-            try:
-                return self._normalize_assessment(
-                    self._call_gemini_assessment(context), provider="gemini", combined=combined
-                )
-            except (RuntimeError, json.JSONDecodeError, KeyError, ValueError) as exc:
-                return self._fallback_assessment(context, combined, provider, exc)
-        return self._normalize_assessment(
+                # LLM failed -> deterministic rules fallback (still honours the hard trigger,
+                # because _rule_based_assessment applies the same threshold branches first).
+                result = self._fallback_assessment(context, combined, provider, exc)
+                result["actionSource"] = "rule_hard_trigger" if hard else "rules_fallback"
+                return result
+
+            if hard is not None:
+                # Enforce the deterministic action/confidence over whatever the LLM
+                # returned; keep its rationale/factors as the explanation of conviction.
+                result["action"] = hard["action"]
+                result["confidence"] = hard["confidence"]
+                result["actionSource"] = "rule_hard_trigger"
+            else:
+                result["actionSource"] = "llm"
+            return result
+
+        # No LLM available: pure rules, identical output shape to before.
+        result = self._normalize_assessment(
             self._rule_based_assessment(context, combined), provider="rules", combined=combined
         )
+        result["actionSource"] = "rule_hard_trigger" if hard else "rules_fallback"
+        return result
 
     def _fallback_assessment(
         self,
@@ -223,12 +301,14 @@ class LLMClient:
         content = response["candidates"][0]["content"]["parts"][0]["text"]
         return json.loads(content)
 
-    def _call_openai_assessment(self, context: dict[str, Any]) -> dict[str, Any]:
+    def _call_openai_assessment(
+        self, context: dict[str, Any], hard_trigger: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         payload = {
             "model": self.openai_model,
             "messages": [
                 {"role": "system", "content": self._assessment_system_prompt()},
-                {"role": "user", "content": self._assessment_user_prompt(context)},
+                {"role": "user", "content": self._assessment_user_prompt(context, hard_trigger)},
             ],
             "temperature": 0.2,
             "response_format": {"type": "json_object"},
@@ -240,7 +320,9 @@ class LLMClient:
         )
         return json.loads(response["choices"][0]["message"]["content"])
 
-    def _call_gemini_assessment(self, context: dict[str, Any]) -> dict[str, Any]:
+    def _call_gemini_assessment(
+        self, context: dict[str, Any], hard_trigger: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
             f"{self.gemini_model}:generateContent?key={self.gemini_api_key}"
@@ -248,7 +330,9 @@ class LLMClient:
         payload = {
             "contents": [{
                 "parts": [{
-                    "text": self._assessment_system_prompt() + "\n\n" + self._assessment_user_prompt(context),
+                    "text": self._assessment_system_prompt()
+                    + "\n\n"
+                    + self._assessment_user_prompt(context, hard_trigger),
                 }],
             }],
             "generationConfig": {
@@ -607,10 +691,27 @@ class LLMClient:
             "Focus on evidence-based synthesis. Do not invent position-sizing rules."
         )
 
-    def _assessment_user_prompt(self, context: dict[str, Any]) -> str:
+    def _assessment_user_prompt(
+        self, context: dict[str, Any], hard_trigger: dict[str, Any] | None = None
+    ) -> str:
+        # When a hard threshold event has fired, the action is already decided; the
+        # LLM is constrained to explain conviction rather than re-pick the action.
+        constraint = ""
+        if hard_trigger:
+            action = hard_trigger["action"]
+            reason = hard_trigger.get("reason", "a price threshold was crossed")
+            constraint = (
+                "\n\nHARD CONSTRAINT — DO NOT VIOLATE: A deterministic threshold event has "
+                f'already decided the action as "{action}" because {reason}. Return '
+                f'"action": "{action}" EXACTLY and do not change it. Use "rationale" and '
+                '"factors" to explain the conviction behind this action given the '
+                "fundamentals, technicals, and news — explicitly note whether the broader "
+                "picture supports or cautions against it."
+            )
         return (
             "Produce a combined assessment for this symbol.\n\n"
             f"Context JSON:\n{json.dumps(context, indent=2)}"
+            f"{constraint}"
         )
 
     def _normalize_synthesis(self, result: dict[str, Any], provider: str) -> dict[str, Any]:

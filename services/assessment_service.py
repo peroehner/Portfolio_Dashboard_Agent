@@ -361,6 +361,10 @@ class AssessmentService:
         if result.get("llmFallback"):
             assessment["llmFallback"] = True
             assessment["llmError"] = result.get("llmError")
+        # Surface what drove the action (rule_hard_trigger | llm | rules_fallback).
+        # Additive only — there is no DB column, so it rides on the returned payload.
+        if result.get("actionSource"):
+            assessment["actionSource"] = result["actionSource"]
         assessment["context"] = context
         return assessment
 
