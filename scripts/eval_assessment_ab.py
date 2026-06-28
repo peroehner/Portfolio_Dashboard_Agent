@@ -170,13 +170,15 @@ def main() -> int:
             return svc._build_context(symbol_data), "full"
         except Exception as exc:  # noqa: BLE001 - eval must survive a bad symbol
             alerts = svc.alerts_service.list_alerts(symbol=symbol, status="active")
+            trade_below = symbol_data.get("tradeBelowPrice")
+            trade_above = symbol_data.get("tradeAbovePrice")
             minimal = {
                 "symbol": symbol,
                 "currentPrice": symbol_data.get("currentPrice"),
                 "targetPrice": symbol_data.get("targetPrice"),
                 "analystTarget1y": symbol_data.get("analystTarget1y"),
-                "buyBelow": symbol_data.get("buyBelow"),
-                "sellAbove": symbol_data.get("sellAbove"),
+                "buyBelow": trade_below if trade_below is not None else symbol_data.get("buyBelow"),
+                "sellAbove": trade_above if trade_above is not None else symbol_data.get("sellAbove"),
                 "alerts": alerts,
                 "noteSyntheses": [],
                 "screening": {},

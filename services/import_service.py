@@ -702,10 +702,19 @@ class ImportService:
             key = (date, source, text)
             if key in existing_keys:
                 continue
-            self.notes_service.add_note(
-                symbol,
-                {"text": str(text), "date": date, "source": source or "import"},
-            )
+            record = {"text": str(text), "date": date, "source": source or "import"}
+            synthesis = note.get("synthesis")
+            if synthesis:
+                record["synthesis"] = synthesis
+                record["synthesisProvider"] = (
+                    note.get("synthesisProvider") or note.get("synthesis_provider")
+                )
+                record["synthesizedAt"] = (
+                    note.get("synthesizedAt") or note.get("synthesized_at")
+                )
+                self.notes_service.import_note(symbol, record)
+            else:
+                self.notes_service.add_note(symbol, record)
             existing_keys.add(key)
             count += 1
         return count

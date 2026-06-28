@@ -343,6 +343,8 @@ def export_portfolio():
                     "source": n.get("source"),
                     "text": n.get("text"),
                     "synthesis": n.get("synthesis"),
+                    "synthesisProvider": n.get("synthesisProvider"),
+                    "synthesizedAt": n.get("synthesizedAt"),
                 }))
         position = {
             # Minimal core (always present, even if null, for easy editing)

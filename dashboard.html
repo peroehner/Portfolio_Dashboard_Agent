@@ -2435,6 +2435,15 @@
       white-space: nowrap; pointer-events: none;
     }
     .trade-band-label.center { color: var(--text); }
+    .trade-band-edge {
+      position: absolute; top: 28px;
+      font-size: 0.62rem; font-weight: 600; color: var(--muted);
+      white-space: nowrap; pointer-events: none;
+      opacity: 0; transition: opacity 0.12s ease;
+    }
+    .trade-band-edge.low { left: 0; }
+    .trade-band-edge.high { right: 0; }
+    .trade-band:hover .trade-band-edge { opacity: 1; }
     .trade-band-add {
       position: absolute; top: 11px;
       transform: translate(-50%, -50%);
@@ -5346,7 +5355,6 @@
     // true rounded % deviation written above it.
     function renderTradeBandCell(row) {
       const MAX_SPAN = 20;
-      const NEAR_PCT = 5;
       const HEAT_MAX = 15;
       const price = row.currentPrice;
       if (price == null) return `<span class="empty">—</span>`;
@@ -5382,17 +5390,14 @@
         const t = Math.max(0, Math.min(1, distPct / HEAT_MAX));
         return `hsl(${(t * 130).toFixed(0)}, 75%, 48%)`;
       };
-      const planText = (shares) => {
-        if (shares == null || Number(shares) === 0) return "";
-        const qty = Math.abs(Number(shares));
-        const qtyStr = Number.isInteger(qty) ? String(qty) : qty.toFixed(2);
-        return ` · plan ${Number(shares) > 0 ? "Buy" : "Sell"} ${qtyStr}`;
+      const deltaText = (threshold) => {
+        const pct = (threshold - price) / price * 100;
+        return `${pct < 0 ? "▼" : "▲"}${Math.abs(pct).toFixed(1)}%`;
       };
-      const statusText = (away, reached, off) =>
-        reached
-          ? "reached"
-          : (off ? `${Math.abs(away).toFixed(1)}% away, off-scale`
-                 : `${Math.abs(away).toFixed(1)}% away, ${Math.abs(away) <= NEAR_PCT ? "approaching" : "far"}`);
+      const sharesText = (shares) => {
+        if (shares == null || Number(shares) === 0) return "";
+        return Math.round(Math.abs(Number(shares))).toLocaleString("en-US");
+      };
 
       const below = row.tradeBelowPrice;
       const above = row.tradeAbovePrice;
@@ -5443,30 +5448,24 @@
       // Threshold bars: red = Below (lower bound), green = Above (upper bound).
       const titleLines = [];
       if (hasBelow) {
-        const away = (price - below) / price * 100;
-        const reached = price <= below;
         pieces.push(`<span class="trade-band-mark" style="left:${pBelow.toFixed(2)}%; background:#ef4444;"></span>`);
-        titleLines.push(`Below ${formatMoney(below)} (${statusText(away, reached)})${planText(row.tradeBelowShares)}`);
-      } else {
-        titleLines.push("Below: none set");
+        const sh = sharesText(row.tradeBelowShares);
+        titleLines.push(`Below ${formatMoney(below)} (${deltaText(below)})${sh ? ` · Buy ${sh}` : ""}`);
       }
 
       if (hasAbove) {
-        const away = (above - price) / price * 100;
-        const reached = price >= above;
         pieces.push(`<span class="trade-band-mark" style="left:${pAbove.toFixed(2)}%; background:#22c55e;"></span>`);
-        titleLines.push(`Above ${formatMoney(above)} (${statusText(away, reached)})${planText(row.tradeAboveShares)}`);
-      } else {
-        titleLines.push("Above: none set");
+        const sh = sharesText(row.tradeAboveShares);
+        titleLines.push(`Above ${formatMoney(above)} (${deltaText(above)})${sh ? ` · Sell ${sh}` : ""}`);
       }
 
-      titleLines.push(`(Range ${formatMoney(low)}-${formatMoney(high)})`);
-
-      const title = escapeHtml(titleLines.join(" · "));
+      const title = escapeHtml(titleLines.join("\n"));
       return `<div class="trade-band" title="${title}">`
         + pieces.join("")
         + `<div class="trade-band-knob" style="left:${pPrice.toFixed(2)}%;"></div>`
         + `<span class="trade-band-label center" style="left:${pPrice.toFixed(2)}%; transform:translateX(-50%);">${formatMoney(price)}</span>`
+        + `<span class="trade-band-edge low">${formatMoney(low)}</span>`
+        + `<span class="trade-band-edge high">${formatMoney(high)}</span>`
         + `</div>`;
     }
 

@@ -237,13 +237,18 @@ class AssessmentService:
         unsynthesized = sum(1 for note in notes if not note.get("synthesis"))
         enrichment = self.fundamentals_service.get_enrichment(symbol)
 
+        trade_below = symbol_data.get("tradeBelowPrice")
+        trade_above = symbol_data.get("tradeAbovePrice")
+        buy_below = trade_below if trade_below is not None else symbol_data.get("buyBelow")
+        sell_above = trade_above if trade_above is not None else symbol_data.get("sellAbove")
+
         return {
             "symbol": symbol,
             "currentPrice": symbol_data.get("currentPrice"),
             "targetPrice": symbol_data.get("targetPrice"),
             "analystTarget1y": symbol_data.get("analystTarget1y"),
-            "buyBelow": symbol_data.get("buyBelow"),
-            "sellAbove": symbol_data.get("sellAbove"),
+            "buyBelow": buy_below,
+            "sellAbove": sell_above,
             "noteSyntheses": note_syntheses,
             "unsynthesizedNoteCount": unsynthesized,
             "alerts": self.alerts_service.list_alerts(symbol=symbol, status="active"),

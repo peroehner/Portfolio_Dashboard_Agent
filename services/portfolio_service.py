@@ -71,6 +71,10 @@ class PortfolioService:
                         "analyst_target_1y", existing["analyst_target_1y"]
                     ),
                 }
+                if merged["trade_below_price"] is not None:
+                    merged["buy_below"] = merged["trade_below_price"]
+                if merged["trade_above_price"] is not None:
+                    merged["sell_above"] = merged["trade_above_price"]
                 conn.execute(
                     """
                     UPDATE symbols
@@ -96,6 +100,18 @@ class PortfolioService:
                     ),
                 )
             else:
+                trade_below_price = payload.get("trade_below_price")
+                trade_above_price = payload.get("trade_above_price")
+                buy_below = (
+                    trade_below_price
+                    if trade_below_price is not None
+                    else payload.get("buy_below")
+                )
+                sell_above = (
+                    trade_above_price
+                    if trade_above_price is not None
+                    else payload.get("sell_above")
+                )
                 conn.execute(
                     """
                     INSERT INTO symbols (
@@ -111,11 +127,11 @@ class PortfolioService:
                         symbol,
                         payload.get("current_price"),
                         payload.get("target_price"),
-                        payload.get("buy_below"),
-                        payload.get("sell_above"),
-                        payload.get("trade_below_price"),
+                        buy_below,
+                        sell_above,
+                        trade_below_price,
                         payload.get("trade_below_shares"),
-                        payload.get("trade_above_price"),
+                        trade_above_price,
                         payload.get("trade_above_shares"),
                         payload.get("annual_dividend"),
                         payload.get("analyst_target_1y"),

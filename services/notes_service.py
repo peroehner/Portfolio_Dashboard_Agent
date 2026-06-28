@@ -103,6 +103,58 @@ class NotesService:
                 )
         return note
 
+    def import_note(self, symbol: str, data: dict[str, Any]) -> dict[str, Any]:
+        """Insert a note verbatim, preserving any pre-computed synthesis.
+
+        Used by the importer so an Export -> Import round-trip is lossless: unlike
+        add_note this never auto-synthesizes (the synthesis is restored as-is from
+        the export payload), so no LLM call is made and the original synthesis is
+        not lost or regenerated.
+        """
+        symbol = symbol.upper()
+        self._ensure_symbol_exists(symbol)
+
+        text = (data.get("text") or "").strip()
+        if not text:
+            raise ValueError("Note text is required.")
+
+        synthesis = data.get("synthesis")
+        if isinstance(synthesis, (dict, list)):
+            synthesis_json = json.dumps(synthesis)
+        elif isinstance(synthesis, str) and synthesis.strip():
+            synthesis_json = synthesis
+        else:
+            synthesis_json = None
+
+        user_id = get_current_user_id()
+        with get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO notes (
+                    user_id, symbol, note_date, source, text,
+                    synthesis, synthesis_provider, synthesized_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    user_id,
+                    symbol,
+                    data.get("date") or data.get("note_date"),
+                    data.get("source"),
+                    text,
+                    synthesis_json,
+                    data.get("synthesisProvider") or data.get("synthesis_provider"),
+                    data.get("synthesizedAt") or data.get("synthesized_at"),
+                ),
+            )
+            note_id = cursor.fetchone()["id"]
+            conn.commit()
+
+        note = self.get_note(symbol, note_id)
+        assert note is not None
+        return note
+
     def update_note(self, symbol: str, note_id: int, data: dict[str, Any]) -> dict[str, Any]:
         symbol = symbol.upper()
         note = self.get_note(symbol, note_id)
