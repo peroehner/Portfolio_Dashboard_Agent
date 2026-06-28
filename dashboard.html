@@ -2353,6 +2353,17 @@
       transform: translate(-50%, -50%);
       border-radius: 1px;
     }
+    .bar-edge {
+      position: absolute; top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.62rem; font-weight: 600; color: var(--muted);
+      white-space: nowrap; pointer-events: none;
+      background: var(--panel); padding: 0 2px; border-radius: 2px;
+      opacity: 0; transition: opacity 0.12s ease;
+    }
+    .bar-edge.low { left: 0; }
+    .bar-edge.high { right: 0; }
+    .range-bar:hover .bar-edge { opacity: 1; }
     .meta { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
     .badge {
       font-size: 0.75rem;
@@ -4088,7 +4099,7 @@
           <div style="margin-top:0.4rem;">${item.rationale}</div>
           ${factors.length ? `<ul style="margin:0.4rem 0 0 1.1rem;font-size:0.88rem;color:var(--muted);">${factors.map((f) => `<li>${f}</li>`).join("")}</ul>` : ""}
           ${renderSynthesisHtml(item.noteSynthesis)}
-          <div class="empty" style="margin-top:0.35rem;">${item.createdAt} · ${item.provider}</div>
+          <div class="empty" style="margin-top:0.35rem;">${formatLocalTs(item.createdAt)} · ${item.provider}</div>
         </div>`;
     }
 
@@ -4676,7 +4687,7 @@
     }
 
     function renderRecoChange(change) {
-      const meta = [change.createdAt, change.newConfidence ? `${change.newConfidence} confidence` : ""]
+      const meta = [formatLocalTs(change.createdAt), change.newConfidence ? `${change.newConfidence} confidence` : ""]
         .filter(Boolean)
         .join(" · ");
       return `
@@ -4926,9 +4937,24 @@
 
     // The assessment run completed at the newest assessedAt (overview is sorted
     // newest-first), shown in the Latest Assessments header as "YYYY-MM-DD HH:MM:SS".
-    function formatAssessmentRunTs(ts) {
+    // Server timestamps are UTC wall-clock with no tz designator. Parse them as
+    // UTC and render "YYYY-MM-DD HH:MM:SS" in the viewer's LOCAL timezone.
+    // Date-only values (no time) are returned unchanged so they never shift days.
+    function formatLocalTs(ts) {
       if (!ts) return "";
-      return String(ts).slice(0, 19).replace("T", " ");
+      const raw = String(ts).trim();
+      if (!raw) return "";
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+      const hasTz = /[zZ]$/.test(raw) || /[+-]\d{2}:?\d{2}$/.test(raw);
+      const iso = hasTz ? raw : raw.replace(" ", "T") + "Z";
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return raw.slice(0, 19).replace("T", " ");
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    function formatAssessmentRunTs(ts) {
+      return formatLocalTs(ts);
     }
 
     function renderLatestAssessments(list) {
@@ -5113,7 +5139,7 @@
         HOLDINGS_EMPTY_MESSAGES[holdingsFilter] || HOLDINGS_EMPTY_MESSAGES.all,
         {
           selectedKeys: holdingsSelection,
-          footerHtml: holdingsShowTotal ? holdingsTotalsFooterHtml() : "",
+          footerHtml: holdingsShowTotal ? holdingsTotalsFooterHtml(holdings) : "",
         }
       );
     }
@@ -5122,8 +5148,7 @@
       return sortRows("holdings", tableDataCache.holdings || [], holdingsColumns).map((r) => r.symbol);
     }
 
-    function holdingsTotalsFooterHtml() {
-      const displayed = tableDataCache.holdings || [];
+    function holdingsTotalsFooterHtml(displayed = tableDataCache.holdings || []) {
       if (!displayed.length) return "";
       const useSelection = holdingsSelection.size > 1;
       const rows = useSelection ? displayed.filter((h) => holdingsSelection.has(h.symbol)) : displayed;
@@ -5673,7 +5698,13 @@
         const subTxt = [conf.strength, tally].filter(Boolean).join(" · ");
         const baseTitle = conf.message || conf.summary || "";
         const watchTitle = (conf.watch && conf.watch.headline) ? conf.watch.headline : "";
-        const title = [baseTitle, watchTitle].filter(Boolean).join("\n");
+        const neutralDelta = conf.score100 != null
+          ? `${conf.score100 < 50 ? "▼" : "▲"}${Math.abs(conf.score100 - 50).toFixed(0)} vs neutral`
+          : "";
+        const headline = [conf.bias, subTxt, neutralDelta].filter(Boolean).join(" · ");
+        // Each Agreeing/Conflicting/Neutral list onto its own line.
+        const splitTitle = baseTitle.replace(/\s*(Agreeing:|Conflicting:|Neutral:)/g, "\n$1").trim();
+        const title = [headline, splitTitle, watchTitle].filter(Boolean).join("\n");
         return `<span class="screening-tech-stance conf-${cls}" title="${escapeHtml(title)}">`
           + `${escapeHtml(conf.bias)}`
           + `<span class="conf-mini-meter" aria-hidden="true"><span class="conf-mini-fill conf-${cls}" style="width:${score100}%;"></span><span class="conf-mini-mid"></span></span>`
@@ -6058,7 +6089,7 @@
       return `
         <div class="note">
           <div class="inspector-item-head">
-            <div style="font-size:0.78rem;color:var(--muted);">${note.date || note.createdAt || "Note"}${note.source ? ` · ${note.source}` : ""}</div>
+            <div style="font-size:0.78rem;color:var(--muted);">${formatLocalTs(note.date || note.createdAt) || "Note"}${note.source ? ` · ${note.source}` : ""}</div>
             ${deleteBtn}
           </div>
           ${textBlock}
@@ -6093,7 +6124,7 @@
           ${item.llmFallback ? `<div class="empty" style="color:var(--warn);margin-top:0.35rem;">Gemini unavailable — rules-based assessment.</div>` : ""}
           ${rationaleHtml}
           ${factors.length ? `<ul style="margin:0.4rem 0 0 1.1rem;font-size:0.88rem;color:var(--muted);">${factors.map((f) => `<li>${f}</li>`).join("")}</ul>` : ""}
-          <div class="empty" style="margin-top:0.35rem;">${item.createdAt} · ${item.provider}</div>
+          <div class="empty" style="margin-top:0.35rem;">${formatLocalTs(item.createdAt)} · ${item.provider}</div>
         </div>`;
     }
 
@@ -7463,6 +7494,8 @@
       return `<div class="range-bar" title="52W Low ${low} → 52W High ${high}">`
         + `<div class="range-track"><div class="range-knob" style="left:${pos.toFixed(2)}%;"></div></div>`
         + `<span class="range-pct" style="${labelStyle}">${pct}</span>`
+        + `<span class="bar-edge low">52W Low ${low}</span>`
+        + `<span class="bar-edge high">52W High ${high}</span>`
         + `</div>`;
     }
 
@@ -7477,19 +7510,21 @@
       const pricePos = clamp(((price - low) / span) * 100);
       const meanPos = clamp(((mean - low) / span) * 100);
       const dev = mean !== 0 ? ((price - mean) / mean) * 100 : null;
-      const sign = dev != null && dev > 0 ? "+" : "";
-      const label = dev != null ? `${sign}${dev.toFixed(1)}%` : "—";
+      const meanDelta = dev != null ? `${dev < 0 ? "▼" : "▲"}${Math.abs(dev).toFixed(1)}%` : null;
+      const label = meanDelta || "—";
       const color = dev != null && dev >= 0 ? "#22c55e" : "#ef4444";
       const labelStyle = pricePos > 55
         ? `right:${(100 - pricePos).toFixed(2)}%; transform: translate(-9px, -50%); text-align:right;`
         : `left:${pricePos.toFixed(2)}%; transform: translate(9px, -50%);`;
-      const title = `Low ${formatMoney(low)} · Mean ${formatMoney(mean)} · High ${formatMoney(high)}`
-        + ` — Price ${formatMoney(price)} (${label} vs mean)`;
+      const title = [`Mean ${formatMoney(mean)}`, `Price ${formatMoney(price)}${meanDelta ? ` (${meanDelta})` : ""}`]
+        .join(" · ");
       return `<div class="range-bar target-bar" title="${title}">`
         + `<div class="range-track target-track"></div>`
         + `<div class="range-mean" style="left:${meanPos.toFixed(2)}%;"></div>`
         + `<div class="range-knob" style="left:${pricePos.toFixed(2)}%;"></div>`
         + `<span class="range-pct" style="${labelStyle} color:${color};">${label}</span>`
+        + `<span class="bar-edge low">Low ${formatMoney(low)}</span>`
+        + `<span class="bar-edge high">High ${formatMoney(high)}</span>`
         + `</div>`;
     }
 
