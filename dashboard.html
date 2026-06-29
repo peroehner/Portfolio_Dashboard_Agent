@@ -949,11 +949,11 @@
     .confluence-col li { font-size: 0.8rem; color: var(--text); margin-bottom: 0.15rem; }
     .confluence-col li.empty { color: var(--muted); list-style: none; margin-left: -1.05rem; }
     .confluence-fib-note {
-      margin: 0.7rem 0 0; padding-top: 0.6rem; border-top: 1px solid var(--border);
+      margin: 0.3rem 0 0; padding-top: 0;
       font-size: 0.8rem; color: var(--text); line-height: 1.45;
     }
     .confluence-watch {
-      margin: 0.7rem 0 0; padding-top: 0.6rem; border-top: 1px solid var(--border);
+      margin: 0.3rem 0 0; padding-top: 0;
       font-size: 0.8rem; line-height: 1.45; color: var(--text);
       display: flex; gap: 0.45rem; align-items: baseline;
     }
@@ -1249,16 +1249,16 @@
       margin-top: 0.75rem;
     }
     .pattern-volume-row .pattern-panel {
-      flex: 1 1 280px;
+      flex: 1 1 240px;
       margin-top: 0;
     }
     .pattern-volume-row .volume-card {
-      flex: 1.6 1 380px;
+      flex: 2.6 1 460px;
       margin-top: 0;
     }
     .pattern-volume-row .volume-card .valuation-grid {
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 0.5rem;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 0.4rem;
     }
     @media (max-width: 900px) {
       .pattern-volume-row .volume-card .valuation-grid {
@@ -1387,6 +1387,7 @@
       line-height: 1.4;
     }
     .fib-volume { font-variant-numeric: tabular-nums; }
+    .fib-obv-reading { white-space: nowrap; }
     .vc-mark { font-weight: 700; cursor: help; }
     .vc-mark.vc-confirmed { color: #22c55e; }
     .vc-mark.vc-weak { color: #f59e0b; }
@@ -1600,6 +1601,12 @@
     @media (max-width: 760px) {
       .valuation-grid.valuation-inline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
+    /* Match the compressed Volume & Liquidity chip height for the Holdings card
+       metrics. Scoped to .holdings-valuation so other valuation grids (the main
+       Inspector cards, holdings mini-inspector, etc.) are unaffected. */
+    .holdings-valuation .valuation-metric { padding: 0.5rem 0.55rem; }
+    .holdings-valuation .valuation-metric .label { font-size: 0.6rem; margin-bottom: 0.15rem; }
+    .holdings-valuation .valuation-metric .value { font-size: 0.84rem; }
     /* Holdings mini-inspector — collapse the vertical space BETWEEN the stacked
        cards (Recommendation / Valuation / Performance) without touching their
        internal padding. Scoped so the main Inspector view is unaffected. */
@@ -1688,6 +1695,20 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    /* Volume & Liquidity card carries 7 metric cells (incl. the OBV vs Price
+       chip). Gently squeeze just this card — tighter gap/padding and slightly
+       smaller text — so all 7 sit on one row. Scoped to .volume-card so other
+       cards/metrics are unaffected; mirrors the holdings valuation-inline grid. */
+    .volume-card .valuation-grid { gap: 0.4rem; }
+    .volume-card .valuation-metric { padding: 0.5rem 0.55rem; }
+    .volume-card .valuation-metric .label {
+      font-size: 0.6rem;
+      margin-bottom: 0.15rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .volume-card .valuation-metric .value { font-size: 0.84rem; }
     @media (max-width: 1100px) {
       .valuation-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
@@ -2749,7 +2770,7 @@
   </header>
   <div id="toast" hidden></div>
 
-  <div id="inspectorChartFullscreen" class="chart-fs" hidden onclick="onInspectorFsBackdrop(event)">
+  <div id="inspectorChartFullscreen" class="chart-fs" hidden onclick="onInspectorFsBackdrop(event)" ondblclick="closeInspectorChartFullscreen()" title="Double-click to exit full screen">
     <div class="chart-fs-inner">
       <div class="chart-fs-head">
         <span class="chart-fs-title" id="inspectorFsTitle">Chart</span>
@@ -4159,9 +4180,13 @@
       renderSymbolList(portfolio.symbols);
       const [item, inspector] = await Promise.all([
         api(`/symbols/${symbol}`),
-        api(`/symbols/${symbol}/inspector`).catch(() => null),
+        api(`/symbols/${symbol}/inspector?includeNews=false`).catch(() => null),
+        // Kick off the lazy, session-memoized news sentiment in parallel so the
+        // first view isn't serialized behind it and flip-backs reuse the cache.
+        resolveNewsSentiment(symbol),
       ]);
       const inspectorData = inspector ? normalizeInspectorData(inspector) : null;
+      if (inspectorData) await applyNewsSentimentToInspector(symbol, inspectorData);
       targetCurrentPrice = item.currentPrice ?? null;
       setDetailSymbolHead(symbol, item, inspector?.companyName);
       document.getElementById("detailEmpty").hidden = true;
@@ -4561,9 +4586,11 @@
         await loadAssessments();
         const [item, inspector] = await Promise.all([
           api(`/symbols/${selectedSymbol}`),
-          api(`/symbols/${selectedSymbol}/inspector`).catch(() => null),
+          api(`/symbols/${selectedSymbol}/inspector?includeNews=false`).catch(() => null),
         ]);
-        await loadTargetContext(item, inspector ? normalizeInspectorData(inspector) : null);
+        const assessInspectorData = inspector ? normalizeInspectorData(inspector) : null;
+        if (assessInspectorData) await applyNewsSentimentToInspector(selectedSymbol, assessInspectorData);
+        await loadTargetContext(item, assessInspectorData);
         setStatus(
           result.llmFallback
             ? `Assessment complete for ${selectedSymbol} (rules fallback — Gemini quota/network).`
@@ -5293,13 +5320,21 @@
       }
     }
 
+    // Reset the analyzed-reactions state when moving to a different symbol.
+    // Bumping the request id invalidates any analysis still in flight so its
+    // late response can't land in the new symbol's view.
+    function resetFundamentalsNewsState() {
+      fundamentalsNewsAnalyzed = false;
+      fundamentalsNewsLoading = false;
+      fundamentalsNewsData = null;
+      fundamentalsNewsSort = "relevance";
+      fundamentalsNewsError = "";
+      fundamentalsNewsRequestId += 1;
+    }
+
     async function openFundamentalsNews(symbol) {
       if (symbol !== fundamentalsNewsSymbol) {
-        fundamentalsNewsAnalyzed = false;
-        fundamentalsNewsLoading = false;
-        fundamentalsNewsData = null;
-        fundamentalsNewsSort = "relevance";
-        fundamentalsNewsError = "";
+        resetFundamentalsNewsState();
       }
       fundamentalsNewsSymbol = symbol;
       fundamentalsTab = "range";
@@ -5503,6 +5538,72 @@
         return `<td${cls}>${content}</td>`;
       }).join("");
       return `<tfoot><tr class="total-row">${cells}</tr></tfoot>`;
+    }
+
+    // --- Lazy, session-memoized per-symbol news sentiment -------------------
+    // The inspector payload is now requested with includeNews=false (cheap). The
+    // market-grounded news sentiment (a per-symbol price-reaction event study) is
+    // fetched separately, only when a symbol's inspector/news is displayed, and
+    // cached per symbol for the page session so flipping between symbols never
+    // re-runs the study. No persistence: a page reload clears this cache.
+    const newsSentimentCache = new Map(); // SYMBOL -> sentiment dict | null
+
+    // JS mirror of inspector_service._headline_for_action so the recommendation
+    // headline stays consistent once news sentiment overrides the note fallback.
+    function headlineForAction(action, sentiment) {
+      const labels = {
+        buy: "Consider adding on confirmed setup",
+        sell: "Consider taking profits or reducing",
+        watch: "Monitor — catalysts approaching",
+        hold: "Maintain current positioning",
+      };
+      const base = labels[action] || "Review positioning";
+      if (sentiment === "bullish" && (action === "hold" || action === "watch")) {
+        return `${base} · bullish growth thesis`;
+      }
+      if (sentiment === "bearish") return `${base} · bearish notes flagged`;
+      return base;
+    }
+
+    // Override a recommendation's sentiment with market-grounded news when there
+    // is materially-relevant news, matching build_symbol_recommendation's
+    // news-over-notes precedence (note/neutral fallback already came from the
+    // backend's includeNews=false payload).
+    function applyNewsSentimentToRecommendation(rec, newsSentiment) {
+      if (!rec || !newsSentiment || !newsSentiment.count) return rec;
+      rec.sentiment = newsSentiment.sentiment || "neutral";
+      rec.sentimentSource = "news";
+      rec.sentimentDetail = newsSentiment.detail || "From recent market news";
+      if (rec.action) rec.headline = headlineForAction(rec.action, rec.sentiment);
+      return rec;
+    }
+
+    function resolveNewsSentiment(symbol) {
+      const key = String(symbol || "").toUpperCase();
+      if (!key) return Promise.resolve(null);
+      if (newsSentimentCache.has(key)) {
+        return Promise.resolve(newsSentimentCache.get(key));
+      }
+      return api(`/symbols/${encodeURIComponent(key)}/news-sentiment`)
+        .then((res) => {
+          const ns = res ? res.newsSentiment || null : null;
+          newsSentimentCache.set(key, ns);
+          return ns;
+        })
+        .catch(() => {
+          newsSentimentCache.set(key, null);
+          return null;
+        });
+    }
+
+    // Resolve (cached or fetched) news sentiment and fold it into the inspector
+    // payload's recommendation before rendering, so all the existing render paths
+    // show the news-grounded sentiment without recomputing it on every switch.
+    async function applyNewsSentimentToInspector(symbol, inspectorData) {
+      if (!inspectorData || !inspectorData.recommendation) return inspectorData;
+      const ns = await resolveNewsSentiment(symbol);
+      applyNewsSentimentToRecommendation(inspectorData.recommendation, ns);
+      return inspectorData;
     }
 
     function renderRecommendationChipRow(rec, { wrapperClass = "", bare = false } = {}) {
@@ -6020,6 +6121,37 @@
       return `<span class="fib-volume ${cls}" title="${escapeHtml(titleBits.join("\n"))}">${v.rvol}×${state}</span>`;
     }
 
+    // OBV vs Price ranking for the Patterns table: most bullish → most bearish
+    // (bull confirm > bull divergence > neutral > bear divergence > bear confirm),
+    // with rvol as a mild within-category tiebreak. Rows with no reading return
+    // -Infinity so they sort to the bottom (treated as lowest).
+    const FIB_OBV_READING_RANK = {
+      confirmation_bull: 2,
+      bullish_divergence: 1,
+      neutral: 0,
+      bearish_divergence: -1,
+      confirmation_bear: -2,
+    };
+
+    function fibObvReadingSortKey(row) {
+      const v = row.volume;
+      const kind = v && v.obvReading && v.obvReading.kind;
+      if (!kind || !(kind in FIB_OBV_READING_RANK)) return -Infinity;
+      const tie = Math.min(Math.max(v.rvol || 0, 0), 9) / 100; // 0–0.09, never bridges a category
+      return FIB_OBV_READING_RANK[kind] + tie;
+    }
+
+    // Reuses the Inspector's OBV vs Price chip glyph/colors + reading tooltip, but
+    // as a bare table-cell span (no valuation-metric wrapper).
+    function renderFibObvReadingCell(row) {
+      const v = row.volume;
+      if (!v || !v.obvReading || !v.obvReading.kind) return `<span class="empty">—</span>`;
+      const meta = OBV_READING_CHIP[v.obvReading.kind] || OBV_READING_CHIP.neutral;
+      return `<span class="fib-obv-reading" title="${escapeHtml(buildObvTooltip(v))}">`
+        + `<span aria-hidden="true" style="color:${meta.color};font-weight:700;margin-right:0.3rem;">${meta.glyph}</span>`
+        + `${escapeHtml(meta.label)}</span>`;
+    }
+
     const fibColumns = [
       {
         key: "symbol",
@@ -6029,6 +6161,7 @@
       },
       { key: "currentPrice", label: "Price", sortValue: (row) => row.currentPrice, render: (row) => formatMoney(row.currentPrice) },
       { key: "volume", label: "Rel. Vol", sortValue: (row) => fibVolumeSortKey(row), render: (row) => renderFibVolumeCell(row) },
+      { key: "obvReading", label: "OBV vs Price", sortValue: (row) => fibObvReadingSortKey(row), render: (row) => renderFibObvReadingCell(row) },
       {
         key: "pattern",
         label: "Pattern",
@@ -7205,21 +7338,115 @@
       return String(Math.round(value));
     }
 
+    // OBV badge color tracks the accumulation/distribution/neutral label
+    // (green / red / muted), independent of the four-quadrant reading.
+    function obvBadgeClass(label) {
+      if (label === "Accumulation") return "gain-pos";
+      if (label === "Distribution") return "gain-neg";
+      return "muted";
+    }
+
+    // Single-line tooltip (native title attribute, like the other Inspector
+    // metrics): just the current price-direction arrow + the contextual reading
+    // text already computed in the volume block. escapeHtml keeps it attribute-safe.
+    function buildObvTooltip(v) {
+      const priceDir = v.priceDirection || "flat";
+      const reading = (v.obvReading && v.obvReading.text) || "Inconclusive — price or volume trend too flat to read";
+      const priceArrow = priceDir === "up" ? "↑" : priceDir === "down" ? "↓" : "→";
+      return `Price ${priceArrow} · ${reading}`;
+    }
+
+    function ordinalSuffix(n) {
+      const v = Math.abs(n) % 100;
+      if (v >= 11 && v <= 13) return "th";
+      switch (Math.abs(n) % 10) {
+        case 1: return "st";
+        case 2: return "nd";
+        case 3: return "rd";
+        default: return "th";
+      }
+    }
+
+    // OBV Trend badge tooltip — explains the SELF-RELATIVE strength (the four-
+    // quadrant reading lives on the separate "OBV vs Price" chip). Plain text for
+    // the native title attribute; escaped at the call site.
+    function buildObvStrengthTooltip(v) {
+      const slope = v.obvSlopePct;
+      const mag = `${slope >= 0 ? "+" : ""}${slope}%`;
+      if (v.obvSlopePctile == null) {
+        return `OBV slope ${mag} · not enough history to rank`;
+      }
+      const pct = v.obvSlopePctile;
+      const range = v.obvStrengthSamples != null ? ` of its own ~${v.obvStrengthSamples}-bar range` : "";
+      const strengthTxt = v.obvStrength ? ` (${v.obvStrength})` : "";
+      return `OBV slope ${mag} · ${pct}${ordinalSuffix(pct)} percentile${range}${strengthTxt}`;
+    }
+
+    function renderObvTrendMetric(v) {
+      if (v.obvSlopePct == null) return "";
+      const slope = v.obvSlopePct;
+      const label = v.obvLabel || (slope > 0 ? "Accumulation" : slope < 0 ? "Distribution" : "Neutral");
+      const cls = obvBadgeClass(label);
+      const mag = `${slope >= 0 ? "+" : ""}${slope}%`;
+      // Self-relative strength appended compactly + muted (only when ranked and
+      // not flat). Tooltip explains what the percentile is relative to.
+      const strengthSuffix = v.obvStrength ? ` <span class="muted">· ${escapeHtml(v.obvStrength)}</span>` : "";
+      return `<div class="valuation-metric"><span class="label">OBV Trend</span>`
+        + `<span class="value ${cls}" title="${escapeHtml(buildObvStrengthTooltip(v))}">${label} · ${mag}${strengthSuffix}</span></div>`;
+    }
+
+    // Price/OBV four-quadrant reading → colored glyph + short label. Distinct from
+    // the OBV Trend badge: this reads price vs OBV (confirmation vs divergence),
+    // not just accumulation/distribution. Colors use the same palette tokens as
+    // the rest of the card (green = accent-2, red = danger) plus amber/teal for
+    // the two divergence states.
+    const OBV_READING_CHIP = {
+      confirmation_bull: { glyph: "✓", color: "var(--accent-2)", label: "Bull confirm" },
+      confirmation_bear: { glyph: "✓", color: "var(--danger)", label: "Bear confirm" },
+      bearish_divergence: { glyph: "⚠", color: "#fb923c", label: "Bearish divergence" },
+      bullish_divergence: { glyph: "⚡", color: "#2dd4bf", label: "Bullish divergence" },
+      neutral: { glyph: "·", color: "var(--muted)", label: "Neutral" },
+    };
+
+    // Compact Price Node labels (drop the word "node" to save width).
+    const PRICE_NODE_LABEL = {
+      high: "High volume",
+      medium: "Medium volume",
+      low: "Low volume",
+      gap: "Gap (thin)",
+    };
+
+    function renderObvReadingChip(v) {
+      const reading = v.obvReading;
+      if (!reading || !reading.kind) {
+        return `<div class="valuation-metric"><span class="label">OBV vs Price</span>`
+          + `<span class="value muted">—</span></div>`;
+      }
+      const meta = OBV_READING_CHIP[reading.kind] || OBV_READING_CHIP.neutral;
+      const tip = escapeHtml(buildObvTooltip(v));
+      return `<div class="valuation-metric"><span class="label">OBV vs Price</span>`
+        + `<span class="value" title="${tip}">`
+        + `<span aria-hidden="true" style="color:${meta.color};font-weight:700;margin-right:0.3rem;">${meta.glyph}</span>`
+        + `${escapeHtml(meta.label)}</span></div>`;
+    }
+
     function renderInspectorVolume(volume, profile) {
       if (!volume && !profile) return "";
       const v = volume || {};
       const p = profile || {};
       const rvolClass = v.rvol == null ? "" : v.rvol >= 1.3 ? "gain-pos" : v.rvol <= 0.6 ? "gain-neg" : "";
       const nodeLabel = (p.priceNode && p.priceNode.node)
-        ? `${p.priceNode.node}-volume node`
+        ? (PRICE_NODE_LABEL[p.priceNode.node] || p.priceNode.node)
         : "—";
+      const priceNodeTip = "Where the current price sits in the volume profile. High-volume node = heavy prior trading → firm support/resistance, price tends to stick. Low-volume node / gap = little prior trading → thin support, price moves through quickly.";
       const metrics = [
         v.rvol != null ? `<div class="valuation-metric"><span class="label">Rel. Volume</span><span class="value ${rvolClass}">${v.rvol}×${v.state ? ` · ${v.state}` : ""}</span></div>` : "",
         v.avgVolume20 != null ? `<div class="valuation-metric"><span class="label">Avg Vol (20d)</span><span class="value">${formatVolumeShort(v.avgVolume20)}</span></div>` : "",
-        v.obvSlopePct != null ? `<div class="valuation-metric"><span class="label">OBV Trend</span><span class="value ${v.obvSlopePct >= 0 ? "gain-pos" : "gain-neg"}">${v.obvSlopePct >= 0 ? "Accumulation" : "Distribution"}</span></div>` : "",
-        p.poc != null ? `<div class="valuation-metric"><span class="label" title="Point of Control — most-traded price over the lookback (approx. from daily bars)">POC</span><span class="value">${formatMoney(p.poc)}</span></div>` : "",
-        (p.val != null && p.vah != null) ? `<div class="valuation-metric"><span class="label" title="Value Area — price band holding ~${p.valueAreaPct ?? 70}% of volume">Value Area</span><span class="value">${formatMoney(p.val)} – ${formatMoney(p.vah)}</span></div>` : "",
-        (p.priceNode) ? `<div class="valuation-metric"><span class="label" title="How much volume has traded at the current price vs the POC">Price Node</span><span class="value">${nodeLabel}</span></div>` : "",
+        renderObvTrendMetric(v),
+        (v.obvSlopePct != null || v.obvReading) ? renderObvReadingChip(v) : "",
+        p.poc != null ? `<div class="valuation-metric"><span class="label" title="Point of Control — most-traded price over the lookback (approx. from daily bars)">POC</span><span class="value">${formatSummaryMoney(p.poc)}</span></div>` : "",
+        (p.val != null && p.vah != null) ? `<div class="valuation-metric"><span class="label" title="Value Area — price band holding ~${p.valueAreaPct ?? 70}% of volume">Value Area</span><span class="value">${formatSummaryMoney(p.val)} – ${formatSummaryMoney(p.vah)}</span></div>` : "",
+        (p.priceNode) ? `<div class="valuation-metric"><span class="label" title="${escapeHtml(priceNodeTip)}">Price Node</span><span class="value">${escapeHtml(nodeLabel)}</span></div>` : "",
       ].filter(Boolean).join("");
       if (!metrics) return "";
       return `
@@ -8184,10 +8411,13 @@
       if (!symbol) return;
       selectedSymbol = symbol;
       const [rawData, portfolio] = await Promise.all([
-        api(`/symbols/${symbol}/inspector`),
+        api(`/symbols/${symbol}/inspector?includeNews=false`),
         api("/portfolio"),
+        // Lazy + session-memoized news sentiment, resolved in parallel.
+        resolveNewsSentiment(symbol),
       ]);
       const data = normalizeInspectorData(rawData);
+      await applyNewsSentimentToInspector(symbol, data);
       if (inspectorChartSymbol[panelId] !== symbol) {
         delete inspectorChartMode[panelId];
         inspectorChartSymbol[panelId] = symbol;
@@ -8268,7 +8498,29 @@
     let fundamentalsNewsSort = "relevance"; // "relevance" | "time"
     let fundamentalsNewsData = null; // merged news items (relevance fields attached)
     let fundamentalsNewsError = "";
+    // Monotonic request token so an in-flight analysis for a previously selected
+    // symbol can't render its results into a different symbol's view.
+    let fundamentalsNewsRequestId = 0;
+    // Short-term in-memory cache of analyzed reactions so switching symbols and
+    // back within the TTL restores instantly with no /news-relevance fetch.
+    // Separate from newsSentimentCache. Not persisted: a page reload clears it.
+    const newsReactionCache = new Map(); // SYMBOL -> { data: news[], sort, ts }
+    const NEWS_REACTION_TTL_MS = 15 * 60 * 1000; // aligned with backend _INTRADAY_CACHE
     const FUND_TABLE_IDS = { val: "fundVal", health: "fundHealth", range: "fundRange" };
+
+    function fundamentalsNewsCacheKey(symbol) {
+      return String(symbol || "").toUpperCase();
+    }
+
+    // Return the cached reactions entry for `symbol` only if it's still fresh
+    // (within the TTL); otherwise null so callers fall back to (re)analysis.
+    function getFreshReactionCache(symbol) {
+      const entry = newsReactionCache.get(fundamentalsNewsCacheKey(symbol));
+      if (entry && Array.isArray(entry.data) && (Date.now() - entry.ts < NEWS_REACTION_TTL_MS)) {
+        return entry;
+      }
+      return null;
+    }
 
     function fundVal(row, group, key) {
       const g = row.fundamentals && row.fundamentals[group];
@@ -8492,6 +8744,18 @@
         fundamentalsNewsSymbol = row.symbol;
       }
 
+      // Restore a fresh cached analysis (no backend hit) before deciding whether
+      // to auto-run. Only when we're not already showing/loading an analysis.
+      if (!fundamentalsNewsAnalyzed && !fundamentalsNewsLoading) {
+        const cached = getFreshReactionCache(row.symbol);
+        if (cached) {
+          fundamentalsNewsData = cached.data.slice();
+          fundamentalsNewsSort = cached.sort || "relevance";
+          fundamentalsNewsAnalyzed = true;
+          fundamentalsNewsError = "";
+        }
+      }
+
       const baseNews = row.recentNews || [];
       let news = baseNews;
       if (fundamentalsNewsAnalyzed && Array.isArray(fundamentalsNewsData)) {
@@ -8503,7 +8767,7 @@
         }
       }
 
-      const analyzeLabel = fundamentalsNewsLoading ? "Analyzing…" : (fundamentalsNewsAnalyzed ? "Re-analyze" : "Analyze reactions");
+      const analyzeLabel = fundamentalsNewsLoading ? "Analyzing…" : (fundamentalsNewsAnalyzed ? "Refresh" : "Analyze reactions");
       const analyzeBtn = news.length || baseNews.length
         ? `<button class="fund-news-analyze" onclick="analyzeFundamentalsNews()" ${fundamentalsNewsLoading ? "disabled" : ""}>${analyzeLabel}</button>`
         : "";
@@ -8544,16 +8808,22 @@
               </li>`;
             }).join("")}</ul>`
           : `<div class="empty">No recent headlines available for ${row.symbol}.</div>`}`;
+
+      // Auto-run the intraday reaction analysis the first time this symbol's news
+      // is shown so results appear without a manual click. Guarded on
+      // analyzed/loading/error so it fires once per symbol view and never loops
+      // (the analysis call re-renders with loading set, which short-circuits the
+      // re-entrant render). The button remains a manual refresh/re-run.
+      if (!fundamentalsNewsAnalyzed && !fundamentalsNewsLoading && !fundamentalsNewsError && baseNews.length) {
+        analyzeFundamentalsNews();
+      }
     }
 
     function selectFundamentalsNews(symbol) {
       if (symbol !== fundamentalsNewsSymbol) {
-        // Switching symbols resets the analyzed state — badges clear until re-run.
-        fundamentalsNewsAnalyzed = false;
-        fundamentalsNewsLoading = false;
-        fundamentalsNewsData = null;
-        fundamentalsNewsSort = "relevance";
-        fundamentalsNewsError = "";
+        // Switching symbols clears the prior analysis; the panel auto-runs a
+        // fresh reaction analysis for the newly selected symbol on render.
+        resetFundamentalsNewsState();
       }
       fundamentalsNewsSymbol = symbol;
       document.querySelectorAll(".fund-news-link").forEach((link) => {
@@ -8564,19 +8834,27 @@
 
     function setFundamentalsNewsSort(mode) {
       fundamentalsNewsSort = mode;
+      // Keep the cached sort in sync so a switch-back restores the same order.
+      const entry = newsReactionCache.get(fundamentalsNewsCacheKey(fundamentalsNewsSymbol));
+      if (entry) entry.sort = mode;
       renderFundamentalsNewsPanel();
     }
 
     async function analyzeFundamentalsNews() {
       const symbol = fundamentalsNewsSymbol;
       if (!symbol || fundamentalsNewsLoading) return;
+      // Tag this run so a stale response (after the user switches symbols, which
+      // bumps the request id) is discarded instead of overwriting the new view.
+      const reqId = fundamentalsNewsRequestId;
       fundamentalsNewsLoading = true;
       fundamentalsNewsError = "";
       renderFundamentalsNewsPanel();
+      // True only if this run is still the one the user is looking at.
+      const isCurrent = () => symbol === fundamentalsNewsSymbol && reqId === fundamentalsNewsRequestId;
       try {
         const data = await api(`/news-relevance/${encodeURIComponent(symbol)}`);
         // The user may have switched symbols while the request was in flight.
-        if (symbol !== fundamentalsNewsSymbol) return;
+        if (!isCurrent()) return;
         const returned = data.news || [];
         const relMap = new Map();
         returned.forEach((it) => relMap.set(fundNewsKey(it), it));
@@ -8594,13 +8872,19 @@
         fundamentalsNewsData = merged;
         fundamentalsNewsAnalyzed = true;
         fundamentalsNewsSort = "relevance";
+        // Cache the fresh result so switching away and back within the TTL
+        // restores it without another /news-relevance fetch. A manual Refresh
+        // always fetches and overwrites this entry with a new timestamp.
+        newsReactionCache.set(fundamentalsNewsCacheKey(symbol), { data: merged.slice(), sort: "relevance", ts: Date.now() });
       } catch (err) {
-        if (symbol === fundamentalsNewsSymbol) {
+        if (isCurrent()) {
           fundamentalsNewsError = `Could not analyze reactions: ${err.message}`;
         }
       } finally {
-        fundamentalsNewsLoading = false;
-        if (symbol === fundamentalsNewsSymbol) renderFundamentalsNewsPanel();
+        if (isCurrent()) {
+          fundamentalsNewsLoading = false;
+          renderFundamentalsNewsPanel();
+        }
       }
     }
 

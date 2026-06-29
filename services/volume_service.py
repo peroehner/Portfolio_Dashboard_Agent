@@ -36,6 +36,45 @@ PROFILE_LOOKBACK = max(20, int(os.environ.get("VOLUME_PROFILE_LOOKBACK", "252"))
 PROFILE_BINS = max(6, int(os.environ.get("VOLUME_PROFILE_BINS", "24")))
 VALUE_AREA_PCT = min(0.95, max(0.5, float(os.environ.get("VOLUME_VALUE_AREA_PCT", "0.70"))))
 
+# Neutral/"flat" deadbands for the normalized 21-bar regression slopes. These are
+# the single source of truth so the UI badge, the Confluence volume lens and the
+# Risk agent all classify accumulation/distribution/neutral identically (they
+# import these constants rather than hard-coding their own ±1 cut).
+#
+# * OBV_FLAT_BAND — % slope below which OBV is "Neutral". Default ±1.0 matches the
+#   original Confluence ±1 deadband.
+# * PRICE_FLAT_BAND — % slope below which the close trend is "flat". Price slope is
+#   normalized by mean |close|, so its magnitude is far smaller than OBV's; a
+#   ~2% move over the 21-bar window lands near the ±0.1 default.
+OBV_FLAT_BAND = float(os.environ.get("OBV_FLAT_BAND", "1.0"))
+PRICE_FLAT_BAND = float(os.environ.get("PRICE_FLAT_BAND", "0.1"))
+
+
+def _parse_cuts(raw: str | None, default: tuple[float, float, float]) -> tuple[float, float, float]:
+    try:
+        parts = [float(x) for x in str(raw).split(",")]
+    except (ValueError, AttributeError):
+        return default
+    return (parts[0], parts[1], parts[2]) if len(parts) == 3 else default
+
+
+# Self-relative OBV strength: percentile cut-offs that map the current |slope|'s
+# rank (vs the symbol's own past |slopes|) to {weak, moderate, strong, extreme}.
+# Default 33/66/90 → <33 weak, <66 moderate, <90 strong, >=90 extreme.
+OBV_STRENGTH_CUTS = _parse_cuts(os.environ.get("OBV_STRENGTH_CUTS", "33,66,90"), (33.0, 66.0, 90.0))
+# Minimum rolling slope samples before a percentile/strength is trustworthy.
+OBV_STRENGTH_MIN_SAMPLES = max(1, int(os.environ.get("OBV_STRENGTH_MIN_SAMPLES", "30")))
+
+# Exact wording for the four-quadrant price-vs-OBV read (shared so the UI tooltip
+# and any agent surface phrase it identically).
+_OBV_READINGS = {
+    "confirmation_bull": "Confirmation — rally backed by volume, healthy",
+    "bearish_divergence": "Bearish divergence — rally on fading participation, suspect",
+    "confirmation_bear": "Confirmation — decline backed by selling, healthy downtrend",
+    "bullish_divergence": "Bullish divergence — selling into rising accumulation, possible reversal/absorption",
+    "neutral": "Inconclusive — price or volume trend too flat to read",
+}
+
 
 def _round(value: float | None, ndigits: int = 2) -> float | None:
     if value is None or (isinstance(value, float) and (np.isnan(value) or np.isinf(value))):
@@ -71,6 +110,12 @@ def volume_block(df: pd.DataFrame) -> dict[str, Any] | None:
         trend = "rising" if ratio >= 1.05 else "falling" if ratio <= 0.95 else "flat"
 
     obv_slope_pct = _obv_slope_pct(close, vol)
+    price_slope_pct = _price_slope_pct(close)
+
+    price_direction = _direction(price_slope_pct, PRICE_FLAT_BAND)
+    obv_label = _obv_label(obv_slope_pct)
+    obv_reading = _obv_reading(price_slope_pct, obv_slope_pct)
+    obv_pctile, obv_strength, obv_samples = _obv_strength(close, vol, obv_slope_pct)
 
     state = "normal"
     if rvol is not None:
@@ -88,8 +133,83 @@ def volume_block(df: pd.DataFrame) -> dict[str, Any] | None:
         "rvol": _round(rvol, 2),
         "trend": trend,
         "obvSlopePct": obv_slope_pct,
+        # Self-relative OBV strength: where the current |slope| ranks vs this
+        # symbol's own past |slopes|. ``obvStrength`` is None for a flat OBV or
+        # when there isn't enough history (``obvStrengthSamples`` < min).
+        "obvSlopePctile": obv_pctile,
+        "obvStrength": obv_strength,
+        "obvStrengthSamples": obv_samples,
+        # Price/OBV four-quadrant read (Part B): the close's own normalized slope,
+        # a coarse {Accumulation, Distribution, Neutral} OBV label, the price
+        # direction, and the combined divergence/confirmation reading.
+        "priceSlopePct": price_slope_pct,
+        "priceDirection": price_direction,
+        "obvLabel": obv_label,
+        "obvReading": obv_reading,
         "state": state,
     }
+
+
+def _direction(slope_pct: float | None, band: float) -> str:
+    """Coarse {up, down, flat} from a normalized slope and its neutral deadband."""
+    if slope_pct is None:
+        return "flat"
+    if slope_pct > band:
+        return "up"
+    if slope_pct < -band:
+        return "down"
+    return "flat"
+
+
+def _obv_label(obv_slope_pct: float | None) -> str:
+    """OBV accumulation/distribution/neutral using the shared ``OBV_FLAT_BAND``."""
+    direction = _direction(obv_slope_pct, OBV_FLAT_BAND)
+    return {"up": "Accumulation", "down": "Distribution", "flat": "Neutral"}[direction]
+
+
+def _obv_reading(
+    price_slope_pct: float | None, obv_slope_pct: float | None
+) -> dict[str, str]:
+    """Classify the (price direction, OBV direction) pair into the four-quadrant
+    read. A flat price OR a neutral OBV is inconclusive; otherwise same-sign is a
+    confirmation and opposite-sign is a divergence."""
+    price_dir = _direction(price_slope_pct, PRICE_FLAT_BAND)
+    obv_dir = _direction(obv_slope_pct, OBV_FLAT_BAND)
+    if price_dir == "flat" or obv_dir == "flat":
+        kind = "neutral"
+    elif price_dir == "up" and obv_dir == "up":
+        kind = "confirmation_bull"
+    elif price_dir == "up" and obv_dir == "down":
+        kind = "bearish_divergence"
+    elif price_dir == "down" and obv_dir == "down":
+        kind = "confirmation_bear"
+    else:  # price down + obv up
+        kind = "bullish_divergence"
+    return {"kind": kind, "text": _OBV_READINGS[kind]}
+
+
+def _windowed_slope_pct(y: np.ndarray) -> float | None:
+    """Normalized regression slope of one window of values: slope of the best-fit
+    line as a % of the window's mean |value| per bar. The single source of truth
+    for the OBV slope formula so the point-in-time value and the rolling history
+    (and ``risk_service._obv_slope_pct``, kept identical) can't drift."""
+    win = len(y)
+    if win < 3:
+        return None
+    slope = float(np.polyfit(np.arange(win), y, 1)[0])
+    scale = float(np.abs(y).mean())
+    if scale <= 0:
+        return None
+    return slope / scale * 100
+
+
+def _obv_series(close: pd.Series, vol: pd.Series) -> "np.ndarray | None":
+    """Cumulative signed volume (OBV): +vol on up-closes, −vol on down-closes."""
+    close = close.astype(float)
+    if close.isna().all() or len(close) < 3:
+        return None
+    direction = np.sign(close.diff().fillna(0.0))
+    return (direction * vol).cumsum().to_numpy()
 
 
 def _obv_slope_pct(close: pd.Series, vol: pd.Series, window: int = 21) -> float | None:
@@ -98,15 +218,74 @@ def _obv_slope_pct(close: pd.Series, vol: pd.Series, window: int = 21) -> float 
     Positive = net accumulation, negative = net distribution. Normalising by the
     mean magnitude keeps it comparable across symbols of very different volume.
     """
-    close = close.astype(float)
-    if close.isna().all() or len(close) < 3:
+    obv = _obv_series(close, vol)
+    if obv is None:
         return None
-    direction = np.sign(close.diff().fillna(0.0))
-    obv = (direction * vol).cumsum()
     win = min(window, len(obv))
     if win < 3:
         return None
-    y = obv.iloc[-win:].to_numpy()
+    val = _windowed_slope_pct(obv[-win:])
+    return _round(val, 2) if val is not None else None
+
+
+def _obv_slope_history(close: pd.Series, vol: pd.Series, window: int = 21) -> list[float]:
+    """Every full-window OBV slope across the available history (one per bar from
+    ``window`` onward), giving the symbol's own past distribution of slope values.
+    The last element equals the current ``_obv_slope_pct`` (pre-rounding)."""
+    obv = _obv_series(close, vol)
+    if obv is None or len(obv) < max(3, window):
+        return []
+    out: list[float] = []
+    for end in range(window, len(obv) + 1):
+        val = _windowed_slope_pct(obv[end - window : end])
+        if val is not None:
+            out.append(val)
+    return out
+
+
+def _strength_label(pctile: float) -> str:
+    weak, moderate, strong = OBV_STRENGTH_CUTS
+    if pctile < weak:
+        return "weak"
+    if pctile < moderate:
+        return "moderate"
+    if pctile < strong:
+        return "strong"
+    return "extreme"
+
+
+def _obv_strength(
+    close: pd.Series, vol: pd.Series, current_slope: float | None, window: int = 21
+) -> tuple[int | None, str | None, int]:
+    """Rank the current |slope| against the symbol's own past |slopes|.
+
+    Returns ``(percentile, strength, sampleCount)``. Strength is direction-agnostic
+    (the label/sign already convey direction). Guarded: needs at least
+    ``OBV_STRENGTH_MIN_SAMPLES`` rolling samples, else ``(None, None, n)``. A flat
+    reading (|slope| <= OBV_FLAT_BAND) keeps the percentile but reports no
+    strength — calling a flat OBV "weak"/"strong" would mislead."""
+    history = _obv_slope_history(close, vol, window)
+    samples = len(history)
+    if current_slope is None or samples < OBV_STRENGTH_MIN_SAMPLES:
+        return None, None, samples
+    mags = np.abs(np.asarray(history, dtype=float))
+    cur = abs(float(current_slope))
+    pctile = int(round(float((mags <= cur).mean()) * 100))
+    strength = None if cur <= OBV_FLAT_BAND else _strength_label(pctile)
+    return pctile, strength, samples
+
+
+def _price_slope_pct(close: pd.Series, window: int = 21) -> float | None:
+    """Slope of close over ``window`` bars, as % of mean |close| per bar.
+
+    Deliberately mirrors ``_obv_slope_pct``'s window + normalization so the price
+    and OBV slopes are directly comparable for the four-quadrant divergence read.
+    """
+    close = close.astype(float).dropna()
+    win = min(window, len(close))
+    if win < 3:
+        return None
+    y = close.iloc[-win:].to_numpy()
     x = np.arange(win)
     slope = float(np.polyfit(x, y, 1)[0])
     scale = float(np.abs(y).mean())

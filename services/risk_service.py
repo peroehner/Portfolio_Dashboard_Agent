@@ -28,7 +28,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from services.volume_service import volume_at_price
+from services.volume_service import OBV_FLAT_BAND, PRICE_FLAT_BAND, volume_at_price
 
 # Master switch + behaviour. Downgrade keeps weak patterns visible (flagged and
 # down-weighted); veto removes veto-grade ones from the result.
@@ -42,6 +42,12 @@ ACTION = os.environ.get("RISK_PATTERN_ACTION", "downgrade").strip().lower()
 
 # RVOL on the breakout bar(s) needed to call a break "volume-confirmed".
 BREAKOUT_RVOL = float(os.environ.get("VOLUME_BREAKOUT_RVOL", "1.3"))
+
+# Weight of the price-vs-OBV divergence check (#5). Deliberately MODEST — smaller
+# than breakout (±0.30) / node (+0.20/−0.28) and on par with the pattern-bias OBV
+# check (±0.15) — so confirming/contradicting the move nudges rather than swings
+# the verdict.
+OBV_DIVERGENCE_DELTA = float(os.environ.get("RISK_OBV_DIVERGENCE_DELTA", "0.10"))
 
 # Verdict cut-offs on the 0..1 validation score.
 _CONFIRM_AT = float(os.environ.get("RISK_PATTERN_CONFIRM_SCORE", "0.62"))
@@ -108,12 +114,26 @@ def _breakout_rvol(vol: pd.Series, dates: list[str], end_date: str) -> float | N
 
 
 def _obv_slope_pct(close: pd.Series, vol: pd.Series, window: int = 21) -> float | None:
+    # Kept in sync with volume_service._obv_slope_pct (same formula).
     direction = np.sign(close.diff().fillna(0.0))
     obv = (direction * vol).cumsum()
     win = min(window, len(obv))
     if win < 3:
         return None
     y = obv.iloc[-win:].to_numpy()
+    slope = float(np.polyfit(np.arange(win), y, 1)[0])
+    scale = float(np.abs(y).mean())
+    return slope / scale * 100 if scale > 0 else None
+
+
+def _price_slope_pct(close: pd.Series, window: int = 21) -> float | None:
+    # Kept in sync with volume_service._price_slope_pct (same window/normalization
+    # as _obv_slope_pct) so the two slopes are directly comparable for check #5.
+    close = close.astype(float).dropna()
+    win = min(window, len(close))
+    if win < 3:
+        return None
+    y = close.iloc[-win:].to_numpy()
     slope = float(np.polyfit(np.arange(win), y, 1)[0])
     scale = float(np.abs(y).mean())
     return slope / scale * 100 if scale > 0 else None
@@ -289,6 +309,38 @@ def validate_pattern(
             "threshold": 0.0,
             "passed": bool(aligned),
         })
+
+    # 5) Price-vs-OBV divergence (trend confirmation). DISTINCT from check #3:
+    #    #3 asks "does OBV agree with the *pattern's* directional bias?"; this asks
+    #    "does OBV agree with *price's own* recent trend?" — i.e. is the move backed
+    #    by real volume regardless of which pattern we matched. Same-sign slopes
+    #    (beyond the shared neutral bands) confirm; opposite-sign slopes diverge.
+    #    Modest, env-tunable weight so it nudges without dominating the verdict.
+    price_slope = _price_slope_pct(close)
+    if obv is not None and price_slope is not None:
+        price_up = price_slope > PRICE_FLAT_BAND
+        price_dn = price_slope < -PRICE_FLAT_BAND
+        obv_up = obv > OBV_FLAT_BAND
+        obv_dn = obv < -OBV_FLAT_BAND
+        confirm = (price_up and obv_up) or (price_dn and obv_dn)
+        diverge = (price_up and obv_dn) or (price_dn and obv_up)
+        if confirm or diverge:
+            if confirm:
+                score += OBV_DIVERGENCE_DELTA
+                reasons.append("Price/OBV confirm — volume backs the move")
+            else:
+                score -= OBV_DIVERGENCE_DELTA
+                reasons.append("Price/OBV divergence — volume not backing price")
+            contributions.append({
+                "check": "price_obv_divergence",
+                "delta": OBV_DIVERGENCE_DELTA if confirm else -OBV_DIVERGENCE_DELTA,
+                # Signed indicator (+1 confirm / −1 diverge) plus the raw slopes.
+                "value": 1 if confirm else -1,
+                "priceSlopePct": round(float(price_slope), 2),
+                "obvSlopePct": round(float(obv), 2),
+                "threshold": OBV_FLAT_BAND,
+                "passed": bool(confirm),
+            })
 
     # 4) Triangles should coil on contracting volume.
     if "triangle" in name.lower():

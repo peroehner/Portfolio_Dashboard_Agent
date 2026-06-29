@@ -27,7 +27,15 @@ class InspectorService:
         self.technical_signals_service = TechnicalSignalsService()
         self.fundamentals_service = FundamentalsService()
 
-    def inspect(self, symbol: str) -> dict[str, Any] | None:
+    def inspect(self, symbol: str, include_news: bool = True) -> dict[str, Any] | None:
+        """Build the full inspector payload for a symbol.
+
+        ``include_news`` controls the (relatively expensive) market-grounded news
+        sentiment computation. When False, it is skipped and the recommendation
+        falls back to note/neutral sentiment; the frontend then fetches and
+        memoizes the news sentiment lazily via ``/symbols/<symbol>/news-sentiment``
+        so flipping between symbols doesn't re-run the event study every switch.
+        """
         symbol = symbol.upper()
         symbol_data = self.portfolio_service.get_symbol(symbol)
         if symbol_data is None:
@@ -99,7 +107,7 @@ class InspectorService:
         assessments = self.assessment_service.list_assessments(symbol=symbol, limit=20)
         alerts = self.alerts_service.list_alerts(symbol=symbol, status="active")
         holding = self.holdings_service.get_holding(symbol)
-        news_sentiment = self._news_sentiment_for_symbol(symbol)
+        news_sentiment = self._news_sentiment_for_symbol(symbol) if include_news else None
         recommendation = build_symbol_recommendation(
             symbol_data, assessments, alerts, screen_row, nearest,
             news_sentiment=news_sentiment,
@@ -109,6 +117,7 @@ class InspectorService:
 
         return {
             "symbol": symbol,
+            "newsSentimentDeferred": not include_news,
             "quote": symbol_data,
             "companyName": valuation.get("companyName"),
             "holding": holding,

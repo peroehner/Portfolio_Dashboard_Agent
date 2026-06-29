@@ -26,6 +26,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from services.volume_service import OBV_FLAT_BAND
+
 # Per-agent base weights (how much each lens counts before magnitude scaling).
 # Env-tunable, same convention as the rest of the technical stack.
 W_TREND = float(os.environ.get("CONFLUENCE_WEIGHT_TREND", "1.0"))
@@ -203,9 +205,11 @@ def _volume_vote(
 
     direction = 0
     if isinstance(obv, (int, float)):
-        if obv > 1:
+        # Shared OBV neutral band (see volume_service.OBV_FLAT_BAND) so the lens and
+        # the UI badge can't disagree on accumulation/distribution/flat.
+        if obv > OBV_FLAT_BAND:
             direction = 1
-        elif obv < -1:
+        elif obv < -OBV_FLAT_BAND:
             direction = -1
 
     state_w = {"surging": 1.0, "elevated": 0.8, "normal": 0.5, "light": 0.3}.get(state, 0.5)
@@ -305,6 +309,8 @@ def _contrib_phrase(contrib: dict[str, Any]) -> str | None:
         return "a volume-backed breakout"
     if check == "obv":
         return "OBV aligning with the pattern"
+    if check == "price_obv_divergence":
+        return "OBV turning to back the price move"
     if check == "triangle":
         return "volume contracting into the apex"
     return None

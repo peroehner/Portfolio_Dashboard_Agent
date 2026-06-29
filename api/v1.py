@@ -463,10 +463,33 @@ def fib_proximity():
 
 @v1_bp.route("/symbols/<symbol>/inspector", methods=["GET"])
 def inspect_symbol(symbol):
-    result = inspector_service.inspect(symbol)
+    # The market-grounded news sentiment is the only relatively expensive part of
+    # the inspector (a per-symbol price-reaction event study). The frontend passes
+    # includeNews=false and fetches it lazily + memoizes per symbol for the session
+    # so switching back and forth doesn't re-run it every time.
+    include_news = request.args.get("includeNews", "true").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+    )
+    result = inspector_service.inspect(symbol, include_news=include_news)
     if result is None:
         return jsonify({"error": f"Symbol {symbol.upper()} not found."}), 404
     return jsonify(result)
+
+
+@v1_bp.route("/symbols/<symbol>/news-sentiment", methods=["GET"])
+def get_news_sentiment(symbol):
+    """Lazy, standalone market-grounded news sentiment for one symbol.
+
+    This is the same Phase 1 daily event-study sentiment that ``inspect`` embeds
+    in the recommendation, exposed on its own so the inspector can fetch it only
+    when a symbol's news is actually displayed and cache it client-side. Returns
+    ``newsSentiment: null`` when there is no materially-relevant news."""
+    if portfolio_service.get_symbol(symbol) is None:
+        return jsonify({"error": f"Symbol {symbol.upper()} not found."}), 404
+    sentiment = inspector_service._news_sentiment_for_symbol(symbol)
+    return jsonify({"symbol": symbol.upper(), "newsSentiment": sentiment})
 
 
 @v1_bp.route("/alerts", methods=["GET"])

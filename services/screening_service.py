@@ -214,6 +214,12 @@ class ScreeningService:
             "trend": vol.get("trend"),
             "poc": profile.get("poc"),
             "priceNode": (profile.get("priceNode") or {}).get("node"),
+            # Price/OBV four-quadrant read so the LLM sees confirmation vs divergence
+            # and the Patterns table can render the same chip the Inspector uses.
+            # Same field shapes as the volume block: obvReading = {kind, text}.
+            "obv": vol.get("obvLabel"),
+            "priceDirection": vol.get("priceDirection"),
+            "obvReading": vol.get("obvReading"),
         }
 
     @staticmethod
