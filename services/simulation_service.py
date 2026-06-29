@@ -12,6 +12,10 @@ _MONEY_FIELDS = (
     "netCashFlow",
     "totalInvested",
     "totalGenerated",
+    # Realized gains for the Summary metaline; tax is derived client-side from this
+    # via SIM_TAX_RATE (matches the Simulation tab). Stored in the JSONB payload, so
+    # no schema change is needed and older snapshots simply lack the key.
+    "totalNetGains",
 )
 _COUNT_FIELDS = ("buyLegs", "sellLegs", "oversellCount", "scopeCount")
 

@@ -23,7 +23,6 @@ class LLMClient:
         self.openai_api_key = os.environ.get("OPENAI_API_KEY", "").strip()
         self.gemini_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
         self.openai_model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-        self.synthesis_guidance = os.environ.get("NOTE_SYNTHESIS_GUIDANCE", "").strip()
 
     def active_provider(self) -> str:
         if self.mode == "rules":
@@ -618,10 +617,25 @@ class LLMClient:
         return factors
 
     def _synthesis_system_prompt(self, guidance: str | None = None) -> str:
-        prompt = (
-            "You are a financial analyst assistant. The user provides a raw personal investment note "
-            "(earnings call excerpt, quarter review, CEO quote). Your job is to synthesize it into "
-            "structured guidance the user can track over time. "
+        # An optional per-note directive replaces the default "summarize this note"
+        # framing as the primary instruction; the JSON output contract below is
+        # always kept so the synthesis stays parseable by the downstream pipeline.
+        directive = (guidance or "").strip()
+        if directive:
+            task = (
+                "You are a financial analyst assistant. The user provides a raw personal "
+                "investment note (earnings call excerpt, quarter review, CEO quote) along with "
+                "a specific instruction for how to synthesize it. Follow the user's instruction "
+                "as the primary directive:\n"
+                f"{directive}\n\n"
+            )
+        else:
+            task = (
+                "You are a financial analyst assistant. The user provides a raw personal investment note "
+                "(earnings call excerpt, quarter review, CEO quote). Your job is to synthesize it into "
+                "structured guidance the user can track over time. "
+            )
+        return task + (
             "Respond only with JSON using keys: summary, growthTrajectory, revenueProjections, "
             "catalystsToWatch, sentiment. "
             "summary: one concise sentence capturing the growth thesis from THIS note. "
@@ -631,10 +645,6 @@ class LLMClient:
             "in future quarters (e.g. Q2 2026 security growth >= 25% YoY). "
             "sentiment: bullish | neutral | bearish."
         )
-        extra = (guidance or self.synthesis_guidance or "").strip()
-        if extra:
-            prompt += f"\n\nUser synthesis guidance (follow these instructions):\n{extra}"
-        return prompt
 
     def _synthesis_user_prompt(self, symbol: str, note: dict[str, Any]) -> str:
         return (

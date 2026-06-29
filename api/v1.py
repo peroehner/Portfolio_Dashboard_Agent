@@ -100,7 +100,6 @@ def get_config():
         "features": {
             "noteSynthesis": True,
         },
-        "synthesisGuidanceFromEnv": bool(client.synthesis_guidance),
         "geminiModel": client.gemini_model if client.active_provider() == "gemini" else None,
         "docs": {
             "api": "/docs/api",

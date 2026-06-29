@@ -1,0 +1,6 @@
+# Doc-build tooling only (not needed at runtime).
+# Used to regenerate the docs/*.pdf reference files from their Markdown sources:
+#   python -m markdown <doc>.md | xhtml2pdf ... -> <doc>.pdf
+markdown
+xhtml2pdf
+reportlab

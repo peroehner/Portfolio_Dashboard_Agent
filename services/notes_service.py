@@ -1,11 +1,88 @@
 import json
 import logging
 import os
+import re
 import time
 from typing import Any
 
 from db.database import get_connection, get_current_user_id
 from services.llm_client import LLMClient
+
+_PROMPT_KEY_RE = re.compile(r"^\s*prompt\s*:\s*(.*)$")
+_AT_PROMPT_RE = re.compile(r"^@prompt\s*:\s*(.*)$", re.IGNORECASE)
+_BLOCK_SCALAR_INDICATORS = {"|", ">", "|-", ">-", "|+", ">+"}
+
+
+def _parse_front_matter_prompt(text: str) -> str | None:
+    """Extract a ``prompt:`` value from a leading ``---`` YAML front-matter block.
+
+    Supports a single-line ``prompt: value`` and a ``prompt: |`` (or ``>``) block
+    scalar. Returns None if there is no well-formed front matter (e.g. missing
+    closing ``---``) or no ``prompt`` key — callers then fall back to ``@prompt:``.
+    Intentionally lenient: malformed front matter is treated as a plain note.
+    """
+    lines = text.splitlines()
+    idx = 0
+    while idx < len(lines) and lines[idx].strip() == "":
+        idx += 1
+    if idx >= len(lines) or lines[idx].strip() != "---":
+        return None
+
+    close = None
+    for j in range(idx + 1, len(lines)):
+        if lines[j].strip() == "---":
+            close = j
+            break
+    if close is None:
+        return None  # malformed: no closing fence -> no directive
+
+    block = lines[idx + 1 : close]
+    for i, line in enumerate(block):
+        match = _PROMPT_KEY_RE.match(line)
+        if not match:
+            continue
+        rest = match.group(1).strip()
+        if rest in _BLOCK_SCALAR_INDICATORS:
+            key_indent = len(line) - len(line.lstrip())
+            collected: list[str] = []
+            for follow in block[i + 1 :]:
+                if follow.strip() == "":
+                    collected.append("")
+                    continue
+                follow_indent = len(follow) - len(follow.lstrip())
+                if follow_indent <= key_indent:
+                    break  # dedent -> next key, end of the block scalar
+                collected.append(follow.strip())
+            return "\n".join(collected).strip() or None
+        if len(rest) >= 2 and rest[0] == rest[-1] and rest[0] in ("'", '"'):
+            rest = rest[1:-1].strip()
+        return rest or None
+    return None
+
+
+def _parse_at_prompt(text: str) -> str | None:
+    """Extract a directive from a first non-empty line beginning with ``@prompt:``."""
+    for line in text.splitlines():
+        if line.strip() == "":
+            continue
+        match = _AT_PROMPT_RE.match(line.strip())
+        if match:
+            return match.group(1).strip() or None
+        return None  # first real line isn't @prompt -> no directive
+    return None
+
+
+def extract_synthesis_directive(text: str | None) -> str | None:
+    """Return an optional per-note synthesis directive embedded in the note body.
+
+    Precedence: a ``prompt:`` key in leading YAML front matter wins; otherwise a
+    first-line ``@prompt:`` directive; otherwise None. The directive is NOT
+    stripped from the body — it stays saved/displayed and is only surfaced to
+    steer the LLM. Robust to malformed input (returns None rather than raising).
+    """
+    if not text:
+        return None
+    return _parse_front_matter_prompt(text) or _parse_at_prompt(text)
 
 # Auto-synthesize a note the moment it is saved, so personal notes actually feed
 # assessments/recommendations instead of sitting unsynthesized forever. Default on;
@@ -212,7 +289,15 @@ class NotesService:
         if note.get("synthesis") and not force:
             return note
 
-        synthesis = self.llm_client.synthesize_note(symbol, note, guidance=guidance)
+        # An optional directive embedded in the note body (front matter `prompt:`
+        # or a leading `@prompt:` line) steers synthesis for THIS note and takes
+        # precedence over any caller-supplied guidance. All call sites (auto-synth
+        # in add_note, synthesize_all_notes, the backfill) funnel through here, so
+        # they honor the per-note directive without each having to parse it.
+        directive = extract_synthesis_directive(note.get("text"))
+        synthesis = self.llm_client.synthesize_note(
+            symbol, note, guidance=directive or guidance
+        )
         provider = synthesis.pop("provider", self.llm_client.active_provider())
         synthesis_json = json.dumps(synthesis)
 

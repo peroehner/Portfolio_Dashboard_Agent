@@ -608,7 +608,7 @@ def build_symbol_recommendation(
     rationale = (
         latest["rationale"]
         if latest
-        else "Synthesize your notes, then run Assess Symbol to generate a recommendation."
+        else "Synthesize your notes, then run Assess Symbol to generate a Synthesized Agent Insight."
     )
 
     drivers = InspectorService._clean_factors(latest.get("factors", []) if latest else [])

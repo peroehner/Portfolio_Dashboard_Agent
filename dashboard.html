@@ -347,6 +347,10 @@
     }
     .planned-trade-side label { white-space: nowrap; }
     .planned-trade-side .trade-dir-toggle { margin-top: 0.05rem; }
+    /* Group the colored glyph + "Trade @ Below/Above" text together at the left
+       (override the inherited space-between that pushed the text to the edge).
+       Extra specificity so it wins over the later `.target-field label` base rule. */
+    .target-field.planned-trade-price label { justify-content: flex-start; gap: 0.35rem; }
     .trade-dir-toggle button { min-width: 2.6rem; }
     @media (max-width: 980px) {
       .planned-trade-pair { grid-template-columns: 1fr; }
@@ -389,6 +393,29 @@
     }
     .target-field-meta.positive { color: var(--accent-2); }
     .target-field-meta.negative { color: var(--danger); }
+    /* In-flight button feedback: disabled look + inline spinner. */
+    button.btn-pending { opacity: 0.8; cursor: progress; }
+    .btn-spinner {
+      display: inline-block;
+      width: 0.8em; height: 0.8em;
+      margin-right: 0.4em;
+      vertical-align: -0.05em;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: btn-spin 0.6s linear infinite;
+    }
+    @keyframes btn-spin { to { transform: rotate(360deg); } }
+    /* One-shot highlight when freshly fetched data re-renders a section. */
+    @keyframes pulse-updated {
+      0% { background-color: rgba(96, 165, 250, 0.22); box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.35); }
+      100% { background-color: transparent; box-shadow: 0 0 0 1px transparent; }
+    }
+    .pulse-updated { animation: pulse-updated 0.85s ease-out forwards; border-radius: 8px; }
+    @media (prefers-reduced-motion: reduce) {
+      .btn-spinner { animation: none; }
+      .pulse-updated { animation: none; }
+    }
     .threshold-proposal {
       margin-top: 0.35rem;
       display: flex;
@@ -583,6 +610,14 @@
       font-size: 0.85rem;
       line-height: 1.45;
     }
+    .visual-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .visual-card-head h2 { margin: 0; }
     .allocation-chart-wrap {
       max-width: 100%;
       margin: 0;
@@ -1335,6 +1370,16 @@
       font-weight: 400;
       color: var(--muted);
     }
+    /* Shared accent treatment for Inspector card/eyebrow headlines (SAI flagship +
+       its peer section titles) so they stand out consistently. Defined after the
+       per-card headline rules so it wins on equal specificity; caveat/count spans
+       keep their own muted color. */
+    .card-headline-accent,
+    h3.card-headline-accent,
+    h4.card-headline-accent {
+      color: #f8fafc;
+      font-weight: 700;
+    }
     .pattern-list {
       display: grid;
       gap: 0.28rem;
@@ -1549,7 +1594,7 @@
       cursor: pointer;
     }
     .rec-summary-scroll {
-      max-height: 14.4em;
+      max-height: 16.8em;
       overflow-y: auto;
       padding-bottom: 0.4rem;
     }
@@ -2913,8 +2958,14 @@
     <div class="wide-panel" id="overviewVisualsPanel" hidden>
       <div class="overview-visuals-grid">
         <section class="visual-card" id="allocationSection">
-          <h2>Portfolio Allocation Weight</h2>
-          <p class="visual-subtitle">Allocation weighted by total value. Top 5 assets listed; remaining assets rolled into "Others".</p>
+          <div class="visual-card-head">
+            <h2>Portfolio Allocation Weight</h2>
+            <div class="fund-news-sort" id="allocationModeToggle" role="group" aria-label="Allocation grouping">
+              <button type="button" data-alloc-mode="top5" class="active" onclick="setAllocationMode('top5')">Top 5</button>
+              <button type="button" data-alloc-mode="top75" onclick="setAllocationMode('top75')">Top 75%</button>
+            </div>
+          </div>
+          <p class="visual-subtitle" id="allocationSubtitle">Allocation weighted by total value. Top 5 assets shown individually; remaining assets rolled into "Others".</p>
           <div class="allocation-chart-wrap">
             <canvas id="allocationChart" aria-label="Portfolio allocation donut chart"></canvas>
           </div>
@@ -2935,7 +2986,7 @@
             <div class="nc-scroll nc-scroll-assess" id="latestAssessmentsBody"><div class="empty">Loading…</div></div>
           </section>
           <section class="nc-area">
-            <h3>Recommendation Changes <span class="nc-count" id="recoChangesMeta"></span></h3>
+            <h3>Synthesized Agent Insights (SAI) Changes <span class="nc-count" id="recoChangesMeta"></span></h3>
             <div class="nc-scroll nc-scroll-reco" id="recoChangesList"><div class="empty">Loading…</div></div>
           </section>
         </div>
@@ -2965,7 +3016,7 @@
         <h2>Signal Track Record</h2>
         <span class="track-record-sub" id="trackRecordMeta"></span>
       </div>
-      <p class="visual-subtitle">How past recommendations, detected chart patterns, and the fused confluence bias actually played out over the evaluation horizon. Self-scoring only — signals are measured, not yet auto-weighted.</p>
+      <p class="visual-subtitle">How past Synthesized Agent Insights, detected chart patterns, and the fused confluence bias actually played out over the evaluation horizon. Self-scoring only — signals are measured, not yet auto-weighted.</p>
       <div id="trackRecordBody"><div class="empty">Loading…</div></div>
     </div>
     <div class="wide-panel import-bar">
@@ -3026,7 +3077,7 @@
           <span class="symbol-head-company" id="detailCompanyName" hidden></span>
         </span>
       </h2>
-      <div id="detailEmpty" class="empty">Choose a symbol to view thresholds, notes, and recommendations.</div>
+      <div id="detailEmpty" class="empty">Choose a symbol to view thresholds, notes, and Synthesized Agent Insight.</div>
       <div id="detailPanel" hidden>
         <section class="target-setup-card">
           <div class="target-rec-row" id="targetSummaryRow">
@@ -3036,7 +3087,7 @@
               <span class="target-field-meta" id="analystUpsideMeta"></span>
             </div>
             <div class="target-recommendation-block" id="targetRecommendationBlock" hidden>
-              <span class="target-rec-label">Recommendation</span>
+              <span class="target-rec-label">SAI</span>
               <span id="targetRecommendationChips"></span>
             </div>
           </div>
@@ -3111,7 +3162,7 @@
             </div>
             <div class="target-actions" style="margin-top:0.75rem;">
               <button type="submit">Save Settings</button>
-              <button type="button" class="success" onclick="assessSelected()">Assess Symbol</button>
+              <button type="button" id="btnAssessSymbol" class="success" onclick="assessSelected(event)">Assess Symbol</button>
               <button type="button" class="btn-danger" style="margin-left:auto;" onclick="deleteSelectedSymbol()">Delete Symbol</button>
             </div>
           </form>
@@ -3119,12 +3170,6 @@
 
         <section class="target-notes-section">
           <h3>Personal Notes</h3>
-          <details style="margin-bottom:0.75rem;">
-            <summary style="cursor:pointer;color:var(--muted);">Synthesis prompt guidance</summary>
-            <label style="margin-top:0.5rem;display:block;">Instructions sent with each note to the LLM (saved in this browser)</label>
-            <textarea id="synthesisGuidance" rows="3" placeholder="e.g. Extract segment YoY growth rates, revenue run-rate milestones, and what to verify in the next quarter."></textarea>
-            <div class="empty" style="margin-top:0.35rem;">Also set server-wide default in <code>.env</code> as <code>NOTE_SYNTHESIS_GUIDANCE=...</code> (UI guidance overrides when filled).</div>
-          </details>
           <div id="notesList"></div>
           <form id="noteForm" style="margin-top:0.75rem;">
             <div class="grid-2">
@@ -3139,6 +3184,7 @@
             </div>
             <label>Note</label>
             <textarea name="text" rows="7" placeholder="Your outlook, thesis, risks..." required></textarea>
+            <div class="empty" style="margin-top:0.35rem;">Tip: start a note with <code>@prompt: …</code> or a <code>--- prompt: --- </code> block to steer synthesis for that note.</div>
             <div class="target-actions" style="margin-top:0.5rem;">
               <button type="submit">Add Note</button>
               <button type="button" class="secondary" onclick="synthesizeAllNotes()">Synthesize All Notes</button>
@@ -3266,6 +3312,8 @@
     // planned-trade Simulation's projected valuation.
     let portfolioMarketValue = null;
     let allocationChart = null;
+    let allocationMode = "top5"; // "top5" | "top75"
+    let allocationHoldings = null; // cached so the toggle re-renders without a server round-trip
     const ALLOCATION_COLORS = ["#3b82f6", "#22c55e", "#60a5fa", "#f97316", "#a78bfa", "#64748b"];
 
     async function api(path, options = {}) {
@@ -3306,26 +3354,43 @@
       }
     }
 
+    // Shared in-flight button state: disable + spinner + "…" label for the
+    // duration of an async op, restored on success or error. Accepts a button
+    // element or an element id.
+    async function withButtonPending(button, pendingLabel, asyncFn) {
+      const btn = typeof button === "string" ? document.getElementById(button) : button;
+      if (!btn) return asyncFn();
+      const prevHtml = btn.innerHTML;
+      const prevDisabled = btn.disabled;
+      btn.disabled = true;
+      btn.classList.add("btn-pending");
+      btn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span>${escapeHtml(pendingLabel)}`;
+      try {
+        return await asyncFn();
+      } finally {
+        btn.disabled = prevDisabled;
+        btn.classList.remove("btn-pending");
+        btn.innerHTML = prevHtml;
+      }
+    }
+
+    // One-shot "freshly updated" pulse on a re-rendered section. Restarts cleanly
+    // if called again and removes itself after the animation. Skipped entirely
+    // when the user prefers reduced motion.
+    function pulseUpdated(target) {
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const el = typeof target === "string" ? document.getElementById(target) : target;
+      if (!el) return;
+      el.classList.remove("pulse-updated");
+      void el.offsetWidth; // force reflow so the animation restarts
+      el.classList.add("pulse-updated");
+      el.addEventListener("animationend", () => el.classList.remove("pulse-updated"), { once: true });
+    }
+
     let importVersion = null;
     let noteSynthesisSupported = false;
     let editingNoteId = null;
     let currentNotes = [];
-    const SYNTHESIS_GUIDANCE_KEY = "pda_synthesis_guidance";
-
-    function getSynthesisGuidance() {
-      const el = document.getElementById("synthesisGuidance");
-      return el ? el.value.trim() : "";
-    }
-
-    function loadSynthesisGuidance() {
-      const el = document.getElementById("synthesisGuidance");
-      if (!el) return;
-      const saved = localStorage.getItem(SYNTHESIS_GUIDANCE_KEY);
-      if (saved) el.value = saved;
-      el.addEventListener("input", () => {
-        localStorage.setItem(SYNTHESIS_GUIDANCE_KEY, el.value);
-      });
-    }
 
     async function loadConfig() {
       try {
@@ -3335,9 +3400,6 @@
         const badge = document.getElementById("providerBadge");
         badge.textContent = `import v${data.importVersion} · assess: ${data.assessmentProvider}`;
         badge.classList.toggle("llm", data.llmConfigured);
-        if (data.synthesisGuidanceFromEnv && !getSynthesisGuidance()) {
-          setStatus("Server has NOTE_SYNTHESIS_GUIDANCE in .env — add UI guidance here to override per session.");
-        }
       } catch (_) { /* non-fatal */ }
     }
 
@@ -4036,9 +4098,10 @@
         container.innerHTML = `<span>No Fib/assessment proposal yet — run Assess or import TA levels.</span>`;
         return;
       }
+      const label = (note || "").split(` · ${formatMoney(proposal)}`).join("").trim();
       container.innerHTML = `
-        <span>Suggested: ${note || formatMoney(proposal)}</span>
-        <button type="button" onclick="applyThresholdProposal('${fieldName}', ${proposal})">Use ${formatMoney(proposal)}</button>`;
+        <button type="button" onclick="applyThresholdProposal('${fieldName}', ${proposal})">Use ${formatMoney(proposal)}</button>
+        ${label ? `<span>${label}</span>` : ""}`;
     }
 
     function applyThresholdProposal(fieldName, value) {
@@ -4416,10 +4479,9 @@
       if (hasExisting && !confirm("Re-synthesize this note? This replaces the stored synthesis.")) return;
       try {
         const url = `/symbols/${selectedSymbol}/notes/${noteId}/synthesize${hasExisting ? "?force=1" : ""}`;
-        const guidance = getSynthesisGuidance();
         await api(url, {
           method: "POST",
-          body: JSON.stringify(guidance ? { guidance } : {}),
+          body: JSON.stringify({}),
         });
         await selectSymbol(selectedSymbol);
         setStatus(`Note synthesized for ${selectedSymbol}.`);
@@ -4435,10 +4497,9 @@
         return;
       }
       try {
-        const guidance = getSynthesisGuidance();
         await api(`/symbols/${selectedSymbol}/notes/synthesize`, {
           method: "POST",
-          body: JSON.stringify(guidance ? { guidance } : {}),
+          body: JSON.stringify({}),
         });
         await selectSymbol(selectedSymbol);
         const notes = (await api(`/symbols/${selectedSymbol}`)).notes || [];
@@ -4551,7 +4612,7 @@
     }
 
     async function syncPortfolio() {
-      await withLoading("btnSync", async () => {
+      await withButtonPending("btnSync", "Syncing…", async () => {
         try {
           const data = await api("/sync", { method: "POST" });
           invalidateViewCaches();
@@ -4561,6 +4622,7 @@
           // list/Target detail refresh lazily via showView when next opened.
           await loadView(currentView);
           setStatus(`Synced ${data.sync.updated} symbols. ${data.newAlerts.length} new alerts.`, "success");
+          requestAnimationFrame(() => pulseUpdated("overviewMetrics"));
         } catch (error) {
           setStatus(error.message, "error");
         }
@@ -4568,54 +4630,55 @@
     }
 
     async function evaluateAlerts() {
-      await withLoading("btnAlerts", async () => {
+      await withButtonPending("btnAlerts", "Checking…", async () => {
         try {
           const data = await api("/alerts/evaluate", { method: "POST" });
           await loadPortfolio();
           setStatus(`${data.newAlerts.length} new alerts generated.`, "success");
+          requestAnimationFrame(() => pulseUpdated("alertsList"));
         } catch (error) {
           setStatus(error.message, "error");
         }
       });
     }
 
-    async function assessSelected() {
+    async function assessSelected(event) {
       if (!selectedSymbol) return;
-      try {
-        const result = await api(`/symbols/${selectedSymbol}/assess`, { method: "POST" });
-        await loadAssessments();
-        const [item, inspector] = await Promise.all([
-          api(`/symbols/${selectedSymbol}`),
-          api(`/symbols/${selectedSymbol}/inspector?includeNews=false`).catch(() => null),
-        ]);
-        const assessInspectorData = inspector ? normalizeInspectorData(inspector) : null;
-        if (assessInspectorData) await applyNewsSentimentToInspector(selectedSymbol, assessInspectorData);
-        await loadTargetContext(item, assessInspectorData);
-        setStatus(
-          result.llmFallback
-            ? `Assessment complete for ${selectedSymbol} (rules fallback — Gemini quota/network).`
-            : `Assessment complete for ${selectedSymbol}.`,
-          result.llmFallback ? "error" : "success"
-        );
-      } catch (error) {
-        setStatus(error.message, "error");
-      }
+      const btn = (event && event.currentTarget) || document.getElementById("btnAssessSymbol");
+      await withButtonPending(btn, "Assessing…", async () => {
+        try {
+          const result = await api(`/symbols/${selectedSymbol}/assess`, { method: "POST" });
+          await loadAssessments();
+          const [item, inspector] = await Promise.all([
+            api(`/symbols/${selectedSymbol}`),
+            api(`/symbols/${selectedSymbol}/inspector?includeNews=false`).catch(() => null),
+          ]);
+          const assessInspectorData = inspector ? normalizeInspectorData(inspector) : null;
+          if (assessInspectorData) await applyNewsSentimentToInspector(selectedSymbol, assessInspectorData);
+          await loadTargetContext(item, assessInspectorData);
+          setStatus(
+            result.llmFallback
+              ? `Assessment complete for ${selectedSymbol} (rules fallback — Gemini quota/network).`
+              : `Assessment complete for ${selectedSymbol}.`,
+            result.llmFallback ? "error" : "success"
+          );
+          requestAnimationFrame(() => pulseUpdated("inspector-recommendation"));
+        } catch (error) {
+          setStatus(error.message, "error");
+        }
+      });
     }
 
     async function assessAll() {
-      const btn = document.getElementById("btnAssess");
-      const originalLabel = btn ? btn.textContent : "";
-      if (btn) btn.textContent = "Assessing…";
       setStatus("Assessing portfolio… this can take a minute or two for a full portfolio.", "info");
-      await withLoading("btnAssess", async () => {
+      await withButtonPending("btnAssess", "Assessing…", async () => {
         try {
           const data = await api("/assess", { method: "POST" });
           await loadAssessments();
           setStatus(`Generated ${data.assessments.length} assessments.`, "success");
+          requestAnimationFrame(() => pulseUpdated("overviewMetrics"));
         } catch (error) {
           setStatus(error.message, "error");
-        } finally {
-          if (btn) btn.textContent = originalLabel;
         }
       });
     }
@@ -4719,24 +4782,59 @@
       }
     }
 
-    function buildAllocationData(holdings) {
+    function buildAllocationData(holdings, mode = "top5") {
       const valued = (holdings || []).filter(
         (holding) => holding.marketValue != null && holding.marketValue > 0
       );
       if (!valued.length) return null;
 
       const sorted = [...valued].sort((left, right) => right.marketValue - left.marketValue);
-      const top = sorted.slice(0, 5);
-      const othersValue = sorted.slice(5).reduce((sum, holding) => sum + holding.marketValue, 0);
-      const labels = top.map((holding) => holding.symbol);
-      const values = top.map((holding) => holding.marketValue);
+
+      let individual;
+      if (mode === "top75") {
+        // Show the fewest top assets whose cumulative weight reaches 75% of total
+        // value (including the asset that crosses the mark); roll the rest up.
+        const grandTotal = sorted.reduce((sum, holding) => sum + holding.marketValue, 0);
+        const target = grandTotal * 0.75;
+        individual = [];
+        let cumulative = 0;
+        for (const holding of sorted) {
+          individual.push(holding);
+          cumulative += holding.marketValue;
+          if (cumulative >= target) break;
+        }
+      } else {
+        individual = sorted.slice(0, 5);
+      }
+
+      const others = sorted.slice(individual.length);
+      const labels = individual.map((holding) => holding.symbol);
+      const values = individual.map((holding) => holding.marketValue);
+      const othersValue = others.reduce((sum, holding) => sum + holding.marketValue, 0);
 
       if (othersValue > 0) {
-        labels.push("Others");
+        labels.push(`Others (${others.length})`);
         values.push(othersValue);
       }
 
       return { labels, values };
+    }
+
+    function setAllocationMode(mode) {
+      allocationMode = mode === "top75" ? "top75" : "top5";
+      document.querySelectorAll("#allocationModeToggle [data-alloc-mode]").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.allocMode === allocationMode);
+      });
+      updateAllocationSubtitle();
+      if (allocationHoldings) renderAllocationChart(allocationHoldings);
+    }
+
+    function updateAllocationSubtitle() {
+      const el = document.getElementById("allocationSubtitle");
+      if (!el) return;
+      el.textContent = allocationMode === "top75"
+        ? 'Allocation weighted by total value. Assets making up the top 75% of value shown individually; the rest rolled into "Others".'
+        : 'Allocation weighted by total value. Top 5 assets shown individually; remaining assets rolled into "Others".';
     }
 
     function formatInlinePct(value) {
@@ -4779,6 +4877,28 @@
           ${subnote ? `<div class="projection-subnote">${subnote}</div>` : ""}
         </div>
       `;
+    }
+
+    // Compact one-line descriptor for the last saved Simulation snapshot. Fields
+    // degrade gracefully: anything missing on older snapshots is simply omitted.
+    // Tax is derived from realized gains via SIM_TAX_RATE to match the Simulation
+    // tab's GAINS/TAX pill exactly.
+    function simulationSnapshotMetaline(sim) {
+      const parts = [];
+      const ts = formatLocalTs(sim.savedAt);
+      if (ts) parts.push(ts);
+      if (sim.scopeCount != null) {
+        parts.push(`${sim.scopeCount} symbol${sim.scopeCount === 1 ? "" : "s"}`);
+      }
+      if (sim.buyLegs != null) parts.push(`${sim.buyLegs} buy${sim.buyLegs === 1 ? "" : "s"}`);
+      if (sim.sellLegs != null) parts.push(`${sim.sellLegs} sell${sim.sellLegs === 1 ? "" : "s"}`);
+      if (sim.netCashFlow != null) parts.push(formatMoney(sim.netCashFlow));
+      if (sim.totalNetGains != null) {
+        parts.push(formatMoney(sim.totalNetGains));
+        const taxEst = SIM_TAX_RATE * Math.max(sim.totalNetGains, 0);
+        parts.push(`${formatMoney(taxEst)}<sup class="sim-gaintax-tax">est</sup>`);
+      }
+      return parts.join(" · ");
     }
 
     function renderProjectionCard(data) {
@@ -4846,18 +4966,13 @@
       }
 
       if (simulation) {
-        const scope = simulation.scopeCount;
-        const savedLocal = formatLocalTs(simulation.savedAt);
-        const subnoteParts = ["assumes every boundary hits"];
-        if (savedLocal) subnoteParts.push(`saved ${savedLocal}`);
-        subnoteParts.push(`${scope} symbol${scope === 1 ? "" : "s"}`);
         rows.push(renderProjectionRow(
           "Projected Valuation if Planned Trades Execute",
           simulation.projectedValuation,
           simulation.projectedUpsidePct,
           "simulation",
           projectionBarWidth(simulation.projectedValuation, maxValue),
-          subnoteParts.join(" · ")
+          simulationSnapshotMetaline(simulation)
         ));
       }
 
@@ -4887,8 +5002,10 @@
     }
 
     function renderAllocationChart(holdings) {
+      allocationHoldings = holdings; // cache for toggle-driven re-renders
+      updateAllocationSubtitle();
       const canvas = document.getElementById("allocationChart");
-      const payload = buildAllocationData(holdings);
+      const payload = buildAllocationData(holdings, allocationMode);
 
       if (!payload || typeof Chart === "undefined") {
         if (allocationChart) {
@@ -4900,13 +5017,21 @@
 
       if (allocationChart) allocationChart.destroy();
 
+      // Cycle the palette so Top 75% (which can list many assets) never runs out
+      // of colors; "Others" always lands on the muted last swatch.
+      const colors = payload.labels.map((label, i) =>
+        label.startsWith("Others")
+          ? ALLOCATION_COLORS[ALLOCATION_COLORS.length - 1]
+          : ALLOCATION_COLORS[i % (ALLOCATION_COLORS.length - 1)]
+      );
+
       allocationChart = new Chart(canvas, {
         type: "doughnut",
         data: {
           labels: payload.labels,
           datasets: [{
             data: payload.values,
-            backgroundColor: ALLOCATION_COLORS.slice(0, payload.labels.length),
+            backgroundColor: colors,
             borderWidth: 2,
             borderColor: "#1a2332",
           }],
@@ -5146,7 +5271,7 @@
         }
         recoEl.innerHTML = changes.length
           ? `<div class="topnews-feed">${changes.map(renderRecoChange).join("")}</div>`
-          : `<div class="empty">No recommendation changes yet. Run Assess Portfolio to start tracking.</div>`;
+          : `<div class="empty">No Synthesized Agent Insight (SAI) changes yet. Run Assess Portfolio to start tracking.</div>`;
         updateNewsControlStates();
         renderTopNews();
       } catch (err) {
@@ -5195,7 +5320,7 @@
         metaEl.textContent = `±${data.horizonBandPct}% band${pend}`;
       }
       if (!overall.count) {
-        body.innerHTML = `<div class="empty">No evaluated signals yet. Recommendations and patterns are scored once their horizon elapses — run Assess Portfolio to start the clock.</div>`;
+        body.innerHTML = `<div class="empty">No evaluated signals yet. Synthesized Agent Insights and patterns are scored once their horizon elapses — run Assess Portfolio to start the clock.</div>`;
         return;
       }
       const recos = (data.byLabel || []).filter((b) => b.kind === "recommendation");
@@ -5221,7 +5346,7 @@
             <span>avg return ${trackRecordReturn(overall)}</span>
           </div>
         </div>
-        ${section("Recommendations", recos)}
+        ${section("Synthesized Agent Insight", recos)}
         ${section("Chart patterns", patterns)}
         ${section("Confluence bias", confluence)}`;
     }
@@ -5646,7 +5771,7 @@
       const chips = renderRecommendationChips(row.recommendation);
       const title = row.rationale
         ? `${row.rationale} — click to open in Inspector`
-        : "Open recommendation in Inspector";
+        : "Open Synthesized Agent Insight in Inspector";
       return screeningInspectorLink(row.symbol, "recommendation", chips, title);
     }
 
@@ -5885,16 +6010,16 @@
       { key: "symbol", label: "Symbol", help: "Ticker. Click to open it in the Target view.", sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
       {
         key: "recommendation",
-        label: "Recommendation",
+        label: "SAI",
         subLabel: `<span class="rec-head-captions"><span>Action</span><span>Confidence</span><span>Sentiment</span></span>`,
-        help: "From your latest Assess Symbol run — three chips: ACTION (Buy/Watch/Hold/Sell) · CONFIDENCE (High/Medium/Low) · SENTIMENT (relevance-weighted reaction of recent news; falls back to your synthesized notes). Hover the Sentiment chip for its sourcing; click a row to open the full recommendation.",
+        help: "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell\n• CONFIDENCE — High / Medium / Low\n• SENTIMENT — relevance-weighted news reaction; falls back to your notes",
         sortValue: (row) => `${row.recommendation?.action || ""}|${row.recommendation?.confidence || ""}|${row.recommendation?.sentiment || ""}`,
         render: (row) => renderScreeningRecommendationCell(row),
       },
       {
         key: "techStance",
         label: "Tech Stance",
-        help: "The Confluence agent's purely technical read (independent of the Recommendation): directional bias (Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish), a 0–100 score bar (left = bearish, center = neutral, right = bullish), and strength · how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume).",
+        help: "The Confluence agent's purely technical read (independent of the SAI): directional bias (Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish), a 0–100 score bar (left = bearish, center = neutral, right = bullish), and strength · how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume).",
         sortValue: (row) => (row.confluence?.score != null ? row.confluence.score : -2),
         render: (row) => renderScreeningTechStanceCell(row),
       },
@@ -6869,6 +6994,7 @@
           netCashFlow: plan.netCashFlow,
           totalInvested: plan.totalInvested,
           totalGenerated: plan.totalGenerated,
+          totalNetGains: plan.totalNetGains,
           buyLegs: plan.buyLegs,
           sellLegs: plan.sellLegs,
           oversellCount: plan.oversellCount,
@@ -6898,7 +7024,7 @@
 
     function renderRecommendationCard(rec) {
       if (!rec || !rec.headline) {
-        return `<div class="recommendation-card" id="inspector-recommendation"><h3>Recommendation</h3><div class="empty">No recommendation yet — synthesize notes and run Assess Symbol.</div></div>`;
+        return `<div class="recommendation-card" id="inspector-recommendation"><h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3><div class="empty">No Synthesized Agent Insight yet — synthesize notes and run Assess Symbol.</div></div>`;
       }
       const drivers = (rec.drivers || [])
         .map((d) => `<li>${d}</li>`)
@@ -6913,7 +7039,7 @@
       ].filter(Boolean).join(" · ");
       return `
         <div class="recommendation-card" id="inspector-recommendation">
-          <h3>Recommendation</h3>
+          <h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3>
           ${renderRecommendationChipRow(rec)}
           <div class="rec-headline">${rec.headline || ""}</div>
           <div class="rec-rationale">${rec.rationale || ""}</div>
@@ -7451,7 +7577,7 @@
       if (!metrics) return "";
       return `
         <section class="valuation-scoring volume-card">
-          <h3>Volume &amp; Liquidity <span class="pattern-caveat">POC approximated from daily bars</span></h3>
+          <h3 class="card-headline-accent">Volume &amp; Liquidity <span class="pattern-caveat">POC approximated from daily bars</span></h3>
           <div class="valuation-grid">${metrics}</div>
         </section>`;
     }
@@ -7499,7 +7625,7 @@
       const strengthTxt = [conf.strength, `${conf.agreeCount ?? 0}/${conf.totalSignals ?? 0} agree`].filter(Boolean).join(" · ");
       return `
         <section class="valuation-scoring confluence-card">
-          <h3>Technical Confluence <span class="pattern-caveat">fused agent verdict — one input among many</span></h3>
+          <h3 class="card-headline-accent">Technical Confluence <span class="pattern-caveat">fused agent verdict — one input among many</span></h3>
           <div class="confluence-head">
             <span class="confluence-bias conf-${cls}">${escapeHtml(conf.bias)}</span>
             <span class="confluence-strength">${escapeHtml(strengthTxt)}</span>
@@ -7539,7 +7665,7 @@
       const hasRec = !!(rec.action || rec.headline || rec.sentiment || rec.confidence);
       const pills = hasRec
         ? renderRecommendationChipRow(rec, { bare: true })
-        : `<span class="empty" style="font-size:0.78rem;">No recommendation yet</span>`;
+        : `<span class="empty" style="font-size:0.78rem;">No SAI yet</span>`;
 
       let stanceChip;
       if (conf.bias) {
@@ -7575,7 +7701,7 @@
         <section class="inspector-side-card rec-summary">
           <div class="rec-summary-line">
             <span class="rec-summary-left">
-              <h3 class="rec-summary-title">Recommendation</h3>
+              <h3 class="rec-summary-title">SAI</h3>
               <span class="rec-summary-chips">${pills}</span>
             </span>
             ${stanceChip
@@ -7627,7 +7753,7 @@
         type === "bullish" ? "#22c55e" : type === "bearish" ? "#ef4444" : "#9aa8bc";
       const patternsHtml = (!isHoldingsPreview && chartPatterns.length)
         ? `<div class="pattern-panel">
-            <h4>Chart Patterns <span class="pattern-caveat">probabilistic — one input among many</span></h4>
+            <h4 class="card-headline-accent">Chart Patterns <span class="pattern-caveat">probabilistic — one input among many</span></h4>
             <div class="pattern-list">
               ${chartPatterns.map((p) => {
                 const color = patternColor(p.type);
@@ -7701,7 +7827,7 @@
           <section class="inspector-chart-card">
             <div class="inspector-chart-head">
               <div class="inspector-chart-title-row">
-                <h3>Performance &amp; Fibonacci</h3>
+                <h3 class="card-headline-accent">Performance &amp; Fibonacci</h3>
                 ${canSwitchChart
                   ? `<div class="inspector-chart-mode" data-panel="${panelId}">
                       <button type="button" class="inspector-mode-btn ${chartMode === "timeline" ? "active" : ""}" data-mode="timeline" onclick="setInspectorChartMode('timeline', '${panelId}')">Timeline &amp; Trends</button>
@@ -8294,7 +8420,7 @@
             ${renderRecommendationCard(rec)}
             <div class="inspector-section" id="inspector-assessments">
               <h3>
-                <span>Assessments${assessments.length ? ` (${assessments.length})` : ""} <span class="section-hint">the analysis behind the recommendation</span></span>
+                <span><span class="card-headline-accent">Assessments</span>${assessments.length ? ` (${assessments.length})` : ""} <span class="section-hint">the analysis behind the Synthesized Agent Insight</span></span>
                 ${olderAssessments.length ? `<button type="button" class="btn-danger inspector-section-delete" data-delete-assessment-history data-inspector-panel="${panelId}">Clear history</button>` : ""}
               </h3>
               <div class="inspector-scroll">
@@ -8317,13 +8443,13 @@
           </div>
           <div class="inspector-lower-col inspector-lower-col-side">
             <div class="inspector-section" id="inspector-alerts">
-              <h3>Active Alerts</h3>
+              <h3 class="card-headline-accent">Active Alerts</h3>
               ${data.alerts.length
                 ? data.alerts.map((a) => `<div class="alert">${a.message}</div>`).join("")
                 : `<div class="empty">No active alerts.</div>`}
             </div>
             <div class="inspector-section" id="inspector-notes">
-              <h3>Latest Note</h3>
+              <h3 class="card-headline-accent">Latest Note</h3>
               ${latestNote ? renderInspectorNoteItem(latestNote, { panelId }) : `<div class="empty">No notes yet.</div>`}
             </div>
           </div>
@@ -8662,7 +8788,7 @@
           { key: "fcf", label: "Free Cash Flow", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "freeCashflow")), render: (r) => { const v = fundVal(r, "financialHealth", "freeCashflow"); const cls = (fundNum(v) ?? 0) >= 0 ? "gain-pos" : "gain-neg"; return `<span class="${cls}">${formatLargeMoney(v)}</span>`; } },
           { key: "cash", label: "Total Cash", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "totalCash")), render: (r) => formatLargeMoney(fundVal(r, "financialHealth", "totalCash")) },
           { key: "debt", label: "Total Debt", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "totalDebt")), render: (r) => formatLargeMoney(fundVal(r, "financialHealth", "totalDebt")) },
-          { key: "rec", label: "Recommendation", sortValue: (r) => fundVal(r, "analyst", "recommendationKey") || "", render: (r) => { const k = fundVal(r, "analyst", "recommendationKey"); return k ? String(k).replace(/_/g, " ") : "—"; } },
+          { key: "rec", label: "Rating", sortValue: (r) => fundVal(r, "analyst", "recommendationKey") || "", render: (r) => { const k = fundVal(r, "analyst", "recommendationKey"); return k ? String(k).replace(/_/g, " ") : "—"; } },
           {
             key: "tgtRange", label: "Target Low · Mean · High",
             sortValue: (r) => {
@@ -9037,7 +9163,6 @@
 
     loadConfig();
     loadMe();
-    loadSynthesisGuidance();
     resetNoteForm();
     showView("overview");
     markRefreshed(true);
