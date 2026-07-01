@@ -525,6 +525,20 @@
       flex-wrap: wrap;
       gap: 0.5rem;
     }
+    .target-assessments-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .target-assessments-head h2 {
+      margin: 0;
+    }
+    .target-assessments-head .nav-agent-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
     .target-notes-section {
       margin-top: 1.25rem;
       padding-top: 1.1rem;
@@ -636,6 +650,65 @@
     table.data th .sort-indicator { font-size: 0.7rem; margin-left: 0.2rem; opacity: 0.85; }
     table.data th .th-help { font-size: 0.7rem; margin-left: 0.25rem; opacity: 0.5; cursor: help; }
     table.data th.sortable:hover .th-help { opacity: 0.85; }
+    table.data th .th-help-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      margin-left: 0.25rem;
+      vertical-align: middle;
+    }
+    table.data th .th-help-wrap .th-help { margin-left: 0; }
+    table.data th .th-help-pop {
+      display: none;
+      position: absolute;
+      z-index: 30;
+      left: 50%;
+      top: calc(100% + 6px);
+      transform: translateX(-50%);
+      min-width: 220px;
+      max-width: 340px;
+      padding: 0.55rem 0.7rem;
+      background: #0f1419;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.72rem;
+      font-weight: 400;
+      line-height: 1.45;
+      text-transform: none;
+      letter-spacing: normal;
+      color: var(--text);
+      text-align: left;
+      white-space: normal;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+      pointer-events: none;
+    }
+    table.data th .th-help-pop::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: -5px;
+      width: 8px;
+      height: 8px;
+      background: #0f1419;
+      border-left: 1px solid var(--border);
+      border-top: 1px solid var(--border);
+      transform: translateX(-50%) rotate(45deg);
+    }
+    table.data th .th-help-wrap:hover .th-help-pop,
+    table.data th .th-help-wrap:focus-within .th-help-pop {
+      display: block;
+    }
+    table.data th .th-help-pop .th-help-intro {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: var(--muted);
+    }
+    table.data th .th-help-list {
+      margin: 0;
+      padding-left: 1rem;
+    }
+    table.data th .th-help-list li { margin-bottom: 0.2rem; }
+    table.data th .th-help-list li:last-child { margin-bottom: 0; }
     .overview-visuals-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -769,6 +842,65 @@
     @media (max-width: 960px) {
       .overview-visuals-grid { grid-template-columns: 1fr; }
     }
+    /* Shared portfolio-table scroll + sticky column headers (Holdings, Screening,
+       Simulation, Patterns, Fundamentals). */
+    .portfolio-table-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      max-height: calc(100vh - 2rem);
+    }
+    .portfolio-table-scroll {
+      overflow: auto;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .portfolio-table-scroll table.data thead th,
+    .fund-table-scroll table.data thead th {
+      position: sticky;
+      top: 0;
+      background: var(--panel);
+      z-index: 2;
+      box-shadow: 0 1px 0 var(--border);
+    }
+    #view-fundamentals .panel.portfolio-table-panel > #fundamentalsTable {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    #fundamentalsTable > .fund-table-scroll.portfolio-table-scroll,
+    #fundamentalsTable > .fund-range-layout {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .portfolio-table-panel .portfolio-table-panel {
+      max-height: none;
+    }
+    #fundamentalsTable > .fund-range-layout {
+      align-items: stretch;
+    }
+    .fund-range-layout .fund-table-panel.portfolio-table-panel {
+      position: static;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .fund-range-layout .fund-news-panel {
+      min-height: 0;
+    }
+    #fundamentalsTable > .fund-range-layout .fund-news-panel {
+      position: static;
+      max-height: none;
+    }
+    @media (max-width: 1100px) {
+      .portfolio-table-panel:not(.holdings-table-panel) {
+        max-height: none;
+      }
+      .portfolio-table-scroll {
+        max-height: 60vh;
+      }
+    }
     #view-holdings {
       display: grid;
       grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
@@ -782,21 +914,6 @@
       position: sticky;
       top: 1rem;
       align-self: start;
-      max-height: calc(100vh - 2rem);
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-    .holdings-table-panel #holdingsTable {
-      overflow-y: auto;
-      flex: 1 1 auto;
-      min-height: 0;
-    }
-    .holdings-table-panel #holdingsTable table.data thead th {
-      position: sticky;
-      top: 0;
-      background: var(--panel);
-      z-index: 2;
     }
     .holdings-inspector-panel {
       position: sticky;
@@ -809,10 +926,9 @@
       .holdings-table-panel,
       .holdings-inspector-panel {
         position: static;
-        max-height: none;
       }
-      .holdings-table-panel #holdingsTable {
-        max-height: 60vh;
+      .holdings-table-panel.portfolio-table-panel {
+        max-height: none;
       }
     }
     table.data a {
@@ -925,6 +1041,28 @@
     .screening-rec-chips .chip:nth-child(2) { min-width: 5.1rem; }
     .rec-head-captions span:nth-child(3),
     .screening-rec-chips .chip:nth-child(3) { min-width: 5.1rem; }
+    .rec-sort-caption {
+      font: inherit;
+      font-size: 0.56rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1;
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0;
+      cursor: pointer;
+      user-select: none;
+    }
+    .rec-sort-caption:hover { color: var(--text); }
+    .rec-sort-caption.active { color: var(--accent); }
+    .rec-sort-caption:nth-child(1) { min-width: 4rem; }
+    .rec-sort-caption:nth-child(2) { min-width: 5.1rem; }
+    .rec-sort-caption:nth-child(3) { min-width: 5.1rem; }
+    table.data th.sai-sort-group { cursor: default; }
     .screening-inspector-link {
       display: inline-flex;
       align-items: center;
@@ -1844,7 +1982,7 @@
       color: #fff;
       border-color: var(--accent);
     }
-    .fund-table-scroll { overflow-x: auto; }
+    .fund-table-scroll { overflow: auto; }
     .fund-table-scroll table.data td,
     .fund-table-scroll table.data th { white-space: nowrap; }
     .fund-range-layout {
@@ -1862,23 +2000,8 @@
       position: sticky;
       top: 1rem;
       align-self: start;
-      max-height: calc(100vh - 2rem);
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
     }
-    .fund-range-layout .fund-table-panel .fund-table-scroll {
-      overflow-y: auto;
-      flex: 1 1 auto;
-      min-height: 0;
-    }
-    .fund-range-layout .fund-table-scroll table.data thead th {
-      position: sticky;
-      top: 0;
-      background: var(--panel);
-      z-index: 2;
-    }
-    .fund-news-panel {
+    .fund-range-layout .fund-news-panel {
       background: var(--panel-2);
       border: 1px solid var(--border);
       border-radius: var(--radius);
@@ -1895,10 +2018,9 @@
       .fund-range-layout { grid-template-columns: 1fr; }
       .fund-range-layout .fund-table-panel {
         position: static;
-        max-height: none;
       }
-      .fund-range-layout .fund-table-panel .fund-table-scroll {
-        max-height: 60vh;
+      .fund-range-layout .fund-table-panel.portfolio-table-panel {
+        max-height: none;
       }
       .fund-range-layout .fund-news-panel {
         position: static;
@@ -2381,11 +2503,148 @@
     .status { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; }
     nav.tabs {
       display: flex;
-      gap: 0.5rem;
-      padding: 0.75rem 1.25rem;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 0.65rem;
+      padding: 0.65rem 1.25rem 0.75rem;
       border-bottom: 1px solid var(--border);
       background: var(--panel);
       flex-wrap: wrap;
+    }
+    .nav-tabs-main {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+      flex: 1;
+      min-width: 0;
+    }
+    .nav-group-agents {
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    .nav-group-agents .nav-group-tabs {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.12rem;
+      background: rgba(139, 92, 246, 0.05);
+    }
+    .nav-agent-glyph {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #a78bfa;
+    }
+    .nav-agent-glyph svg { display: block; }
+    .nav-agent-pulse {
+      position: absolute;
+      top: -3px;
+      right: -5px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #c4b5fd;
+      opacity: 0;
+      transform: scale(0.5);
+      transition: opacity 0.2s ease;
+    }
+    .nav-agent-glyph.active .nav-agent-pulse {
+      opacity: 1;
+      animation: nav-agent-pulse 1.4s ease-in-out infinite;
+    }
+    .nav-agent-glyph.active { color: #c4b5fd; }
+    @keyframes nav-agent-pulse {
+      0%, 100% { transform: scale(0.55); opacity: 0.45; }
+      50% { transform: scale(1); opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .nav-agent-glyph.active .nav-agent-pulse { animation: none; opacity: 0.85; transform: scale(1); }
+    }
+    .nav-agent-btn {
+      font-size: 0.82rem;
+      padding: 0.45rem 0.72rem;
+      white-space: nowrap;
+      font-weight: 600;
+      border: 1px solid transparent;
+      border-radius: 8px;
+    }
+    .nav-agent-btn.nav-agent-sync {
+      background: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+      border-color: rgba(59, 130, 246, 0.38);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+    }
+    .nav-agent-btn.nav-agent-sync:hover {
+      background: rgba(59, 130, 246, 0.3);
+      filter: none;
+    }
+    .nav-agent-btn.nav-agent-warn {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fcd34d;
+      border-color: rgba(245, 158, 11, 0.4);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+    }
+    .nav-agent-btn.nav-agent-warn:hover {
+      background: rgba(245, 158, 11, 0.3);
+      filter: none;
+    }
+    .nav-agent-btn.nav-agent-assess {
+      background: rgba(34, 197, 94, 0.2);
+      color: #86efac;
+      border-color: rgba(34, 197, 94, 0.38);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+    }
+    .nav-agent-btn.nav-agent-assess:hover {
+      background: rgba(34, 197, 94, 0.3);
+      filter: none;
+    }
+    .nav-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.22rem;
+      min-width: 0;
+      align-items: stretch;
+    }
+    .nav-group-label {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.28rem;
+      align-self: center;
+      font-size: 0.58rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      opacity: 0.8;
+      line-height: 1;
+      user-select: none;
+      white-space: nowrap;
+      cursor: default;
+    }
+    .nav-group-label svg {
+      display: block;
+      flex: none;
+      opacity: 0.9;
+    }
+    .nav-group-tabs {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .nav-divider {
+      width: 1px;
+      align-self: stretch;
+      background: var(--border);
+      margin: 0.15rem 0.05rem;
+      flex: none;
+    }
+    .nav-group-symbol .nav-group-tabs {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.12rem;
+      background: rgba(96, 165, 250, 0.05);
     }
     nav.tabs button { background: transparent; color: var(--muted); border: 1px solid transparent; }
     nav.tabs button.active { background: var(--panel-2); color: var(--text); border-color: var(--border); }
@@ -2864,7 +3123,7 @@
         <img src="/assets/logo.png" alt="Portfolio Dashboard Agent" class="brand-logo" width="44" height="44">
         <div class="brand-text">
           <h1>Portfolio Dashboard Agent</h1>
-          <span class="brand-tagline">Notes · Synthesis · Assessments</span>
+          <span class="brand-tagline">Holdings · Thresholds · Agent Intelligence</span>
         </div>
       </div>
       <span class="badge" id="providerBadge">assess: …</span>
@@ -2876,18 +3135,11 @@
       </span>
     </div>
     <div class="actions">
-      <span id="userChip" hidden style="display:inline-flex;align-items:center;gap:8px;margin-right:8px;font-size:13px;color:#9aa8bc">
+      <span id="userChip" hidden style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#9aa8bc">
         <img id="userAvatar" alt="" width="24" height="24" style="border-radius:50%;display:none">
         <span id="userEmail"></span>
         <a id="logoutLink" href="/auth/logout" style="display:none;color:#7aa2f7;text-decoration:none">Logout</a>
       </span>
-      <label id="preferComputedToggle" title="Use computed trends &amp; Fibonacci from price history instead of imported TA snapshots, for the whole portfolio. Reversible — imported data is kept." style="display:inline-flex;align-items:center;gap:6px;margin-right:8px;font-size:13px;color:#9aa8bc;cursor:pointer">
-        <input type="checkbox" id="preferComputedCheckbox" onchange="togglePreferComputed(this.checked)">
-        Computed trends
-      </label>
-      <button class="sync" id="btnSync" onclick="syncPortfolio()">Sync Prices</button>
-      <button class="warn" id="btnAlerts" onclick="evaluateAlerts()">Check Alerts</button>
-      <button class="success" id="btnAssess" onclick="assessAll()">Assess Portfolio</button>
     </div>
   </header>
   <div id="toast" hidden></div>
@@ -3016,15 +3268,54 @@
     </div>
   </div>
 
-  <nav class="tabs">
-    <button class="active" data-view="overview" onclick="showView('overview')" ondblclick="togglePreviousView()">Summary</button>
-    <button data-view="holdings" onclick="showView('holdings')" ondblclick="togglePreviousView()">Holdings</button>
-    <button data-view="screening" onclick="showView('screening')" ondblclick="togglePreviousView()">Screening</button>
-    <button data-view="simulation" onclick="showView('simulation')" ondblclick="togglePreviousView()">Simulation</button>
-    <button data-view="portfolio" onclick="showView('portfolio')" ondblclick="togglePreviousView()">Target</button>
-    <button data-view="fib" onclick="showView('fib')" ondblclick="togglePreviousView()">Patterns &amp; Tech Signals</button>
-    <button data-view="inspector" onclick="showView('inspector')" ondblclick="togglePreviousView()">Inspector</button>
-    <button data-view="fundamentals" onclick="showView('fundamentals')" ondblclick="togglePreviousView()">Fundamentals</button>
+  <nav class="tabs" aria-label="Portfolio views">
+    <div class="nav-tabs-main">
+    <div class="nav-group nav-group-summary">
+      <div class="nav-group-tabs">
+        <button class="active" data-view="overview" onclick="showView('overview')" ondblclick="togglePreviousView()">Summary</button>
+      </div>
+    </div>
+    <div class="nav-divider" aria-hidden="true"></div>
+    <div class="nav-group nav-group-portfolio">
+      <span class="nav-group-label" title="Sortable tables across all symbols">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Portfolio
+      </span>
+      <div class="nav-group-tabs">
+        <button data-view="holdings" onclick="showView('holdings')" ondblclick="togglePreviousView()">Holdings</button>
+        <button data-view="screening" onclick="showView('screening')" ondblclick="togglePreviousView()">Screening</button>
+        <button data-view="simulation" onclick="showView('simulation')" ondblclick="togglePreviousView()">Simulation</button>
+        <button data-view="fib" onclick="showView('fib')" ondblclick="togglePreviousView()">Patterns &amp; Tech Signals</button>
+        <button data-view="fundamentals" onclick="showView('fundamentals')" ondblclick="togglePreviousView()">Fundamentals</button>
+      </div>
+    </div>
+    <div class="nav-divider" aria-hidden="true"></div>
+    <div class="nav-group nav-group-symbol">
+      <span class="nav-group-label" title="Edit and inspect one symbol at a time">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        Per symbol
+      </span>
+      <div class="nav-group-tabs">
+        <button data-view="portfolio" onclick="showView('portfolio')" ondblclick="togglePreviousView()">Target</button>
+        <button data-view="inspector" onclick="showView('inspector')" ondblclick="togglePreviousView()">Inspector</button>
+      </div>
+    </div>
+    </div>
+    <div class="nav-divider" aria-hidden="true"></div>
+    <div class="nav-group nav-group-agents">
+      <span class="nav-group-label" title="Run portfolio agents — prices, alerts, and assessments also refresh in the background">
+        <span class="nav-agent-glyph" id="navAgentGlyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.582a.5.5 0 0 1 0 .962L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 19l2-2"/><path d="M5 18l-2 2"/></svg>
+          <span class="nav-agent-pulse"></span>
+        </span>
+        Agents
+      </span>
+      <div class="nav-group-tabs">
+        <button type="button" class="nav-agent-btn nav-agent-sync" id="btnSync" onclick="syncPortfolio()">Sync Prices</button>
+        <button type="button" class="nav-agent-btn nav-agent-warn" id="btnAlerts" onclick="evaluateAlerts()">Check Alerts</button>
+        <button type="button" class="nav-agent-btn nav-agent-assess" id="btnAssess" onclick="assessAll()">Assess Portfolio</button>
+      </div>
+    </div>
   </nav>
 
   <div id="view-overview" class="view">
@@ -3112,7 +3403,7 @@
   </div>
 
   <main id="view-holdings" class="view" hidden>
-    <section class="panel holdings-table-panel">
+    <section class="panel holdings-table-panel portfolio-table-panel">
       <div class="holdings-head">
         <h2 class="section-title">Holdings</h2>
       </div>
@@ -3124,7 +3415,7 @@
         <button type="button" class="secondary filter-btn" data-holdings-filter="small" onclick="setHoldingsFilter('small')" title="Bottom 20% by share count">Small</button>
         <button type="button" class="secondary filter-btn" data-holdings-filter="watch" onclick="setHoldingsFilter('watch')" title="Tracked symbols with no shares">Watch-only</button>
       </div>
-      <div id="holdingsTable"></div>
+      <div id="holdingsTable" class="portfolio-table-scroll"></div>
     </section>
     <section class="panel holdings-inspector-panel">
       <h2 id="holdingsInspectorTitle">Inspector</h2>
@@ -3235,7 +3526,6 @@
             </div>
             <div class="target-actions" style="margin-top:0.75rem;">
               <button type="submit">Save Settings</button>
-              <button type="button" id="btnAssessSymbol" class="success" onclick="assessSelected(event)">Assess Symbol</button>
               <button type="button" class="btn-danger" style="margin-left:auto;" onclick="deleteSelectedSymbol()">Delete Symbol</button>
             </div>
           </form>
@@ -3269,14 +3559,17 @@
       <div class="status" id="status"></div>
     </section>
 
-    <section class="panel">
-      <h2>Assessments</h2>
+    <section class="panel target-assessments-panel">
+      <div class="target-assessments-head">
+        <h2>Assessments</h2>
+        <button type="button" id="btnAssessSymbol" class="nav-agent-btn nav-agent-assess" onclick="assessSelected(event)" disabled>Assess Symbol</button>
+      </div>
       <div id="assessmentsList"></div>
     </section>
   </main>
 
   <div id="view-screening" class="view" hidden>
-    <div class="wide-panel">
+    <div class="wide-panel portfolio-table-panel">
       <h2>Portfolio Screening</h2>
       <div class="screening-filter-bar">
         <button type="button" class="secondary filter-btn active" data-screen-filter="all" onclick="setScreeningFilter('all')">All</button>
@@ -3284,12 +3577,12 @@
         <button type="button" class="secondary filter-btn" data-screen-filter="close" onclick="setScreeningFilter('close')" title="Nearest planned-trade threshold is within 10% of the current price">Close Trades</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="far" onclick="setScreeningFilter('far')" title="Nearest planned-trade threshold is more than 100% from the current price">Far Trades</button>
       </div>
-      <div id="screeningTable"></div>
+      <div id="screeningTable" class="portfolio-table-scroll"></div>
     </div>
   </div>
 
   <div id="view-simulation" class="view" hidden>
-    <div class="wide-panel">
+    <div class="wide-panel portfolio-table-panel">
       <h2>Planned-Trade Simulation</h2>
       <p class="empty" style="margin-top:0;">Totals cover the whole filtered list by default. ⌘/Ctrl-click a row to scope to just that symbol (toggle more to build a subset, Shift-click for a range); a plain click clears the selection back to the full list.</p>
       <div id="simulationKpis" class="sim-kpis"></div>
@@ -3303,13 +3596,13 @@
         <button type="button" class="secondary filter-btn" data-sim-legs="sells" onclick="setSimulationLegs('sells')" title="Only sell legs count toward the totals">Sells</button>
         <button type="button" class="success" style="margin-left:auto;" onclick="saveSimulationSnapshot()">Save to Summary</button>
       </div>
-      <div id="simulationTable"></div>
+      <div id="simulationTable" class="portfolio-table-scroll"></div>
       <div class="sim-caption">assumes every boundary hits · ignores fees/taxes/slippage · flows, not a balance</div>
     </div>
   </div>
 
   <div id="view-fib" class="view" hidden>
-    <div class="wide-panel">
+    <div class="wide-panel portfolio-table-panel">
       <div class="fib-map-header">
         <h2>Patterns &amp; Tech Signals</h2>
         <div class="fib-map-header-actions">
@@ -3326,7 +3619,7 @@
         <button type="button" class="secondary filter-btn" data-fib-band="warning" onclick="setFibMapBand('warning')" title="Near (2%–5% from nearest Fib): localized consolidation building momentum. Primary watching zone.">Near</button>
         <button type="button" class="secondary filter-btn" data-fib-band="neutral" onclick="setFibMapBand('neutral')" title="Neutral (&gt;5% from nearest Fib): stable range operations. Healthy distance from technical boundaries.">Neutral</button>
       </div>
-      <div id="fibMapTable"></div>
+      <div id="fibMapTable" class="portfolio-table-scroll"></div>
     </div>
   </div>
 
@@ -3363,7 +3656,7 @@
   </main>
 
   <main id="view-fundamentals" class="view" hidden>
-    <section class="panel">
+    <section class="panel portfolio-table-panel">
       <h2 class="section-title">Fundamentals Comparison</h2>
       <p class="empty" style="margin-top:0;">Compare every tracked symbol side by side. Split across three tabs; click a column header to sort, or a symbol to open the Inspector.</p>
       <div class="fundamentals-tabbar">
@@ -3437,6 +3730,13 @@
       }
     }
 
+    function updateNavAgentGlyph() {
+      const glyph = document.getElementById("navAgentGlyph");
+      if (!glyph) return;
+      const busy = autoRefreshInProgress || document.querySelector(".nav-group-agents .btn-pending");
+      glyph.classList.toggle("active", !!busy);
+    }
+
     // Shared in-flight button state: disable + spinner + "…" label for the
     // duration of an async op, restored on success or error. Accepts a button
     // element or an element id.
@@ -3448,12 +3748,14 @@
       btn.disabled = true;
       btn.classList.add("btn-pending");
       btn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span>${escapeHtml(pendingLabel)}`;
+      updateNavAgentGlyph();
       try {
         return await asyncFn();
       } finally {
         btn.disabled = prevDisabled;
         btn.classList.remove("btn-pending");
         btn.innerHTML = prevHtml;
+        updateNavAgentGlyph();
       }
     }
 
@@ -3491,8 +3793,6 @@
       try {
         const data = await api("/me");
         const chip = document.getElementById("userChip");
-        const computedCheckbox = document.getElementById("preferComputedCheckbox");
-        if (computedCheckbox) computedCheckbox.checked = !!data?.preferComputedTrends;
         if (!data || !data.user) return;
         document.getElementById("userEmail").textContent = data.user.email || data.user.name || "";
         const avatar = document.getElementById("userAvatar");
@@ -3502,42 +3802,12 @@
       } catch (_) { /* non-fatal */ }
     }
 
-    async function togglePreferComputed(checked) {
-      const checkbox = document.getElementById("preferComputedCheckbox");
-      try {
-        const data = await api("/preferences", {
-          method: "PATCH",
-          body: JSON.stringify({ preferComputedTrends: checked }),
-        });
-        if (checkbox) checkbox.checked = !!data.preferComputedTrends;
-        invalidateViewCaches();
-        await loadHoldings();
-        await loadFibMap(true);
-        if (inspectorChartSymbol.inspectorPanel) {
-          await loadInspector(inspectorChartSymbol.inspectorPanel, "inspectorPanel");
-        }
-        if (inspectorChartSymbol.holdingsInspectorPanel) {
-          await loadInspector(inspectorChartSymbol.holdingsInspectorPanel, "holdingsInspectorPanel");
-        }
-        if (selectedSymbol) await selectSymbol(selectedSymbol);
-        setStatus(
-          checked
-            ? "Now using computed trends for all symbols. Re-run Assess Portfolio to refresh assessments."
-            : "Reverted to imported TA where available.",
-          "success",
-        );
-      } catch (error) {
-        if (checkbox) checkbox.checked = !checked;
-        setStatus(error.message, "error");
-      }
-    }
-
-    function loadView(name) {
+    function loadView(name, options = {}) {
       if (name === "overview") return loadOverview();
       if (name === "holdings") return loadHoldings();
       if (name === "portfolio") return loadPortfolio();
       if (name === "screening") return loadScreening();
-      if (name === "simulation") return loadSimulation();
+      if (name === "simulation") return loadSimulation(options);
       if (name === "fib") return loadFibMap();
       if (name === "inspector") return loadInspectorOptions();
       if (name === "fundamentals") return loadFundamentals();
@@ -3548,14 +3818,15 @@
       // Re-selecting the active view is a no-op so it doesn't clobber
       // `previousView` (keeps the double-click toggle pair intact).
       if (name === currentView) return;
+      const restoreSimulation = name === "simulation" && currentView === "overview" && savedSimulationSnapshot;
       previousView = currentView;
       currentView = name;
       document.querySelectorAll(".view").forEach((el) => el.hidden = true);
       document.getElementById(`view-${name}`).hidden = false;
-      document.querySelectorAll("nav.tabs button").forEach((btn) => {
+      document.querySelectorAll("nav.tabs button[data-view]").forEach((btn) => {
         btn.classList.toggle("active", btn.dataset.view === name);
       });
-      loadView(name);
+      loadView(name, restoreSimulation ? { restore: true } : {});
     }
 
     // Double-clicking a nav tab flips back to the view you were on before the
@@ -3658,6 +3929,7 @@
       const loader = autoRefreshLoaders[currentView];
       if (!loader) return;
       autoRefreshInProgress = true;
+      updateNavAgentGlyph();
       try {
         await loader();
         markRefreshed(true);
@@ -3665,6 +3937,7 @@
         /* background refresh failures are non-fatal and stay silent */
       } finally {
         autoRefreshInProgress = false;
+        updateNavAgentGlyph();
       }
     }
 
@@ -3772,6 +4045,26 @@
       const color = positive ? "#22c55e" : "#ef4444";
       const cls = positive ? "gain-pos" : "gain-neg";
       return `<span class="${cls}" style="color:${color};font-weight:600;">${formatMoney(amount)}</span>`;
+    }
+
+    function renderColoredSummaryMoneyCell(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      const positive = amount >= 0;
+      const color = positive ? "#22c55e" : "#ef4444";
+      const cls = positive ? "gain-pos" : "gain-neg";
+      return `<span class="${cls}" style="color:${color};font-weight:600;">${formatSummaryMoney(amount)}</span>`;
+    }
+
+    function renderColoredMoneyInParens(value) {
+      if (value == null || value === "") return "";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "";
+      const positive = amount >= 0;
+      const color = positive ? "#22c55e" : "#ef4444";
+      const cls = positive ? "gain-pos" : "gain-neg";
+      return `<span class="${cls} total-day-amt" style="color:${color};font-weight:600;">(${formatSummaryMoney(amount)})</span>`;
     }
 
     function formatSignedMoney(value) {
@@ -4079,6 +4372,7 @@
         setDetailSymbolHead(null);
         document.getElementById("detailEmpty").hidden = false;
         document.getElementById("detailPanel").hidden = true;
+        updateAssessSymbolButton();
       }
 
       renderSymbolList(symbols);
@@ -4327,6 +4621,11 @@
       }
     }
 
+    function updateAssessSymbolButton() {
+      const btn = document.getElementById("btnAssessSymbol");
+      if (btn) btn.disabled = !selectedSymbol;
+    }
+
     async function selectSymbol(symbol) {
       selectedSymbol = symbol;
       const portfolio = await api("/portfolio");
@@ -4363,6 +4662,7 @@
       document.getElementById("noteSynthesisPreview").innerHTML = "";
       await loadTargetContext(item, inspectorData);
       await loadAssessments();
+      updateAssessSymbolButton();
       setStatus(`Loaded ${symbol}.`);
       if (currentView === "portfolio") {
         const detailPanel = document.querySelector("#view-portfolio .panel-detail");
@@ -4877,6 +5177,37 @@
       return state.dir === "desc" ? "▼" : "▲";
     }
 
+    const SAI_ACTION_RANK = { buy: 4, watch: 3, hold: 2, sell: 1 };
+    const SAI_CONFIDENCE_RANK = { high: 3, medium: 2, low: 1 };
+    const SAI_SENTIMENT_RANK = { bullish: 3, neutral: 2, bearish: 1 };
+
+    function saiFieldRank(value, rankMap) {
+      const key = String(value || "").toLowerCase();
+      return rankMap[key] ?? 0;
+    }
+
+    function saiFieldCompare(rankMap, getValue) {
+      return (left, right, dir) => {
+        const a = saiFieldRank(getValue(left), rankMap);
+        const b = saiFieldRank(getValue(right), rankMap);
+        if (a === 0 && b === 0) return 0;
+        if (a === 0) return 1;
+        if (b === 0) return -1;
+        return dir === "desc" ? b - a : a - b;
+      };
+    }
+
+    function resolveSortColumn(columns, sortKey) {
+      for (const column of columns) {
+        if (column.key === sortKey) return column;
+        if (Array.isArray(column.subSorts)) {
+          const sub = column.subSorts.find((item) => item.key === sortKey);
+          if (sub) return sub;
+        }
+      }
+      return null;
+    }
+
     function compareSortValues(left, right) {
       const a = left == null || left === "" ? null : left;
       const b = right == null || right === "" ? null : right;
@@ -4890,7 +5221,7 @@
     function sortRows(tableId, rows, columns) {
       const state = tableSortState[tableId];
       if (!state) return [...rows];
-      const column = columns.find((item) => item.key === state.key);
+      const column = resolveSortColumn(columns, state.key);
       if (!column) return [...rows];
       // A column may supply a direction-aware comparator (e.g. %-deviation
       // columns that keep missing rows at the bottom in both directions); when
@@ -4904,18 +5235,40 @@
       return state.dir === "desc" ? sorted.reverse() : sorted;
     }
 
+    function formatHelpTooltip(help) {
+      if (!help) return "";
+      if (help.includes("\n•")) {
+        const lines = help.split("\n").map((line) => line.trim()).filter(Boolean);
+        const intro = escapeHtml(lines[0]);
+        const bullets = lines.slice(1).map((line) => line.replace(/^•\s*/, "").trim()).filter(Boolean);
+        if (!bullets.length) return `<span class="th-help-intro">${intro}</span>`;
+        return `<span class="th-help-intro">${intro}</span>`
+          + `<ul class="th-help-list">${bullets.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+      }
+      return `<span class="th-help-intro">${escapeHtml(help)}</span>`;
+    }
+
     function renderSortableTable(tableId, columns, rows, emptyMessage, options = {}) {
       tableDataCache[tableId] = rows;
       if (!rows.length) return `<div class="empty">${emptyMessage}</div>`;
       const sortedRows = sortRows(tableId, rows, columns);
       const headers = columns.map((column) => {
+        const helpMark = column.help
+          ? `<span class="th-help-wrap" tabindex="0" onclick="event.stopPropagation()"><span class="th-help" aria-hidden="true">ⓘ</span><span class="th-help-pop" role="tooltip">${formatHelpTooltip(column.help)}</span></span>`
+          : "";
+        if (Array.isArray(column.subSorts) && column.subSorts.length) {
+          const subCaptions = column.subSorts.map((sub) => {
+            const active = tableSortState[tableId]?.key === sub.key ? " active" : "";
+            const indicator = sortIndicator(tableId, sub.key);
+            return `<button type="button" class="rec-sort-caption sortable${active}" data-table-id="${tableId}" data-sort-key="${sub.key}">${sub.label}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></button>`;
+          }).join("");
+          return `<th class="sai-sort-group"><span class="th-label">${column.label}${helpMark}</span><span class="th-sublabel rec-head-captions">${subCaptions}</span></th>`;
+        }
         const active = tableSortState[tableId]?.key === column.key ? " active" : "";
         const indicator = sortIndicator(tableId, column.key);
-        const helpAttr = column.help ? ` title="${escapeHtml(column.help)}"` : "";
-        const helpMark = column.help ? `<span class="th-help" aria-hidden="true">ⓘ</span>` : "";
         const subLabel = column.subLabel ? `<span class="th-sublabel">${column.subLabel}</span>` : "";
         const ascFirstAttr = column.ascFirst ? ` data-asc-first="1"` : "";
-        return `<th class="sortable${active}"${helpAttr} data-table-id="${tableId}" data-sort-key="${column.key}"${ascFirstAttr}><span class="th-label">${column.label}${helpMark}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></span>${subLabel}</th>`;
+        return `<th class="sortable${active}" data-table-id="${tableId}" data-sort-key="${column.key}"${ascFirstAttr}><span class="th-label">${column.label}${helpMark}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></span>${subLabel}</th>`;
       }).join("");
       const keyColumn = columns.find((column) => column.rowKey) || columns[0];
       const selectedKey = tableSelection[selectionKeyFor(tableId)];
@@ -5057,7 +5410,31 @@
 
     // Last saved simulation snapshot (includes filter/legs/selection criteria).
     let savedSimulationSnapshot = null;
-    let pendingSimulationRestore = null;
+
+    function normalizeSimulationCriteria(sim) {
+      if (!sim) return null;
+      const filter = String(sim.filter || "all").toLowerCase();
+      const legs = String(sim.legs || "both").toLowerCase();
+      return {
+        filter: ["all", "close", "far"].includes(filter) ? filter : "all",
+        legs: ["both", "buys", "sells"].includes(legs) ? legs : "both",
+        useSelection: !!sim.useSelection,
+        selectedSymbols: Array.isArray(sim.selectedSymbols)
+          ? sim.selectedSymbols.map((symbol) => String(symbol).toUpperCase()).filter(Boolean)
+          : [],
+      };
+    }
+
+    async function fetchSimulationRestoreCriteria() {
+      try {
+        const data = await api("/simulation/snapshot");
+        if (data.simulation) {
+          savedSimulationSnapshot = data.simulation;
+          return normalizeSimulationCriteria(data.simulation);
+        }
+      } catch (_) {}
+      return savedSimulationSnapshot ? normalizeSimulationCriteria(savedSimulationSnapshot) : null;
+    }
 
     function simulationCriteriaLabel(sim) {
       const parts = [];
@@ -5088,11 +5465,11 @@
       }
       if (sim.buyLegs != null) parts.push(`${sim.buyLegs} buy${sim.buyLegs === 1 ? "" : "s"}`);
       if (sim.sellLegs != null) parts.push(`${sim.sellLegs} sell${sim.sellLegs === 1 ? "" : "s"}`);
-      if (sim.netCashFlow != null) parts.push(formatMoney(sim.netCashFlow));
+      if (sim.netCashFlow != null) parts.push(`Net cash flow ${formatMoney(sim.netCashFlow)}`);
       if (sim.totalNetGains != null) {
-        parts.push(formatMoney(sim.totalNetGains));
+        parts.push(`Gains ${formatMoney(sim.totalNetGains)}`);
         const taxEst = SIM_TAX_RATE * Math.max(sim.totalNetGains, 0);
-        parts.push(`${formatMoney(taxEst)}<sup class="sim-gaintax-tax">est</sup>`);
+        parts.push(`Tax est ${formatMoney(taxEst)}`);
       }
       return parts.join(" · ");
     }
@@ -5854,12 +6231,12 @@
         symbol: `<strong>${label}</strong>`,
         dayChangePct: dayPct == null
           ? "—"
-          : `<strong>${renderColoredPercentCell(dayPct)}</strong> <span class="total-day-amt">(${renderColoredMoneyCell(dayChangeAmt)})</span>`,
-        marketValue: `<strong>${formatMoney(totalValue)}</strong>`,
+          : `<strong>${renderColoredPercentCell(dayPct)}</strong> ${renderColoredMoneyInParens(dayChangeAmt)}`,
+        marketValue: `<strong>${formatSummaryMoney(totalValue)}</strong>`,
         weightPct: weightPct == null ? "—" : `${weightPct.toFixed(2)}%`,
-        unrealizedGain: `<strong>${renderColoredMoneyCell(totalGain)}</strong>`,
+        unrealizedGain: `<strong>${renderColoredSummaryMoneyCell(totalGain)}</strong>`,
         gainPct: renderColoredPercentCell(gainPct),
-        annualDividend: `<strong>${formatMoney(totalDiv)}</strong>`,
+        annualDividend: `<strong>${formatSummaryMoney(totalDiv)}</strong>`,
       };
       const cells = holdingsColumns.map((col) => {
         const content = cellByKey[col.key] ?? "";
@@ -6222,20 +6599,49 @@
         + `</div>`;
     }
 
+    const TECH_STANCE_HELP = "Confluence agent's purely technical read (independent of the SAI):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 scale (left = bearish, center = neutral, right = bullish)\n• Strength — how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume)";
+    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell\n• CONFIDENCE — High / Medium / Low\n• SENTIMENT — relevance-weighted news reaction; falls back to your notes\n• Sort — click Action, Confidence, or Sentiment below (strongest first → weakest → off)";
+    const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
+    const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
+    const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below (red = reached, amber = approaching; click → Target)\n• T@A — Trade Above (red = reached, amber = approaching; click → Target)\n• Fib — Fibonacci proximity\n• 1YT — 1-year target upside (click → Inspector)\n• (0) — no active alerts";
+    const SIM_SYMBOL_HELP = "Ticker with at least one priced planned-trade threshold. Click to open in Target.";
+    const SIM_CLOSE_PCT_HELP = "Distance to the nearest in-scope planned-trade threshold:\n• Uses the active Buys / Sells / Both leg filter\n• Smaller % = closer to triggering\n• ▼ buy leg · ▲ sell leg\n• Sort ascending to surface trades about to fire";
+    const SIM_NET_GAINS_HELP = "Realized gain on in-scope SELL legs:\n• (avg sell price − cost/share) × shares sold\n• Cost/share — holding average cost when on file, otherwise share-weighted planned BUY threshold\n• — when no in-scope sells, or no derivable cost (UNKNOWN-WINS)";
+    const SIM_WARN_HELP = "Warnings on planned-trade rows:\n• ⚠ — planned sell exceeds shares held (a paired buy leg may cover it)\n• $0 — priced leg has no share quantity set";
+    const FUND_LEVEL_SORT_HELP = "Deviation sort by |price − level| / level:\n• Click cycles closest first → furthest first → unsorted\n• Applies to the reference level in this column";
+
     const screeningColumns = [
-      { key: "symbol", label: "Symbol", help: "Ticker. Click to open it in the Target view.", sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
+      { key: "symbol", label: "Symbol", help: SYMBOL_HELP, sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
       {
         key: "recommendation",
         label: "SAI",
-        subLabel: `<span class="rec-head-captions"><span>Action</span><span>Confidence</span><span>Sentiment</span></span>`,
-        help: "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell\n• CONFIDENCE — High / Medium / Low\n• SENTIMENT — relevance-weighted news reaction; falls back to your notes",
-        sortValue: (row) => `${row.recommendation?.action || ""}|${row.recommendation?.confidence || ""}|${row.recommendation?.sentiment || ""}`,
+        help: SAI_HELP,
+        subSorts: [
+          {
+            key: "recAction",
+            label: "Action",
+            sortValue: (row) => saiFieldRank(row.recommendation?.action, SAI_ACTION_RANK),
+            compare: saiFieldCompare(SAI_ACTION_RANK, (row) => row.recommendation?.action),
+          },
+          {
+            key: "recConfidence",
+            label: "Confidence",
+            sortValue: (row) => saiFieldRank(row.recommendation?.confidence, SAI_CONFIDENCE_RANK),
+            compare: saiFieldCompare(SAI_CONFIDENCE_RANK, (row) => row.recommendation?.confidence),
+          },
+          {
+            key: "recSentiment",
+            label: "Sentiment",
+            sortValue: (row) => saiFieldRank(row.recommendation?.sentiment, SAI_SENTIMENT_RANK),
+            compare: saiFieldCompare(SAI_SENTIMENT_RANK, (row) => row.recommendation?.sentiment),
+          },
+        ],
         render: (row) => renderScreeningRecommendationCell(row),
       },
       {
         key: "techStance",
         label: "Tech Stance",
-        help: "The Confluence agent's purely technical read (independent of the SAI): directional bias (Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish), a 0–100 score bar (left = bearish, center = neutral, right = bullish), and strength · how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume).",
+        help: TECH_STANCE_HELP,
         sortValue: (row) => (row.confluence?.score != null ? row.confluence.score : -2),
         render: (row) => renderScreeningTechStanceCell(row),
       },
@@ -6248,7 +6654,7 @@
       {
         key: "tradeBand",
         label: "Trade Range",
-        help: "Your Trade Below threshold is a red bar, Trade Above a green bar. A heat bar bridges the price (blue knob) and its closest threshold: the closer, the hotter (red); the farther, the cooler (green). Sort by distance to the nearest threshold (closest first).",
+        help: TRADE_RANGE_HELP,
         sortValue: (row) => tradeBandClosestDist(row),
         render: (row) => screeningTargetLink(row.symbol, renderTradeBandCell(row), `Edit ${row.symbol} planned trades in Target`),
       },
@@ -6262,7 +6668,7 @@
       {
         key: "alertCount",
         label: "Alerts",
-        help: "The kinds of alert that triggered, as badges: T@B = Trade Below, T@A = Trade Above (red = reached, amber = approaching; click → Target), Fib = Fibonacci proximity, 1YT = 1-year target upside (click → Inspector). Hover a badge for the full message; (0) means none active.",
+        help: ALERTS_HELP,
         sortValue: (row) => row.alertCount,
         render: (row) => renderScreeningAlertsCell(row),
       },
@@ -6512,7 +6918,7 @@
       { key: "neckline", label: "Neckline", sortValue: (row) => row.pattern?.neckline, render: (row) => renderFibNecklineCell(row) },
       { key: "target", label: "Target", sortValue: (row) => row.pattern?.target, render: (row) => renderFibTargetCell(row) },
       { key: "trends", label: "Trends", sortValue: (row) => row.trends?.legs, render: (row) => renderFibTrendsCell(row) },
-      { key: "techStance", label: "Tech Stance", sortValue: (row) => (row.confluence?.score != null ? row.confluence.score : -2), render: (row) => renderFibTechStanceCell(row) },
+      { key: "techStance", label: "Tech Stance", help: TECH_STANCE_HELP, sortValue: (row) => (row.confluence?.score != null ? row.confluence.score : -2), render: (row) => renderFibTechStanceCell(row) },
       {
         key: "nearestFibLabel",
         label: "Nearest Fib",
@@ -6774,14 +7180,11 @@
 
     function applySimulationCriteria(criteria) {
       if (!criteria) return;
-      const filter = String(criteria.filter || "all").toLowerCase();
-      const legs = String(criteria.legs || "both").toLowerCase();
-      simulationFilter = ["all", "close", "far"].includes(filter) ? filter : "all";
-      simulationLegs = ["both", "buys", "sells"].includes(legs) ? legs : "both";
-      if (criteria.useSelection && Array.isArray(criteria.selectedSymbols) && criteria.selectedSymbols.length) {
-        const selected = criteria.selectedSymbols.map((symbol) => String(symbol).toUpperCase());
-        multiSelection.simulation = new Set(selected);
-        multiAnchor.simulation = selected[selected.length - 1] || null;
+      simulationFilter = criteria.filter;
+      simulationLegs = criteria.legs;
+      if (criteria.useSelection && criteria.selectedSymbols.length) {
+        multiSelection.simulation = new Set(criteria.selectedSymbols);
+        multiAnchor.simulation = criteria.selectedSymbols[criteria.selectedSymbols.length - 1] || null;
       } else {
         multiSelection.simulation = new Set();
         multiAnchor.simulation = null;
@@ -6789,18 +7192,16 @@
     }
 
     async function openSimulationFromSavedSnapshot() {
-      if (!savedSimulationSnapshot) return;
-      pendingSimulationRestore = savedSimulationSnapshot;
       document.querySelectorAll(".view").forEach((el) => { el.hidden = true; });
       document.getElementById("view-simulation").hidden = false;
-      document.querySelectorAll("nav.tabs button").forEach((btn) => {
+      document.querySelectorAll("nav.tabs button[data-view]").forEach((btn) => {
         btn.classList.toggle("active", btn.dataset.view === "simulation");
       });
       if (currentView !== "simulation") {
         previousView = currentView;
         currentView = "simulation";
       }
-      await loadSimulation();
+      await loadSimulation({ restore: true });
       setStatus("Restored saved simulation filters and selection.", "info");
     }
 
@@ -7023,11 +7424,11 @@
     }
 
     const simulationColumns = [
-      { key: "symbol", label: "Symbol", rowKey: true, help: "Ticker with at least one priced planned-trade threshold. Click to open it in the Target view.", sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
+      { key: "symbol", label: "Symbol", rowKey: true, help: SIM_SYMBOL_HELP, sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
       { key: "cashInvested", label: "Invested", sortValue: (row) => row.cashInvested, render: (row) => (row.cashInvested ? formatMoney(row.cashInvested) : "—") },
       { key: "buy", label: "Buy @ ×Sh", sortValue: (row) => row.cashInvested, render: (row) => simLegCell(row.buyLegList) },
       { key: "sell", label: "Sell @ ×Sh", sortValue: (row) => row.cashGenerated, render: (row) => simLegCell(row.sellLegList) },
-      { key: "closePct", label: "Close %", help: "Percent distance from the current price to the nearest planned-trade threshold among the legs in the active Buys/Sells/Both filter (smaller = closer to triggering), with the leg direction — ▼ buy / ▲ sell. Sort ascending to surface the trades about to fire.", sortValue: (row) => { const m = simClosestMeta(row); return m ? m.dist : Infinity; }, render: (row) => {
+      { key: "closePct", label: "Close %", help: SIM_CLOSE_PCT_HELP, sortValue: (row) => { const m = simClosestMeta(row); return m ? m.dist : Infinity; }, render: (row) => {
         const m = simClosestMeta(row);
         if (!m) return "—";
         const color = m.isBuy ? "var(--accent-2)" : "#fb923c";
@@ -7036,10 +7437,10 @@
       } },
       { key: "cashGenerated", label: "Generated", sortValue: (row) => row.cashGenerated, render: (row) => (row.cashGenerated ? formatMoney(row.cashGenerated) : "—") },
       { key: "netCash", label: "Net Cash", sortValue: (row) => row.netCash, render: (row) => renderColoredMoneyCell(row.netCash) },
-      { key: "netGains", label: "Net Gains", help: "Realized gain on the in-scope SELL legs = (avg sell price − cost/share) × shares sold. Cost/share is the holding's average cost when on file, otherwise the share-weighted planned BUY threshold (≈, watch-only). Shows — when there are no in-scope sells, or sells with neither a cost basis nor a buy leg to imply one (those proceeds appear under UNKNOWN-WINS).", sortValue: (row) => (row.netGains == null ? -Infinity : row.netGains), render: (row) => renderSimNetGainsCell(row) },
+      { key: "netGains", label: "Net Gains", help: SIM_NET_GAINS_HELP, sortValue: (row) => (row.netGains == null ? -Infinity : row.netGains), render: (row) => renderSimNetGainsCell(row) },
       { key: "netShares", label: "Net Shares", sortValue: (row) => row.netShares, render: (row) => renderSimulationSharesCell(row.netShares) },
       { key: "held", label: "Held", sortValue: (row) => row.held, render: (row) => (row.held ? simQty(row.held) : "—") },
-      { key: "warn", label: "⚠", help: "⚠ = planned sell exceeds shares held (a paired buy leg may cover it). $0 = a priced leg has no share quantity set.", sortValue: (row) => (row.oversell ? 1 : 0) + (row.qtyNotSet ? 0.5 : 0), render: (row) => simWarnCell(row) },
+      { key: "warn", label: "⚠", help: SIM_WARN_HELP, sortValue: (row) => (row.oversell ? 1 : 0) + (row.qtyNotSet ? 0.5 : 0), render: (row) => simWarnCell(row) },
     ];
 
     // Leg-aware nearest-threshold distance for a raw screening row, honoring the
@@ -7198,9 +7599,13 @@
       renderSimulationView();
     }
 
-    async function loadSimulation() {
-      const restore = pendingSimulationRestore;
-      pendingSimulationRestore = null;
+    async function loadSimulation(options = {}) {
+      let restoreCriteria = null;
+      if (options.restore) {
+        restoreCriteria = await fetchSimulationRestoreCriteria();
+      } else if (options.criteria) {
+        restoreCriteria = normalizeSimulationCriteria(options.criteria);
+      }
       const cache = viewDataCache.screening;
       const now = Date.now();
       if (!(cache.data && now - cache.fetchedAt < VIEW_CACHE_TTL_MS)) {
@@ -7209,7 +7614,7 @@
         cache.data = data.results;
         cache.fetchedAt = now;
       }
-      if (restore) applySimulationCriteria(restore);
+      if (restoreCriteria) applySimulationCriteria(restoreCriteria);
       const present = new Set((cache.data || []).filter(hasPricedLeg).map((row) => row.symbol));
       multiSelection.simulation = new Set([...getMultiSelection("simulation")].filter((symbol) => present.has(symbol)));
       if (multiAnchor.simulation && !present.has(multiAnchor.simulation)) multiAnchor.simulation = null;
@@ -9579,10 +9984,10 @@
             },
           },
           fundPriceColumn(),
-          { key: "high52", label: "52W High", ascFirst: true, help: "Sorts by how far the current price is from this level (|price − level| / level %). Click cycles: closest first → furthest first → unsorted.", sortValue: (r) => fundLevelAbsDev(r, "high52w"), compare: fundDeviationCompare("high52w"), render: (r) => fundLevelCell(r, "high52", fundVal(r, "priceRange", "high52w")) },
-          { key: "low52", label: "52W Low", ascFirst: true, help: "Sorts by how far the current price is from this level (|price − level| / level %). Click cycles: closest first → furthest first → unsorted.", sortValue: (r) => fundLevelAbsDev(r, "low52w"), compare: fundDeviationCompare("low52w"), render: (r) => fundLevelCell(r, "low52", fundVal(r, "priceRange", "low52w")) },
-          { key: "ma50", label: "50-Day Avg", ascFirst: true, help: "Sorts by how far the current price is from this level (|price − level| / level %). Click cycles: closest first → furthest first → unsorted.", sortValue: (r) => fundLevelAbsDev(r, "ma50"), compare: fundDeviationCompare("ma50"), render: (r) => fundLevelCell(r, "ma50", fundVal(r, "priceRange", "ma50")) },
-          { key: "ma200", label: "200-Day Avg", ascFirst: true, help: "Sorts by how far the current price is from this level (|price − level| / level %). Click cycles: closest first → furthest first → unsorted.", sortValue: (r) => fundLevelAbsDev(r, "ma200"), compare: fundDeviationCompare("ma200"), render: (r) => fundLevelCell(r, "ma200", fundVal(r, "priceRange", "ma200")) },
+          { key: "high52", label: "52W High", ascFirst: true, help: FUND_LEVEL_SORT_HELP, sortValue: (r) => fundLevelAbsDev(r, "high52w"), compare: fundDeviationCompare("high52w"), render: (r) => fundLevelCell(r, "high52", fundVal(r, "priceRange", "high52w")) },
+          { key: "low52", label: "52W Low", ascFirst: true, help: FUND_LEVEL_SORT_HELP, sortValue: (r) => fundLevelAbsDev(r, "low52w"), compare: fundDeviationCompare("low52w"), render: (r) => fundLevelCell(r, "low52", fundVal(r, "priceRange", "low52w")) },
+          { key: "ma50", label: "50-Day Avg", ascFirst: true, help: FUND_LEVEL_SORT_HELP, sortValue: (r) => fundLevelAbsDev(r, "ma50"), compare: fundDeviationCompare("ma50"), render: (r) => fundLevelCell(r, "ma50", fundVal(r, "priceRange", "ma50")) },
+          { key: "ma200", label: "200-Day Avg", ascFirst: true, help: FUND_LEVEL_SORT_HELP, sortValue: (r) => fundLevelAbsDev(r, "ma200"), compare: fundDeviationCompare("ma200"), render: (r) => fundLevelCell(r, "ma200", fundVal(r, "priceRange", "ma200")) },
           {
             key: "closest", label: "Closest to Price",
             sortValue: (r) => { const c = fundClosestLevel(r); return c ? c.absDev : null; },
@@ -9789,14 +10194,14 @@
       if (fundamentalsTab === "range") {
         container.innerHTML = `
           <div class="fund-range-layout">
-            <div class="fund-table-panel">
-              <div class="fund-table-scroll">${table}</div>
+            <div class="fund-table-panel portfolio-table-panel">
+              <div class="fund-table-scroll portfolio-table-scroll">${table}</div>
             </div>
             <aside class="fund-news-panel" id="fundamentalsNewsPanel"></aside>
           </div>`;
         renderFundamentalsNewsPanel();
       } else {
-        container.innerHTML = `<div class="fund-table-scroll">${table}</div>`;
+        container.innerHTML = `<div class="fund-table-scroll portfolio-table-scroll">${table}</div>`;
       }
     }
 
@@ -9865,7 +10270,7 @@
         // no return: allow links/buttons inside the row to keep working
       }
 
-      const header = event.target.closest("th.sortable");
+      const header = event.target.closest("th.sortable, .rec-sort-caption.sortable");
       if (!header) return;
       const tableId = header.dataset.tableId;
       const sortKey = header.dataset.sortKey;

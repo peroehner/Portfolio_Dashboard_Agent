@@ -401,13 +401,8 @@ def get_user(user_id: int) -> dict | None:
 
 
 def get_prefer_computed_trends(user_id: int | None = None) -> bool:
-    """Whether this user wants computed trends to override imported TA snapshots."""
-    uid = user_id if user_id is not None else get_current_user_id()
-    with get_connection() as conn:
-        row = conn.execute(
-            "SELECT prefer_computed_trends FROM users WHERE id = %s", (uid,)
-        ).fetchone()
-    return bool(row["prefer_computed_trends"]) if row else False
+    """Computed trends always win over imported TA snapshots."""
+    return True
 
 
 def set_prefer_computed_trends(value: bool, user_id: int | None = None) -> bool:
