@@ -176,6 +176,50 @@
       color: #ddd6fe;
       text-shadow: 0 0 28px rgba(139, 92, 246, 0.35);
     }
+    .inspector-detail-toolbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.85rem;
+    }
+    .inspector-detail-toolbar .inspector-detail-head-main {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .inspector-detail-toolbar .panel-symbol-head {
+      margin-bottom: 0.2rem;
+    }
+    .inspector-detail-toolbar .inspector-sai-head {
+      margin: 0;
+    }
+    .inspector-export-pdf {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.38rem 0.62rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .inspector-export-pdf:hover {
+      color: var(--text);
+      border-color: rgba(96, 165, 250, 0.45);
+      background: rgba(96, 165, 250, 0.08);
+    }
+    .inspector-export-pdf svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
     #view-portfolio,
     #view-inspector {
       --portfolio-chrome: 8.75rem;
@@ -285,11 +329,19 @@
       background: rgba(15, 23, 42, 0.35);
     }
     .target-analyst-block,
-    .target-recommendation-block {
+    .target-recommendation-block,
+    .inspector-sai-head {
       display: inline-flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 0.35rem 0.5rem;
+    }
+    .inspector-sai-head {
+      margin: -0.35rem 0 0.65rem;
+      padding: 0.45rem 0.6rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.35);
     }
     .target-analyst-value {
       font-weight: 600;
@@ -684,6 +736,16 @@
       border-color: rgba(59, 130, 246, 0.28);
     }
     .projection-row.simulation .projection-label { color: var(--accent); }
+    .projection-row.simulation.projection-row-clickable {
+      cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease;
+    }
+    .projection-row.simulation.projection-row-clickable:hover,
+    .projection-row.simulation.projection-row-clickable:focus-visible {
+      background: rgba(59, 130, 246, 0.12);
+      border-color: rgba(59, 130, 246, 0.5);
+      outline: none;
+    }
     .projection-subnote { margin-top: 0.45rem; font-size: 0.72rem; color: var(--muted); }
     .sim-kpis { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
     .sim-kpi {
@@ -998,7 +1060,6 @@
     .confluence-watch.is-watch .confluence-watch-label { color: var(--accent-2); }
     .confluence-watch.is-risk .confluence-watch-label { color: #fb923c; }
     #inspector-recommendation.inspector-section-focus,
-    #inspector-notes.inspector-section-focus,
     #inspector-alerts.inspector-section-focus {
       outline: 2px solid rgba(96, 165, 250, 0.55);
       outline-offset: 4px;
@@ -2200,7 +2261,9 @@
     }
     .inspector-lower-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      /* SAI is the dominant block; Active Alerts are short one-liners that sit in
+         a slim right rail (~2.7:1). Collapses to one column on narrow screens. */
+      grid-template-columns: minmax(0, 2.7fr) minmax(0, 1fr);
       gap: 1rem;
       margin-top: 1rem;
       align-items: start;
@@ -2281,6 +2344,20 @@
       border-left: 3px solid var(--accent);
     }
     .alert { border-left-color: var(--warn); }
+    .alert .alert-kind { margin-right: 0.45rem; vertical-align: baseline; }
+    /* Stale alerts: condition no longer holds — keep but mute/grey them, with a
+       dimmed (outline-style) glyph vs the full-color active one. */
+    .alert.alert-stale {
+      opacity: 0.62;
+      border-left-color: var(--border);
+      color: var(--muted);
+    }
+    .alert.alert-stale .alert-msg { color: var(--muted); }
+    .alert-kind.stale {
+      color: var(--muted);
+      border-color: var(--border);
+      background: transparent;
+    }
     .note { border-left-color: var(--accent-2); }
     .assessment { border-left-color: #a78bfa; }
     .assessment-latest {
@@ -2965,7 +3042,7 @@
               <button type="button" data-alloc-mode="top75" onclick="setAllocationMode('top75')">Top 75%</button>
             </div>
           </div>
-          <p class="visual-subtitle" id="allocationSubtitle">Allocation weighted by total value. Top 5 assets shown individually; remaining assets rolled into "Others".</p>
+          <p class="visual-subtitle" id="allocationSubtitle">Top 5 assets shown individually</p>
           <div class="allocation-chart-wrap">
             <canvas id="allocationChart" aria-label="Portfolio allocation donut chart"></canvas>
           </div>
@@ -3077,7 +3154,7 @@
           <span class="symbol-head-company" id="detailCompanyName" hidden></span>
         </span>
       </h2>
-      <div id="detailEmpty" class="empty">Choose a symbol to view thresholds, notes, and Synthesized Agent Insight.</div>
+      <div id="detailEmpty" class="empty">Choose a symbol to view thresholds and notes.</div>
       <div id="detailPanel" hidden>
         <section class="target-setup-card">
           <div class="target-rec-row" id="targetSummaryRow">
@@ -3085,10 +3162,6 @@
               <span class="target-rec-label">1YT Analyst</span>
               <span class="target-analyst-value" id="analystTargetReadout">—</span>
               <span class="target-field-meta" id="analystUpsideMeta"></span>
-            </div>
-            <div class="target-recommendation-block" id="targetRecommendationBlock" hidden>
-              <span class="target-rec-label">SAI</span>
-              <span id="targetRecommendationChips"></span>
             </div>
           </div>
           <form id="symbolForm">
@@ -3197,9 +3270,7 @@
     </section>
 
     <section class="panel">
-      <h2>Alerts</h2>
-      <div id="alertsList"></div>
-      <h2 style="margin-top:1.25rem;">Assessments</h2>
+      <h2>Assessments</h2>
       <div id="assessmentsList"></div>
     </section>
   </main>
@@ -3267,13 +3338,25 @@
       </div>
     </section>
     <section class="panel panel-detail">
-      <h2 class="panel-symbol-head" id="inspectorTitleHead">
-        <span class="symbol-head-row">
-          <span class="symbol-head-ticker" id="inspectorSymbol">Inspector</span>
-          <span class="symbol-head-quote" id="inspectorSymbolQuote" hidden></span>
-          <span class="symbol-head-company" id="inspectorCompanyName" hidden></span>
-        </span>
-      </h2>
+      <div class="inspector-detail-toolbar">
+        <div class="inspector-detail-head-main">
+          <h2 class="panel-symbol-head" id="inspectorTitleHead">
+            <span class="symbol-head-row">
+              <span class="symbol-head-ticker" id="inspectorSymbol">Inspector</span>
+              <span class="symbol-head-quote" id="inspectorSymbolQuote" hidden></span>
+              <span class="symbol-head-company" id="inspectorCompanyName" hidden></span>
+            </span>
+          </h2>
+          <div class="inspector-sai-head target-recommendation-block" id="inspectorSaiHead" hidden>
+            <span class="target-rec-label">SAI</span>
+            <span id="inspectorRecommendationChips"></span>
+          </div>
+        </div>
+        <button type="button" class="inspector-export-pdf" id="btnInspectorPdf" title="Export Inspector snapshot as PDF" onclick="exportInspectorPdf()" hidden aria-label="Export PDF">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
+          PDF
+        </button>
+      </div>
       <div id="inspectorEmpty" class="empty">Choose a symbol to inspect holdings, alerts, notes, and assessments.</div>
       <div id="inspectorPanel" hidden></div>
     </section>
@@ -3391,6 +3474,7 @@
     let noteSynthesisSupported = false;
     let editingNoteId = null;
     let currentNotes = [];
+    let currentAssessments = [];
 
     async function loadConfig() {
       try {
@@ -3923,7 +4007,20 @@
       }
     }
 
-    function setInspectorSymbolHead(symbol, quote = null, companyName = null) {
+    function renderInspectorHeaderSai(recommendation) {
+      const row = document.getElementById("inspectorSaiHead");
+      const chips = document.getElementById("inspectorRecommendationChips");
+      if (!row || !chips) return;
+      if (recommendation) {
+        row.hidden = false;
+        chips.innerHTML = renderRecommendationChipRow(recommendation, { bare: true });
+      } else {
+        row.hidden = true;
+        chips.innerHTML = "";
+      }
+    }
+
+    function setInspectorSymbolHead(symbol, quote = null, companyName = null, recommendation = null) {
       const el = document.getElementById("inspectorSymbol");
       const head = document.getElementById("inspectorTitleHead");
       const quoteEl = document.getElementById("inspectorSymbolQuote");
@@ -3967,6 +4064,9 @@
           companyEl.hidden = true;
         }
       }
+      renderInspectorHeaderSai(symbol ? recommendation : null);
+      const pdfBtn = document.getElementById("btnInspectorPdf");
+      if (pdfBtn) pdfBtn.hidden = !symbol;
     }
 
     async function loadPortfolio() {
@@ -3991,7 +4091,6 @@
         await selectSymbol(selectedSymbol);
         return;
       }
-      await loadAlerts();
       await loadAssessments();
     }
 
@@ -4179,19 +4278,7 @@
       }).join("");
     }
 
-    function renderTargetMeta(item, recommendation) {
-      const recBlock = document.getElementById("targetRecommendationBlock");
-      const recChips = document.getElementById("targetRecommendationChips");
-      if (recBlock && recChips) {
-        if (recommendation) {
-          recBlock.hidden = false;
-          recChips.innerHTML = renderRecommendationChipRow(recommendation, { bare: true });
-        } else {
-          recBlock.hidden = true;
-          recChips.innerHTML = "";
-        }
-      }
-
+    function renderTargetMeta(item) {
       const analystReadout = document.getElementById("analystTargetReadout");
       const analystMeta = document.getElementById("analystUpsideMeta");
       if (analystReadout) {
@@ -4234,7 +4321,10 @@
       renderTargetFibStrip(levels, item.currentPrice);
       renderThresholdProposal("tradeBelowProposal", "tradeBelowPrice", proposals.buy, proposals.buyNote);
       renderThresholdProposal("tradeAboveProposal", "tradeAbovePrice", proposals.sell, proposals.sellNote);
-      renderTargetMeta(item, recommendation);
+      renderTargetMeta(item);
+      if (currentView === "inspector" && inspector) {
+        renderInspectorHeaderSai(inspector.recommendation || null);
+      }
     }
 
     async function selectSymbol(symbol) {
@@ -4272,7 +4362,6 @@
 
       document.getElementById("noteSynthesisPreview").innerHTML = "";
       await loadTargetContext(item, inspectorData);
-      await loadAlerts();
       await loadAssessments();
       setStatus(`Loaded ${symbol}.`);
       if (currentView === "portfolio") {
@@ -4284,9 +4373,12 @@
     }
 
     async function loadAlerts() {
+      // Alerts now display only in the Inspector ("Active Alerts"); the Target
+      // alert list was removed. Guard so legacy callers don't crash.
+      const container = document.getElementById("alertsList");
+      if (!container) return;
       const query = selectedSymbol ? `?symbol=${selectedSymbol}` : "";
       const data = await api(`/alerts${query}`);
-      const container = document.getElementById("alertsList");
       container.innerHTML = data.alerts.length
         ? data.alerts.map((alert) => `
             <div class="alert">
@@ -4300,10 +4392,25 @@
     async function loadAssessments() {
       const query = selectedSymbol ? `?symbol=${selectedSymbol}&limit=5` : "?limit=5";
       const data = await api(`/assessments${query}`);
+      currentAssessments = data.assessments || [];
+      renderTargetAssessmentsList(currentAssessments);
+    }
+
+    function renderTargetAssessmentsList(assessments) {
       const container = document.getElementById("assessmentsList");
-      container.innerHTML = data.assessments.length
-        ? data.assessments.map((item) => renderAssessmentHtml(item)).join("")
-        : `<div class="empty">No assessments yet.</div>`;
+      if (!container) return;
+      if (!assessments.length) {
+        container.innerHTML = `<div class="empty">No assessments yet.</div>`;
+        return;
+      }
+      // "Clear history" appears once there's more than the latest assessment; it
+      // keeps the latest and removes the rest (mirrors the old Inspector control).
+      const clearBtn = (selectedSymbol && assessments.length > 1)
+        ? `<div class="target-actions" style="margin:0 0 0.6rem;"><button type="button" class="btn-danger" onclick="deleteTargetAssessmentHistory()">Clear history</button></div>`
+        : "";
+      container.innerHTML = clearBtn + assessments
+        .map((item) => renderAssessmentHtml(item, { deleteId: item.id }))
+        .join("");
     }
 
     function escapeHtml(value) {
@@ -4422,6 +4529,18 @@
       }
     }
 
+    // New fallbacks store a short classified reason (e.g. "LLM unavailable
+    // (quota/billing) — used rules engine."). Older notes persisted the raw
+    // provider error JSON; never render that blob — fall back to a generic line
+    // if the stored text looks like raw JSON/URL/status output or is too long.
+    function cleanFallbackReason(text) {
+      const t = (text || "").trim();
+      if (!t || t.length > 90 || /[{}]|https?:\/\//i.test(t) || /resource_exhausted|"error"|status"\s*:/i.test(t)) {
+        return "LLM unavailable — used rules engine.";
+      }
+      return t;
+    }
+
     function renderSynthesisHtml(synthesis) {
       if (!synthesis || !synthesis.summary) return "";
       const growth = (synthesis.growthTrajectory || [])
@@ -4436,7 +4555,7 @@
       return `
         <div class="synthesis">
           <h4>Note Synthesis · ${synthesis.sentiment || "neutral"}${synthesis.llmFallback ? " · rules fallback" : ""}</h4>
-          ${synthesis.llmFallback ? `<div class="empty" style="color:var(--warn);margin-bottom:0.35rem;">Gemini unavailable — used rules engine. ${synthesis.llmError || ""}</div>` : ""}
+          ${synthesis.llmFallback ? `<div class="empty" style="color:var(--warn);margin-bottom:0.35rem;">${escapeHtml(cleanFallbackReason(synthesis.llmError))}</div>` : ""}
           <div>${synthesis.summary}</div>
           ${growth ? `<ul>${growth}</ul>` : ""}
           ${projections ? `<ul>${projections}</ul>` : ""}
@@ -4455,8 +4574,11 @@
       return (factors || []).filter((f) => typeof f === "string" && !looksLikeIdentifier(f.trim()));
     }
 
-    function renderAssessmentHtml(item) {
+    function renderAssessmentHtml(item, { deleteId = null } = {}) {
       const factors = cleanFactors(item.factors);
+      const deleteBtn = deleteId != null
+        ? `<div class="actions" style="margin-top:0.5rem;"><button type="button" class="btn-danger" onclick="deleteTargetAssessment(${deleteId})">Delete</button></div>`
+        : "";
       return `
         <div class="assessment">
           <strong>${item.symbol}</strong>
@@ -4467,7 +4589,45 @@
           ${factors.length ? `<ul style="margin:0.4rem 0 0 1.1rem;font-size:0.88rem;color:var(--muted);">${factors.map((f) => `<li>${f}</li>`).join("")}</ul>` : ""}
           ${renderSynthesisHtml(item.noteSynthesis)}
           <div class="empty" style="margin-top:0.35rem;">${formatLocalTs(item.createdAt)} · ${item.provider}</div>
+          ${deleteBtn}
         </div>`;
+    }
+
+    async function deleteTargetAssessment(assessmentId) {
+      if (!selectedSymbol) return;
+      if (!confirm("Delete this assessment?")) return;
+      try {
+        await api(`/assessments/${assessmentId}?symbol=${encodeURIComponent(selectedSymbol)}`, { method: "DELETE" });
+        await loadAssessments();
+        setStatus(`Assessment deleted for ${selectedSymbol}.`);
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    async function deleteTargetAssessmentHistory() {
+      if (!selectedSymbol) return;
+      // Pull the full history (not just the displayed page) so "Clear history"
+      // truly removes everything except the latest assessment.
+      let older = [];
+      try {
+        const data = await api(`/assessments?symbol=${encodeURIComponent(selectedSymbol)}&limit=500`);
+        older = (data.assessments || []).slice(1);
+      } catch (error) {
+        setStatus(error.message, "error");
+        return;
+      }
+      if (!older.length) { setStatus("No assessment history to delete."); return; }
+      if (!confirm(`Delete the entire assessment history (${older.length})? The latest assessment is kept.`)) return;
+      try {
+        for (const item of older) {
+          await api(`/assessments/${item.id}?symbol=${encodeURIComponent(selectedSymbol)}`, { method: "DELETE" });
+        }
+        await loadAssessments();
+        setStatus(`Deleted assessment history (${older.length}) for ${selectedSymbol}.`);
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
     }
 
     async function synthesizeNote(noteId, hasExisting) {
@@ -4693,14 +4853,19 @@
       }
     }
 
-    function cycleTableSort(tableId, columnKey) {
+    function cycleTableSort(tableId, columnKey, ascFirst = false) {
+      // Default columns cycle desc → asc → unsorted. ascFirst columns (the
+      // price-level %-deviation ones) cycle asc → desc → unsorted so the first
+      // click surfaces the smallest deviation (price closest to the level).
+      const first = ascFirst ? "asc" : "desc";
+      const second = ascFirst ? "desc" : "asc";
       const current = tableSortState[tableId];
       if (!current || current.key !== columnKey) {
-        tableSortState[tableId] = { key: columnKey, dir: "desc" };
+        tableSortState[tableId] = { key: columnKey, dir: first };
         return;
       }
-      if (current.dir === "desc") {
-        tableSortState[tableId] = { key: columnKey, dir: "asc" };
+      if (current.dir === first) {
+        tableSortState[tableId] = { key: columnKey, dir: second };
         return;
       }
       delete tableSortState[tableId];
@@ -4727,6 +4892,12 @@
       if (!state) return [...rows];
       const column = columns.find((item) => item.key === state.key);
       if (!column) return [...rows];
+      // A column may supply a direction-aware comparator (e.g. %-deviation
+      // columns that keep missing rows at the bottom in both directions); when
+      // present it fully owns ordering and is NOT reversed.
+      if (typeof column.compare === "function") {
+        return [...rows].sort((left, right) => column.compare(left, right, state.dir));
+      }
       const sorted = [...rows].sort((left, right) =>
         compareSortValues(column.sortValue(left), column.sortValue(right))
       );
@@ -4743,7 +4914,8 @@
         const helpAttr = column.help ? ` title="${escapeHtml(column.help)}"` : "";
         const helpMark = column.help ? `<span class="th-help" aria-hidden="true">ⓘ</span>` : "";
         const subLabel = column.subLabel ? `<span class="th-sublabel">${column.subLabel}</span>` : "";
-        return `<th class="sortable${active}"${helpAttr} data-table-id="${tableId}" data-sort-key="${column.key}"><span class="th-label">${column.label}${helpMark}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></span>${subLabel}</th>`;
+        const ascFirstAttr = column.ascFirst ? ` data-asc-first="1"` : "";
+        return `<th class="sortable${active}"${helpAttr} data-table-id="${tableId}" data-sort-key="${column.key}"${ascFirstAttr}><span class="th-label">${column.label}${helpMark}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></span>${subLabel}</th>`;
       }).join("");
       const keyColumn = columns.find((column) => column.rowKey) || columns[0];
       const selectedKey = tableSelection[selectionKeyFor(tableId)];
@@ -4833,8 +5005,8 @@
       const el = document.getElementById("allocationSubtitle");
       if (!el) return;
       el.textContent = allocationMode === "top75"
-        ? 'Allocation weighted by total value. Assets making up the top 75% of value shown individually; the rest rolled into "Others".'
-        : 'Allocation weighted by total value. Top 5 assets shown individually; remaining assets rolled into "Others".';
+        ? 'Assets making up the top 75% of value'
+        : 'Top 5 assets shown individually';
     }
 
     function formatInlinePct(value) {
@@ -4855,7 +5027,7 @@
       return Math.min(100, Math.max(0, (value / maxValue) * 100));
     }
 
-    function renderProjectionRow(label, value, pct, barClass, barWidth, subnote = "") {
+    function renderProjectionRow(label, value, pct, barClass, barWidth, subnote = "", options = {}) {
       const rowClass = barClass === "projected"
         ? " projected"
         : barClass === "personal"
@@ -4865,8 +5037,12 @@
             : barClass === "simulation"
               ? " simulation"
               : "";
+      const clickClass = options.interactive ? " projection-row-clickable" : "";
+      const clickAttrs = options.interactive
+        ? ` role="button" tabindex="0" title="${escapeHtml(options.title || "")}" onclick="${options.onClick || ""}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${options.onClick || ""}}"`
+        : "";
       return `
-        <div class="projection-row${rowClass}">
+        <div class="projection-row${rowClass}${clickClass}"${clickAttrs}>
           <div class="projection-row-header">
             <div class="projection-label">${label}</div>
             <div class="projection-value">${projectionValueLine(value, pct)}</div>
@@ -4879,12 +5055,32 @@
       `;
     }
 
+    // Last saved simulation snapshot (includes filter/legs/selection criteria).
+    let savedSimulationSnapshot = null;
+    let pendingSimulationRestore = null;
+
+    function simulationCriteriaLabel(sim) {
+      const parts = [];
+      if (sim.filter === "close") parts.push("Close Trades");
+      else if (sim.filter === "far") parts.push("Far Trades");
+      if (sim.legs === "buys") parts.push("Buys only");
+      else if (sim.legs === "sells") parts.push("Sells only");
+      if (sim.useSelection && Array.isArray(sim.selectedSymbols) && sim.selectedSymbols.length) {
+        parts.push(sim.selectedSymbols.length === 1
+          ? sim.selectedSymbols[0]
+          : `${sim.selectedSymbols.length} symbols selected`);
+      }
+      return parts.join(" · ");
+    }
+
     // Compact one-line descriptor for the last saved Simulation snapshot. Fields
     // degrade gracefully: anything missing on older snapshots is simply omitted.
     // Tax is derived from realized gains via SIM_TAX_RATE to match the Simulation
     // tab's GAINS/TAX pill exactly.
     function simulationSnapshotMetaline(sim) {
       const parts = [];
+      const criteria = simulationCriteriaLabel(sim);
+      if (criteria) parts.push(criteria);
       const ts = formatLocalTs(sim.savedAt);
       if (ts) parts.push(ts);
       if (sim.scopeCount != null) {
@@ -4966,14 +5162,22 @@
       }
 
       if (simulation) {
+        savedSimulationSnapshot = simulation;
         rows.push(renderProjectionRow(
           "Projected Valuation if Planned Trades Execute",
           simulation.projectedValuation,
           simulation.projectedUpsidePct,
           "simulation",
           projectionBarWidth(simulation.projectedValuation, maxValue),
-          simulationSnapshotMetaline(simulation)
+          simulationSnapshotMetaline(simulation),
+          {
+            interactive: true,
+            onClick: "openSimulationFromSavedSnapshot()",
+            title: "Re-open Simulation with the same filters and symbol selection",
+          }
         ));
+      } else {
+        savedSimulationSnapshot = null;
       }
 
       const hints = [];
@@ -5792,18 +5996,30 @@
         return `<span class="empty">—</span>`;
       }
       const label = count === 1 ? "1 note" : `${count} notes`;
-      return screeningInspectorLink(
-        row.symbol,
-        "notes",
-        `${screeningNoteIcon()}<span class="screening-note-count">${count}</span>`,
-        `${label} — open in Inspector`
-      );
+      const safeSymbol = String(row.symbol || "").replace(/'/g, "\\'");
+      const safeTitle = `${label} — open in Target`.replace(/"/g, "&quot;");
+      return `<a href="#" class="screening-inspector-link" title="${safeTitle}" onclick="openTargetSymbol('${safeSymbol}', 'notes'); return false;">${screeningNoteIcon()}<span class="screening-note-count">${count}</span></a>`;
     }
 
     function formatQty(value) {
       const n = Number(value);
       if (!Number.isFinite(n)) return "";
       return (Math.round(n * 10000) / 10000).toString();
+    }
+
+    // Notes & assessments are edited in the Target tab, so deep-links carrying
+    // that intent open Target (SAI & alerts stay in the Inspector). Optionally
+    // scroll to a section ("notes" → #notesList, "assessments" → #assessmentsList).
+    function openTargetSymbol(symbol, section = null) {
+      showView("portfolio");
+      selectSymbol(symbol)
+        .then(() => {
+          if (!section) return;
+          const ids = { notes: "notesList", assessments: "assessmentsList" };
+          const el = document.getElementById(ids[section] || section);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        })
+        .catch(() => {});
     }
 
     // Navigate to the Target tab for a symbol (to see/edit the planned-trade spec),
@@ -6556,6 +6772,38 @@
     let simulationFilter = "all";
     let simulationLegs = "both";
 
+    function applySimulationCriteria(criteria) {
+      if (!criteria) return;
+      const filter = String(criteria.filter || "all").toLowerCase();
+      const legs = String(criteria.legs || "both").toLowerCase();
+      simulationFilter = ["all", "close", "far"].includes(filter) ? filter : "all";
+      simulationLegs = ["both", "buys", "sells"].includes(legs) ? legs : "both";
+      if (criteria.useSelection && Array.isArray(criteria.selectedSymbols) && criteria.selectedSymbols.length) {
+        const selected = criteria.selectedSymbols.map((symbol) => String(symbol).toUpperCase());
+        multiSelection.simulation = new Set(selected);
+        multiAnchor.simulation = selected[selected.length - 1] || null;
+      } else {
+        multiSelection.simulation = new Set();
+        multiAnchor.simulation = null;
+      }
+    }
+
+    async function openSimulationFromSavedSnapshot() {
+      if (!savedSimulationSnapshot) return;
+      pendingSimulationRestore = savedSimulationSnapshot;
+      document.querySelectorAll(".view").forEach((el) => { el.hidden = true; });
+      document.getElementById("view-simulation").hidden = false;
+      document.querySelectorAll("nav.tabs button").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.view === "simulation");
+      });
+      if (currentView !== "simulation") {
+        previousView = currentView;
+        currentView = "simulation";
+      }
+      await loadSimulation();
+      setStatus("Restored saved simulation filters and selection.", "info");
+    }
+
     function hasPricedLeg(row) {
       return row.tradeBelowPrice != null || row.tradeAbovePrice != null;
     }
@@ -6951,6 +7199,8 @@
     }
 
     async function loadSimulation() {
+      const restore = pendingSimulationRestore;
+      pendingSimulationRestore = null;
       const cache = viewDataCache.screening;
       const now = Date.now();
       if (!(cache.data && now - cache.fetchedAt < VIEW_CACHE_TTL_MS)) {
@@ -6959,6 +7209,7 @@
         cache.data = data.results;
         cache.fetchedAt = now;
       }
+      if (restore) applySimulationCriteria(restore);
       const present = new Set((cache.data || []).filter(hasPricedLeg).map((row) => row.symbol));
       multiSelection.simulation = new Set([...getMultiSelection("simulation")].filter((symbol) => present.has(symbol)));
       if (multiAnchor.simulation && !present.has(multiAnchor.simulation)) multiAnchor.simulation = null;
@@ -6999,9 +7250,18 @@
           sellLegs: plan.sellLegs,
           oversellCount: plan.oversellCount,
           scopeCount: plan.scopeCount,
+          filter: simulationFilter,
+          legs: simulationLegs,
+          useSelection,
+          selectedSymbols: useSelection ? [...scoped] : [],
         };
-        await api("/simulation/snapshot", { method: "POST", body: JSON.stringify(payload) });
+        const saved = await api("/simulation/snapshot", { method: "POST", body: JSON.stringify(payload) });
+        savedSimulationSnapshot = saved.simulation || payload;
         setStatus(`Saved simulation snapshot (${plan.scopeCount} symbols) to Summary.`, "success");
+        if (currentView === "overview") {
+          const overview = await api("/overview");
+          renderProjectionCard(overview);
+        }
       } catch (error) {
         setStatus(error.message, "error");
       }
@@ -7040,7 +7300,6 @@
       return `
         <div class="recommendation-card" id="inspector-recommendation">
           <h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3>
-          ${renderRecommendationChipRow(rec)}
           <div class="rec-headline">${rec.headline || ""}</div>
           <div class="rec-rationale">${rec.rationale || ""}</div>
           ${drivers ? `<ul class="watch-list">${drivers}</ul>` : ""}
@@ -7076,59 +7335,6 @@
           ${thesis ? `<div style="font-size:0.92rem;line-height:1.45;margin-bottom:0.5rem;">${thesis}</div>` : ""}
           ${growthRows ? `<table class="growth-table"><thead><tr><th>Metric</th><th>Growth</th><th>Period</th></tr></thead><tbody>${growthRows}</tbody></table>` : ""}
           ${projectionItems ? `<ul class="watch-list">${projectionItems}</ul>` : ""}
-        </div>`;
-    }
-
-    function renderInspectorNoteItem(note, { history = false, panelId = "inspectorPanel" } = {}) {
-      const synthesized = noteHasSynthesis(note);
-      const textBlock = synthesized
-        ? `<div class="note-text-oneline">${escapeHtml(noteFirstLine(note.text))}</div>`
-        : `<div style="font-size:0.9rem;line-height:1.45;">${note.text}</div>`;
-      const syn = synthesized
-        ? renderSynthesisHtml(note.synthesis)
-        : `<div class="empty" style="margin-top:0.35rem;">Not synthesized yet.</div>`;
-      const deleteBtn = history
-        ? `<button type="button" class="btn-danger" data-delete-note="${note.id}" data-inspector-panel="${panelId}">Delete</button>`
-        : "";
-      return `
-        <div class="note">
-          <div class="inspector-item-head">
-            <div style="font-size:0.78rem;color:var(--muted);">${formatLocalTs(note.date || note.createdAt) || "Note"}${note.source ? ` · ${note.source}` : ""}</div>
-            ${deleteBtn}
-          </div>
-          ${textBlock}
-          ${syn}
-        </div>`;
-    }
-
-    function renderInspectorAssessmentItem(item, { history = false, panelId = "inspectorPanel", latest = false, recRationale = null } = {}) {
-      const factors = cleanFactors(item.factors);
-      const deleteBtn = history
-        ? `<button type="button" class="btn-danger" data-delete-assessment="${item.id}" data-inspector-panel="${panelId}">Delete</button>`
-        : "";
-      // Avoid repeating the Recommendation's rationale verbatim: when this
-      // assessment's rationale is the one the Recommendation card already shows,
-      // collapse it to a single ellipsised line so the factors (the unique value)
-      // lead. Hover shows the full text.
-      const rationale = item.rationale || "";
-      const isDuplicateOfRec = recRationale && rationale.trim() === String(recRationale).trim();
-      const rationaleHtml = isDuplicateOfRec
-        ? `<div class="assessment-rationale-collapsed" title="${escapeHtml(rationale)}">${rationale}</div>`
-        : `<div style="margin-top:0.4rem;">${rationale}</div>`;
-      return `
-        <div class="assessment${latest ? " assessment-latest" : ""}">
-          <div class="inspector-item-head">
-            <div>
-              ${latest ? `<span class="chip latest-chip">Latest</span> ` : ""}
-              <span class="chip ${item.action}">${item.action}</span>
-              <span class="chip hold">${item.confidence}</span>
-            </div>
-            ${deleteBtn}
-          </div>
-          ${item.llmFallback ? `<div class="empty" style="color:var(--warn);margin-top:0.35rem;">Gemini unavailable — rules-based assessment.</div>` : ""}
-          ${rationaleHtml}
-          ${factors.length ? `<ul style="margin:0.4rem 0 0 1.1rem;font-size:0.88rem;color:var(--muted);">${factors.map((f) => `<li>${f}</li>`).join("")}</ul>` : ""}
-          <div class="empty" style="margin-top:0.35rem;">${formatLocalTs(item.createdAt)} · ${item.provider}</div>
         </div>`;
     }
 
@@ -8403,125 +8609,52 @@
       }
     });
 
+    // Inspector "Alerts" panel: active alerts first (full-color glyph), then
+    // stale ones (triggering condition no longer holds) rendered muted/greyed
+    // with a dimmed glyph. The glyph reuses the Screening alert-kind abbreviation
+    // (alertKindAbbr), mapped by alert_type, so it's `<glyph> message`.
+    function renderInspectorAlertsList(alerts) {
+      const list = Array.isArray(alerts) ? alerts : [];
+      if (!list.length) return `<div class="empty">No alerts.</div>`;
+      // Stable sort keeps the server's newest-first order within each group.
+      const rank = (a) => (a.status === "stale" ? 1 : 0);
+      const sorted = [...list].sort((a, b) => rank(a) - rank(b));
+      return sorted
+        .map((a) => {
+          const stale = a.status === "stale";
+          const glyph = `<span class="alert-kind ${stale ? "stale" : "info"}">${escapeHtml(alertKindAbbr(a.type))}</span>`;
+          return `<div class="alert${stale ? " alert-stale" : ""}">${glyph}<span class="alert-msg">${escapeHtml(a.message)}</span></div>`;
+        })
+        .join("");
+    }
+
     function renderInspectorHtml(data, panelId = "inspectorPanel") {
       if (isHoldingsInspectorPanel(panelId)) {
         return renderInspectorDashboard(data, panelId);
       }
       const rec = data.recommendation || {};
-      const notes = data.quote.notes || [];
-      const assessments = data.assessments || [];
-      const latestNote = notes[0];
-      const olderNotes = notes.slice(1);
-      const olderAssessments = assessments.slice(1);
+      // Notes & Assessments now live in the Target tab; the Inspector keeps the
+      // analytical read view: Synthesized Agent Insight (SAI) + Active Alerts.
       return `
         ${renderInspectorDashboard(data, panelId)}
         <div class="inspector-lower-grid">
           <div class="inspector-lower-col inspector-lower-col-main">
             ${renderRecommendationCard(rec)}
-            <div class="inspector-section" id="inspector-assessments">
-              <h3>
-                <span><span class="card-headline-accent">Assessments</span>${assessments.length ? ` (${assessments.length})` : ""} <span class="section-hint">the analysis behind the Synthesized Agent Insight</span></span>
-                ${olderAssessments.length ? `<button type="button" class="btn-danger inspector-section-delete" data-delete-assessment-history data-inspector-panel="${panelId}">Clear history</button>` : ""}
-              </h3>
-              <div class="inspector-scroll">
-                ${assessments.length
-                  ? assessments.map((a, i) => renderInspectorAssessmentItem(a, { history: i > 0, panelId, latest: i === 0, recRationale: rec.rationale })).join("")
-                  : `<div class="empty">No assessments yet — run Assess Symbol.</div>`}
-              </div>
-            </div>
-            <div class="inspector-section">
-              <h3>
-                <span>Older Notes${olderNotes.length ? ` (${olderNotes.length})` : ""}</span>
-                ${olderNotes.length ? `<button type="button" class="btn-danger inspector-section-delete" data-delete-older-notes data-inspector-panel="${panelId}">Delete all</button>` : ""}
-              </h3>
-              <div class="inspector-scroll">
-                ${olderNotes.length
-                  ? olderNotes.map((n) => renderInspectorNoteItem(n, { history: true, panelId })).join("")
-                  : `<div class="empty">No older notes.</div>`}
-              </div>
-            </div>
           </div>
           <div class="inspector-lower-col inspector-lower-col-side">
             <div class="inspector-section" id="inspector-alerts">
-              <h3 class="card-headline-accent">Active Alerts</h3>
-              ${data.alerts.length
-                ? data.alerts.map((a) => `<div class="alert">${a.message}</div>`).join("")
-                : `<div class="empty">No active alerts.</div>`}
-            </div>
-            <div class="inspector-section" id="inspector-notes">
-              <h3 class="card-headline-accent">Latest Note</h3>
-              ${latestNote ? renderInspectorNoteItem(latestNote, { panelId }) : `<div class="empty">No notes yet.</div>`}
+              <h3 class="card-headline-accent">Alerts</h3>
+              ${renderInspectorAlertsList(data.alerts)}
             </div>
           </div>
         </div>
       `;
     }
 
-    async function deleteInspectorNote(noteId, panelId) {
-      if (!selectedSymbol) return;
-      if (!confirm("Delete this note and its synthesis?")) return;
-      try {
-        await api(`/symbols/${selectedSymbol}/notes/${noteId}`, { method: "DELETE" });
-        await loadInspector(selectedSymbol, panelId);
-        setStatus(`Note deleted for ${selectedSymbol}.`);
-      } catch (error) {
-        setStatus(error.message, "error");
-      }
-    }
-
-    async function deleteInspectorAssessment(assessmentId, panelId) {
-      if (!selectedSymbol) return;
-      if (!confirm("Delete this assessment?")) return;
-      try {
-        await api(`/assessments/${assessmentId}?symbol=${encodeURIComponent(selectedSymbol)}`, { method: "DELETE" });
-        await loadInspector(selectedSymbol, panelId);
-        setStatus(`Assessment deleted for ${selectedSymbol}.`);
-      } catch (error) {
-        setStatus(error.message, "error");
-      }
-    }
-
-    async function deleteInspectorOlderNotes(panelId) {
-      const data = inspectorChartData[panelId];
-      if (!data) return;
-      const symbol = data.symbol || selectedSymbol;
-      const older = (data.quote?.notes || []).slice(1);
-      if (!older.length) { setStatus("No older notes to delete."); return; }
-      if (!confirm(`Delete all ${older.length} older note(s) and their syntheses? The latest note is kept.`)) return;
-      try {
-        for (const note of older) {
-          await api(`/symbols/${symbol}/notes/${note.id}`, { method: "DELETE" });
-        }
-        await loadInspector(symbol, panelId);
-        setStatus(`Deleted ${older.length} older note(s) for ${symbol}.`);
-      } catch (error) {
-        setStatus(error.message, "error");
-      }
-    }
-
-    async function deleteInspectorAssessmentHistory(panelId) {
-      const data = inspectorChartData[panelId];
-      if (!data) return;
-      const symbol = data.symbol || selectedSymbol;
-      const older = (data.assessments || []).slice(1);
-      if (!older.length) { setStatus("No assessment history to delete."); return; }
-      if (!confirm(`Delete the entire assessment history (${older.length})? The latest assessment is kept.`)) return;
-      try {
-        for (const item of older) {
-          await api(`/assessments/${item.id}?symbol=${encodeURIComponent(symbol)}`, { method: "DELETE" });
-        }
-        await loadInspector(symbol, panelId);
-        setStatus(`Deleted assessment history (${older.length}) for ${symbol}.`);
-      } catch (error) {
-        setStatus(error.message, "error");
-      }
-    }
-
     function focusInspectorSection(panelId, section) {
       if (!section) return;
       const sectionIds = {
         recommendation: "inspector-recommendation",
-        notes: "inspector-notes",
         alerts: "inspector-alerts",
       };
       const elementId = sectionIds[section] || section;
@@ -8531,6 +8664,615 @@
       target.scrollIntoView({ behavior: "smooth", block: "start" });
       target.classList.add("inspector-section-focus");
       window.setTimeout(() => target.classList.remove("inspector-section-focus"), 1800);
+    }
+
+    function renderInspectorSnapshotSai(rec) {
+      if (!rec || !rec.headline) {
+        return `<div class="recommendation-card snap-sai-card" id="inspector-recommendation"><h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3><div class="empty">No Synthesized Agent Insight yet — synthesize notes and run Assess Symbol.</div></div>`;
+      }
+      const drivers = (rec.drivers || [])
+        .map((d) => `<li>${escapeHtml(d)}</li>`)
+        .join("");
+      const watch = (rec.watchItems || [])
+        .map((w) => `<li>${escapeHtml(w)}</li>`)
+        .join("");
+      const meta = [
+        rec.assessedAt ? `Assessed ${escapeHtml(rec.assessedAt)}` : null,
+        rec.provider ? escapeHtml(rec.provider) : null,
+        rec.upsidePct != null ? `${rec.upsidePct}% upside to target` : null,
+      ].filter(Boolean).join(" · ");
+      return `
+        <div class="recommendation-card snap-sai-card" id="inspector-recommendation">
+          <h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3>
+          <div class="rec-headline">${escapeHtml(rec.headline || "")}</div>
+          <div class="rec-rationale">${escapeHtml(rec.rationale || "")}</div>
+          ${drivers ? `<ul class="watch-list snap-sai-drivers">${drivers}</ul>` : ""}
+          ${watch ? `<div class="snap-watch-label">What to watch</div><ul class="watch-list snap-sai-watch">${watch}</ul>` : ""}
+          ${meta ? `<div class="snap-sai-meta">${meta}</div>` : ""}
+        </div>`;
+    }
+
+    function renderInspectorSnapshotImportedFib(data) {
+      const importedFibLevels = enrichImportedFibLevels(data.importedFibLevels || []);
+      if (!importedFibLevels.length) return "";
+      const items = importedFibLevels.map((level) => `
+        <span class="fib-inline-item" style="color:${level.color};">
+          ${escapeHtml(level.label)} ${formatMoney(level.price)}
+        </span>`).join("");
+      return `<div class="fib-inline"><span class="fib-inline-label">Fib</span>${items}</div>`;
+    }
+
+    function renderInspectorSnapshotTrendWaves(data) {
+      const waves = data.trendWaves || [];
+      if (!waves.length) return "";
+      const items = waves.map((wave) => {
+        const dir = wave.direction === "down" ? "↓" : "↑";
+        const move = wave.movePct != null ? ` ${Number(wave.movePct).toFixed(0)}%` : "";
+        return `${wave.label || "T?"}${dir}${move}`;
+      }).join(" · ");
+      return `<div class="trend-waves-compact"><span class="trend-waves-compact-label">Trend Waves</span>${escapeHtml(items)}</div>`;
+    }
+
+    function inspectorSnapshotFitScript() {
+      return `<script>
+(function () {
+  function fitOnePage() {
+    var sheet = document.querySelector(".snap-sheet");
+    if (!sheet) return;
+    sheet.style.transform = "";
+    sheet.style.width = "";
+    document.body.style.height = "";
+    var maxH = 720;
+    var h = sheet.getBoundingClientRect().height;
+    if (h > maxH) {
+      var scale = maxH / h;
+      sheet.style.transform = "scale(" + scale + ")";
+      sheet.style.transformOrigin = "top left";
+      sheet.style.width = (100 / scale) + "%";
+      document.body.style.height = Math.ceil(h * scale) + "px";
+    }
+  }
+  if (document.readyState === "complete") fitOnePage();
+  else window.addEventListener("load", fitOnePage);
+})();
+<\/script>`;
+    }
+
+    function inspectorSnapshotPrintCss() {
+      return `
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --panel-2: #243044;
+      --text: #e7ecf3;
+      --muted: #9aa8bc;
+      --accent: #3b82f6;
+      --accent-2: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --border: #2d3a4f;
+      --radius: 10px;
+    }
+    html, body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    * { box-sizing: border-box; }
+    @page { size: landscape; margin: 5mm; }
+    body.snap-fit-one-page {
+      margin: 0;
+      padding: 4px 6px;
+      font: 9.5px/1.32 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+    .snap-sheet { width: 100%; }
+    .snap-page-head {
+      margin-bottom: 0.3rem;
+      padding-bottom: 0.3rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .snap-brand {
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+    }
+    .symbol-head-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.2rem;
+    }
+    .symbol-head-ticker.is-active {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      color: #ddd6fe;
+    }
+    .symbol-head-quote { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+    .symbol-head-company { font-size: 0.82rem; font-weight: 600; color: var(--muted); }
+    .symbol-head-company::before { content: "·"; margin-right: 0.35rem; }
+    .inspector-sai-head {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.2rem 0.35rem;
+      padding: 0.2rem 0.4rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.35);
+      margin-bottom: 0.15rem;
+    }
+    .target-rec-label {
+      font-size: 0.62rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .snap-export-meta { margin: 0; font-size: 0.62rem; color: var(--muted); }
+    .inspector-dashboard { display: flex; flex-direction: column; gap: 0.3rem; }
+    .inspector-top-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 0.3rem;
+      align-items: stretch;
+    }
+    .inspector-lower-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr);
+      gap: 0.3rem;
+      align-items: start;
+    }
+    .snap-insights-section { gap: 0.3rem; }
+    .inspector-chart-card,
+    .valuation-scoring,
+    .inspector-section,
+    .recommendation-card.snap-sai-card {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.35rem 0.45rem;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .recommendation-card.snap-sai-card {
+      background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(167,139,250,0.1));
+      border-color: rgba(96,165,250,0.35);
+    }
+    .card-headline-accent,
+    h3.card-headline-accent,
+    h4.card-headline-accent {
+      color: #f8fafc;
+      font-weight: 700;
+    }
+    .inspector-chart-head h3,
+    .valuation-scoring h3,
+    .inspector-section h3 {
+      margin: 0 0 0.25rem;
+      font-size: 0.78rem;
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: normal;
+    }
+    .pattern-caveat { font-size: 0.58rem; font-weight: 500; color: var(--muted); text-transform: none; }
+    .chip {
+      display: inline-block;
+      padding: 0.05rem 0.35rem;
+      border-radius: 999px;
+      font-size: 0.62rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .chip.buy { background: rgba(34,197,94,0.2); color: var(--accent-2); }
+    .chip.sell { background: rgba(239,68,68,0.2); color: var(--danger); }
+    .chip.hold { background: rgba(148,163,184,0.2); color: #cbd5e1; }
+    .chip.watch { background: rgba(245,158,11,0.2); color: var(--warn); }
+    .chip.sentiment-bullish { background: rgba(34,197,94,0.18); color: #4ade80; }
+    .chip.sentiment-bearish { background: rgba(239,68,68,0.18); color: #f87171; }
+    .chip.sentiment-neutral { background: rgba(148,163,184,0.16); color: #94a3b8; }
+    .confluence-card .confluence-head { display: flex; align-items: center; gap: 0.35rem; margin: 0 0 0.25rem; }
+    .confluence-bias { font-weight: 700; font-size: 0.72rem; padding: 0.05rem 0.35rem; border-radius: 4px; background: rgba(148,163,184,0.12); }
+    .confluence-bias.conf-bull { color: var(--accent-2); background: rgba(34,197,94,0.12); }
+    .confluence-bias.conf-lean-bull { color: #4ade80; background: rgba(74,222,128,0.1); }
+    .confluence-bias.conf-mixed { color: var(--warn); background: rgba(250,204,21,0.1); }
+    .confluence-bias.conf-lean-bear { color: #fb923c; background: rgba(251,146,60,0.1); }
+    .confluence-bias.conf-bear { color: #f87171; background: rgba(248,113,113,0.12); }
+    .confluence-strength { color: var(--muted); font-size: 0.65rem; text-transform: capitalize; }
+    .confluence-meter {
+      position: relative; height: 5px; border-radius: 999px;
+      background: linear-gradient(90deg, rgba(248,113,113,0.25), rgba(148,163,184,0.18), rgba(34,197,94,0.25));
+      overflow: hidden; margin-bottom: 0.3rem;
+    }
+    .confluence-meter-fill { position: absolute; top: 0; left: 0; height: 100%; opacity: 0.85; border-radius: 999px; }
+    .confluence-meter-fill.conf-bull, .confluence-meter-fill.conf-lean-bull { background: var(--accent-2); }
+    .confluence-meter-fill.conf-mixed { background: var(--warn); }
+    .confluence-meter-fill.conf-bear, .confluence-meter-fill.conf-lean-bear { background: #f87171; }
+    .confluence-meter-mid { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: rgba(230,237,246,0.4); }
+    .confluence-votes { display: flex; flex-wrap: wrap; gap: 0.2rem; margin-bottom: 0.3rem; }
+    .conf-vote { font-size: 0.6rem; padding: 0.05rem 0.3rem; border-radius: 999px; border: 1px solid var(--border); text-transform: capitalize; }
+    .conf-vote.conf-vote-bull { color: var(--accent-2); border-color: rgba(34,197,94,0.4); }
+    .conf-vote.conf-vote-bear { color: #f87171; border-color: rgba(248,113,113,0.4); }
+    .conf-vote.conf-vote-neutral { color: var(--muted); }
+    .confluence-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; }
+    .confluence-col h4 { margin: 0 0 0.15rem; font-size: 0.65rem; }
+    .confluence-col h4.conf-agree { color: var(--accent-2); }
+    .confluence-col h4.conf-conflict { color: #f87171; }
+    .confluence-col ul { margin: 0; padding-left: 0.85rem; }
+    .confluence-col li { font-size: 0.62rem; margin-bottom: 0.05rem; line-height: 1.25; }
+    .confluence-col li.empty { color: var(--muted); list-style: none; margin-left: -0.85rem; }
+    .confluence-fib-note, .confluence-watch { margin: 0.15rem 0 0; font-size: 0.62rem; line-height: 1.3; }
+    .recommendation-card.snap-sai-card .rec-headline { font-size: 0.78rem; font-weight: 600; margin: 0.15rem 0 0.2rem; line-height: 1.25; }
+    .recommendation-card.snap-sai-card .rec-rationale {
+      font-size: 0.68rem;
+      line-height: 1.32;
+      color: #e2e8f0;
+    }
+    .recommendation-card.snap-sai-card h3 { margin: 0 0 0.15rem; font-size: 0.58rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+    .snap-watch-label {
+      margin-top: 0.25rem;
+      font-size: 0.58rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .snap-sai-meta { margin-top: 0.2rem; font-size: 0.6rem; color: var(--muted); }
+    .watch-list { margin: 0.15rem 0 0; padding-left: 0.85rem; }
+    .watch-list li { margin-bottom: 0.05rem; font-size: 0.64rem; line-height: 1.25; }
+    .holdings-line { margin: 0 0 0.15rem; font-size: 0.68rem; }
+    .holdings-line .muted { color: var(--muted); }
+    .holdings-valuation { margin-top: 0.25rem; }
+    .valuation-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.2rem;
+    }
+    .holdings-valuation .valuation-metric { padding: 0.2rem 0.25rem; }
+    .valuation-metric {
+      background: rgba(15, 23, 42, 0.35);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.2rem 0.25rem;
+    }
+    .valuation-metric .label {
+      display: block;
+      font-size: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 0.05rem;
+    }
+    .valuation-metric .value { font-size: 0.64rem; font-weight: 600; }
+    .volume-card .valuation-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.2rem; }
+    .volume-card .valuation-metric { padding: 0.2rem 0.25rem; }
+    .volume-card .valuation-metric .label { font-size: 0.5rem; }
+    .volume-card .valuation-metric .value { font-size: 0.64rem; }
+    .pattern-volume-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+      gap: 0.3rem;
+      margin-bottom: 0.25rem;
+      align-items: start;
+    }
+    .pattern-panel {
+      padding: 0.25rem 0.35rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(96, 165, 250, 0.06);
+    }
+    .pattern-panel h4 { margin: 0 0 0.2rem; font-size: 0.62rem; display: flex; gap: 0.3rem; flex-wrap: wrap; }
+    .pattern-list { display: grid; gap: 0.1rem; }
+    .pattern-row { display: flex; align-items: baseline; gap: 0.3rem; font-size: 0.6rem; flex-wrap: wrap; }
+    .pattern-name { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; }
+    .pattern-dot { width: 0.65rem; height: 0.65rem; border-radius: 999px; }
+    .pattern-meta { color: var(--muted); }
+    .vc-badge {
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      padding: 0.05rem 0.4rem;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .vc-badge.vc-confirmed { color: #22c55e; background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.4); }
+    .vc-badge.vc-weak { color: #f59e0b; background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.4); }
+    .vc-badge.vc-veto { color: #ef4444; background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.4); }
+    .vc-badge.vc-pending { color: #93c5fd; background: rgba(147,197,253,0.1); border-color: rgba(147,197,253,0.35); }
+    .vc-badge.vc-stale { color: #94a3b8; background: rgba(148,163,184,0.12); border-color: rgba(148,163,184,0.4); }
+    .pattern-validation-reasons {
+      margin: 0.05rem 0 0.15rem 0.85rem;
+      padding: 0;
+      list-style: disc;
+      color: var(--text);
+      font-size: 0.58rem;
+      line-height: 1.25;
+    }
+    .gain-pos { color: var(--accent-2); }
+    .gain-neg { color: var(--danger); }
+    .muted { color: var(--muted); }
+    .snap-chart-wrap {
+      width: 100%;
+      margin-top: 0.2rem;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .snap-chart {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 260px;
+      object-fit: contain;
+      object-position: center top;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--panel);
+    }
+    .fib-inline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.15rem 0.35rem;
+      margin-bottom: 0.2rem;
+      font-size: 0.6rem;
+      line-height: 1.25;
+    }
+    .fib-inline-label, .trend-waves-compact-label {
+      font-size: 0.55rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-right: 0.15rem;
+    }
+    .fib-inline-item::after { content: "·"; color: var(--muted); margin: 0 0.2rem; }
+    .fib-inline-item:last-child::after { content: ""; margin: 0; }
+    .trend-waves-compact {
+      margin-top: 0.15rem;
+      font-size: 0.6rem;
+      line-height: 1.25;
+      color: var(--muted);
+    }
+    .snap-chart-wrap figcaption { margin-top: 0.15rem; font-size: 0.58rem; color: var(--muted); }
+    .alert {
+      background: var(--panel);
+      border-radius: 4px;
+      padding: 0.25rem 0.35rem;
+      margin-bottom: 0.2rem;
+      border-left: 2px solid var(--warn);
+      display: flex;
+      align-items: baseline;
+      gap: 0.25rem;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .alert-msg { flex: 1; line-height: 1.25; font-size: 0.62rem; }
+    .alert.alert-stale { opacity: 0.62; border-left-color: var(--border); color: var(--muted); }
+    .alert-kind {
+      display: inline-block;
+      min-width: 1.6rem;
+      text-align: center;
+      font-size: 0.52rem;
+      font-weight: 700;
+      padding: 0.05rem 0.2rem;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+    }
+    .alert-kind.info { color: #93c5fd; border-color: rgba(96,165,250,0.4); background: rgba(96,165,250,0.1); }
+    .alert-kind.stale { color: var(--muted); background: transparent; }
+    .pattern-validation-reasons { display: none; }
+    .snap-chart-wrap figcaption { display: none; }
+    .empty { color: var(--muted); font-size: 0.64rem; }
+    .snap-footer { display: none; }
+    @media print {
+      html, body { height: 100%; overflow: hidden; }
+      body.snap-fit-one-page { padding: 0; }
+      @page { size: landscape; margin: 5mm; }
+      .snap-sheet, .inspector-dashboard > * { page-break-inside: avoid; break-inside: avoid; }
+      .snap-chart { max-height: 240px; }
+    }`;
+    }
+
+    function buildInspectorSnapshotPatternVolume(data) {
+      const chartPatterns = data.chartPatterns || [];
+      const patternColor = (type) =>
+        type === "bullish" ? "#22c55e" : type === "bearish" ? "#ef4444" : "#9aa8bc";
+      const patternsHtml = chartPatterns.length
+        ? `<div class="pattern-panel">
+            <h4 class="card-headline-accent">Chart Patterns <span class="pattern-caveat">probabilistic — one input among many</span></h4>
+            <div class="pattern-list">
+              ${chartPatterns.map((p) => {
+                const color = patternColor(p.type);
+                const confPct = (typeof p.confidence === "number") ? `${Math.round(p.confidence * 100)}%` : "";
+                const key = p.keyLevel || {};
+                const target = p.target != null ? ` · target ≈ ${formatMoney(p.target)}` : "";
+                const keyTxt = key.price != null ? ` · ${key.label} ${formatMoney(key.price)}` : "";
+                return `
+                  <div class="pattern-row">
+                    <span class="pattern-name" style="color:${color};">
+                      <span class="pattern-dot" style="background:${color};"></span>
+                      ${escapeHtml(p.name)}
+                      ${renderPatternValidationBadge(p.validation)}
+                    </span>
+                    <span class="pattern-meta">${escapeHtml(p.status || "")}${confPct ? ` · ${confPct}` : ""}${keyTxt}${target}</span>
+                  </div>
+                  ${renderPatternValidationReasons(p.validation)}`;
+              }).join("")}
+            </div>
+          </div>`
+        : "";
+      const volumeHtml = renderInspectorVolume(data.volume, data.volumeProfile);
+      if (!patternsHtml && !volumeHtml) return "";
+      return `<div class="pattern-volume-row">${patternsHtml}${volumeHtml}</div>`;
+    }
+
+    function buildInspectorSnapshotDocument(data) {
+      const symbol = data.symbol || selectedSymbol || "";
+      data.symbol = symbol;
+      const quote = data.quote || {};
+      const rec = data.recommendation || {};
+      const conf = data.confluence || {};
+      const advisory = data.technicalAdvisory || {};
+      const val = data.valuation || {};
+      const alerts = Array.isArray(data.alerts) ? data.alerts : [];
+      const exportTs = formatLocalTs(new Date().toISOString());
+      const price = quote.currentPrice ?? data.holding?.currentPrice ?? null;
+      const dayPct = quote.dayChangePct;
+      const company = data.companyName || "";
+      const hasRec = !!(rec.action || rec.headline || rec.sentiment || rec.confidence);
+
+      let chartImg = "";
+      const chart = inspectorCharts.inspectorPanel;
+      if (chart) {
+        try {
+          const dataUrl = chart.toBase64Image("image/jpeg", 0.92);
+          if (dataUrl && dataUrl.startsWith("data:image")) {
+            chartImg = `<figure class="snap-chart-wrap"><img src="${dataUrl}" alt="Price chart" class="snap-chart"><figcaption>Performance &amp; Fibonacci · snapshot at ${escapeHtml(exportTs)}</figcaption></figure>`;
+          }
+        } catch (_) {}
+      }
+
+      const valuationMetricsHtml = [
+        renderValuationMetric("Est. Dividend", formatMoney(val.estDividend), (val.estDividend ?? 0) > 0 ? "gain-pos" : ""),
+        renderValuationMetric("Trailing P/E", formatInspectorMetric(val.trailingPe)),
+        renderValuationMetric("Forward P/E", formatInspectorMetric(val.forwardPe)),
+        renderValuationMetric("PEG Ratio", formatInspectorMetric(val.pegRatio)),
+        renderValuationMetric("Rev Growth", formatInspectorMetric(val.revenueGrowth, "%")),
+        renderValuationMetric("Op Margin", formatInspectorMetric(val.operatingMargin, "%")),
+      ].join("");
+
+      const confluenceHtml = renderInspectorConfluence(conf, advisory);
+      const holdingsHtml = renderInspectorHoldingsCard(data, valuationMetricsHtml);
+      const saiHtml = renderInspectorSnapshotSai(rec);
+      const alertsHtml = `
+        <div class="inspector-section snap-alerts-section">
+          <h3 class="card-headline-accent">Alerts</h3>
+          ${renderInspectorAlertsList(alerts)}
+        </div>`;
+      const patternVolumeHtml = buildInspectorSnapshotPatternVolume(data);
+      const importedFibHtml = renderInspectorSnapshotImportedFib(data);
+      const trendWavesHtml = renderInspectorSnapshotTrendWaves(data);
+      const saiChips = hasRec
+        ? renderRecommendationChipRow(rec, { bare: true })
+        : `<span class="empty">No SAI yet</span>`;
+
+      const body = `
+        <div class="snap-sheet">
+        <header class="snap-page-head">
+          <div class="snap-brand">Portfolio Dashboard Agent · Inspector Snapshot</div>
+          <div class="symbol-head-row">
+            <span class="symbol-head-ticker is-active">${escapeHtml(symbol)}</span>
+            ${price != null
+              ? `<span class="symbol-head-quote">(${formatMoney(price)}${dayPct != null ? ` ${formatDayChangePercent(dayPct)}` : ""})</span>`
+              : ""}
+            ${company ? `<span class="symbol-head-company">${escapeHtml(company)}</span>` : ""}
+          </div>
+          <div class="inspector-sai-head">
+            <span class="target-rec-label">SAI</span>
+            ${saiChips}
+          </div>
+          <p class="snap-export-meta">Exported ${escapeHtml(exportTs)}</p>
+        </header>
+        <div class="inspector-dashboard">
+          <div class="inspector-top-row">
+            ${confluenceHtml || `<section class="valuation-scoring"><h3 class="card-headline-accent">Technical Confluence</h3><div class="empty">Insufficient data.</div></section>`}
+            ${holdingsHtml}
+          </div>
+          <section class="inspector-chart-card">
+            <div class="inspector-chart-head">
+              <h3 class="card-headline-accent">Performance &amp; Fibonacci</h3>
+            </div>
+            ${importedFibHtml}
+            ${patternVolumeHtml}
+            ${chartImg || `<div class="empty">Chart unavailable in snapshot.</div>`}
+            ${trendWavesHtml}
+          </section>
+          <div class="inspector-lower-grid snap-insights-section">
+            <div class="inspector-lower-col inspector-lower-col-main">${saiHtml}</div>
+            <div class="inspector-lower-col inspector-lower-col-side">${alertsHtml}</div>
+          </div>
+        </div>
+        </div>
+        ${inspectorSnapshotFitScript()}`;
+
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="color-scheme" content="dark">
+  <title>${escapeHtml(symbol)} Inspector Snapshot</title>
+  <style>${inspectorSnapshotPrintCss()}</style>
+</head>
+<body class="snap-fit-one-page">${body}</body>
+</html>`;
+    }
+
+    function exportInspectorPdf() {
+      const data = inspectorChartData.inspectorPanel;
+      if (!data || !selectedSymbol) {
+        setStatus("Load a symbol in Inspector first.", "error");
+        return;
+      }
+      let html = "";
+      try {
+        html = buildInspectorSnapshotDocument(data);
+      } catch (err) {
+        setStatus(err.message || "Could not build snapshot.", "error");
+        return;
+      }
+      if (!html || html.length < 50) {
+        setStatus("Snapshot was empty — try reloading the symbol.", "error");
+        return;
+      }
+
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const cleanup = () => window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+
+      const printFromWindow = (win) => {
+        const runPrint = () => {
+          try {
+            win.focus();
+            win.print();
+            cleanup();
+          } catch (err) {
+            setStatus(err.message || "Could not open print dialog.", "error");
+            cleanup();
+          }
+        };
+        try {
+          if (win.document && win.document.readyState === "complete") {
+            window.setTimeout(runPrint, 350);
+            return;
+          }
+        } catch (_) {}
+        win.addEventListener("load", () => window.setTimeout(runPrint, 350), { once: true });
+      };
+
+      const printWin = window.open(url, "_blank");
+      if (printWin) {
+        printFromWindow(printWin);
+        return;
+      }
+
+      // Pop-up blocked: fall back to a hidden iframe so export still works.
+      let frame = document.getElementById("inspectorPrintFrame");
+      if (!frame) {
+        frame = document.createElement("iframe");
+        frame.id = "inspectorPrintFrame";
+        frame.setAttribute("aria-hidden", "true");
+        frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;";
+        document.body.appendChild(frame);
+      }
+      frame.onload = () => {
+        if (frame.contentWindow) printFromWindow(frame.contentWindow);
+      };
+      frame.src = url;
+      setStatus("PDF preview blocked — opening print dialog via fallback.", "info");
     }
 
     async function loadInspector(symbol, panelId = "inspectorPanel", focusSection = null) {
@@ -8562,7 +9304,7 @@
       if (panelId === "inspectorPanel") {
         document.getElementById("inspectorEmpty").hidden = true;
         document.getElementById("inspectorPanel").hidden = false;
-        setInspectorSymbolHead(symbol, data.quote, data.companyName);
+        setInspectorSymbolHead(symbol, data.quote, data.companyName, data.recommendation || null);
       }
       if (focusSection) {
         window.requestAnimationFrame(() => focusInspectorSection(panelId, focusSection));
@@ -8749,6 +9491,31 @@
       return devs.reduce((best, d) => (d.absDev < best.absDev ? d : best));
     }
 
+    // Absolute %-deviation of the current price from a price-range level
+    // (52W high/low, 50/200-day avg): abs(price - level) / level * 100.
+    // null when price or the level is missing/zero so it can sink to the bottom.
+    function fundLevelAbsDev(row, field) {
+      const price = fundNum(row.currentPrice);
+      const level = fundNum(fundVal(row, "priceRange", field));
+      if (price == null || level == null || level === 0) return null;
+      return Math.abs(((price - level) / level) * 100);
+    }
+
+    // Direction-aware comparator for the price-level columns: sorts by
+    // %-deviation magnitude (asc = closest to the level first, desc = furthest
+    // first) and ALWAYS sinks rows missing price/level to the bottom in both
+    // directions (so it isn't merely the reverse of ascending).
+    function fundDeviationCompare(field) {
+      return (left, right, dir) => {
+        const a = fundLevelAbsDev(left, field);
+        const b = fundLevelAbsDev(right, field);
+        if (a == null && b == null) return 0;
+        if (a == null) return 1;
+        if (b == null) return -1;
+        return dir === "desc" ? b - a : a - b;
+      };
+    }
+
     function fundLevelCell(row, columnKey, value) {
       const closest = fundClosestLevel(row);
       const inner = formatMoney(value);
@@ -8812,10 +9579,10 @@
             },
           },
           fundPriceColumn(),
-          { key: "high52", label: "52W High", sortValue: (r) => fundNum(fundVal(r, "priceRange", "high52w")), render: (r) => fundLevelCell(r, "high52", fundVal(r, "priceRange", "high52w")) },
-          { key: "low52", label: "52W Low", sortValue: (r) => fundNum(fundVal(r, "priceRange", "low52w")), render: (r) => fundLevelCell(r, "low52", fundVal(r, "priceRange", "low52w")) },
-          { key: "ma50", label: "50-Day Avg", sortValue: (r) => fundNum(fundVal(r, "priceRange", "ma50")), render: (r) => fundLevelCell(r, "ma50", fundVal(r, "priceRange", "ma50")) },
-          { key: "ma200", label: "200-Day Avg", sortValue: (r) => fundNum(fundVal(r, "priceRange", "ma200")), render: (r) => fundLevelCell(r, "ma200", fundVal(r, "priceRange", "ma200")) },
+          { key: "high52", label: "52W High", ascFirst: true, help: "Sorts by how far the current price is from this level (|price − level| / level %). Click cycles: closest first → furthest first → unsorted.", sortValue: (r) => fundLevelAbsDev(r, "high52w"), compare: fundDeviationCompare("high52w"), render: (r) => fundLevelCell(r, "high52", fundVal(r, "priceRange", "high52w")) },
+          { key: "low52", label: "52W Low", ascFirst: true, help: "Sorts by how far the current price is from this level (|price − level| / level %). Click cycles: closest first → furthest first → unsorted.", sortValue: (r) => fundLevelAbsDev(r, "low52w"), compare: fundDeviationCompare("low52w"), render: (r) => fundLevelCell(r, "low52", fundVal(r, "priceRange", "low52w")) },
+          { key: "ma50", label: "50-Day Avg", ascFirst: true, help: "Sorts by how far the current price is from this level (|price − level| / level %). Click cycles: closest first → furthest first → unsorted.", sortValue: (r) => fundLevelAbsDev(r, "ma50"), compare: fundDeviationCompare("ma50"), render: (r) => fundLevelCell(r, "ma50", fundVal(r, "priceRange", "ma50")) },
+          { key: "ma200", label: "200-Day Avg", ascFirst: true, help: "Sorts by how far the current price is from this level (|price − level| / level %). Click cycles: closest first → furthest first → unsorted.", sortValue: (r) => fundLevelAbsDev(r, "ma200"), compare: fundDeviationCompare("ma200"), render: (r) => fundLevelCell(r, "ma200", fundVal(r, "priceRange", "ma200")) },
           {
             key: "closest", label: "Closest to Price",
             sortValue: (r) => { const c = fundClosestLevel(r); return c ? c.absDev : null; },
@@ -9078,36 +9845,6 @@
     }
 
     document.addEventListener("click", (event) => {
-      const bulkNotesBtn = event.target.closest("[data-delete-older-notes]");
-      if (bulkNotesBtn) {
-        event.preventDefault();
-        event.stopPropagation();
-        deleteInspectorOlderNotes(bulkNotesBtn.dataset.inspectorPanel || "inspectorPanel");
-        return;
-      }
-      const bulkAssessBtn = event.target.closest("[data-delete-assessment-history]");
-      if (bulkAssessBtn) {
-        event.preventDefault();
-        event.stopPropagation();
-        deleteInspectorAssessmentHistory(bulkAssessBtn.dataset.inspectorPanel || "inspectorPanel");
-        return;
-      }
-      const deleteNoteBtn = event.target.closest("[data-delete-note]");
-      if (deleteNoteBtn) {
-        deleteInspectorNote(
-          Number(deleteNoteBtn.dataset.deleteNote),
-          deleteNoteBtn.dataset.inspectorPanel || "inspectorPanel"
-        );
-        return;
-      }
-      const deleteAssessmentBtn = event.target.closest("[data-delete-assessment]");
-      if (deleteAssessmentBtn) {
-        deleteInspectorAssessment(
-          Number(deleteAssessmentBtn.dataset.deleteAssessment),
-          deleteAssessmentBtn.dataset.inspectorPanel || "inspectorPanel"
-        );
-        return;
-      }
       const selectableRow = event.target.closest("table.data tbody tr");
       if (selectableRow && selectableRow.dataset.rowKey != null) {
         const table = selectableRow.closest("table.data");
@@ -9133,7 +9870,7 @@
       const tableId = header.dataset.tableId;
       const sortKey = header.dataset.sortKey;
       if (!tableId || !sortKey) return;
-      cycleTableSort(tableId, sortKey);
+      cycleTableSort(tableId, sortKey, header.dataset.ascFirst === "1");
       rerenderTable(tableId);
     });
 

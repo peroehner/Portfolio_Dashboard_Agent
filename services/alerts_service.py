@@ -20,21 +20,36 @@ class AlertsService:
         symbol: str | None = None,
         status: str = "active",
         limit: int = 100,
+        include_stale: bool = False,
     ) -> list[dict[str, Any]]:
+        """Return alerts for the current user.
+
+        ``include_stale`` additionally returns ``stale`` alerts alongside the
+        requested ``status`` (used by the UI alert list, which shows both active
+        and stale). ``superseded``/``dismissed`` are never included unless asked
+        for explicitly via ``status``.
+        """
         user_id = get_current_user_id()
+        statuses = [status]
+        if include_stale and "stale" not in statuses:
+            statuses.append("stale")
         query = """
             SELECT id, symbol, alert_type, message, price, reference_value,
                    fib_level, status, created_at
             FROM alerts
-            WHERE user_id = %s AND status = %s
+            WHERE user_id = %s AND status = ANY(%s)
         """
-        params: list[Any] = [user_id, status]
+        params: list[Any] = [user_id, statuses]
 
         if symbol:
             query += " AND symbol = %s"
             params.append(symbol.upper())
 
-        query += " ORDER BY created_at DESC LIMIT %s"
+        # Active first, then stale; newest first within each group.
+        query += (
+            " ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END,"
+            " created_at DESC LIMIT %s"
+        )
         params.append(limit)
 
         with get_connection() as conn:
@@ -55,11 +70,82 @@ class AlertsService:
     def evaluate_all(self, engine) -> list[dict[str, Any]]:
         self._dedupe_active_alerts()
         created = []
+        # Signatures whose triggering condition is TRUE this cycle. Collected in
+        # _create_alert (called only when a condition holds) even when the insert
+        # is skipped as a duplicate, so staleness can be derived reliably.
+        true_signatures: set[tuple[str, str, float, str]] = set()
         for symbol_data in self.portfolio_service.list_symbols():
-            created.extend(self._check_thresholds(symbol_data))
-            created.extend(self._check_fib_proximity(symbol_data))
-        created.extend(self._check_screener(engine))
-        return created
+            created.extend(self._check_thresholds(symbol_data, true_signatures))
+            created.extend(self._check_fib_proximity(symbol_data, true_signatures))
+        created.extend(self._check_screener(engine, true_signatures))
+        self._apply_staleness(true_signatures)
+        return [alert for alert in created if alert is not None]
+
+    @staticmethod
+    def _signature(
+        symbol: str,
+        alert_type: str,
+        reference_value: float | None,
+        fib_level: str | None,
+    ) -> tuple[str, str, float, str]:
+        """Stable identity of an alert condition: symbol + type + reference +
+        fib level. Mirrors the matching done in ``_active_alert_exists`` (NULL
+        reference → -1, NULL fib_level → "") and rounds the reference so a value
+        round-tripped through Postgres still matches the freshly-computed one."""
+        ref = -1.0 if reference_value is None else round(float(reference_value), 4)
+        return (str(symbol).upper(), alert_type, ref, fib_level or "")
+
+    @staticmethod
+    def _staleness_transitions(
+        rows: list[dict[str, Any]],
+        true_signatures: set[tuple[str, str, float, str]],
+    ) -> dict[int, str]:
+        """Pure decision step (no DB): given the current active/stale alert rows
+        and the set of currently-true signatures, return ``{alert_id: new_status}``.
+
+        - ``active`` whose condition is no longer true  → ``stale``.
+        - ``stale`` whose condition is true again       → ``superseded`` (a fresh
+          ``active`` was just (re)created for that signature, so the old stale row
+          is retired — "supersede-and-recreate" revival).
+
+        Rows that should keep their status are omitted from the result.
+        """
+        changes: dict[int, str] = {}
+        for row in rows:
+            sig = AlertsService._signature(
+                row["symbol"], row["alert_type"], row["reference_value"], row["fib_level"]
+            )
+            is_true = sig in true_signatures
+            status = row["status"]
+            if status == "active" and not is_true:
+                changes[row["id"]] = "stale"
+            elif status == "stale" and is_true:
+                changes[row["id"]] = "superseded"
+        return changes
+
+    def _apply_staleness(
+        self, true_signatures: set[tuple[str, str, float, str]]
+    ) -> dict[int, str]:
+        user_id = get_current_user_id()
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, symbol, alert_type, reference_value, fib_level, status
+                FROM alerts
+                WHERE user_id = %s AND status IN ('active', 'stale')
+                """,
+                (user_id,),
+            ).fetchall()
+            changes = self._staleness_transitions(rows, true_signatures)
+            for new_status in ("stale", "superseded"):
+                ids = [aid for aid, st in changes.items() if st == new_status]
+                if ids:
+                    conn.execute(
+                        "UPDATE alerts SET status = %s WHERE id = ANY(%s)",
+                        (new_status, ids),
+                    )
+            conn.commit()
+        return changes
 
     def _dedupe_active_alerts(self) -> int:
         """Collapse active alerts to the newest one per symbol + type kind."""
@@ -94,7 +180,11 @@ class AlertsService:
         tag = " (stop-loss)" if stop_loss else ""
         return f" — plan: sell {abs(shares):g} shares{tag}."
 
-    def _check_thresholds(self, symbol_data: dict[str, Any]) -> list[dict[str, Any]]:
+    def _check_thresholds(
+        self,
+        symbol_data: dict[str, Any],
+        true_signatures: set | None = None,
+    ) -> list[dict[str, Any]]:
         created = []
         symbol = symbol_data["symbol"]
         price = symbol_data.get("currentPrice")
@@ -127,6 +217,7 @@ class AlertsService:
                         message=msg,
                         price=price,
                         reference_value=trade_below_price,
+                        true_signatures=true_signatures,
                     )
                 )
             elif price <= trade_below_price * (1 + near):
@@ -144,6 +235,7 @@ class AlertsService:
                         message=msg,
                         price=price,
                         reference_value=trade_below_price,
+                        true_signatures=true_signatures,
                     )
                 )
 
@@ -164,6 +256,7 @@ class AlertsService:
                         message=msg,
                         price=price,
                         reference_value=trade_above_price,
+                        true_signatures=true_signatures,
                     )
                 )
             elif price >= trade_above_price * (1 - near):
@@ -181,12 +274,17 @@ class AlertsService:
                         message=msg,
                         price=price,
                         reference_value=trade_above_price,
+                        true_signatures=true_signatures,
                     )
                 )
 
         return [alert for alert in created if alert is not None]
 
-    def _check_fib_proximity(self, symbol_data: dict[str, Any]) -> list[dict[str, Any]]:
+    def _check_fib_proximity(
+        self,
+        symbol_data: dict[str, Any],
+        true_signatures: set | None = None,
+    ) -> list[dict[str, Any]]:
         symbol = symbol_data["symbol"]
         price = symbol_data.get("currentPrice")
         if price is None:
@@ -207,10 +305,13 @@ class AlertsService:
             price=price,
             reference_value=level["price"],
             fib_level=level["label"],
+            true_signatures=true_signatures,
         )
         return [alert] if alert is not None else []
 
-    def _check_screener(self, engine) -> list[dict[str, Any]]:
+    def _check_screener(
+        self, engine, true_signatures: set | None = None
+    ) -> list[dict[str, Any]]:
         created = []
         screener_input = self.portfolio_service.get_screener_input()
         if not screener_input:
@@ -227,6 +328,7 @@ class AlertsService:
                 message=message,
                 price=price,
                 reference_value=reference,
+                true_signatures=true_signatures,
             )
             if alert is not None:
                 created.append(alert)
@@ -240,8 +342,16 @@ class AlertsService:
         price: float | None,
         reference_value: float | None,
         fib_level: str | None = None,
+        true_signatures: set | None = None,
     ) -> dict[str, Any] | None:
         symbol = symbol.upper()
+        # Reaching this point means the condition is currently TRUE; record the
+        # signature before the dedupe short-circuit so staleness sees it even
+        # when no new row is inserted.
+        if true_signatures is not None:
+            true_signatures.add(
+                self._signature(symbol, alert_type, reference_value, fib_level)
+            )
         if self._active_alert_exists(symbol, alert_type, reference_value, fib_level):
             return None
 

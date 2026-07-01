@@ -18,6 +18,8 @@ _MONEY_FIELDS = (
     "totalNetGains",
 )
 _COUNT_FIELDS = ("buyLegs", "sellLegs", "oversellCount", "scopeCount")
+_FILTER_VALUES = frozenset({"all", "close", "far"})
+_LEGS_VALUES = frozenset({"both", "buys", "sells"})
 
 
 def _as_float(value: Any) -> float | None:
@@ -32,6 +34,36 @@ def _as_int(value: Any) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _as_filter(value: Any) -> str:
+    lowered = str(value or "all").strip().lower()
+    return lowered if lowered in _FILTER_VALUES else "all"
+
+
+def _as_legs(value: Any) -> str:
+    lowered = str(value or "both").strip().lower()
+    return lowered if lowered in _LEGS_VALUES else "both"
+
+
+def _as_symbol_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    symbols: list[str] = []
+    for item in value:
+        if isinstance(item, str):
+            symbol = item.strip().upper()
+            if symbol:
+                symbols.append(symbol)
+    return symbols
+
+
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
 
 
 class SimulationService:
@@ -52,6 +84,13 @@ class SimulationService:
         payload: dict[str, Any] = {key: _as_float(data.get(key)) for key in _MONEY_FIELDS}
         for key in _COUNT_FIELDS:
             payload[key] = _as_int(data.get(key))
+
+        payload["filter"] = _as_filter(data.get("filter"))
+        payload["legs"] = _as_legs(data.get("legs"))
+        selected = _as_symbol_list(data.get("selectedSymbols"))
+        use_selection = _as_bool(data.get("useSelection")) and bool(selected)
+        payload["useSelection"] = use_selection
+        payload["selectedSymbols"] = selected if use_selection else []
 
         user_id = get_current_user_id()
         with get_connection() as conn:

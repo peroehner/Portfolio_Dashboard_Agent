@@ -60,6 +60,43 @@ class LLMClient:
             self._rule_based_note_synthesis(symbol, note), provider="rules"
         )
 
+    @staticmethod
+    def _classify_llm_error(exc: Exception) -> str:
+        """Map a raw provider exception to a short, user-safe reason line.
+
+        The full exception is logged separately; only this clean one-liner is
+        stored on the synthesis/assessment payload so the note UI never shows
+        raw provider JSON, URLs, or status blobs.
+        """
+        text = str(exc).lower()
+        if any(
+            token in text
+            for token in (
+                "429",
+                "resource_exhausted",
+                "quota",
+                "credits are depleted",
+                "rate limit",
+                "ratelimit",
+                "too many requests",
+            )
+        ):
+            return "LLM unavailable (quota/billing) — used rules engine."
+        if any(
+            token in text
+            for token in (
+                "401",
+                "403",
+                "api key",
+                "api_key",
+                "unauthorized",
+                "permission denied",
+                "invalid authentication",
+            )
+        ):
+            return "LLM unavailable (auth/API key) — used rules engine."
+        return "LLM unavailable — used rules engine."
+
     def _fallback_synthesis(
         self, symbol: str, note: dict[str, Any], provider: str, exc: RuntimeError
     ) -> dict[str, Any]:
@@ -69,7 +106,8 @@ class LLMClient:
             self._rule_based_note_synthesis(symbol, note), provider="rules"
         )
         result["llmFallback"] = True
-        result["llmError"] = str(exc)[:300]
+        # Store only a clean classified reason; the full error is in the log above.
+        result["llmError"] = self._classify_llm_error(exc)
         result["attemptedProvider"] = provider
         return result
 
@@ -237,7 +275,8 @@ class LLMClient:
             combined=combined,
         )
         result["llmFallback"] = True
-        result["llmError"] = str(exc)[:300]
+        # Store only a clean classified reason; the full error is in the log above.
+        result["llmError"] = self._classify_llm_error(exc)
         result["attemptedProvider"] = provider
         return result
 

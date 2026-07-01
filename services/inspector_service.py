@@ -105,7 +105,12 @@ class InspectorService:
             technical_advisory=technical_advisory,
         )
         assessments = self.assessment_service.list_assessments(symbol=symbol, limit=20)
+        # Recommendation reasons over currently-true (active) alerts only; the UI
+        # list additionally shows stale alerts (condition no longer holds).
         alerts = self.alerts_service.list_alerts(symbol=symbol, status="active")
+        ui_alerts = self.alerts_service.list_alerts(
+            symbol=symbol, status="active", include_stale=True
+        )
         holding = self.holdings_service.get_holding(symbol)
         news_sentiment = self._news_sentiment_for_symbol(symbol) if include_news else None
         recommendation = build_symbol_recommendation(
@@ -121,7 +126,7 @@ class InspectorService:
             "quote": symbol_data,
             "companyName": valuation.get("companyName"),
             "holding": holding,
-            "alerts": alerts,
+            "alerts": ui_alerts,
             "fib": fib,
             "fibBlueprint": self._build_fib_blueprint(fib, technical_snapshot),
             "technicalSnapshot": technical_snapshot,
