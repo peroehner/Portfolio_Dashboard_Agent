@@ -2780,6 +2780,29 @@
       color: #fff;
       border-color: var(--accent);
     }
+    /* Cross-tab selection clipboard (Copy Sel / Paste Sel), pinned to the right
+       of each Portfolio-group filter bar. */
+    .sel-clip-actions {
+      display: inline-flex;
+      gap: 0.4rem;
+      margin-left: auto;
+    }
+    .sel-clip-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.32rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.3rem 0.55rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .sel-clip-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+    .sel-clip-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .sel-clip-btn svg { display: block; }
     .fib-ticker-filter {
       flex: 0 1 14rem;
       min-width: 10rem;
@@ -3414,6 +3437,7 @@
         <button type="button" class="secondary filter-btn" data-holdings-filter="medium" onclick="setHoldingsFilter('medium')" title="Middle 60% by share count">Medium</button>
         <button type="button" class="secondary filter-btn" data-holdings-filter="small" onclick="setHoldingsFilter('small')" title="Bottom 20% by share count">Small</button>
         <button type="button" class="secondary filter-btn" data-holdings-filter="watch" onclick="setHoldingsFilter('watch')" title="Tracked symbols with no shares">Watch-only</button>
+        <span class="sel-clip-actions" data-clip-tab="holdings"></span>
       </div>
       <div id="holdingsTable" class="portfolio-table-scroll"></div>
     </section>
@@ -3576,6 +3600,7 @@
         <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="close" onclick="setScreeningFilter('close')" title="Nearest planned-trade threshold is within 10% of the current price">Close Trades</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="far" onclick="setScreeningFilter('far')" title="Nearest planned-trade threshold is more than 100% from the current price">Far Trades</button>
+        <span class="sel-clip-actions" data-clip-tab="screening"></span>
       </div>
       <div id="screeningTable" class="portfolio-table-scroll"></div>
     </div>
@@ -3595,6 +3620,7 @@
         <button type="button" class="secondary filter-btn" data-sim-legs="buys" onclick="setSimulationLegs('buys')" title="Only buy legs count toward the totals">Buys</button>
         <button type="button" class="secondary filter-btn" data-sim-legs="sells" onclick="setSimulationLegs('sells')" title="Only sell legs count toward the totals">Sells</button>
         <button type="button" class="success" style="margin-left:auto;" onclick="saveSimulationSnapshot()">Save to Summary</button>
+        <span class="sel-clip-actions" data-clip-tab="simulation" style="margin-left:0.4rem;"></span>
       </div>
       <div id="simulationTable" class="portfolio-table-scroll"></div>
       <div class="sim-caption">assumes every boundary hits · ignores fees/taxes/slippage · flows, not a balance</div>
@@ -3618,6 +3644,7 @@
         <button type="button" class="secondary filter-btn" data-fib-band="critical" onclick="setFibMapBand('critical')" title="Critical (&lt;2% from nearest Fib): immediate target retest or breakout setup. High alert required.">Critical</button>
         <button type="button" class="secondary filter-btn" data-fib-band="warning" onclick="setFibMapBand('warning')" title="Near (2%–5% from nearest Fib): localized consolidation building momentum. Primary watching zone.">Near</button>
         <button type="button" class="secondary filter-btn" data-fib-band="neutral" onclick="setFibMapBand('neutral')" title="Neutral (&gt;5% from nearest Fib): stable range operations. Healthy distance from technical boundaries.">Neutral</button>
+        <span class="sel-clip-actions" data-clip-tab="fib"></span>
       </div>
       <div id="fibMapTable" class="portfolio-table-scroll"></div>
     </div>
@@ -3663,6 +3690,7 @@
         <button class="fund-tab active" data-fund-tab="val" onclick="setFundamentalsTab('val')">Valuation · Growth · Profitability</button>
         <button class="fund-tab" data-fund-tab="health" onclick="setFundamentalsTab('health')">Health · Analyst</button>
         <button class="fund-tab" data-fund-tab="range" onclick="setFundamentalsTab('range')">52-Week · News</button>
+        <span class="sel-clip-actions" data-clip-tab="fundamentals"></span>
       </div>
       <div id="fundamentalsTable"><div class="empty">Loading fundamentals…</div></div>
     </section>
@@ -4013,6 +4041,118 @@
         multiAnchor[tableId] = key;
       }
       config.rerender();
+    }
+
+    // --- Cross-tab selection clipboard (Portfolio group) ---------------------
+    // Copy the selected symbol(s) in one Portfolio tab and re-apply them in
+    // another. Pasting resets the destination tab's category filter so the
+    // pasted rows are guaranteed visible. `tablePastedKeys` gives single-select
+    // tables (Screening/Patterns/Fundamentals) a multi-row highlight overlay,
+    // keyed by the table's selection group.
+    let selectionClipboard = [];
+    const tablePastedKeys = {};
+
+    const PORTFOLIO_CLIP_LABELS = {
+      holdings: "Holdings",
+      screening: "Screening",
+      simulation: "Simulation",
+      fib: "Patterns & Tech Signals",
+      fundamentals: "Fundamentals",
+    };
+
+    function portfolioTabSelectedSymbols(tabId) {
+      if (tabId === "holdings" || tabId === "simulation") {
+        return [...getMultiSelection(tabId)];
+      }
+      const key = selectionKeyFor(tabId === "fundamentals" ? "fundamentals" : tabId);
+      const pasted = tablePastedKeys[key];
+      if (pasted && pasted.size) return [...pasted];
+      const single = tableSelection[key];
+      return single ? [single] : [];
+    }
+
+    // Non-empty pasted-highlight set for a table, or null so renderSortableTable
+    // falls back to normal single-row selection.
+    function pastedKeysFor(tableId) {
+      const set = tablePastedKeys[selectionKeyFor(tableId)];
+      return set && set.size ? set : null;
+    }
+
+    function updateClipButtons() {
+      const count = selectionClipboard.length;
+      document.querySelectorAll("[data-clip-paste]").forEach((btn) => {
+        btn.disabled = count === 0;
+        btn.title = count
+          ? `Paste ${count} symbol${count === 1 ? "" : "s"} here (clears this tab's filter)`
+          : "Nothing copied yet — use Copy Selection first";
+      });
+    }
+
+    function selClipHtml(tabId) {
+      const clip = '<rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>';
+      const copyArrow = '<line x1="12" y1="17" x2="12" y2="11"></line><polyline points="9 14 12 11 15 14"></polyline>';
+      const pasteArrow = '<line x1="12" y1="11" x2="12" y2="17"></line><polyline points="9 14 12 17 15 14"></polyline>';
+      const svg = (inner) => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+      return `<button type="button" class="sel-clip-btn" onclick="copyPortfolioSelection('${tabId}')" title="Copy the selected symbol(s) to reuse in another tab">${svg(clip + copyArrow)}<span>Copy Sel</span></button>`
+        + `<button type="button" class="sel-clip-btn" data-clip-paste onclick="pastePortfolioSelection('${tabId}')" disabled title="Nothing copied yet — use Copy Selection first">${svg(clip + pasteArrow)}<span>Paste Sel</span></button>`;
+    }
+
+    function renderSelClipControls() {
+      document.querySelectorAll(".sel-clip-actions[data-clip-tab]").forEach((el) => {
+        el.innerHTML = selClipHtml(el.dataset.clipTab);
+      });
+      updateClipButtons();
+    }
+
+    function copyPortfolioSelection(tabId) {
+      const symbols = portfolioTabSelectedSymbols(tabId);
+      if (!symbols.length) {
+        setStatus("Select a symbol first, then Copy Selection.", "error");
+        return;
+      }
+      selectionClipboard = symbols;
+      updateClipButtons();
+      setStatus(`Copied ${symbols.length} symbol${symbols.length === 1 ? "" : "s"}: ${symbols.join(", ")}.`, "success");
+    }
+
+    function pastePortfolioSelection(tabId) {
+      if (!selectionClipboard.length) {
+        setStatus("Nothing to paste — Copy a selection first.", "error");
+        return;
+      }
+      const symbols = [...selectionClipboard];
+      const last = symbols[symbols.length - 1];
+      if (tabId === "holdings") {
+        holdingsFilter = "all";
+        multiSelection.holdings = new Set(symbols);
+        multiAnchor.holdings = last;
+        renderHoldingsView();
+      } else if (tabId === "simulation") {
+        simulationFilter = "all";
+        multiSelection.simulation = new Set(symbols);
+        multiAnchor.simulation = last;
+        renderSimulationView();
+      } else if (tabId === "screening") {
+        screeningFilter = "all";
+        tablePastedKeys.screening = new Set(symbols);
+        tableSelection.screening = last;
+        updateScreeningFilterButtons();
+        loadScreening("", false);
+      } else if (tabId === "fib") {
+        fibMapBand = "all";
+        fibConfirmedOnly = false;
+        fibMapTicker = "";
+        const tickerInput = document.getElementById("fibTickerFilter");
+        if (tickerInput) tickerInput.value = "";
+        tablePastedKeys.fib = new Set(symbols);
+        tableSelection.fib = last;
+        renderFibMapView();
+      } else if (tabId === "fundamentals") {
+        tablePastedKeys.fundamentals = new Set(symbols);
+        tableSelection.fundamentals = last;
+        renderFundamentalsTable();
+      }
+      setStatus(`Pasted ${symbols.length} symbol${symbols.length === 1 ? "" : "s"} into ${PORTFOLIO_CLIP_LABELS[tabId] || tabId} — filter cleared.`, "success");
     }
 
     function formatPercent(value) {
@@ -4979,16 +5119,30 @@
     document.getElementById("addSymbolForm").onsubmit = async (event) => {
       event.preventDefault();
       const form = event.target;
+      const symbol = form.symbol.value.trim().toUpperCase();
+      if (!symbol) return;
       try {
-        await api("/symbols", {
+        const created = await api("/symbols", {
           method: "POST",
-          body: JSON.stringify({ symbol: form.symbol.value.trim().toUpperCase() }),
+          body: JSON.stringify({ symbol }),
         });
         form.reset();
+        invalidateViewCaches();
+        // Make the just-added symbol the active selection so its current price,
+        // thresholds, and Personal Target open for editing right away. Seeding
+        // selectedSymbol first makes loadPortfolio() keep (not replace) it.
+        const newSymbol = created?.symbol || symbol;
+        selectedSymbol = newSymbol;
         await loadPortfolio();
-        setStatus("Symbol added.");
+        const priced = created?.currentPrice != null;
+        setStatus(
+          priced
+            ? `Added ${newSymbol} at ${formatMoney(created.currentPrice)} — set your thresholds and target.`
+            : `Added ${newSymbol} — set your thresholds and target (price will sync shortly).`,
+          "success",
+        );
       } catch (error) {
-        setStatus(error.message);
+        setStatus(error.message, "error");
       }
     };
 
@@ -6685,7 +6839,8 @@
         "screening",
         screeningColumns,
         rows,
-        "No screening results."
+        "No screening results.",
+        { selectedKeys: pastedKeysFor("screening") }
       );
     }
 
@@ -7004,7 +7159,8 @@
         "fib",
         fibColumns,
         rows,
-        fibMapData.length ? "No symbols match the current filters." : "No symbols to map."
+        fibMapData.length ? "No symbols match the current filters." : "No symbols to map.",
+        { selectedKeys: pastedKeysFor("fib") }
       );
     }
 
@@ -10190,7 +10346,7 @@
       const container = document.getElementById("fundamentalsTable");
       const tableId = FUND_TABLE_IDS[fundamentalsTab];
       const columns = fundamentalsColumns(fundamentalsTab);
-      const table = renderSortableTable(tableId, columns, fundamentalsRows, "No symbols to compare. Add symbols first.");
+      const table = renderSortableTable(tableId, columns, fundamentalsRows, "No symbols to compare. Add symbols first.", { selectedKeys: pastedKeysFor(tableId) });
       if (fundamentalsTab === "range") {
         container.innerHTML = `
           <div class="fund-range-layout">
@@ -10263,6 +10419,8 @@
           handleMultiSelectClick(tableId, selectableRow.dataset.rowKey, event);
           return;
         } else if (tableId) {
+          // A manual click drops any pasted multi-highlight and single-selects.
+          delete tablePastedKeys[selectionKeyFor(tableId)];
           tableSelection[selectionKeyFor(tableId)] = selectableRow.dataset.rowKey;
           table.querySelectorAll("tbody tr.row-selected").forEach((tr) => tr.classList.remove("row-selected"));
           selectableRow.classList.add("row-selected");
@@ -10306,6 +10464,7 @@
     loadConfig();
     loadMe();
     resetNoteForm();
+    renderSelClipControls();
     showView("overview");
     markRefreshed(true);
     startAutoRefresh();

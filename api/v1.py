@@ -167,6 +167,16 @@ def create_symbol():
     if not symbol:
         return jsonify({"error": "symbol is required."}), 400
     item = portfolio_service.upsert_symbol(symbol, data)
+    # Pull a live quote for just this new symbol so the Target detail panel can
+    # show its current price immediately (best-effort; a bad ticker just leaves
+    # the price empty and the symbol still gets created for editing).
+    try:
+        portfolio_service.sync_prices(_engine(), symbols=[item["symbol"]])
+        item = portfolio_service.get_symbol(item["symbol"]) or item
+    except Exception as exc:  # noqa: BLE001 - price fetch is non-fatal
+        logging.getLogger(__name__).warning(
+            "Price fetch for new symbol %s failed: %s", item.get("symbol"), exc
+        )
     return jsonify(item), 201
 
 
