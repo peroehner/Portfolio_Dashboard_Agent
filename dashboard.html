@@ -2505,7 +2505,7 @@
       display: flex;
       align-items: flex-end;
       justify-content: space-between;
-      gap: 0.65rem;
+      gap: 0.9rem;
       padding: 0.65rem 1.25rem 0.75rem;
       border-bottom: 1px solid var(--border);
       background: var(--panel);
@@ -2514,7 +2514,7 @@
     .nav-tabs-main {
       display: flex;
       align-items: flex-end;
-      gap: 0.65rem;
+      gap: 0.9rem;
       flex-wrap: wrap;
       flex: 1;
       min-width: 0;
@@ -2524,10 +2524,10 @@
       flex-shrink: 0;
     }
     .nav-group-agents .nav-group-tabs {
-      border: 1px solid var(--border);
+      border: 1px solid rgba(139, 92, 246, 0.28);
       border-radius: var(--radius);
-      padding: 0.12rem;
-      background: rgba(139, 92, 246, 0.05);
+      padding: 0.14rem;
+      background: rgba(139, 92, 246, 0.08);
     }
     .nav-agent-glyph {
       position: relative;
@@ -2602,7 +2602,7 @@
     .nav-group {
       display: flex;
       flex-direction: column;
-      gap: 0.22rem;
+      gap: 0.38rem;
       min-width: 0;
       align-items: stretch;
     }
@@ -2610,23 +2610,43 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 0.28rem;
+      gap: 0.32rem;
       align-self: center;
-      font-size: 0.58rem;
+      font-size: 0.64rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--muted);
-      opacity: 0.8;
+      letter-spacing: 0.08em;
+      color: #b8c5d6;
       line-height: 1;
       user-select: none;
       white-space: nowrap;
       cursor: default;
+      padding: 0.22rem 0.58rem;
+      border-radius: 5px;
+      background: rgba(154, 168, 188, 0.1);
+      border: 1px solid rgba(154, 168, 188, 0.2);
+    }
+    .nav-group-portfolio .nav-group-label {
+      color: #93c5fd;
+      background: rgba(59, 130, 246, 0.14);
+      border-color: rgba(59, 130, 246, 0.32);
+    }
+    .nav-group-symbol .nav-group-label {
+      color: #7dd3fc;
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+    .nav-group-agents .nav-group-label {
+      color: #c4b5fd;
+      background: rgba(139, 92, 246, 0.14);
+      border-color: rgba(139, 92, 246, 0.32);
     }
     .nav-group-label svg {
       display: block;
       flex: none;
-      opacity: 0.9;
+      width: 12px;
+      height: 12px;
+      opacity: 0.95;
     }
     .nav-group-tabs {
       display: flex;
@@ -2634,17 +2654,30 @@
       flex-wrap: wrap;
     }
     .nav-divider {
-      width: 1px;
+      width: 2px;
       align-self: stretch;
-      background: var(--border);
-      margin: 0.15rem 0.05rem;
+      background: rgba(154, 168, 188, 0.32);
+      margin: 0.05rem 0.15rem;
       flex: none;
+      border-radius: 1px;
+    }
+    .nav-group-summary .nav-group-tabs {
+      border: 1px solid rgba(154, 168, 188, 0.22);
+      border-radius: var(--radius);
+      padding: 0.14rem;
+      background: rgba(154, 168, 188, 0.06);
+    }
+    .nav-group-portfolio .nav-group-tabs {
+      border: 1px solid rgba(59, 130, 246, 0.24);
+      border-radius: var(--radius);
+      padding: 0.14rem;
+      background: rgba(59, 130, 246, 0.07);
     }
     .nav-group-symbol .nav-group-tabs {
-      border: 1px solid var(--border);
+      border: 1px solid rgba(56, 189, 248, 0.24);
       border-radius: var(--radius);
-      padding: 0.12rem;
-      background: rgba(96, 165, 250, 0.05);
+      padding: 0.14rem;
+      background: rgba(56, 189, 248, 0.07);
     }
     nav.tabs button { background: transparent; color: var(--muted); border: 1px solid transparent; }
     nav.tabs button.active { background: var(--panel-2); color: var(--text); border-color: var(--border); }
@@ -2779,6 +2812,34 @@
       background: var(--accent);
       color: #fff;
       border-color: var(--accent);
+    }
+    .filter-sep {
+      width: 1px;
+      align-self: stretch;
+      background: var(--border);
+      margin: 0 0.35rem;
+    }
+    .filter-select {
+      flex: 0 1 auto;
+      min-width: 8.5rem;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.45rem 0.55rem;
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .filter-select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .screening-sentiment-filter {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
     }
     /* Cross-tab selection clipboard (Copy Sel / Paste Sel), pinned to the right
        of each Portfolio-group filter bar. */
@@ -3600,6 +3661,16 @@
         <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="close" onclick="setScreeningFilter('close')" title="Nearest planned-trade threshold is within 10% of the current price">Close Trades</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="far" onclick="setScreeningFilter('far')" title="Nearest planned-trade threshold is more than 100% from the current price">Far Trades</button>
+        <span class="filter-sep" aria-hidden="true"></span>
+        <label class="screening-sentiment-filter" title="Filter by SAI Sentiment (combined with the active category filter)">
+          <span class="fib-filter-label">Sentiment</span>
+          <select id="screeningSentimentFilter" class="filter-select" onchange="setScreeningSentimentFilter(this.value)">
+            <option value="all">All</option>
+            <option value="bullish">Bullish</option>
+            <option value="neutral">Neutral</option>
+            <option value="bearish">Bearish</option>
+          </select>
+        </label>
         <span class="sel-clip-actions" data-clip-tab="screening"></span>
       </div>
       <div id="screeningTable" class="portfolio-table-scroll"></div>
@@ -4134,6 +4205,7 @@
         renderSimulationView();
       } else if (tabId === "screening") {
         screeningFilter = "all";
+        screeningSentimentFilter = "all";
         tablePastedKeys.screening = new Set(symbols);
         tableSelection.screening = last;
         updateScreeningFilterButtons();
@@ -7263,32 +7335,48 @@
     }
 
     let screeningFilter = "all";
+    let screeningSentimentFilter = "all";
 
     // Client-side row filters (everything they need is already on each row).
     const TRADE_CLOSE_PCT = 10;
     const TRADE_FAR_PCT = 100;
     const SIM_TAX_RATE = 0.26375; // est. German capital-gains tax on realized gains: 25% Abgeltungssteuer + 5.5% Soli
+
+    function screeningRowSentiment(row) {
+      return (row.recommendation?.sentiment || "neutral").toLowerCase();
+    }
+
     function applyScreeningFilter(rows) {
       if (!rows) return [];
+      let filtered = rows;
       if (screeningFilter === "upside") {
-        return rows.filter((r) => r.upsidePct != null && r.upsidePct >= 30);
-      }
-      if (screeningFilter === "close") {
-        return rows.filter((r) => tradeBandClosestDist(r) <= TRADE_CLOSE_PCT);
-      }
-      if (screeningFilter === "far") {
-        return rows.filter((r) => {
+        filtered = filtered.filter((r) => r.upsidePct != null && r.upsidePct >= 30);
+      } else if (screeningFilter === "close") {
+        filtered = filtered.filter((r) => tradeBandClosestDist(r) <= TRADE_CLOSE_PCT);
+      } else if (screeningFilter === "far") {
+        filtered = filtered.filter((r) => {
           const d = tradeBandClosestDist(r);
           return Number.isFinite(d) && d > TRADE_FAR_PCT;
         });
       }
-      return rows;
+      if (screeningSentimentFilter !== "all") {
+        filtered = filtered.filter((r) => screeningRowSentiment(r) === screeningSentimentFilter);
+      }
+      return filtered;
     }
 
     function updateScreeningFilterButtons() {
       document.querySelectorAll("#view-screening .filter-btn").forEach((button) => {
         button.classList.toggle("active", button.dataset.screenFilter === screeningFilter);
       });
+      const sentimentSelect = document.getElementById("screeningSentimentFilter");
+      if (sentimentSelect) sentimentSelect.value = screeningSentimentFilter;
+    }
+
+    function setScreeningSentimentFilter(value) {
+      screeningSentimentFilter = value || "all";
+      updateScreeningFilterButtons();
+      loadScreening("", false);
     }
 
     function setScreeningFilter(filter) {
