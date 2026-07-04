@@ -733,19 +733,19 @@ class ImportService:
         if technical:
             self.technical_service.upsert_snapshot(symbol, technical)
         holding = False
-        if any(
-            key in data
-            for key in (
-                "quantity",
-                "shares",
-                "costBasis",
-                "cost_basis",
-                "purchaseDate",
-                "purchase_date",
-            )
-        ):
-            self.holdings_service.upsert_holding(symbol, data)
-            holding = True
+        position_keys = (
+            "quantity",
+            "shares",
+            "costBasis",
+            "cost_basis",
+            "purchaseDate",
+            "purchase_date",
+        )
+        if any(key in data for key in position_keys):
+            qty = float(data.get("quantity") or data.get("shares") or 0)
+            if qty > 0:
+                self.holdings_service.upsert_holding(symbol, data)
+                holding = True
 
         return {
             "skipped": False,

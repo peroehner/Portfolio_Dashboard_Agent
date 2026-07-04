@@ -49,6 +49,10 @@ class HoldingsService:
         self._ensure_symbol_exists(symbol, data)
 
         quantity = float(data.get("quantity", data.get("shares", 0)) or 0)
+        if quantity <= 0:
+            self.delete_holding(symbol)
+            return None
+
         cost_basis = data.get("cost_basis", data.get("costBasis"))
         cost_basis = float(cost_basis) if cost_basis not in (None, "") else None
         account_name = data.get("account_name", data.get("accountName"))
@@ -87,6 +91,17 @@ class HoldingsService:
             )
             conn.commit()
             return cursor.rowcount > 0
+
+    def prune_zero_quantity_holdings(self) -> int:
+        """Remove stale holdings rows with zero shares (watch-only symbols)."""
+        user_id = get_current_user_id()
+        with get_connection() as conn:
+            cursor = conn.execute(
+                "DELETE FROM holdings WHERE user_id = %s AND COALESCE(quantity, 0) <= 0",
+                (user_id,),
+            )
+            conn.commit()
+            return cursor.rowcount
 
     def _row_to_holding(self, row) -> dict[str, Any]:
         quantity = row["quantity"] or 0

@@ -2661,12 +2661,6 @@
       flex: none;
       border-radius: 1px;
     }
-    .nav-group-summary .nav-group-tabs {
-      border: 1px solid rgba(154, 168, 188, 0.22);
-      border-radius: var(--radius);
-      padding: 0.14rem;
-      background: rgba(154, 168, 188, 0.06);
-    }
     .nav-group-portfolio .nav-group-tabs {
       border: 1px solid rgba(59, 130, 246, 0.24);
       border-radius: var(--radius);
@@ -3354,18 +3348,13 @@
 
   <nav class="tabs" aria-label="Portfolio views">
     <div class="nav-tabs-main">
-    <div class="nav-group nav-group-summary">
-      <div class="nav-group-tabs">
-        <button class="active" data-view="overview" onclick="showView('overview')" ondblclick="togglePreviousView()">Summary</button>
-      </div>
-    </div>
-    <div class="nav-divider" aria-hidden="true"></div>
     <div class="nav-group nav-group-portfolio">
-      <span class="nav-group-label" title="Sortable tables across all symbols">
+      <span class="nav-group-label" title="Portfolio-wide summary and sortable tables across all symbols">
         <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
         Portfolio
       </span>
       <div class="nav-group-tabs">
+        <button class="active" data-view="overview" onclick="showView('overview')" ondblclick="togglePreviousView()">Summary</button>
         <button data-view="holdings" onclick="showView('holdings')" ondblclick="togglePreviousView()">Holdings</button>
         <button data-view="screening" onclick="showView('screening')" ondblclick="togglePreviousView()">Screening</button>
         <button data-view="simulation" onclick="showView('simulation')" ondblclick="togglePreviousView()">Simulation</button>
@@ -5886,7 +5875,7 @@
       const dayChangeHtml = dayChange != null
         ? `<div class="${dayClass}">${daySign}${formatSummaryMoney(Math.abs(dayChange))}(${dayPctStr}) Day</div>`
         : "";
-      const watchOnly = data.watchlistOnlyCount || 0;
+      const watchOnly = buildWatchOnlyRows(data).length;
       const watchOnlyNote = watchOnly === 1
         ? "(1 watch only)"
         : `(${watchOnly} watch only)`;
@@ -6278,7 +6267,7 @@
       portfolioMarketValue = data.totalMarketValue ?? portfolioMarketValue;
       // Positions with actual shares drive the All/Large/Medium/Small filters;
       // tracked symbols without shares become the Watch-only list.
-      holdingsRows = (data.holdings || []).filter((h) => (Number(h.quantity) || 0) > 0);
+      holdingsRows = (data.holdings || []).filter(holdingHasShares);
       holdingsWatchRows = buildWatchOnlyRows(data);
       const present = new Set([...holdingsRows, ...holdingsWatchRows].map((h) => h.symbol));
       multiSelection.holdings = new Set([...getMultiSelection("holdings")].filter((s) => present.has(s)));
@@ -6289,10 +6278,14 @@
       }
     }
 
+    function holdingHasShares(holding) {
+      return (Number(holding?.quantity) || 0) > 0;
+    }
+
     function buildWatchOnlyRows(data) {
       const held = new Set(
         (data.holdings || [])
-          .filter((h) => (Number(h.quantity) || 0) > 0)
+          .filter(holdingHasShares)
           .map((h) => h.symbol)
       );
       return (data.symbols || [])

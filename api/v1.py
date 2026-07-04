@@ -428,6 +428,8 @@ def create_holding():
     if not symbol:
         return jsonify({"error": "symbol is required."}), 400
     holding = holdings_service.upsert_holding(symbol, data)
+    if holding is None:
+        return jsonify({"status": "deleted", "symbol": symbol.upper()})
     return jsonify(holding), 201
 
 
@@ -435,6 +437,8 @@ def create_holding():
 def update_holding(symbol):
     data = request.get_json(silent=True) or {}
     holding = holdings_service.upsert_holding(symbol, data)
+    if holding is None:
+        return jsonify({"status": "deleted", "symbol": symbol.upper()})
     return jsonify(holding)
 
 

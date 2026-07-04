@@ -17,6 +17,24 @@ _YTD_PRICE_CACHE = TtlCache(
 )
 
 
+def holding_quantity(holding: dict[str, Any]) -> float:
+    try:
+        return float(holding.get("quantity") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def held_symbols_with_shares(holdings: list[dict[str, Any]]) -> set[str]:
+    """Symbols with an open position (quantity strictly greater than zero)."""
+    return {holding["symbol"] for holding in holdings if holding_quantity(holding) > 0}
+
+
+def watchlist_only_count(symbols: list[dict[str, Any]], holdings: list[dict[str, Any]]) -> int:
+    """Tracked symbols with no shares — matches the Holdings Watch-only filter."""
+    held = held_symbols_with_shares(holdings)
+    return sum(1 for symbol in symbols if symbol["symbol"] not in held)
+
+
 class OverviewService:
     def __init__(self):
         self.portfolio_service = PortfolioService()
@@ -118,6 +136,9 @@ class OverviewService:
 
     def get_overview(self) -> dict[str, Any]:
         symbols = self.portfolio_service.list_symbols()
+        # Legacy imports sometimes left zero-qty holdings rows behind; they are not
+        # positions but used to block watch-only counts on Summary.
+        self.holdings_service.prune_zero_quantity_holdings()
         holdings = self.holdings_service.list_holdings()
         alerts = self.alerts_service.list_alerts(status="active")
         assessments = self.assessment_service.list_assessments(limit=5)
@@ -131,7 +152,7 @@ class OverviewService:
         analyst_target_holdings = 0
         personal_target_holdings = 0
         valued_holdings = 0
-        holding_symbols = {holding["symbol"] for holding in holdings}
+        held_with_shares = held_symbols_with_shares(holdings)
 
         for holding in holdings:
             if holding.get("marketValue") is not None:
@@ -234,10 +255,8 @@ class OverviewService:
 
         return {
             "symbolCount": len(symbols),
-            "holdingCount": len(holdings),
-            "watchlistOnlyCount": len(
-                [symbol for symbol in symbols if symbol["symbol"] not in holding_symbols]
-            ),
+            "holdingCount": len(held_with_shares),
+            "watchlistOnlyCount": watchlist_only_count(symbols, holdings),
             "totalMarketValue": round(total_market_value, 2) if valued_holdings else None,
             "totalDayChange": round(total_day_change, 2) if day_weight_base else None,
             "totalDayChangePct": total_day_change_pct,
