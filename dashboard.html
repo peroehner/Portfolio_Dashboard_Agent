@@ -834,16 +834,21 @@
       background: rgba(59, 130, 246, 0.08);
       border-color: rgba(59, 130, 246, 0.28);
     }
-    .projection-row.simulation .projection-label { color: var(--accent); }
-    .projection-row.simulation.projection-row-clickable {
+    .projection-row.projection-row-clickable {
       cursor: pointer;
-      transition: background 0.12s ease, border-color 0.12s ease;
+      transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
     }
+    .projection-row.projection-row-clickable:hover,
+    .projection-row.projection-row-clickable:focus-visible {
+      border-color: rgba(255, 255, 255, 0.22);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+      outline: none;
+    }
+    .projection-row.simulation .projection-label { color: var(--accent); }
     .projection-row.simulation.projection-row-clickable:hover,
     .projection-row.simulation.projection-row-clickable:focus-visible {
       background: rgba(59, 130, 246, 0.12);
       border-color: rgba(59, 130, 246, 0.5);
-      outline: none;
     }
     .projection-subnote { margin-top: 0.45rem; font-size: 0.72rem; color: var(--muted); }
     .sim-kpis { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
@@ -933,6 +938,12 @@
       gap: 1rem;
       align-items: start;
     }
+    #view-holdings.holdings-expanded {
+      grid-template-columns: 1fr;
+    }
+    #view-holdings.holdings-expanded .holdings-inspector-panel {
+      display: none;
+    }
     /* Keep the table and the Inspector side-by-side and in view: the table
        scrolls internally (sticky header) and the Inspector sticks while the
        page scrolls, so clicking the last row never pushes it out of sight. */
@@ -940,6 +951,14 @@
       position: sticky;
       top: 1rem;
       align-self: start;
+    }
+    .holdings-table-panel table.data th,
+    .holdings-table-panel table.data td {
+      padding-left: 0.45rem;
+      padding-right: 0.45rem;
+    }
+    .holdings-table-panel table.data {
+      font-size: 0.86rem;
     }
     .holdings-inspector-panel {
       position: sticky;
@@ -3678,7 +3697,7 @@
 
   <main id="view-holdings" class="view" hidden>
     <section class="panel holdings-table-panel portfolio-table-panel">
-      <p class="empty" style="margin-top:0;">Click a symbol to inspect it. Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows; totals then apply to the selection.</p>
+      <p class="empty" style="margin-top:0;">Click a symbol to inspect it. Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows; totals then apply to the selection. Double-click the table to expand full width.</p>
       <div class="holdings-filter-bar">
         <button type="button" class="secondary filter-btn active" data-holdings-filter="all" onclick="setHoldingsFilter('all')">All</button>
         <button type="button" class="secondary filter-btn" data-holdings-filter="large" onclick="setHoldingsFilter('large')" title="Top 20% by share count">Large</button>
@@ -3687,7 +3706,8 @@
         <button type="button" class="secondary filter-btn" data-holdings-filter="watch" onclick="setHoldingsFilter('watch')" title="Tracked symbols with no shares">Watch-only</button>
         <span class="sel-clip-actions" data-clip-tab="holdings"></span>
       </div>
-      <div id="holdingsTable" class="portfolio-table-scroll"></div>    </section>
+      <div id="holdingsTable" class="portfolio-table-scroll"></div>
+    </section>
     <section class="panel holdings-inspector-panel">
       <div class="holdings-inspector-head">
         <h2 id="holdingsInspectorTitle"><span id="holdingsInspectorTitleText">Inspector</span></h2>
@@ -3963,6 +3983,36 @@
     // double-click "toggle back to the last view" nav shortcut.
     let currentView = null;
     let previousView = null;
+    let holdingsTableExpanded = false;
+
+    function syncHoldingsLayoutExpanded() {
+      document.getElementById("view-holdings")?.classList.toggle("holdings-expanded", holdingsTableExpanded);
+    }
+
+    function toggleHoldingsTableExpanded() {
+      holdingsTableExpanded = !holdingsTableExpanded;
+      syncHoldingsLayoutExpanded();
+    }
+
+    function initHoldingsTableExpandToggle() {
+      const panel = document.querySelector(".holdings-table-panel");
+      if (!panel || panel.dataset.expandToggleInit) return;
+      panel.dataset.expandToggleInit = "1";
+      let lastClickAt = 0;
+      panel.addEventListener("click", (event) => {
+        if (!event.target.closest("#holdingsTable table.data")) return;
+        const now = Date.now();
+        if (now - lastClickAt < 450) {
+          lastClickAt = 0;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          toggleHoldingsTableExpanded();
+          return;
+        }
+        lastClickAt = now;
+      }, true);
+    }
+
     // Latest portfolio market value (from /overview); used as the base for the
     // planned-trade Simulation's projected valuation.
     let portfolioMarketValue = null;
@@ -4161,6 +4211,10 @@
     const SYMBOL_VIEWS = new Set(["portfolio", "inspector"]);
 
     function syncNavViewState(name) {
+      if (name !== "holdings" && holdingsTableExpanded) {
+        holdingsTableExpanded = false;
+        syncHoldingsLayoutExpanded();
+      }
       document.body.classList.toggle("is-portfolio-view", PORTFOLIO_VIEWS.has(name));
       document.body.classList.toggle("is-symbol-view", SYMBOL_VIEWS.has(name));
       document.querySelectorAll("nav.tabs button[data-view]").forEach((btn) => {
@@ -4352,6 +4406,7 @@
       const ordered = config.order();
       const selection = getMultiSelection(tableId);
       const anchor = multiAnchor[tableId];
+      const before = [...selection].sort().join("\0");
       if (event.shiftKey && anchor && ordered.includes(anchor) && ordered.includes(key)) {
         const a = ordered.indexOf(anchor);
         const b = ordered.indexOf(key);
@@ -4369,7 +4424,8 @@
         multiSelection[tableId] = new Set([key]);
         multiAnchor[tableId] = key;
       }
-      config.rerender();
+      const after = [...getMultiSelection(tableId)].sort().join("\0");
+      if (before !== after) config.rerender();
     }
 
     // --- Cross-tab selection clipboard (Holdings + Simulation only) -----------
@@ -4459,6 +4515,37 @@
       const amount = Number(value);
       if (!Number.isFinite(amount)) return "—";
       return `${amount.toFixed(2)}%`;
+    }
+
+    function formatHoldingsCompactMoney(value) {
+      return formatSummaryMoney(value);
+    }
+
+    function holdingsPercentDecimals(value) {
+      const amount = Math.abs(Number(value));
+      if (!Number.isFinite(amount)) return 1;
+      return amount >= 100 ? 0 : 1;
+    }
+
+    function renderHoldingsPercentCell(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      const positive = amount >= 0;
+      const color = positive ? "#22c55e" : "#ef4444";
+      const cls = positive ? "gain-pos" : "gain-neg";
+      const prefix = amount > 0 ? "+" : "";
+      return `<span class="${cls}" style="color:${color};font-weight:600;">${prefix}${amount.toFixed(holdingsPercentDecimals(amount))}%</span>`;
+    }
+
+    function renderHoldingsCompactMoneyCell(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      const positive = amount >= 0;
+      const color = positive ? "#22c55e" : "#ef4444";
+      const cls = positive ? "gain-pos" : "gain-neg";
+      return `<span class="${cls}" style="color:${color};font-weight:600;">${formatHoldingsCompactMoney(amount)}</span>`;
     }
 
     function formatDayChangePercent(value) {
@@ -5960,6 +6047,11 @@
       const current = data.totalMarketValue;
       const analyst = data.totalAnalystTargetValue;
       const personal = data.totalPersonalTargetValue;
+      const holdingsLink = {
+        interactive: true,
+        onClick: "showView('holdings')",
+        title: "Open Holdings",
+      };
 
       if (current == null) {
         container.innerHTML = `<div class="empty">No valued positions yet.</div>`;
@@ -5981,7 +6073,9 @@
           current,
           data.unrealizedGainPct,
           "current",
-          projectionBarWidth(current, maxValue)
+          projectionBarWidth(current, maxValue),
+          "",
+          holdingsLink
         ),
       ];
 
@@ -5991,7 +6085,9 @@
           analyst,
           data.totalAnalystUpsidePct,
           "projected",
-          projectionBarWidth(analyst, maxValue)
+          projectionBarWidth(analyst, maxValue),
+          "",
+          holdingsLink
         ));
       }
 
@@ -6001,7 +6097,9 @@
           personal,
           data.totalPersonalUpsidePct,
           "personal",
-          projectionBarWidth(personal, maxValue)
+          projectionBarWidth(personal, maxValue),
+          "",
+          holdingsLink
         ));
       }
 
@@ -6015,7 +6113,9 @@
           data.totalProjectedRoc,
           data.totalProjectedRocPct,
           "roc",
-          rocBarWidth
+          rocBarWidth,
+          "",
+          holdingsLink
         ));
       }
 
@@ -6731,7 +6831,9 @@
             gainPct: null,
             analystTarget1y: analyst,
             analystUpsidePct,
+            analystTargetValue: null,
             personalTarget: sym.targetPrice,
+            personalTargetValue: null,
             annualDividend: sym.annualDividend,
             watchOnly: true,
           };
@@ -6831,15 +6933,17 @@
       { key: "currentPrice", label: "Price", sortValue: (row) => row.currentPrice, render: (row) => formatMoney(row.currentPrice) },
       { key: "dayChangePct", label: "Day %", coloredPercent: true, sortValue: (row) => row.dayChangePct, render: (row) => renderColoredPercentCell(row.dayChangePct) },
       { key: "quantity", label: "Qty", sortValue: (row) => row.quantity, render: (row) => row.quantity },
-      { key: "marketValue", label: "Value", sortValue: (row) => row.marketValue, render: (row) => formatMoney(row.marketValue) },
+      { key: "marketValue", label: "Value", sortValue: (row) => row.marketValue, render: (row) => formatHoldingsCompactMoney(row.marketValue) },
       { key: "weightPct", label: "Weight", sortValue: (row) => row.weightPct, render: (row) => row.weightPct != null ? `${row.weightPct}%` : "—" },
-      { key: "unrealizedGain", label: "Gain", sortValue: (row) => row.unrealizedGain, render: (row) => renderColoredMoneyCell(row.unrealizedGain) },
-      { key: "gainPct", label: "Gain %", coloredPercent: true, sortValue: (row) => row.gainPct, render: (row) => renderColoredPercentCell(row.gainPct) },
-      { key: "analystTarget1y", label: "1YT", sortValue: (row) => row.analystTarget1y, render: (row) => formatMoney(row.analystTarget1y) },
-      { key: "analystUpsidePct", label: "1YT %", coloredPercent: true, sortValue: (row) => row.analystUpsidePct, render: (row) => renderColoredPercentCell(row.analystUpsidePct) },
-      { key: "personalTarget", label: "PT", sortValue: (row) => row.personalTarget, render: (row) => formatMoney(row.personalTarget) },
-      { key: "personalUpsidePct", label: "PT %", coloredPercent: true, sortValue: (row) => holdingsPtUpside(row), render: (row) => renderColoredPercentCell(holdingsPtUpside(row)) },
-      { key: "annualDividend", label: "Annual Div.", sortValue: (row) => row.annualDividend, render: (row) => formatMoney(row.annualDividend) },
+      { key: "annualDividend", label: "Dividend", sortValue: (row) => row.annualDividend, render: (row) => formatHoldingsCompactMoney(row.annualDividend) },
+      { key: "unrealizedGain", label: "Gain", sortValue: (row) => row.unrealizedGain, render: (row) => renderHoldingsCompactMoneyCell(row.unrealizedGain) },
+      { key: "gainPct", label: "Gain %", coloredPercent: true, sortValue: (row) => row.gainPct, render: (row) => renderHoldingsPercentCell(row.gainPct) },
+      { key: "analystTarget1y", label: "1YT", sortValue: (row) => row.analystTarget1y, render: (row) => formatHoldingsCompactMoney(row.analystTarget1y) },
+      { key: "analystUpsidePct", label: "1YT %", coloredPercent: true, sortValue: (row) => row.analystUpsidePct, render: (row) => renderHoldingsPercentCell(row.analystUpsidePct) },
+      { key: "analystTargetValue", label: "1YT Val", sortValue: (row) => row.analystTargetValue, render: (row) => formatHoldingsCompactMoney(row.analystTargetValue) },
+      { key: "personalTarget", label: "PT", sortValue: (row) => row.personalTarget, render: (row) => formatHoldingsCompactMoney(row.personalTarget) },
+      { key: "personalUpsidePct", label: "PT %", coloredPercent: true, sortValue: (row) => holdingsPtUpside(row), render: (row) => renderHoldingsPercentCell(holdingsPtUpside(row)) },
+      { key: "personalTargetValue", label: "PT Val", sortValue: (row) => row.personalTargetValue, render: (row) => formatHoldingsCompactMoney(row.personalTargetValue) },
     ];
 
     let holdingsFilter = "all";
@@ -6884,6 +6988,8 @@
       const totalValue = sumOf(rows, "marketValue");
       const totalGain = sumOf(rows, "unrealizedGain");
       const totalDiv = sumOf(rows, "annualDividend");
+      const totalAnalystVal = sumOf(rows, "analystTargetValue");
+      const totalPtVal = sumOf(rows, "personalTargetValue");
       const weightPct = portfolioValue ? (totalValue / portfolioValue) * 100 : null;
       const gainPct = portfolioValue ? (totalGain / portfolioValue) * 100 : null;
       // Value-weighted Day %: dollar move = Σ(value × dayPct), and the % is that
@@ -6908,9 +7014,11 @@
           : `<strong>${renderColoredPercentCell(dayPct)}</strong> ${renderColoredMoneyInParens(dayChangeAmt)}`,
         marketValue: `<strong>${formatSummaryMoney(totalValue)}</strong>`,
         weightPct: weightPct == null ? "—" : `${weightPct.toFixed(2)}%`,
-        unrealizedGain: `<strong>${renderColoredSummaryMoneyCell(totalGain)}</strong>`,
-        gainPct: renderColoredPercentCell(gainPct),
-        annualDividend: `<strong>${formatSummaryMoney(totalDiv)}</strong>`,
+        unrealizedGain: `<strong>${renderHoldingsCompactMoneyCell(totalGain)}</strong>`,
+        gainPct: renderHoldingsPercentCell(gainPct),
+        analystTargetValue: `<strong>${formatHoldingsCompactMoney(totalAnalystVal)}</strong>`,
+        personalTargetValue: `<strong>${formatHoldingsCompactMoney(totalPtVal)}</strong>`,
+        annualDividend: `<strong>${formatHoldingsCompactMoney(totalDiv)}</strong>`,
       };
       const cells = holdingsColumns.map((col) => {
         const content = cellByKey[col.key] ?? "";
@@ -11043,6 +11151,8 @@
     document.getElementById("importFile").addEventListener("change", (event) => {
       if (event.target.files.length) importAnalysisFile();
     });
+
+    initHoldingsTableExpandToggle();
 
     document.getElementById("symbolForm").addEventListener("input", (event) => {
       const input = event.target;
