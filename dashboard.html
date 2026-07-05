@@ -25,6 +25,10 @@
       --danger: #ef4444;
       --border: #2d3a4f;
       --radius: 10px;
+      --portfolio-tab-accent: #3b82f6;
+      --portfolio-tab-accent-dim: rgba(59, 130, 246, 0.28);
+      --symbol-tab-accent: #38bdf8;
+      --symbol-tab-accent-dim: rgba(56, 189, 248, 0.28);
     }
     * { box-sizing: border-box; }
     body {
@@ -576,6 +580,28 @@
     .note-head {
       margin-bottom: 0.15rem;
     }
+    .note-link-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #7eb6ff;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .note-link-badge:hover {
+      color: #a8ccff;
+      text-decoration: underline;
+    }
+    .note-text-preview a {
+      color: #7eb6ff;
+      text-decoration: none;
+      word-break: break-all;
+    }
+    .note-text-preview a:hover {
+      text-decoration: underline;
+    }
     .note-editing label {
       display: block;
       margin-top: 0.5rem;
@@ -921,6 +947,21 @@
       align-self: start;
       max-height: calc(100vh - 2rem);
       overflow-y: auto;
+    }
+    .holdings-inspector-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.85rem;
+    }
+    .holdings-inspector-head h2 {
+      margin: 0;
+      min-width: 0;
+    }
+    .holdings-inspector-next {
+      flex: 0 0 auto;
+      white-space: nowrap;
     }
     @media (max-width: 1100px) {
       .holdings-table-panel,
@@ -2237,8 +2278,8 @@
     }
     .nc-count { color: var(--muted); font-size: 0.8rem; font-weight: 500; }
     .nc-scroll { overflow-y: auto; padding-right: 0.25rem; }
-    .nc-scroll-assess { max-height: 17rem; }
-    .nc-scroll-reco { max-height: 13rem; }
+    .nc-scroll-assess { max-height: 13rem; }
+    .nc-scroll-reco { max-height: 17rem; }
     .nc-scroll-news { max-height: 32rem; }
     .nc-item {
       padding: 0.5rem 0.6rem;
@@ -2345,6 +2386,33 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .news-add-note-btn {
+      flex: 0 0 auto;
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 0.15rem 0.45rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .news-add-note-btn:hover {
+      color: var(--text);
+      border-color: var(--accent-2);
+      background: rgba(34, 197, 94, 0.08);
+    }
+    .news-item .news-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+    .news-item .news-meta-row .news-meta-text {
+      flex: 1 1 auto;
+      min-width: 0;
     }
     .news-react {
       margin-left: auto;
@@ -2579,16 +2647,6 @@
       background: rgba(59, 130, 246, 0.3);
       filter: none;
     }
-    .nav-agent-btn.nav-agent-warn {
-      background: rgba(245, 158, 11, 0.2);
-      color: #fcd34d;
-      border-color: rgba(245, 158, 11, 0.4);
-      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
-    }
-    .nav-agent-btn.nav-agent-warn:hover {
-      background: rgba(245, 158, 11, 0.3);
-      filter: none;
-    }
     .nav-agent-btn.nav-agent-assess {
       background: rgba(34, 197, 94, 0.2);
       color: #86efac;
@@ -2666,12 +2724,75 @@
       border-radius: var(--radius);
       padding: 0.14rem;
       background: rgba(59, 130, 246, 0.07);
+      position: relative;
+    }
+    .nav-group-portfolio .nav-group-tabs button {
+      position: relative;
+      border-radius: 6px;
+    }
+    .nav-group-portfolio .nav-group-tabs button.active {
+      background: rgba(59, 130, 246, 0.22);
+      color: #e2ecff;
+      border-color: rgba(59, 130, 246, 0.42);
+    }
+    .nav-group-portfolio .nav-group-tabs button.active::after {
+      content: "";
+      position: absolute;
+      left: 0.28rem;
+      right: 0.28rem;
+      bottom: -0.14rem;
+      height: 3px;
+      border-radius: 2px 2px 0 0;
+      background: var(--portfolio-tab-accent);
+      pointer-events: none;
+    }
+    body.is-portfolio-view .nav-group-portfolio .nav-group-tabs {
+      box-shadow: inset 0 -3px 0 var(--portfolio-tab-accent-dim);
+    }
+    body.is-portfolio-view nav.tabs {
+      border-bottom-color: var(--portfolio-tab-accent-dim);
+    }
+    body.is-portfolio-view .view:not([hidden]) > .wide-panel:first-child,
+    body.is-portfolio-view .view:not([hidden]) > .panel:first-child,
+    body.is-portfolio-view .view:not([hidden]) > section:first-child {
+      box-shadow: inset 0 3px 0 var(--portfolio-tab-accent);
     }
     .nav-group-symbol .nav-group-tabs {
       border: 1px solid rgba(56, 189, 248, 0.24);
       border-radius: var(--radius);
       padding: 0.14rem;
       background: rgba(56, 189, 248, 0.07);
+      position: relative;
+    }
+    .nav-group-symbol .nav-group-tabs button {
+      position: relative;
+      border-radius: 6px;
+    }
+    .nav-group-symbol .nav-group-tabs button.active {
+      background: rgba(56, 189, 248, 0.22);
+      color: #e0f7ff;
+      border-color: rgba(56, 189, 248, 0.42);
+    }
+    .nav-group-symbol .nav-group-tabs button.active::after {
+      content: "";
+      position: absolute;
+      left: 0.28rem;
+      right: 0.28rem;
+      bottom: -0.14rem;
+      height: 3px;
+      border-radius: 2px 2px 0 0;
+      background: var(--symbol-tab-accent);
+      pointer-events: none;
+    }
+    body.is-symbol-view .nav-group-symbol .nav-group-tabs {
+      box-shadow: inset 0 -3px 0 var(--symbol-tab-accent-dim);
+    }
+    body.is-symbol-view nav.tabs {
+      border-bottom-color: var(--symbol-tab-accent-dim);
+    }
+    body.is-symbol-view #view-portfolio:not([hidden]),
+    body.is-symbol-view #view-inspector:not([hidden]) {
+      box-shadow: inset 0 3px 0 var(--symbol-tab-accent);
     }
     nav.tabs button { background: transparent; color: var(--muted); border: 1px solid transparent; }
     nav.tabs button.active { background: var(--panel-2); color: var(--text); border-color: var(--border); }
@@ -2795,7 +2916,8 @@
     }
     .fib-filter-bar,
     .screening-filter-bar,
-    .holdings-filter-bar {
+    .holdings-filter-bar,
+    .news-changes-filter-bar {
       display: flex;
       align-items: center;
       gap: 0.5rem;
@@ -2975,13 +3097,6 @@
       color: var(--muted);
       font-weight: 600;
       margin-right: 0.1rem;
-    }
-    .holdings-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      flex-wrap: wrap;
     }
     .toggle-inline {
       display: inline-flex;
@@ -3385,7 +3500,6 @@
       </span>
       <div class="nav-group-tabs">
         <button type="button" class="nav-agent-btn nav-agent-sync" id="btnSync" onclick="syncPortfolio()">Sync Prices</button>
-        <button type="button" class="nav-agent-btn nav-agent-warn" id="btnAlerts" onclick="evaluateAlerts()">Check Alerts</button>
         <button type="button" class="nav-agent-btn nav-agent-assess" id="btnAssess" onclick="assessAll()">Assess Portfolio</button>
       </div>
     </div>
@@ -3393,7 +3507,6 @@
 
   <div id="view-overview" class="view">
     <div class="wide-panel">
-      <h2>Portfolio Summary</h2>
       <div class="summary-strip" id="overviewMetrics"></div>
     </div>
     <div class="wide-panel" id="overviewVisualsPanel" hidden>
@@ -3420,15 +3533,18 @@
     </div>
     <div class="wide-panel" id="newsChangesPanel">
       <h2>Portfolio News and Changes</h2>
+      <div class="news-changes-filter-bar">
+        <input type="text" id="newsChangesTickerFilter" class="fib-ticker-filter" placeholder="Filter by ticker..." oninput="setNewsChangesTickerFilter(this.value)">
+      </div>
       <div class="news-changes-grid">
         <div class="news-changes-col">
           <section class="nc-area">
-            <h3>Latest Assessments <span class="nc-count" id="latestAssessmentsMeta"></span></h3>
-            <div class="nc-scroll nc-scroll-assess" id="latestAssessmentsBody"><div class="empty">Loading…</div></div>
-          </section>
-          <section class="nc-area">
             <h3>Synthesized Agent Insights (SAI) Changes <span class="nc-count" id="recoChangesMeta"></span></h3>
             <div class="nc-scroll nc-scroll-reco" id="recoChangesList"><div class="empty">Loading…</div></div>
+          </section>
+          <section class="nc-area">
+            <h3>Latest Assessments <span class="nc-count" id="latestAssessmentsMeta"></span></h3>
+            <div class="nc-scroll nc-scroll-assess" id="latestAssessmentsBody"><div class="empty">Loading…</div></div>
           </section>
         </div>
         <div class="news-changes-col">
@@ -3477,9 +3593,6 @@
 
   <main id="view-holdings" class="view" hidden>
     <section class="panel holdings-table-panel portfolio-table-panel">
-      <div class="holdings-head">
-        <h2 class="section-title">Holdings</h2>
-      </div>
       <p class="empty" style="margin-top:0;">Click a symbol to inspect it. Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows; totals then apply to the selection.</p>
       <div class="holdings-filter-bar">
         <button type="button" class="secondary filter-btn active" data-holdings-filter="all" onclick="setHoldingsFilter('all')">All</button>
@@ -3491,7 +3604,10 @@
       </div>
       <div id="holdingsTable" class="portfolio-table-scroll"></div>    </section>
     <section class="panel holdings-inspector-panel">
-      <h2 id="holdingsInspectorTitle">Inspector</h2>
+      <div class="holdings-inspector-head">
+        <h2 id="holdingsInspectorTitle"><span id="holdingsInspectorTitleText">Inspector</span></h2>
+        <button type="button" class="secondary holdings-inspector-next" id="btnHoldingsInspectorNext" onclick="openNextHoldingsInspector()" hidden>Next →</button>
+      </div>
       <div id="holdingsInspectorEmpty" class="empty">Select a symbol from the holdings table.</div>
       <div id="holdingsInspectorPanel" hidden></div>
     </section>
@@ -3643,7 +3759,6 @@
 
   <div id="view-screening" class="view" hidden>
     <div class="wide-panel portfolio-table-panel">
-      <h2>Portfolio Screening</h2>
       <div class="screening-filter-bar">
         <button type="button" class="secondary filter-btn active" data-screen-filter="all" onclick="setScreeningFilter('all')">All</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
@@ -3666,7 +3781,6 @@
 
   <div id="view-simulation" class="view" hidden>
     <div class="wide-panel portfolio-table-panel">
-      <h2>Planned-Trade Simulation</h2>
       <p class="empty" style="margin-top:0;">Totals cover the whole filtered list by default. ⌘/Ctrl-click a row to scope to just that symbol (toggle more to build a subset, Shift-click for a range); a plain click clears the selection back to the full list.</p>
       <div id="simulationKpis" class="sim-kpis"></div>
       <div class="screening-filter-bar">
@@ -3687,21 +3801,18 @@
 
   <div id="view-fib" class="view" hidden>
     <div class="wide-panel portfolio-table-panel">
-      <div class="fib-map-header">
-        <h2>Patterns &amp; Tech Signals</h2>
-        <div class="fib-map-header-actions">
-          <button type="button" class="help-btn" onclick="openPatternsHelp()" title="How to read this view" aria-label="How to read this view">?</button>
-          <button class="secondary" onclick="loadFibMap(true)">Refresh</button>
-        </div>
-      </div>
       <div class="fib-filter-bar">
-        <button type="button" class="secondary filter-btn active" data-fib-band="all" onclick="setFibMapBand('all')" title="Show all symbols regardless of distance to the nearest Fibonacci level.">All Levels</button>
         <button type="button" class="secondary filter-btn" data-fib-confirmed="1" onclick="toggleFibConfirmed()" title="Show only symbols whose chart pattern is confirmed — price has broken the key level in the pattern's direction (the measured-move target is active).">Confirmed Patterns</button>
         <input type="text" id="fibTickerFilter" class="fib-ticker-filter" placeholder="Filter by ticker..." oninput="setFibTickerFilter(this.value)">
         <span class="fib-filter-label">Fib Proximity</span>
+        <button type="button" class="secondary filter-btn active" data-fib-band="all" onclick="setFibMapBand('all')" title="Show all symbols regardless of distance to the nearest Fibonacci level.">All</button>
         <button type="button" class="secondary filter-btn" data-fib-band="critical" onclick="setFibMapBand('critical')" title="Critical (&lt;2% from nearest Fib): immediate target retest or breakout setup. High alert required.">Critical</button>
         <button type="button" class="secondary filter-btn" data-fib-band="warning" onclick="setFibMapBand('warning')" title="Near (2%–5% from nearest Fib): localized consolidation building momentum. Primary watching zone.">Near</button>
         <button type="button" class="secondary filter-btn" data-fib-band="neutral" onclick="setFibMapBand('neutral')" title="Neutral (&gt;5% from nearest Fib): stable range operations. Healthy distance from technical boundaries.">Neutral</button>
+        <div class="fib-map-header-actions" style="margin-left:auto;">
+          <button type="button" class="help-btn" onclick="openPatternsHelp()" title="How to read this view" aria-label="How to read this view">?</button>
+          <button class="secondary" onclick="loadFibMap(true)">Refresh</button>
+        </div>
       </div>
       <div id="fibMapTable" class="portfolio-table-scroll"></div>
     </div>
@@ -3719,7 +3830,7 @@
         <div class="inspector-detail-head-main">
           <h2 class="panel-symbol-head" id="inspectorTitleHead">
             <span class="symbol-head-row">
-              <span class="symbol-head-ticker" id="inspectorSymbol">Inspector</span>
+              <span class="symbol-head-ticker" id="inspectorSymbol">Select a symbol</span>
               <span class="symbol-head-quote" id="inspectorSymbolQuote" hidden></span>
               <span class="symbol-head-company" id="inspectorCompanyName" hidden></span>
             </span>
@@ -3741,7 +3852,6 @@
 
   <main id="view-fundamentals" class="view" hidden>
     <section class="panel portfolio-table-panel">
-      <h2 class="section-title">Fundamentals Comparison</h2>
       <p class="empty" style="margin-top:0;">Compare every tracked symbol side by side. Split across three tabs; click a column header to sort, or a symbol to open the Inspector.</p>
       <div class="fundamentals-tabbar">
         <button class="fund-tab active" data-fund-tab="val" onclick="setFundamentalsTab('val')">Valuation · Growth · Profitability</button>
@@ -3898,6 +4008,19 @@
       return Promise.resolve();
     }
 
+    const PORTFOLIO_VIEWS = new Set([
+      "overview", "holdings", "screening", "simulation", "fib", "fundamentals",
+    ]);
+    const SYMBOL_VIEWS = new Set(["portfolio", "inspector"]);
+
+    function syncNavViewState(name) {
+      document.body.classList.toggle("is-portfolio-view", PORTFOLIO_VIEWS.has(name));
+      document.body.classList.toggle("is-symbol-view", SYMBOL_VIEWS.has(name));
+      document.querySelectorAll("nav.tabs button[data-view]").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.view === name);
+      });
+    }
+
     function showView(name) {
       // Re-selecting the active view is a no-op so it doesn't clobber
       // `previousView` (keeps the double-click toggle pair intact).
@@ -3907,9 +4030,7 @@
       currentView = name;
       document.querySelectorAll(".view").forEach((el) => el.hidden = true);
       document.getElementById(`view-${name}`).hidden = false;
-      document.querySelectorAll("nav.tabs button[data-view]").forEach((btn) => {
-        btn.classList.toggle("active", btn.dataset.view === name);
-      });
+      syncNavViewState(name);
       loadView(name, restoreSimulation ? { restore: true } : {});
     }
 
@@ -4511,7 +4632,7 @@
           }
         }
       } else {
-        el.textContent = "Inspector";
+        el.textContent = "Select a symbol";
         el.classList.remove("is-active");
         head?.classList.remove("has-symbol");
         if (quoteEl) {
@@ -4896,6 +5017,41 @@
       return lines[0] ?? "";
     }
 
+    const NOTE_URL_RE = /https?:\/\/[^\s<>"')]+/gi;
+
+    function firstUrlInText(text) {
+      const match = String(text || "").match(NOTE_URL_RE);
+      if (!match) return null;
+      return match[0].replace(/[.,;:!?)]+$/, "");
+    }
+
+    function noteLinkBadge(url) {
+      if (!url) return "";
+      const safe = escapeHtml(url);
+      return `<a class="note-link-badge" href="${safe}" target="_blank" rel="noopener noreferrer" title="${safe}">↗ Link</a>`;
+    }
+
+    function linkifyNoteText(text) {
+      const raw = String(text || "");
+      if (!raw) return "";
+      let html = "";
+      let last = 0;
+      NOTE_URL_RE.lastIndex = 0;
+      let match;
+      while ((match = NOTE_URL_RE.exec(raw)) !== null) {
+        const start = match.index;
+        const full = match[0];
+        const clean = full.replace(/[.,;:!?)]+$/, "");
+        const trailing = full.slice(clean.length);
+        html += escapeHtml(raw.slice(last, start));
+        html += `<a href="${escapeHtml(clean)}" target="_blank" rel="noopener noreferrer">${escapeHtml(clean)}</a>`;
+        html += escapeHtml(trailing);
+        last = start + full.length;
+      }
+      html += escapeHtml(raw.slice(last));
+      return html;
+    }
+
     function renderTargetNoteEditor(note) {
       return `
         <div class="note note-editing" data-note-id="${note.id}">
@@ -4923,16 +5079,18 @@
         return renderTargetNoteEditor(note);
       }
       const synthesized = noteHasSynthesis(note);
+      const articleUrl = firstUrlInText(note.text);
+      const linkMark = articleUrl ? ` · ${noteLinkBadge(articleUrl)}` : "";
       const textBlock = synthesized
-        ? `<div class="note-text-oneline">${escapeHtml(noteFirstLine(note.text))}</div>`
-        : `<textarea class="note-text-preview" rows="7" readonly>${escapeHtml(note.text)}</textarea>`;
+        ? `<div class="note-text-oneline">${escapeHtml(noteFirstLine(note.text))}${articleUrl ? ` ${noteLinkBadge(articleUrl)}` : ""}</div>`
+        : `<div class="note-text-preview">${linkifyNoteText(note.text)}</div>`;
       const synthesisBlock = synthesized
         ? renderSynthesisHtml(note.synthesis)
         : `<div class="empty" style="margin-top:0.35rem;">Not synthesized yet.</div>`;
       return `
         <div class="note" data-note-id="${note.id}">
           <div class="note-head">
-            <strong>${escapeHtml(note.date || "No date")}</strong> · ${escapeHtml(note.source || "Note")}
+            <strong>${escapeHtml(note.date || "No date")}</strong> · ${escapeHtml(note.source || "Note")}${linkMark}
           </div>
           ${textBlock}
           ${synthesisBlock}
@@ -5269,19 +5427,6 @@
       });
     }
 
-    async function evaluateAlerts() {
-      await withButtonPending("btnAlerts", "Checking…", async () => {
-        try {
-          const data = await api("/alerts/evaluate", { method: "POST" });
-          await loadPortfolio();
-          setStatus(`${data.newAlerts.length} new alerts generated.`, "success");
-          requestAnimationFrame(() => pulseUpdated("alertsList"));
-        } catch (error) {
-          setStatus(error.message, "error");
-        }
-      });
-    }
-
     async function assessSelected(event) {
       if (!selectedSymbol) return;
       const btn = (event && event.currentTarget) || document.getElementById("btnAssessSymbol");
@@ -5315,6 +5460,7 @@
         try {
           const data = await api("/assess", { method: "POST" });
           await loadAssessments();
+          await Promise.all([loadRecoChanges(), loadLatestAssessments()]);
           setStatus(`Generated ${data.assessments.length} assessments.`, "success");
           requestAnimationFrame(() => pulseUpdated("overviewMetrics"));
         } catch (error) {
@@ -5472,6 +5618,7 @@
     function rerenderTable(tableId) {
       if (tableId === "holdings") {
         document.getElementById("holdingsTable").innerHTML = renderHoldingsTable(tableDataCache.holdings || []);
+        syncHoldingsInspectorHead(selectedSymbol);
       }
       if (tableId === "screening") {
         document.getElementById("screeningTable").innerHTML = renderScreeningTable(tableDataCache.screening || []);
@@ -5889,13 +6036,10 @@
         </div>
       `;
       renderOverviewVisuals(data);
-      // The news/fundamentals feed is the only Yahoo-heavy piece here and it
-      // changes slowly, so throttle it: the 30s auto-refresh keeps prices and
-      // (DB-backed) assessments current, but only re-pulls news every few
-      // minutes. This stops the background timer from hammering Yahoo (and
-      // flooding logs with crumb errors) for symbols whose datacenter IP is
-      // blocked. The first call always runs since lastTopNewsAt starts at 0.
+      // SAI changelog and latest assessments are DB-backed — refresh every overview
+      // load. Only the Yahoo-heavy news feed is throttled (see TOPNEWS_REFRESH_MS).
       const nowTs = Date.now();
+      loadRecoChanges();
       if (nowTs - lastTopNewsAt >= TOPNEWS_REFRESH_MS) {
         lastTopNewsAt = nowTs;
         loadTopNews();
@@ -5943,17 +6087,155 @@
     function renderTopNewsItem(item) {
       const meta = [item.publisher, item.published].filter(Boolean).join(" · ");
       const badge = renderNewsReactBadge(item);
+      const addNoteBtn = renderNewsAddNoteButton(item);
       return `
         <div class="topnews-item" onclick="openFundamentalsNews('${item.symbol}')" title="Open ${item.symbol} news in Fundamentals">
           <div class="news-title"><span class="news-symbol">${item.symbol}</span>${escapeHtml(item.title || "Untitled")}</div>
-          <div class="news-meta"><span class="news-meta-text">${escapeHtml(meta)}</span>${badge}</div>
+          <div class="news-meta"><span class="news-meta-text">${escapeHtml(meta)}</span>${badge}${addNoteBtn}</div>
         </div>`;
+    }
+
+    let newsDraftSeq = 0;
+    const newsDraftById = new Map();
+
+    function normalizeNewsArticle(item) {
+      const raw = item && typeof item.content === "object" && item.content ? item.content : item;
+      const provider = raw.provider;
+      const providerName = typeof provider === "object" && provider
+        ? (provider.displayName || provider.name || "")
+        : (typeof provider === "string" ? provider : "");
+      const title = raw.title || raw.headline || item?.title || item?.headline || "";
+      const publisher = raw.publisher || raw.source || item?.publisher || item?.source || providerName;
+      const summary = raw.summary || raw.description || item?.summary || item?.description || "";
+      const link = raw.link || raw.url || item?.link || item?.url || "";
+      const published = raw.published || raw.pubDate || raw.displayTime || item?.published || item?.pubDate || item?.datetime || "";
+      return {
+        symbol: item?.symbol,
+        title: String(title || "").trim(),
+        publisher: String(publisher || "").trim(),
+        summary: String(summary || "").trim(),
+        link: String(link || "").trim(),
+        published,
+      };
+    }
+
+    function newsSourceLabel(article) {
+      if (article.publisher) return article.publisher;
+      if (article.link) {
+        try {
+          return new URL(article.link).hostname.replace(/^www\./i, "");
+        } catch (_) { /* ignore */ }
+      }
+      return "News";
+    }
+
+    function registerNewsDraft(item) {
+      const id = `nd${++newsDraftSeq}`;
+      const article = normalizeNewsArticle(item);
+      newsDraftById.set(id, {
+        symbol: article.symbol,
+        draft: buildNoteDraftFromNews(article),
+      });
+      return id;
+    }
+
+    function newsPublishedToDateInput(published) {
+      if (published == null || published === "") return todayISO();
+      if (typeof published === "number" && Number.isFinite(published)) {
+        const ms = published > 1e12 ? published : published * 1000;
+        const dt = new Date(ms);
+        if (!Number.isNaN(dt.getTime())) {
+          const y = dt.getUTCFullYear();
+          const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+          const d = String(dt.getUTCDate()).padStart(2, "0");
+          return `${y}-${m}-${d}`;
+        }
+      }
+      const text = String(published);
+      const iso = /^(\d{4}-\d{2}-\d{2})/.exec(text);
+      if (iso) return iso[1];
+      const parsed = new Date(text);
+      if (!Number.isNaN(parsed.getTime())) {
+        const y = parsed.getFullYear();
+        const m = String(parsed.getMonth() + 1).padStart(2, "0");
+        const d = String(parsed.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+      }
+      return todayISO();
+    }
+
+    function buildNoteDraftFromNews(item) {
+      const article = normalizeNewsArticle(item);
+      const lines = [];
+      if (article.title) lines.push(article.title);
+      if (article.summary) lines.push("", article.summary);
+      if (article.link && article.link !== article.title) lines.push("", article.link);
+      return {
+        date: newsPublishedToDateInput(article.published),
+        source: newsSourceLabel(article),
+        text: lines.join("\n").trim() || article.title || "News clip",
+      };
+    }
+
+    function applyNoteFormDraft(draft) {
+      const form = document.getElementById("noteForm");
+      if (!form || !draft) return;
+      const dateInput = form.querySelector('[name="date"]');
+      const sourceInput = form.querySelector('[name="source"]');
+      const textInput = form.querySelector('[name="text"]');
+      if (dateInput) dateInput.value = draft.date || todayISO();
+      if (sourceInput) sourceInput.value = draft.source || "";
+      if (textInput) textInput.value = draft.text || "";
+      textInput?.focus();
+      form.closest(".target-notes-section")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    async function openTargetForSymbol(symbol) {
+      if (!symbol) return;
+      if (currentView !== "portfolio") {
+        previousView = currentView;
+        currentView = "portfolio";
+        document.querySelectorAll(".view").forEach((el) => { el.hidden = true; });
+        document.getElementById("view-portfolio").hidden = false;
+        syncNavViewState("portfolio");
+        const data = await api("/portfolio");
+        renderSymbolList(data.symbols);
+      }
+      await selectSymbol(symbol);
+    }
+
+    function renderNewsAddNoteButton(item) {
+      const id = registerNewsDraft(item);
+      return `<button type="button" class="news-add-note-btn" onclick="event.stopPropagation(); draftNoteFromNews('${id}')" title="Draft a note in Target from this article">Add Note</button>`;
+    }
+
+    async function draftNoteFromNews(draftId) {
+      const entry = newsDraftById.get(draftId);
+      if (!entry?.symbol || !entry.draft) return;
+      await openTargetForSymbol(entry.symbol);
+      applyNoteFormDraft(entry.draft);
+      setStatus(`Draft note from news for ${entry.symbol} — review and click Add Note when ready.`, "info");
     }
 
     let topNewsAll = [];
     let topNewsCheckedAt = "";
     let topNewsSort = "relevance";
     let topNewsGroup = false;
+    let recoChangesAll = [];
+    let latestAssessmentsAll = [];
+    let newsChangesTickerFilter = "";
+
+    function newsChangesSymbolMatches(symbol) {
+      const ticker = newsChangesTickerFilter.trim().toLowerCase();
+      return !ticker || String(symbol || "").toLowerCase().includes(ticker);
+    }
+
+    function setNewsChangesTickerFilter(value) {
+      newsChangesTickerFilter = value || "";
+      renderRecoChanges();
+      renderLatestAssessments();
+      renderTopNews();
+    }
 
     function setNewsSort(mode) {
       topNewsSort = mode;
@@ -5979,13 +6261,14 @@
       const newsEl = document.getElementById("topNewsList");
       if (!newsEl) return;
 
-      let list = topNewsAll.slice();
+      let list = topNewsAll.filter((item) => newsChangesSymbolMatches(item.symbol));
 
       // Group by symbol: keep each symbol's single highest-relevance article
       // (unscored items rank below any scored one for that symbol).
       if (topNewsGroup) {
         const best = new Map();
         topNewsAll.forEach((item, idx) => {
+          if (!newsChangesSymbolMatches(item.symbol)) return;
           const sym = item.symbol;
           const score = item.relevanceScore == null ? -1 : item.relevanceScore;
           const cur = best.get(sym);
@@ -6013,31 +6296,46 @@
 
       newsEl.innerHTML = list.length
         ? `<div class="topnews-feed">${list.map(renderTopNewsItem).join("")}</div>`
-        : `<div class="empty">No recent news.</div>`;
+        : `<div class="empty">${topNewsAll.length && newsChangesTickerFilter.trim() ? "No news matches the current filter." : "No recent news."}</div>`;
+    }
+
+    function renderRecoChanges() {
+      const recoEl = document.getElementById("recoChangesList");
+      if (!recoEl) return;
+      const changes = recoChangesAll.filter((change) => newsChangesSymbolMatches(change.symbol));
+      const recoMeta = document.getElementById("recoChangesMeta");
+      if (recoMeta) {
+        recoMeta.textContent = changes.length ? `${changes.length}` : "";
+      }
+      recoEl.innerHTML = changes.length
+        ? `<div class="topnews-feed">${changes.map(renderRecoChange).join("")}</div>`
+        : `<div class="empty">${recoChangesAll.length && newsChangesTickerFilter.trim() ? "No SAI changes match the current filter." : "No Synthesized Agent Insight (SAI) changes yet. Run Assess Portfolio to start tracking."}</div>`;
+    }
+
+    async function loadRecoChanges() {
+      const recoEl = document.getElementById("recoChangesList");
+      if (!recoEl) return;
+      try {
+        const data = await api("/recommendation-changes?limit=0");
+        recoChangesAll = data.changes || [];
+        renderRecoChanges();
+      } catch (err) {
+        recoChangesAll = [];
+        recoEl.innerHTML = `<div class="empty">Could not load SAI changes: ${escapeHtml(err.message)}</div>`;
+      }
     }
 
     async function loadTopNews() {
-      const recoEl = document.getElementById("recoChangesList");
       const newsEl = document.getElementById("topNewsList");
-      if (!recoEl || !newsEl) return;
+      if (!newsEl) return;
       try {
-        const data = await api("/news-feed?newsLimit=0&changesLimit=6");
-        const changes = data.recommendationChanges || [];
+        const data = await api("/news-feed?newsLimit=0&skipChanges=1");
         topNewsAll = data.topNews || [];
         topNewsCheckedAt = data.newsCheckedAt || "";
-        const recoMeta = document.getElementById("recoChangesMeta");
-        if (recoMeta) {
-          const total = data.recommendationChangesTotal != null ? data.recommendationChangesTotal : changes.length;
-          recoMeta.textContent = total ? `${total}` : "";
-        }
-        recoEl.innerHTML = changes.length
-          ? `<div class="topnews-feed">${changes.map(renderRecoChange).join("")}</div>`
-          : `<div class="empty">No Synthesized Agent Insight (SAI) changes yet. Run Assess Portfolio to start tracking.</div>`;
         updateNewsControlStates();
         renderTopNews();
       } catch (err) {
-        recoEl.innerHTML = `<div class="empty">Could not load feed: ${escapeHtml(err.message)}</div>`;
-        newsEl.innerHTML = "";
+        newsEl.innerHTML = `<div class="empty">Could not load news: ${escapeHtml(err.message)}</div>`;
       }
     }
 
@@ -6180,10 +6478,11 @@
       return formatLocalTs(ts);
     }
 
-    function renderLatestAssessments(list) {
+    function renderLatestAssessments() {
       const body = document.getElementById("latestAssessmentsBody");
       const meta = document.getElementById("latestAssessmentsMeta");
       if (!body) return;
+      const list = latestAssessmentsAll.filter((item) => newsChangesSymbolMatches(item.symbol));
       if (meta) {
         const runTs = list.length ? formatAssessmentRunTs(list[0].assessedAt) : "";
         meta.textContent = list.length
@@ -6192,7 +6491,7 @@
       }
       body.innerHTML = list.length
         ? `<div class="topnews-feed">${list.map(renderLatestAssessmentItem).join("")}</div>`
-        : `<div class="empty">No assessments yet. Run Assess Portfolio to populate this overview.</div>`;
+        : `<div class="empty">${latestAssessmentsAll.length && newsChangesTickerFilter.trim() ? "No assessments match the current filter." : "No assessments yet. Run Assess Portfolio to populate this overview."}</div>`;
     }
 
     async function loadLatestAssessments() {
@@ -6200,8 +6499,10 @@
       if (!body) return;
       try {
         const [data] = await Promise.all([api("/assessments/overview"), loadSymbolPatterns()]);
-        renderLatestAssessments(data.assessments || []);
+        latestAssessmentsAll = data.assessments || [];
+        renderLatestAssessments();
       } catch (err) {
+        latestAssessmentsAll = [];
         body.innerHTML = `<div class="empty">Could not load assessments: ${escapeHtml(err.message)}</div>`;
       }
     }
@@ -6324,6 +6625,38 @@
     function renderHoldingsView() {
       document.getElementById("holdingsTable").innerHTML = renderHoldingsTable(holdingsRowsForFilter());
       updateHoldingsFilterButtons();
+      syncHoldingsInspectorHead(selectedSymbol);
+    }
+
+    function syncHoldingsInspectorHead(symbol) {
+      const titleText = document.getElementById("holdingsInspectorTitleText");
+      const btn = document.getElementById("btnHoldingsInspectorNext");
+      const panelVisible = document.getElementById("holdingsInspectorPanel")?.hidden === false;
+      if (titleText) titleText.textContent = symbol ? `${symbol} Inspector` : "Inspector";
+      const order = currentHoldingsOrder();
+      const canNext = Boolean(symbol) && order.length > 1;
+      if (btn) {
+        btn.hidden = !symbol || !panelVisible;
+        btn.disabled = !canNext;
+        const idx = symbol ? order.indexOf(symbol) : -1;
+        const nextSym = canNext ? order[(idx + 1) % order.length] : null;
+        btn.title = nextSym ? `Next: ${nextSym}` : "No other symbols in the current list";
+      }
+    }
+
+    async function openNextHoldingsInspector() {
+      const order = currentHoldingsOrder();
+      if (!order.length) return;
+      const idx = selectedSymbol ? order.indexOf(selectedSymbol) : -1;
+      const next = order[(idx + 1) % order.length];
+      multiSelection.holdings = new Set([next]);
+      multiAnchor.holdings = next;
+      rerenderTable("holdings");
+      requestAnimationFrame(() => {
+        document.querySelector("#holdingsTable tr.row-selected")?.scrollIntoView({ block: "nearest" });
+        document.querySelector(".holdings-inspector-panel")?.scrollTo({ top: 0 });
+      });
+      await openHoldingsInspector(next);
     }
 
     // Upside (%) from the current price to the user's personal target, preferring
@@ -7447,9 +7780,7 @@
     async function openSimulationFromSavedSnapshot() {
       document.querySelectorAll(".view").forEach((el) => { el.hidden = true; });
       document.getElementById("view-simulation").hidden = false;
-      document.querySelectorAll("nav.tabs button[data-view]").forEach((btn) => {
-        btn.classList.toggle("active", btn.dataset.view === "simulation");
-      });
+      syncNavViewState("simulation");
       if (currentView !== "simulation") {
         previousView = currentView;
         currentView = "simulation";
@@ -7696,20 +8027,33 @@
       { key: "warn", label: "⚠", help: SIM_WARN_HELP, sortValue: (row) => (row.oversell ? 1 : 0) + (row.qtyNotSet ? 0.5 : 0), render: (row) => simWarnCell(row) },
     ];
 
-    // Leg-aware nearest-threshold distance for a raw screening row, honoring the
-    // active Buys/Sells/Both leg filter — mirrors simClosestMeta (Close % column)
-    // so the Close/Far chips and the Close % values can never disagree.
-    function simRowClosestDist(row, legFilter) {
+    // Leg-aware threshold distances for a raw screening row, honoring the active
+    // Buys/Sells/Both leg filter.
+    function simRowLegDistances(row, legFilter) {
       const price = Number(row.currentPrice) || 0;
-      if (!price) return Infinity;
+      if (!price) return [];
       const keepLeg = (leg) =>
         legFilter === "both" || (legFilter === "buys" ? leg.buy : !leg.buy);
       const legs = [
         evalTradeLeg(row.tradeBelowPrice, row.tradeBelowShares, "below"),
         evalTradeLeg(row.tradeAbovePrice, row.tradeAboveShares, "above"),
       ].filter((leg) => leg && leg.price != null && keepLeg(leg));
-      if (!legs.length) return Infinity;
-      return Math.min(...legs.map((leg) => Math.abs(leg.price - price) / price * 100));
+      return legs.map((leg) => Math.abs(leg.price - price) / price * 100);
+    }
+
+    // Close filter: nearest in-scope leg (any threshold about to fire).
+    function simRowClosestDist(row, legFilter) {
+      const dists = simRowLegDistances(row, legFilter);
+      if (!dists.length) return Infinity;
+      return Math.min(...dists);
+    }
+
+    // Far filter: farthest in-scope leg — row qualifies when any leg is far, so
+    // Far + Both is never a strict subset of Far + Sells/Buys alone.
+    function simRowFarthestDist(row, legFilter) {
+      const dists = simRowLegDistances(row, legFilter);
+      if (!dists.length) return -Infinity;
+      return Math.max(...dists);
     }
 
     function simulationCandidates() {
@@ -7719,7 +8063,7 @@
       }
       if (simulationFilter === "far") {
         return rows.filter((row) => {
-          const distance = simRowClosestDist(row, simulationLegs);
+          const distance = simRowFarthestDist(row, simulationLegs);
           return Number.isFinite(distance) && distance > TRADE_FAR_PCT;
         });
       }
@@ -9410,6 +9754,10 @@
       --danger: #ef4444;
       --border: #2d3a4f;
       --radius: 10px;
+      --portfolio-tab-accent: #3b82f6;
+      --portfolio-tab-accent-dim: rgba(59, 130, 246, 0.28);
+      --symbol-tab-accent: #38bdf8;
+      --symbol-tab-accent-dim: rgba(56, 189, 248, 0.28);
     }
     html, body {
       -webkit-print-color-adjust: exact;
@@ -9957,7 +10305,7 @@
       if (panelId === "holdingsInspectorPanel") {
         document.getElementById("holdingsInspectorEmpty").hidden = true;
         document.getElementById("holdingsInspectorPanel").hidden = false;
-        document.getElementById("holdingsInspectorTitle").textContent = `${symbol} Inspector`;
+        syncHoldingsInspectorHead(symbol);
       }
       if (panelId === "inspectorPanel") {
         document.getElementById("inspectorEmpty").hidden = true;
@@ -10351,10 +10699,11 @@
               const winTag = fundamentalsNewsAnalyzed && item.reactionWindow
                 ? `<span class="news-window-tag" title="Reaction window used for this score">${escapeHtml(item.reactionWindow)}</span>`
                 : "";
+              const addNoteBtn = renderNewsAddNoteButton({ ...item, symbol: row.symbol });
               return `
               <li class="news-item">
                 <div class="news-title">${titleHtml}</div>
-                <div class="news-meta news-meta-row"><span class="news-meta-text">${metaText}</span>${badge}${winTag}</div>
+                <div class="news-meta news-meta-row"><span class="news-meta-text">${metaText}</span>${badge}${winTag}${addNoteBtn}</div>
                 ${summary}
               </li>`;
             }).join("")}</ul>`

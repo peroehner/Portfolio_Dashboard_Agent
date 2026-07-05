@@ -498,20 +498,21 @@ class AssessmentService:
             ).fetchone()
         return int(row["n"]) if row else 0
 
-    def list_recommendation_changes(self, limit: int = 8) -> list[dict[str, Any]]:
+    def list_recommendation_changes(self, limit: int | None = 8) -> list[dict[str, Any]]:
         user_id = get_current_user_id()
         with get_connection() as conn:
-            rows = conn.execute(
-                """
+            query = """
                 SELECT id, symbol, old_action, new_action, old_confidence,
                        new_confidence, provider, created_at
                 FROM recommendation_changelog
                 WHERE user_id = %s
                 ORDER BY created_at DESC, id DESC
-                LIMIT %s
-                """,
-                (user_id, limit),
-            ).fetchall()
+            """
+            params: list[Any] = [user_id]
+            if limit is not None and limit > 0:
+                query += " LIMIT %s"
+                params.append(limit)
+            rows = conn.execute(query, params).fetchall()
         return [
             {
                 "id": row["id"],

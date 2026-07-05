@@ -584,16 +584,35 @@ def list_fundamentals():
     return jsonify({"symbols": rows})
 
 
+@v1_bp.route("/recommendation-changes", methods=["GET"])
+def recommendation_changes():
+    """DB-backed SAI action changelog (lightweight; no market enrichment)."""
+    limit = request.args.get("limit", default=0, type=int)
+    if limit <= 0:
+        changes = assessment_service.list_recommendation_changes(limit=None)
+    else:
+        changes = assessment_service.list_recommendation_changes(limit=limit)
+    return jsonify({"changes": changes, "total": len(changes)})
+
+
 @v1_bp.route("/news-feed", methods=["GET"])
 def news_feed():
     """Compact Summary feed: latest recommendation changes + top recent news."""
     # Default 0 == return the full ranked list (the feed is scrollable). A
     # positive newsLimit still caps the response for any callers that want it.
     news_limit = request.args.get("newsLimit", default=0, type=int)
-    changes_limit = request.args.get("changesLimit", default=6, type=int)
+    skip_changes = request.args.get("skipChanges", default=0, type=int) > 0
+    changes_limit = request.args.get("changesLimit", default=0, type=int)
 
-    changes = assessment_service.list_recommendation_changes(limit=changes_limit)
-    changes_total = assessment_service.count_recommendation_changes()
+    if skip_changes:
+        changes = []
+        changes_total = assessment_service.count_recommendation_changes()
+    elif changes_limit <= 0:
+        changes = assessment_service.list_recommendation_changes(limit=None)
+        changes_total = len(changes)
+    else:
+        changes = assessment_service.list_recommendation_changes(limit=changes_limit)
+        changes_total = assessment_service.count_recommendation_changes()
 
     symbols_meta = portfolio_service.list_symbols()
     enrichment = fundamentals_service.get_enrichment_bulk([s["symbol"] for s in symbols_meta])
