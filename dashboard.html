@@ -3157,7 +3157,89 @@
     .bar-edge.low { left: 0; }
     .bar-edge.high { right: 0; }
     .range-bar:hover .bar-edge { opacity: 1; }
-    .meta { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .meta { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; flex: 1; min-width: 0; }
+    .header-status {
+      font-size: 0.78rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .header-status .refresh-what { color: var(--text); font-weight: 600; }
+    .header-status .refresh-time { font-variant-numeric: tabular-nums; }
+    .header-status .price-asof-stale { color: var(--danger); font-weight: 700; }
+    .header-info-wrap { position: relative; flex: none; }
+    .header-info-btn {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 700;
+      font-style: italic;
+      font-family: Georgia, "Times New Roman", serif;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      line-height: 1;
+    }
+    .header-info-btn:hover,
+    .header-info-btn[aria-expanded="true"] {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(59, 130, 246, 0.1);
+    }
+    .header-info-pop {
+      position: absolute;
+      top: calc(100% + 0.45rem);
+      right: 0;
+      z-index: 30;
+      min-width: 270px;
+      max-width: min(340px, 92vw);
+      padding: 0.85rem 1rem;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--panel);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    }
+    .header-info-pop[hidden] { display: none; }
+    .header-info-pop-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.65rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .header-info-pop-head strong { font-size: 0.88rem; }
+    .header-info-version {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .header-info-dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.35rem 0.75rem;
+      margin: 0 0 0.75rem;
+      font-size: 0.82rem;
+    }
+    .header-info-dl dt { color: var(--muted); margin: 0; }
+    .header-info-dl dd { margin: 0; color: var(--text); }
+    .header-info-dl dd.is-llm { color: #a78bfa; }
+    .header-info-links {
+      font-size: 0.82rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+    }
+    .header-info-links a { color: var(--accent); text-decoration: none; }
+    .header-info-links a:hover { text-decoration: underline; }
     .badge {
       font-size: 0.75rem;
       padding: 0.2rem 0.55rem;
@@ -3276,8 +3358,6 @@
     .alert-kind.reached { color: var(--danger); border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.12); }
     .alert-kind.near { color: var(--warn); border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.12); }
     .alert-kind.info { color: #93c5fd; border-color: rgba(96,165,250,0.4); background: rgba(96,165,250,0.1); }
-    .links a { color: var(--accent); font-size: 0.85rem; text-decoration: none; }
-    .links a:hover { text-decoration: underline; }
     .toast {
       position: fixed;
       bottom: 1rem;
@@ -3319,13 +3399,18 @@
           <span class="brand-tagline">Holdings · Thresholds · Agent Intelligence</span>
         </div>
       </div>
-      <span class="badge" id="providerBadge">assess: …</span>
-      <span class="badge" id="refreshBadge" title="Summary and Holdings auto-refresh every 30s with the latest synced prices.">updated …</span>
-      <span class="links">
-        <a href="/docs/api" target="_blank">API</a> ·
-        <a href="/docs/replit" target="_blank">Replit</a> ·
-        <a href="/api/v1/openapi.json" target="_blank">OpenAPI</a>
-      </span>
+      <span class="header-status" id="refreshBadge">Loading…</span>
+      <div class="header-info-wrap">
+        <button type="button" class="header-info-btn" id="headerInfoBtn" onclick="toggleHeaderInfo(event)" aria-label="App info and documentation" aria-expanded="false" aria-controls="headerInfoPop" title="About this build">i</button>
+        <div id="headerInfoPop" class="header-info-pop" hidden role="dialog" aria-label="App information">
+          <div class="header-info-pop-head">
+            <strong>About</strong>
+            <span class="header-info-version" id="headerInfoVersion">…</span>
+          </div>
+          <dl class="header-info-dl" id="headerInfoMeta"></dl>
+          <div class="header-info-links" id="headerInfoLinks"></div>
+        </div>
+      </div>
     </div>
     <div class="actions">
       <span id="userChip" hidden style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#9aa8bc">
@@ -3977,10 +4062,72 @@
         const data = await api("/config");
         importVersion = data.importVersion;
         noteSynthesisSupported = !!(data.features && data.features.noteSynthesis);
-        const badge = document.getElementById("providerBadge");
-        badge.textContent = `import v${data.importVersion} · assess: ${data.assessmentProvider}`;
-        badge.classList.toggle("llm", data.llmConfigured);
+        renderHeaderInfo(data);
       } catch (_) { /* non-fatal */ }
+    }
+
+    function renderHeaderInfo(config) {
+      const versionEl = document.getElementById("headerInfoVersion");
+      if (versionEl) {
+        const parts = [`v${config.appVersion || "1.0"}`];
+        if (config.build) parts.push(config.build);
+        versionEl.textContent = parts.join(" · ");
+      }
+      const meta = document.getElementById("headerInfoMeta");
+      if (meta) {
+        const assess = config.assessmentProvider || "rules";
+        const assessCls = config.llmConfigured ? "is-llm" : "";
+        const modelRow = config.geminiModel
+          ? `<dt>Model</dt><dd>${escapeHtml(config.geminiModel)}</dd>`
+          : "";
+        meta.innerHTML = `
+          <dt>Assessment</dt><dd class="${assessCls}">${escapeHtml(assess)}</dd>
+          <dt>Import schema</dt><dd>v${config.importVersion ?? "?"}</dd>
+          <dt>API</dt><dd>${escapeHtml(config.version || "v1")}</dd>
+          ${modelRow}`;
+      }
+      const links = document.getElementById("headerInfoLinks");
+      if (links) {
+        const docs = config.docs || {};
+        links.innerHTML = [
+          docs.api ? `<a href="${docs.api}" target="_blank" rel="noopener">API docs</a>` : "",
+          docs.replit ? `<a href="${docs.replit}" target="_blank" rel="noopener">Replit mobile</a>` : "",
+          docs.openapi ? `<a href="${docs.openapi}" target="_blank" rel="noopener">OpenAPI</a>` : "",
+        ].filter(Boolean).join(" · ");
+      }
+    }
+
+    function closeHeaderInfo() {
+      const pop = document.getElementById("headerInfoPop");
+      const btn = document.getElementById("headerInfoBtn");
+      if (pop) pop.hidden = true;
+      if (btn) btn.setAttribute("aria-expanded", "false");
+      document.removeEventListener("keydown", closeHeaderInfoOnEscape);
+    }
+
+    function closeHeaderInfoOnOutside(event) {
+      const wrap = document.querySelector(".header-info-wrap");
+      if (wrap && !wrap.contains(event.target)) closeHeaderInfo();
+    }
+
+    function closeHeaderInfoOnEscape(event) {
+      if (event.key === "Escape") closeHeaderInfo();
+    }
+
+    function toggleHeaderInfo(event) {
+      event?.stopPropagation();
+      const pop = document.getElementById("headerInfoPop");
+      const btn = document.getElementById("headerInfoBtn");
+      if (!pop || !btn) return;
+      const opening = pop.hidden;
+      pop.hidden = !opening;
+      btn.setAttribute("aria-expanded", opening ? "true" : "false");
+      if (opening) {
+        setTimeout(() => document.addEventListener("click", closeHeaderInfoOnOutside), 0);
+        document.addEventListener("keydown", closeHeaderInfoOnEscape);
+      } else {
+        document.removeEventListener("keydown", closeHeaderInfoOnEscape);
+      }
     }
 
     async function loadMe() {
@@ -4101,22 +4248,27 @@
       return Math.round((today - priceDate) / 86400000);
     }
 
-    function markRefreshed(success = true) {
+    const REFRESH_VIEW_LABELS = {
+      overview: "Summary totals & metrics",
+      holdings: "Holdings table",
+    };
+
+    function markRefreshed(what, success = true) {
       const badge = document.getElementById("refreshBadge");
       if (!badge) return;
-      if (success) {
-        const now = new Date();
-        const hh = String(now.getHours()).padStart(2, "0");
-        const mm = String(now.getMinutes()).padStart(2, "0");
-        const ss = String(now.getSeconds()).padStart(2, "0");
-        let html = `updated ${hh}:${mm}:${ss}`;
-        if (pricesAsOfIso && isPriceDateStale(pricesAsOfIso)) {
-          const staleClass = priceDaysBehind(pricesAsOfIso) > 1 ? " price-asof-stale" : "";
-          html += ` · <span class="price-asof${staleClass}">prices as of ${escapeHtml(formatAsOf(pricesAsOfIso))}</span>`;
-        }
-        badge.innerHTML = html;
-        badge.title = "updated = last refresh time; prices as of = the market session the displayed prices reflect (red when more than a day behind).";
+      if (!success) return;
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      const ss = String(now.getSeconds()).padStart(2, "0");
+      const scope = what || "Dashboard";
+      let html = `<span class="refresh-what">${escapeHtml(scope)}</span> · <span class="refresh-time">${hh}:${mm}:${ss}</span>`;
+      if (pricesAsOfIso) {
+        const staleClass = priceDaysBehind(pricesAsOfIso) > 1 ? " price-asof-stale" : "";
+        html += ` · <span class="price-asof${staleClass}">quote session ${escapeHtml(formatAsOf(pricesAsOfIso))}</span>`;
       }
+      badge.innerHTML = html;
+      badge.title = `${scope} refreshed at ${hh}:${mm}:${ss}. Quote session is the market date the displayed prices reflect.`;
     }
 
     function userIsInteracting() {
@@ -4137,7 +4289,7 @@
       updateNavAgentGlyph();
       try {
         await loader();
-        markRefreshed(true);
+        markRefreshed(`${REFRESH_VIEW_LABELS[currentView] || currentView} · auto`);
       } catch (_) {
         /* background refresh failures are non-fatal and stay silent */
       } finally {
@@ -5419,6 +5571,7 @@
           // prices show immediately (not only after switching tabs). The symbol
           // list/Target detail refresh lazily via showView when next opened.
           await loadView(currentView);
+          markRefreshed("Prices & alerts");
           setStatus(`Synced ${data.sync.updated} symbols. ${data.newAlerts.length} new alerts.`, "success");
           requestAnimationFrame(() => pulseUpdated("overviewMetrics"));
         } catch (error) {
@@ -5461,6 +5614,7 @@
           const data = await api("/assess", { method: "POST" });
           await loadAssessments();
           await Promise.all([loadRecoChanges(), loadLatestAssessments()]);
+          markRefreshed("SAI assessments");
           setStatus(`Generated ${data.assessments.length} assessments.`, "success");
           requestAnimationFrame(() => pulseUpdated("overviewMetrics"));
         } catch (error) {
@@ -6046,6 +6200,7 @@
       }
       loadLatestAssessments();
       loadTrackRecord();
+      markRefreshed("Summary totals & metrics");
     }
 
     function actionChip(action) {
@@ -6531,6 +6686,7 @@
     async function loadHoldings() {
       const data = await api("/overview");
       portfolioMarketValue = data.totalMarketValue ?? portfolioMarketValue;
+      pricesAsOfIso = data.pricesAsOf || null;
       // Positions with actual shares drive the All/Large/Medium/Small filters;
       // tracked symbols without shares become the Watch-only list.
       holdingsRows = (data.holdings || []).filter(holdingHasShares);
@@ -6542,6 +6698,7 @@
       if (selectedSymbol && present.has(selectedSymbol)) {
         await openHoldingsInspector(selectedSymbol, false);
       }
+      markRefreshed("Holdings table");
     }
 
     function holdingHasShares(holding) {
@@ -10912,7 +11069,6 @@
     resetNoteForm();
     renderSelClipControls();
     showView("overview");
-    markRefreshed(true);
     startAutoRefresh();
   </script>
 </body>

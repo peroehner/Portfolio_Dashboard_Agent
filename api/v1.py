@@ -23,6 +23,28 @@ from services.llm_client import LLMClient
 
 v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
 
+
+def _app_build_id() -> str | None:
+    """Short git/deploy id for the About panel (env on Render, else local git)."""
+    for key in ("BUILD_SHA", "RENDER_GIT_COMMIT", "GIT_COMMIT"):
+        val = (os.environ.get(key) or "").strip()
+        if val:
+            return val[:12]
+    try:
+        import subprocess
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1]
+        out = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=root,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        return out or None
+    except Exception:
+        return None
+
 portfolio_service = PortfolioService()
 notes_service = NotesService()
 alerts_service = AlertsService()
@@ -83,6 +105,8 @@ def get_config():
     provider = client.active_provider()
     return jsonify({
         "version": "v1",
+        "appVersion": "1.0",
+        "build": _app_build_id(),
         "assessmentProvider": provider,
         "assessmentMode": client.mode,
         "llmConfigured": provider != "rules",
