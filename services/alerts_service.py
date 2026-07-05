@@ -320,7 +320,9 @@ class AlertsService:
         for message in engine.run_screener(screener_input):
             symbol = message.split(" ", 1)[0]
             symbol_row = self.portfolio_service.get_symbol(symbol)
-            reference = symbol_row.get("targetPrice") if symbol_row else None
+            reference = None
+            if symbol_row:
+                reference = symbol_row.get("analystTarget1y") or symbol_row.get("targetPrice")
             price = symbol_row.get("currentPrice") if symbol_row else None
             alert = self._create_alert(
                 symbol=symbol,

@@ -3489,8 +3489,7 @@
         <button type="button" class="secondary filter-btn" data-holdings-filter="watch" onclick="setHoldingsFilter('watch')" title="Tracked symbols with no shares">Watch-only</button>
         <span class="sel-clip-actions" data-clip-tab="holdings"></span>
       </div>
-      <div id="holdingsTable" class="portfolio-table-scroll"></div>
-    </section>
+      <div id="holdingsTable" class="portfolio-table-scroll"></div>    </section>
     <section class="panel holdings-inspector-panel">
       <h2 id="holdingsInspectorTitle">Inspector</h2>
       <div id="holdingsInspectorEmpty" class="empty">Select a symbol from the holdings table.</div>
@@ -3660,7 +3659,6 @@
             <option value="bearish">Bearish</option>
           </select>
         </label>
-        <span class="sel-clip-actions" data-clip-tab="screening"></span>
       </div>
       <div id="screeningTable" class="portfolio-table-scroll"></div>
     </div>
@@ -3704,7 +3702,6 @@
         <button type="button" class="secondary filter-btn" data-fib-band="critical" onclick="setFibMapBand('critical')" title="Critical (&lt;2% from nearest Fib): immediate target retest or breakout setup. High alert required.">Critical</button>
         <button type="button" class="secondary filter-btn" data-fib-band="warning" onclick="setFibMapBand('warning')" title="Near (2%–5% from nearest Fib): localized consolidation building momentum. Primary watching zone.">Near</button>
         <button type="button" class="secondary filter-btn" data-fib-band="neutral" onclick="setFibMapBand('neutral')" title="Neutral (&gt;5% from nearest Fib): stable range operations. Healthy distance from technical boundaries.">Neutral</button>
-        <span class="sel-clip-actions" data-clip-tab="fib"></span>
       </div>
       <div id="fibMapTable" class="portfolio-table-scroll"></div>
     </div>
@@ -3750,7 +3747,6 @@
         <button class="fund-tab active" data-fund-tab="val" onclick="setFundamentalsTab('val')">Valuation · Growth · Profitability</button>
         <button class="fund-tab" data-fund-tab="health" onclick="setFundamentalsTab('health')">Health · Analyst</button>
         <button class="fund-tab" data-fund-tab="range" onclick="setFundamentalsTab('range')">52-Week · News</button>
-        <span class="sel-clip-actions" data-clip-tab="fundamentals"></span>
       </div>
       <div id="fundamentalsTable"><div class="empty">Loading fundamentals…</div></div>
     </section>
@@ -4103,32 +4099,20 @@
       config.rerender();
     }
 
-    // --- Cross-tab selection clipboard (Portfolio group) ---------------------
-    // Copy the selected symbol(s) in one Portfolio tab and re-apply them in
-    // another. Pasting resets the destination tab's category filter so the
-    // pasted rows are guaranteed visible. `tablePastedKeys` gives single-select
-    // tables (Screening/Patterns/Fundamentals) a multi-row highlight overlay,
-    // keyed by the table's selection group.
+    // --- Cross-tab selection clipboard (Holdings + Simulation only) -----------
     let selectionClipboard = [];
     const tablePastedKeys = {};
 
+    const PORTFOLIO_CLIP_TABS = new Set(["holdings", "simulation"]);
+
     const PORTFOLIO_CLIP_LABELS = {
       holdings: "Holdings",
-      screening: "Screening",
       simulation: "Simulation",
-      fib: "Patterns & Tech Signals",
-      fundamentals: "Fundamentals",
     };
 
     function portfolioTabSelectedSymbols(tabId) {
-      if (tabId === "holdings" || tabId === "simulation") {
-        return [...getMultiSelection(tabId)];
-      }
-      const key = selectionKeyFor(tabId === "fundamentals" ? "fundamentals" : tabId);
-      const pasted = tablePastedKeys[key];
-      if (pasted && pasted.size) return [...pasted];
-      const single = tableSelection[key];
-      return single ? [single] : [];
+      if (!PORTFOLIO_CLIP_TABS.has(tabId)) return [];
+      return [...getMultiSelection(tabId)];
     }
 
     // Non-empty pasted-highlight set for a table, or null so renderSortableTable
@@ -4176,6 +4160,7 @@
     }
 
     function pastePortfolioSelection(tabId) {
+      if (!PORTFOLIO_CLIP_TABS.has(tabId)) return;
       if (!selectionClipboard.length) {
         setStatus("Nothing to paste — Copy a selection first.", "error");
         return;
@@ -4192,26 +4177,6 @@
         multiSelection.simulation = new Set(symbols);
         multiAnchor.simulation = last;
         renderSimulationView();
-      } else if (tabId === "screening") {
-        screeningFilter = "all";
-        screeningSentimentFilter = "all";
-        tablePastedKeys.screening = new Set(symbols);
-        tableSelection.screening = last;
-        updateScreeningFilterButtons();
-        loadScreening("", false);
-      } else if (tabId === "fib") {
-        fibMapBand = "all";
-        fibConfirmedOnly = false;
-        fibMapTicker = "";
-        const tickerInput = document.getElementById("fibTickerFilter");
-        if (tickerInput) tickerInput.value = "";
-        tablePastedKeys.fib = new Set(symbols);
-        tableSelection.fib = last;
-        renderFibMapView();
-      } else if (tabId === "fundamentals") {
-        tablePastedKeys.fundamentals = new Set(symbols);
-        tableSelection.fundamentals = last;
-        renderFundamentalsTable();
       }
       setStatus(`Pasted ${symbols.length} symbol${symbols.length === 1 ? "" : "s"} into ${PORTFOLIO_CLIP_LABELS[tabId] || tabId} — filter cleared.`, "success");
     }
@@ -6644,6 +6609,57 @@
         .slice(0, 3) || "?";
     }
 
+    function formatTradeAlertLabel(ta, row) {
+      const abbr = ta.side === "above" ? "T@A" : "T@B";
+      const price = row.currentPrice;
+      const thr = ta.price;
+      if (price == null || thr == null) return abbr;
+      if (ta.urgency === "near" && ta.awayPct != null) {
+        if (ta.side === "above") return `${abbr} ↓${ta.awayPct.toFixed(1)}%`;
+        return `${abbr} +${ta.awayPct.toFixed(1)}%`;
+      }
+      const pct = (price - thr) / thr * 100;
+      if (pct > 0) return `${abbr} +${pct.toFixed(1)}%`;
+      if (pct < 0) return `${abbr} ${pct.toFixed(1)}%`;
+      return `${abbr} 0%`;
+    }
+
+    function formatFibAlertLabel(alert) {
+      let level = alert.fibLevel;
+      if (!level && alert.message) {
+        const match = alert.message.match(/the\s+([\d.]+%)/i);
+        level = match ? match[1] : null;
+      }
+      if (!level) return "Fib";
+      const short = String(level).replace(/\s*retracement$/i, "").trim();
+      return `Fib ${short}`;
+    }
+
+    function formatOneYtAlertLabel(alert, row) {
+      // Prefer the % baked into the alert message — same source as the tooltip.
+      const match = alert.message?.match(/([\d.]+)%\s*discount/i);
+      if (match) return `1YT ↓${parseFloat(match[1]).toFixed(1)}%`;
+
+      const price = alert.price ?? row?.currentPrice;
+      // Mirror engine.run_screener: analyst 1YT first, then personal target;
+      // upside is measured from current price, not from the target level.
+      const target = row?.analystTarget1y ?? row?.targetPrice ?? alert.referenceValue;
+      if (price != null && target != null && price > 0) {
+        const pct = (target - price) / price * 100;
+        if (!Number.isFinite(pct)) return "1YT";
+        const arrow = pct >= 0 ? "↓" : "↑";
+        return `1YT ${arrow}${Math.abs(pct).toFixed(1)}%`;
+      }
+      return "1YT";
+    }
+
+    function formatOtherAlertLabel(alert, row) {
+      const type = alert.type || "";
+      if (type === "fib_proximity") return formatFibAlertLabel(alert);
+      if (type === "screener_upside") return formatOneYtAlertLabel(alert, row);
+      return alertKindAbbr(type);
+    }
+
     // Show WHICH kinds of alert triggered, as compact badges: T@B / T@A
     // (planned-trade thresholds, urgency-colored, click → Target), Fib / 1YT and
     // any other active alert (click → Inspector). "(0)" when nothing is live.
@@ -6655,24 +6671,24 @@
         return (a.awayPct ?? 0) - (b.awayPct ?? 0);
       });
       for (const ta of tradeAlerts) {
-        const abbr = ta.side === "above" ? "T@A" : "T@B";
+        const label = formatTradeAlertLabel(ta, row);
         const cls = ta.urgency === "reached" ? "reached" : "near";
         badges.push(
           screeningTargetLink(
             row.symbol,
-            `<span class="alert-kind ${cls}">${abbr}</span>`,
-            ta.message || abbr
+            `<span class="alert-kind ${cls}">${escapeHtml(label)}</span>`,
+            ta.message || label
           )
         );
       }
       for (const oa of row.otherAlerts || []) {
-        const abbr = alertKindAbbr(oa.type);
+        const label = formatOtherAlertLabel(oa, row);
         badges.push(
           screeningInspectorLink(
             row.symbol,
             "alerts",
-            `<span class="alert-kind info">${escapeHtml(abbr)}</span>`,
-            oa.message || abbr
+            `<span class="alert-kind info">${escapeHtml(label)}</span>`,
+            oa.message || label
           )
         );
       }
@@ -6822,7 +6838,7 @@
     const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell\n• CONFIDENCE — High / Medium / Low\n• SENTIMENT — relevance-weighted news reaction; falls back to your notes\n• Sort — click Action, Confidence, or Sentiment below (strongest first → weakest → off)";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
     const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
-    const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below (red = reached, amber = approaching; click → Target)\n• T@A — Trade Above (red = reached, amber = approaching; click → Target)\n• Fib — Fibonacci proximity\n• 1YT — 1-year target upside (click → Inspector)\n• (0) — no active alerts";
+    const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT — 1-year target gap, e.g. 1YT ↓86.1% (click → Inspector)\n• (0) — no active alerts";
     const SIM_SYMBOL_HELP = "Ticker with at least one priced planned-trade threshold. Click to open in Target.";
     const SIM_CLOSE_PCT_HELP = "Distance to the nearest in-scope planned-trade threshold:\n• Uses the active Buys / Sells / Both leg filter\n• Smaller % = closer to triggering\n• ▼ buy leg · ▲ sell leg\n• Sort ascending to surface trades about to fire";
     const SIM_NET_GAINS_HELP = "Realized gain on in-scope SELL legs:\n• (avg sell price − cost/share) × shares sold\n• Cost/share — holding average cost when on file, otherwise share-weighted planned BUY threshold\n• — when no in-scope sells, or no derivable cost (UNKNOWN-WINS)";
@@ -6833,7 +6849,7 @@
       { key: "symbol", label: "Symbol", help: SYMBOL_HELP, sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
       {
         key: "recommendation",
-        label: "SAI",
+        label: "Synthesized Agent Insight (SAI)",
         help: SAI_HELP,
         subSorts: [
           {

@@ -368,7 +368,13 @@ class ScreeningService:
             "tradeAboveShares": trade_above_shares,
             "tradeAlerts": trade_alerts,
             "otherAlerts": [
-                {"type": a.get("type"), "message": a.get("message")}
+                {
+                    "type": a.get("type"),
+                    "message": a.get("message"),
+                    "fibLevel": a.get("fibLevel"),
+                    "referenceValue": a.get("referenceValue"),
+                    "price": a.get("price"),
+                }
                 for a in alerts
                 if not str(a.get("type", "")).startswith("trade_")
             ],
