@@ -115,7 +115,7 @@ class ScreeningService:
         except Exception:  # noqa: BLE001 - sentiment is best-effort
             return {}
 
-    def fib_proximity_map(self) -> list[dict[str, Any]]:
+    def fib_proximity_map(self, symbols: list[str] | None = None) -> list[dict[str, Any]]:
         """Per-symbol Fibonacci proximity enriched with the detected chart pattern,
         trend-wave count, and the technical stance — the data behind the
         "Patterns & Tech Signals" view."""
@@ -125,6 +125,9 @@ class ScreeningService:
         symbols_data = [
             s for s in self.portfolio_service.list_symbols() if s.get("currentPrice") is not None
         ]
+        if symbols:
+            allowed = {symbol.upper() for symbol in symbols}
+            symbols_data = [row for row in symbols_data if row.get("symbol") in allowed]
 
         charts = self._charts_for(symbols_data) if ASSESSMENT_TECHNICALS else {}
 

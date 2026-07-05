@@ -29,6 +29,9 @@
       --portfolio-tab-accent-dim: rgba(59, 130, 246, 0.28);
       --symbol-tab-accent: #38bdf8;
       --symbol-tab-accent-dim: rgba(56, 189, 248, 0.28);
+      --vp-filter: #a78bfa;
+      --vp-filter-dim: rgba(167, 139, 250, 0.16);
+      --vp-filter-border: rgba(167, 139, 250, 0.42);
     }
     * { box-sizing: border-box; }
     body {
@@ -2025,6 +2028,19 @@
       flex-wrap: wrap;
       gap: 0.5rem;
       margin: 0.25rem 0 1rem;
+      align-items: center;
+    }
+    .fundamentals-tabbar .sel-clip-actions {
+      margin-left: auto;
+    }
+    .fib-filter-bar .sel-clip-actions {
+      margin-left: auto;
+    }
+    .fib-filter-bar .fib-refresh-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex-shrink: 0;
     }
     .fund-tab {
       background: var(--panel-2);
@@ -2771,9 +2787,12 @@
     body.is-portfolio-view nav.tabs {
       border-bottom-color: var(--portfolio-tab-accent-dim);
     }
-    body.is-portfolio-view .view:not([hidden]) > .wide-panel:first-child,
-    body.is-portfolio-view .view:not([hidden]) > .panel:first-child,
-    body.is-portfolio-view .view:not([hidden]) > section:first-child {
+    body.is-portfolio-view #view-overview:not([hidden]),
+    body.is-portfolio-view #view-holdings:not([hidden]),
+    body.is-portfolio-view #view-screening:not([hidden]),
+    body.is-portfolio-view #view-simulation:not([hidden]),
+    body.is-portfolio-view #view-fib:not([hidden]),
+    body.is-portfolio-view #view-fundamentals:not([hidden]) {
       box-shadow: inset 0 3px 0 var(--portfolio-tab-accent);
     }
     .nav-group-symbol .nav-group-tabs {
@@ -2826,7 +2845,6 @@
       margin-bottom: 0.25rem;
     }
     .fib-map-header h2 { margin: 0; }
-    .fib-map-header-actions { display: flex; align-items: center; gap: 0.5rem; }
     .help-btn {
       width: 28px; height: 28px; border-radius: 50%;
       border: 1px solid var(--border);
@@ -2976,29 +2994,41 @@
       align-items: center;
       gap: 0.45rem;
     }
-    /* Cross-tab selection clipboard (Copy Sel / Paste Sel), pinned to the right
-       of each Portfolio-group filter bar. */
+    /* Cross-tab symbol filter (Set Filter / Filter), pinned to the right
+       of each Portfolio-group filter bar — violet accent, distinct from tab filters. */
     .sel-clip-actions {
       display: inline-flex;
       gap: 0.4rem;
       margin-left: auto;
     }
-    .sel-clip-btn {
+    .vp-filter-btn {
       display: inline-flex;
       align-items: center;
-      gap: 0.32rem;
-      font-size: 0.78rem;
-      font-weight: 600;
-      padding: 0.3rem 0.55rem;
-      border-radius: 8px;
-      border: 1px solid var(--border);
+      gap: 0.35rem;
       background: var(--panel-2);
       color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.55rem 0.9rem;
+      font-size: 0.9rem;
+      font-weight: 600;
       cursor: pointer;
     }
-    .sel-clip-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
-    .sel-clip-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-    .sel-clip-btn svg { display: block; }
+    .vp-filter-btn:hover:not(:disabled) {
+      color: var(--vp-filter);
+      border-color: var(--vp-filter-border);
+      background: var(--vp-filter-dim);
+    }
+    .vp-filter-btn.active:not(:disabled) {
+      background: var(--vp-filter);
+      color: #fff;
+      border-color: var(--vp-filter);
+    }
+    .vp-filter-btn:disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+    }
+    .vp-filter-btn svg { display: block; flex-shrink: 0; }
     .fib-ticker-filter {
       flex: 0 1 14rem;
       min-width: 10rem;
@@ -3879,6 +3909,7 @@
             <option value="bearish">Bearish</option>
           </select>
         </label>
+        <span class="sel-clip-actions" data-clip-tab="screening" data-clip-paste-only="1"></span>
       </div>
       <div id="screeningTable" class="portfolio-table-scroll"></div>
     </div>
@@ -3914,10 +3945,9 @@
         <button type="button" class="secondary filter-btn" data-fib-band="critical" onclick="setFibMapBand('critical')" title="Critical (&lt;2% from nearest Fib): immediate target retest or breakout setup. High alert required.">Critical</button>
         <button type="button" class="secondary filter-btn" data-fib-band="warning" onclick="setFibMapBand('warning')" title="Near (2%–5% from nearest Fib): localized consolidation building momentum. Primary watching zone.">Near</button>
         <button type="button" class="secondary filter-btn" data-fib-band="neutral" onclick="setFibMapBand('neutral')" title="Neutral (&gt;5% from nearest Fib): stable range operations. Healthy distance from technical boundaries.">Neutral</button>
-        <div class="fib-map-header-actions" style="margin-left:auto;">
-          <button type="button" class="help-btn" onclick="openPatternsHelp()" title="How to read this view" aria-label="How to read this view">?</button>
-          <button class="secondary" onclick="loadFibMap(true)">Refresh</button>
-        </div>
+        <span class="sel-clip-actions" data-clip-tab="fib" data-clip-paste-only="1"></span>
+        <button type="button" class="secondary fib-refresh-btn" id="fibRefreshBtn" onclick="loadFibMap(true)" title="Refresh pattern and Fib signals for all symbols">Refresh</button>
+        <button type="button" class="help-btn fib-help-btn" onclick="openPatternsHelp()" title="How to read this view" aria-label="How to read this view">?</button>
       </div>
       <div id="fibMapTable" class="portfolio-table-scroll"></div>
     </div>
@@ -3962,6 +3992,7 @@
         <button class="fund-tab active" data-fund-tab="val" onclick="setFundamentalsTab('val')">Valuation · Growth · Profitability</button>
         <button class="fund-tab" data-fund-tab="health" onclick="setFundamentalsTab('health')">Health · Analyst</button>
         <button class="fund-tab" data-fund-tab="range" onclick="setFundamentalsTab('range')">52-Week · News</button>
+        <span class="sel-clip-actions" data-clip-tab="fundamentals" data-clip-paste-only="1"></span>
       </div>
       <div id="fundamentalsTable"><div class="empty">Loading fundamentals…</div></div>
     </section>
@@ -4425,18 +4456,37 @@
         multiAnchor[tableId] = key;
       }
       const after = [...getMultiSelection(tableId)].sort().join("\0");
-      if (before !== after) config.rerender();
+      if (before !== after) {
+        config.rerender();
+        updateClipButtons();
+      }
     }
 
-    // --- Cross-tab selection clipboard (Holdings + Simulation only) -----------
+    // --- Cross-tab symbol filter (Set Filter / Filter) -------------------------
     let selectionClipboard = [];
-    const tablePastedKeys = {};
+    /** Per-tab symbol subset intersected with active filters. */
+    const virtualPortfolioSymbols = {
+      holdings: null,
+      simulation: null,
+      screening: null,
+      fib: null,
+      fundamentals: null,
+    };
 
     const PORTFOLIO_CLIP_TABS = new Set(["holdings", "simulation"]);
+    const PASTE_FILTER_TABS = new Set(["holdings", "simulation", "screening", "fib", "fundamentals"]);
 
     const PORTFOLIO_CLIP_LABELS = {
       holdings: "Holdings",
       simulation: "Simulation",
+    };
+
+    const HOLDINGS_FILTER_LABELS = {
+      all: "All",
+      large: "Large",
+      medium: "Medium",
+      small: "Small",
+      watch: "Watch-only",
     };
 
     function portfolioTabSelectedSymbols(tabId) {
@@ -4444,70 +4494,202 @@
       return [...getMultiSelection(tabId)];
     }
 
-    // Non-empty pasted-highlight set for a table, or null so renderSortableTable
-    // falls back to normal single-row selection.
-    function pastedKeysFor(tableId) {
-      const set = tablePastedKeys[selectionKeyFor(tableId)];
-      return set && set.size ? set : null;
+    function getVirtualSymbols(tabId) {
+      const set = virtualPortfolioSymbols[tabId];
+      return set?.size ? set : null;
+    }
+
+    function virtualSymbolSetsEqual(a, b) {
+      if (!a || !b || a.size !== b.size) return false;
+      for (const key of a) if (!b.has(key)) return false;
+      return true;
+    }
+
+    function applyVirtualSymbolFilter(rows, tabId, symbolKey = "symbol") {
+      const virtual = getVirtualSymbols(tabId);
+      if (!virtual) return rows;
+      return rows.filter((row) => virtual.has(row[symbolKey]));
+    }
+
+    function pruneVirtualSymbols(tabId, presentSymbols) {
+      const set = virtualPortfolioSymbols[tabId];
+      if (!set) return;
+      const present = presentSymbols instanceof Set ? presentSymbols : new Set(presentSymbols);
+      const pruned = new Set([...set].filter((s) => present.has(s)));
+      virtualPortfolioSymbols[tabId] = pruned.size ? pruned : null;
+    }
+
+    function rerenderAfterVirtualFilter(tabId) {
+      if (tabId === "holdings") {
+        renderHoldingsView();
+      } else if (tabId === "simulation") {
+        renderSimulationView();
+      } else if (tabId === "screening") {
+        const cache = viewDataCache.screening;
+        if (cache.data) {
+          document.getElementById("screeningTable").innerHTML = renderScreeningTable(applyScreeningFilter(cache.data));
+        }
+      } else if (tabId === "fib") {
+        renderFibMapView();
+      } else if (tabId === "fundamentals") {
+        renderFundamentalsTable();
+      }
+      updateClipButtons();
+    }
+
+    function virtualFilterNoMatchMessage(tabId) {
+      return filterStatusMessage(tabId, 0, 0);
+    }
+
+    function tabFilterLabel(tabId) {
+      if (tabId === "holdings") {
+        return HOLDINGS_FILTER_LABELS[holdingsFilter] || holdingsFilter;
+      }
+      if (tabId === "simulation") {
+        const filterLabels = { all: "All", close: "Close Trades", far: "Far Trades" };
+        const legLabels = { both: "Both", buys: "Buys", sells: "Sells" };
+        return `${filterLabels[simulationFilter] || simulationFilter} · ${legLabels[simulationLegs] || simulationLegs}`;
+      }
+      if (tabId === "screening") {
+        const filterLabels = { all: "All", upside: "High Upside", close: "Close Trades", far: "Far Trades" };
+        let label = filterLabels[screeningFilter] || screeningFilter;
+        if (screeningSentimentFilter !== "all") {
+          const sent = screeningSentimentFilter.charAt(0).toUpperCase() + screeningSentimentFilter.slice(1);
+          label += ` · ${sent}`;
+        }
+        return label;
+      }
+      if (tabId === "fib") {
+        const bandLabels = { all: "All", critical: "Critical", warning: "Near", neutral: "Neutral" };
+        let label = bandLabels[fibMapBand] || fibMapBand;
+        if (fibConfirmedOnly) label = `Confirmed · ${label}`;
+        const ticker = fibMapTicker.trim();
+        if (ticker) label += ` · ${ticker.toUpperCase()}`;
+        return label;
+      }
+      if (tabId === "fundamentals") {
+        const tabLabels = { val: "Valuation", health: "Health", range: "52-Week" };
+        return tabLabels[fundamentalsTab] || fundamentalsTab;
+      }
+      return "active filters";
+    }
+
+    function filterStatusMessage(tabId, setCount, shownCount) {
+      const intersect = tabFilterLabel(tabId);
+      if (!shownCount) {
+        return `Filter: no symbols match (intersected with ${intersect})`;
+      }
+      const count = setCount || shownCount;
+      return `Filter: ${shownCount} symbol${shownCount === 1 ? "" : "s"} (intersected with ${intersect})`;
     }
 
     function updateClipButtons() {
-      const count = selectionClipboard.length;
-      document.querySelectorAll("[data-clip-paste]").forEach((btn) => {
-        btn.disabled = count === 0;
-        btn.title = count
-          ? `Paste ${count} symbol${count === 1 ? "" : "s"} here (clears this tab's filter)`
-          : "Nothing copied yet — use Copy Selection first";
+      const setCount = selectionClipboard.length;
+      document.querySelectorAll("[data-vp-apply]").forEach((btn) => {
+        const tabId = btn.closest(".sel-clip-actions")?.dataset.clipTab;
+        const virtual = getVirtualSymbols(tabId);
+        btn.disabled = setCount === 0;
+        btn.classList.toggle("active", !!virtual);
+        if (virtual) {
+          btn.title = `Filter active (${virtual.size} symbol${virtual.size === 1 ? "" : "s"}) — click to clear`;
+        } else if (btn.closest(".sel-clip-actions")?.dataset.clipPasteOnly === "1") {
+          btn.title = setCount
+            ? `Apply filter (${setCount} symbol${setCount === 1 ? "" : "s"}, intersects with active filters)`
+            : "No filter set — use Set Filter on Holdings or Simulation first";
+        } else {
+          btn.title = setCount
+            ? `Apply filter (${setCount} symbol${setCount === 1 ? "" : "s"}, intersects with active filters)`
+            : "No filter set — select symbols and use Set Filter first";
+        }
       });
+      document.querySelectorAll("[data-vp-set]").forEach((btn) => {
+        const tabId = btn.closest(".sel-clip-actions")?.dataset.clipTab;
+        const hasSelection = portfolioTabSelectedSymbols(tabId).length > 0;
+        btn.disabled = !hasSelection;
+        btn.title = hasSelection
+          ? "Save the selected symbol(s) as the cross-tab filter"
+          : "Select symbol(s) in the table first";
+      });
+      updateFibRefreshButton();
     }
 
-    function selClipHtml(tabId) {
-      const clip = '<rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>';
-      const copyArrow = '<line x1="12" y1="17" x2="12" y2="11"></line><polyline points="9 14 12 11 15 14"></polyline>';
-      const pasteArrow = '<line x1="12" y1="11" x2="12" y2="17"></line><polyline points="9 14 12 17 15 14"></polyline>';
+    const VP_FILTER_ICON = '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>';
+
+    function vpFilterIconSvg() {
+      return `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${VP_FILTER_ICON}</svg>`;
+    }
+
+    function updateFibRefreshButton() {
+      const btn = document.getElementById("fibRefreshBtn");
+      if (!btn) return;
+      const virtual = getVirtualSymbols("fib");
+      if (virtual?.size) {
+        btn.className = "vp-filter-btn fib-refresh-btn";
+        btn.innerHTML = `${vpFilterIconSvg()}<span>Refresh</span>`;
+        btn.title = `Refresh signals for ${virtual.size} filtered symbol${virtual.size === 1 ? "" : "s"}`;
+      } else {
+        btn.className = "secondary fib-refresh-btn";
+        btn.textContent = "Refresh";
+        btn.title = "Refresh pattern and Fib signals for all symbols";
+      }
+    }
+
+    function selClipHtml(tabId, pasteOnly) {
+      const setIcon = '<rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><line x1="12" y1="17" x2="12" y2="11"></line><polyline points="9 14 12 11 15 14"></polyline>';
+      const filterIcon = '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>';
       const svg = (inner) => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
-      return `<button type="button" class="sel-clip-btn" onclick="copyPortfolioSelection('${tabId}')" title="Copy the selected symbol(s) to reuse in another tab">${svg(clip + copyArrow)}<span>Copy Sel</span></button>`
-        + `<button type="button" class="sel-clip-btn" data-clip-paste onclick="pastePortfolioSelection('${tabId}')" disabled title="Nothing copied yet — use Copy Selection first">${svg(clip + pasteArrow)}<span>Paste Sel</span></button>`;
+      const setBtn = pasteOnly
+        ? ""
+        : `<button type="button" class="vp-filter-btn" data-vp-set onclick="copyPortfolioSelection('${tabId}')" title="Select symbol(s) in the table first">${svg(setIcon)}<span>Set Filter</span></button>`;
+      return setBtn
+        + `<button type="button" class="vp-filter-btn" data-vp-apply onclick="pastePortfolioSelection('${tabId}')" disabled title="No filter set — use Set Filter first">${svg(filterIcon)}<span>Filter</span></button>`;
     }
 
     function renderSelClipControls() {
       document.querySelectorAll(".sel-clip-actions[data-clip-tab]").forEach((el) => {
-        el.innerHTML = selClipHtml(el.dataset.clipTab);
+        el.innerHTML = selClipHtml(el.dataset.clipTab, el.dataset.clipPasteOnly === "1");
       });
       updateClipButtons();
     }
 
     function copyPortfolioSelection(tabId) {
+      if (!PORTFOLIO_CLIP_TABS.has(tabId)) return;
       const symbols = portfolioTabSelectedSymbols(tabId);
       if (!symbols.length) {
-        setStatus("Select a symbol first, then Copy Selection.", "error");
+        setStatus("Select symbol(s) first, then Set Filter.", "error");
         return;
       }
       selectionClipboard = symbols;
       updateClipButtons();
-      setStatus(`Copied ${symbols.length} symbol${symbols.length === 1 ? "" : "s"}: ${symbols.join(", ")}.`, "success");
+      setStatus(`Filter set: ${symbols.length} symbol${symbols.length === 1 ? "" : "s"} — ${symbols.join(", ")}.`, "success");
     }
 
     function pastePortfolioSelection(tabId) {
-      if (!PORTFOLIO_CLIP_TABS.has(tabId)) return;
+      if (!PASTE_FILTER_TABS.has(tabId)) return;
       if (!selectionClipboard.length) {
-        setStatus("Nothing to paste — Copy a selection first.", "error");
+        setStatus("No filter set — use Set Filter on Holdings or Simulation first.", "error");
         return;
       }
-      const symbols = [...selectionClipboard];
-      const last = symbols[symbols.length - 1];
-      if (tabId === "holdings") {
-        holdingsFilter = "all";
-        multiSelection.holdings = new Set(symbols);
-        multiAnchor.holdings = last;
-        renderHoldingsView();
-      } else if (tabId === "simulation") {
-        simulationFilter = "all";
-        multiSelection.simulation = new Set(symbols);
-        multiAnchor.simulation = last;
-        renderSimulationView();
+      const symbols = selectionClipboard.map((s) => String(s).toUpperCase());
+      const nextSet = new Set(symbols);
+      if (virtualSymbolSetsEqual(getVirtualSymbols(tabId), nextSet)) {
+        virtualPortfolioSymbols[tabId] = null;
+        rerenderAfterVirtualFilter(tabId);
+        setStatus("Filter cleared.", "info");
+        return;
       }
-      setStatus(`Pasted ${symbols.length} symbol${symbols.length === 1 ? "" : "s"} into ${PORTFOLIO_CLIP_LABELS[tabId] || tabId} — filter cleared.`, "success");
+      virtualPortfolioSymbols[tabId] = nextSet;
+      if (PORTFOLIO_CLIP_TABS.has(tabId)) {
+        multiSelection[tabId] = new Set(
+          [...getMultiSelection(tabId)].filter((s) => nextSet.has(s))
+        );
+      }
+      rerenderAfterVirtualFilter(tabId);
+      const shown = tableDataCache[tabId]?.length ?? 0;
+      setStatus(
+        filterStatusMessage(tabId, symbols.length, shown),
+        shown ? "success" : "info"
+      );
     }
 
     function formatPercent(value) {
@@ -6792,6 +6974,7 @@
       holdingsRows = (data.holdings || []).filter(holdingHasShares);
       holdingsWatchRows = buildWatchOnlyRows(data);
       const present = new Set([...holdingsRows, ...holdingsWatchRows].map((h) => h.symbol));
+      pruneVirtualSymbols("holdings", present);
       multiSelection.holdings = new Set([...getMultiSelection("holdings")].filter((s) => present.has(s)));
       if (multiAnchor.holdings && !present.has(multiAnchor.holdings)) multiAnchor.holdings = null;
       renderHoldingsView();
@@ -6850,7 +7033,7 @@
         : sorted[base];
     }
 
-    function holdingsRowsForFilter() {
+    function holdingsCategoryRows() {
       if (holdingsFilter === "watch") return holdingsWatchRows;
       const rows = holdingsRows;
       if (holdingsFilter === "all" || rows.length === 0) return rows;
@@ -6870,6 +7053,10 @@
       return rows;
     }
 
+    function holdingsRowsForFilter() {
+      return applyVirtualSymbolFilter(holdingsCategoryRows(), "holdings");
+    }
+
     function updateHoldingsFilterButtons() {
       document.querySelectorAll("#view-holdings .filter-btn").forEach((button) => {
         button.classList.toggle("active", button.dataset.holdingsFilter === holdingsFilter);
@@ -6884,6 +7071,7 @@
     function renderHoldingsView() {
       document.getElementById("holdingsTable").innerHTML = renderHoldingsTable(holdingsRowsForFilter());
       updateHoldingsFilterButtons();
+      updateClipButtons();
       syncHoldingsInspectorHead(selectedSymbol);
     }
 
@@ -6958,12 +7146,19 @@
       watch: "No watch-only symbols — every tracked symbol has shares.",
     };
 
+    function holdingsEmptyMessage(rows) {
+      if (getVirtualSymbols("holdings") && !rows.length) {
+        return virtualFilterNoMatchMessage("holdings");
+      }
+      return HOLDINGS_EMPTY_MESSAGES[holdingsFilter] || HOLDINGS_EMPTY_MESSAGES.all;
+    }
+
     function renderHoldingsTable(holdings) {
       return renderSortableTable(
         "holdings",
         holdingsColumns,
         holdings,
-        HOLDINGS_EMPTY_MESSAGES[holdingsFilter] || HOLDINGS_EMPTY_MESSAGES.all,
+        holdingsEmptyMessage(holdings),
         {
           selectedKeys: getMultiSelection("holdings"),
           footerHtml: holdingsTotalsFooterHtml(holdings),
@@ -7518,9 +7713,15 @@
         "screening",
         screeningColumns,
         rows,
-        "No screening results.",
-        { selectedKeys: pastedKeysFor("screening") }
+        screeningEmptyMessage(rows)
       );
+    }
+
+    function screeningEmptyMessage(rows) {
+      if (getVirtualSymbols("screening") && !rows.length) {
+        return virtualFilterNoMatchMessage("screening");
+      }
+      return "No screening results.";
     }
 
     let fibMapData = [];
@@ -7769,7 +7970,7 @@
 
     function applyFibMapFilters(rows) {
       const ticker = fibMapTicker.trim().toLowerCase();
-      return rows.filter((row) => {
+      const filtered = rows.filter((row) => {
         if (ticker && !String(row.symbol || "").toLowerCase().includes(ticker)) {
           return false;
         }
@@ -7782,6 +7983,7 @@
         if (fibMapBand === "neutral") return zone === "neutral";
         return true;
       });
+      return applyVirtualSymbolFilter(filtered, "fib");
     }
 
     function updateFibFilterButtons() {
@@ -7838,15 +8040,22 @@
         "fib",
         fibColumns,
         rows,
-        fibMapData.length ? "No symbols match the current filters." : "No symbols to map.",
-        { selectedKeys: pastedKeysFor("fib") }
+        fibEmptyMessage(rows)
       );
     }
 
+    function fibEmptyMessage(rows) {
+      if (getVirtualSymbols("fib") && !rows.length) {
+        return virtualFilterNoMatchMessage("fib");
+      }
+      return fibMapData.length ? "No symbols match the current filters." : "No symbols to map.";
+    }
+
     function renderFibMapView() {
-      tableDataCache.fib = fibMapData;
+      tableDataCache.fib = applyFibMapFilters(fibMapData);
       document.getElementById("fibMapTable").innerHTML = renderFibMapTable();
       updateFibFilterButtons();
+      updateClipButtons();
     }
 
     function pickImportFile() {
@@ -7969,7 +8178,7 @@
       if (screeningSentimentFilter !== "all") {
         filtered = filtered.filter((r) => screeningRowSentiment(r) === screeningSentimentFilter);
       }
-      return filtered;
+      return applyVirtualSymbolFilter(filtered, "screening");
     }
 
     function updateScreeningFilterButtons() {
@@ -7997,7 +8206,9 @@
       const cache = viewDataCache.screening;
       const now = Date.now();
       const renderFiltered = (rows) => {
+        pruneVirtualSymbols("screening", (rows || []).map((r) => r.symbol));
         document.getElementById("screeningTable").innerHTML = renderScreeningTable(applyScreeningFilter(rows));
+        updateClipButtons();
       };
       if (
         !force
@@ -8322,17 +8533,16 @@
     }
 
     function simulationCandidates() {
-      const rows = (viewDataCache.screening.data || []).filter(hasPricedLeg);
+      let rows = (viewDataCache.screening.data || []).filter(hasPricedLeg);
       if (simulationFilter === "close") {
-        return rows.filter((row) => simRowClosestDist(row, simulationLegs) <= TRADE_CLOSE_PCT);
-      }
-      if (simulationFilter === "far") {
-        return rows.filter((row) => {
+        rows = rows.filter((row) => simRowClosestDist(row, simulationLegs) <= TRADE_CLOSE_PCT);
+      } else if (simulationFilter === "far") {
+        rows = rows.filter((row) => {
           const distance = simRowFarthestDist(row, simulationLegs);
           return Number.isFinite(distance) && distance > TRADE_FAR_PCT;
         });
       }
-      return rows;
+      return applyVirtualSymbolFilter(rows, "simulation");
     }
 
     function currentSimulationOrder() {
@@ -8439,16 +8649,20 @@
         : candidates;
       const scopedPlan = computeTradePlan(scopeRows, simulationLegs);
       renderSimulationKpis(scopedPlan, useSelection);
+      const emptyMsg = getVirtualSymbols("simulation") && !tablePlan.symbols.length
+        ? virtualFilterNoMatchMessage("simulation")
+        : "No symbols with planned trades in this filter.";
       tableEl.innerHTML = renderSortableTable(
         "simulation",
         simulationColumns,
         tablePlan.symbols,
-        "No symbols with planned trades in this filter.",
+        emptyMsg,
         {
           selectedKeys: selection,
           footerHtml: simulationTotalsFooterHtml(scopedPlan, useSelection),
         }
       );
+      updateClipButtons();
     }
 
     function setSimulationFilter(filter) {
@@ -8478,6 +8692,7 @@
       }
       if (restoreCriteria) applySimulationCriteria(restoreCriteria);
       const present = new Set((cache.data || []).filter(hasPricedLeg).map((row) => row.symbol));
+      pruneVirtualSymbols("simulation", present);
       multiSelection.simulation = new Set([...getMultiSelection("simulation")].filter((symbol) => present.has(symbol)));
       if (multiAnchor.simulation && !present.has(multiAnchor.simulation)) multiAnchor.simulation = null;
       renderSimulationView();
@@ -8537,15 +8752,55 @@
     async function loadFibMap(force = false) {
       const cache = viewDataCache.fib;
       const now = Date.now();
-      if (!force && cache.data && now - cache.fetchedAt < VIEW_CACHE_TTL_MS) {
+      const virtual = getVirtualSymbols("fib");
+      const scopedSymbols = virtual?.size ? [...virtual] : null;
+      const isFilteredRefresh = Boolean(scopedSymbols?.length && force);
+
+      if (!force && !scopedSymbols && cache.data && now - cache.fetchedAt < VIEW_CACHE_TTL_MS) {
         fibMapData = cache.data;
+        pruneVirtualSymbols("fib", fibMapData.map((row) => row.symbol));
         renderFibMapView();
         return;
       }
-      const data = await api("/fib-proximity");
-      fibMapData = data.results || [];
-      cache.data = fibMapData;
-      cache.fetchedAt = now;
+
+      const path = isFilteredRefresh
+        ? `/fib-proximity?symbols=${scopedSymbols.map(encodeURIComponent).join(",")}`
+        : "/fib-proximity";
+      const data = await api(path);
+      const fresh = data.results || [];
+
+      if (isFilteredRefresh) {
+        const merged = new Map((cache.data || fibMapData || []).map((row) => [row.symbol, row]));
+        for (const row of fresh) {
+          if (virtual.has(row.symbol)) merged.set(row.symbol, row);
+        }
+        fibMapData = [...merged.values()].sort((left, right) => {
+          const leftDist = left.distancePct ?? 999;
+          const rightDist = right.distancePct ?? 999;
+          return leftDist - rightDist;
+        });
+        cache.data = fibMapData;
+        cache.fetchedAt = now;
+        const updated = fresh.filter((row) => virtual.has(row.symbol)).length;
+        const total = scopedSymbols.length;
+        setStatus(
+          `Refreshed ${updated} of ${total} filtered symbol${total === 1 ? "" : "s"}.`,
+          "success"
+        );
+        markRefreshed(`Patterns · ${total} filtered`);
+      } else {
+        fibMapData = fresh;
+        cache.data = fibMapData;
+        cache.fetchedAt = now;
+        if (force) {
+          setStatus(
+            `Refreshed all ${fresh.length} symbol${fresh.length === 1 ? "" : "s"}.`,
+            "success"
+          );
+          markRefreshed("Patterns · all symbols");
+        }
+      }
+      pruneVirtualSymbols("fib", fibMapData.map((row) => row.symbol));
       renderFibMapView();
     }
 
@@ -10023,6 +10278,9 @@
       --portfolio-tab-accent-dim: rgba(59, 130, 246, 0.28);
       --symbol-tab-accent: #38bdf8;
       --symbol-tab-accent-dim: rgba(56, 189, 248, 0.28);
+      --vp-filter: #a78bfa;
+      --vp-filter-dim: rgba(167, 139, 250, 0.16);
+      --vp-filter-border: rgba(167, 139, 250, 0.42);
     }
     html, body {
       -webkit-print-color-adjust: exact;
@@ -11053,11 +11311,24 @@
       }
     }
 
+    function fundamentalsRowsForDisplay() {
+      return applyVirtualSymbolFilter(fundamentalsRows, "fundamentals");
+    }
+
+    function fundamentalsEmptyMessage(rows) {
+      if (getVirtualSymbols("fundamentals") && !rows.length) {
+        return virtualFilterNoMatchMessage("fundamentals");
+      }
+      return "No symbols to compare. Add symbols first.";
+    }
+
     function renderFundamentalsTable() {
       const container = document.getElementById("fundamentalsTable");
       const tableId = FUND_TABLE_IDS[fundamentalsTab];
       const columns = fundamentalsColumns(fundamentalsTab);
-      const table = renderSortableTable(tableId, columns, fundamentalsRows, "No symbols to compare. Add symbols first.", { selectedKeys: pastedKeysFor(tableId) });
+      const rows = fundamentalsRowsForDisplay();
+      tableDataCache.fundamentals = rows;
+      const table = renderSortableTable(tableId, columns, rows, fundamentalsEmptyMessage(rows));
       if (fundamentalsTab === "range") {
         container.innerHTML = `
           <div class="fund-range-layout">
@@ -11070,6 +11341,7 @@
       } else {
         container.innerHTML = `<div class="fund-table-scroll portfolio-table-scroll">${table}</div>`;
       }
+      updateClipButtons();
     }
 
     function setFundamentalsTab(tab) {
@@ -11086,6 +11358,7 @@
       try {
         const data = await api("/fundamentals");
         fundamentalsRows = data.symbols || [];
+        pruneVirtualSymbols("fundamentals", fundamentalsRows.map((row) => row.symbol));
         if (!fundamentalsNewsSymbol && fundamentalsRows.length) {
           fundamentalsNewsSymbol = fundamentalsRows[0].symbol;
         }
@@ -11130,8 +11403,7 @@
           handleMultiSelectClick(tableId, selectableRow.dataset.rowKey, event);
           return;
         } else if (tableId) {
-          // A manual click drops any pasted multi-highlight and single-selects.
-          delete tablePastedKeys[selectionKeyFor(tableId)];
+          // A manual click single-selects the row.
           tableSelection[selectionKeyFor(tableId)] = selectableRow.dataset.rowKey;
           table.querySelectorAll("tbody tr.row-selected").forEach((tr) => tr.classList.remove("row-selected"));
           selectableRow.classList.add("row-selected");

@@ -488,6 +488,10 @@ def run_screen():
 
 @v1_bp.route("/fib-proximity", methods=["GET"])
 def fib_proximity():
+    raw = request.args.get("symbols", "").strip()
+    if raw:
+        symbols = [part.strip().upper() for part in raw.split(",") if part.strip()]
+        return jsonify({"results": screening_service.fib_proximity_map(symbols=symbols)})
     return jsonify({"results": screening_service.fib_proximity_map()})
 
 
