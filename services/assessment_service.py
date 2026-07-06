@@ -7,12 +7,14 @@ from typing import Any
 
 from db.database import get_connection, get_current_user_id
 from services.alerts_service import AlertsService
+from services.assessment_overlay_service import AssessmentOverlayService
 from services.fib_service import FibService
 from services.fundamentals_service import FundamentalsService
 from services.holdings_service import HoldingsService
 from services.llm_client import LLMClient
 from services.portfolio_service import PortfolioService
 from services.screening_service import ScreeningService
+from services.symbol_assessment_service import DEDUP_BASE_ASSESSMENT, SymbolAssessmentService
 from services.technical_service import TechnicalService
 from services.technical_signals_service import TechnicalSignalsService
 
@@ -77,15 +79,24 @@ class AssessmentService:
         self.technical_signals_service = TechnicalSignalsService()
         self.llm_client = LLMClient()
         self.assess_workers = max(1, int(os.environ.get("ASSESS_WORKERS", "6")))
+        self.symbol_assessment_service = SymbolAssessmentService()
+        self.overlay_service = AssessmentOverlayService(self.llm_client)
 
     def _compute_assessment(self, symbol: str) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Build context and run the (slow, network-bound) LLM call. No DB writes."""
+        """Build context and run assessment (shared base + personal overlay when enabled)."""
         symbol = symbol.upper()
         symbol_data = self.portfolio_service.get_symbol(symbol)
         if symbol_data is None:
             raise ValueError(f"Symbol {symbol} not found.")
         context = self._build_context(symbol_data)
-        result = self.llm_client.generate_assessment(context)
+        if DEDUP_BASE_ASSESSMENT:
+            base = self.symbol_assessment_service.get_or_compute_today(symbol)
+            result = self.overlay_service.apply(base, context)
+            if base.get("llmFallback"):
+                result["llmFallback"] = True
+                result["llmError"] = base.get("llmError")
+        else:
+            result = self.llm_client.generate_assessment(context)
         return result, context
 
     def assess_symbol(self, symbol: str) -> dict[str, Any]:
@@ -370,6 +381,10 @@ class AssessmentService:
         # Additive only — there is no DB column, so it rides on the returned payload.
         if result.get("actionSource"):
             assessment["actionSource"] = result["actionSource"]
+        if result.get("baseAssessmentDate"):
+            assessment["baseAssessmentDate"] = result["baseAssessmentDate"]
+        if result.get("baseFromCache") is not None:
+            assessment["baseFromCache"] = result["baseFromCache"]
         assessment["context"] = context
         return assessment
 

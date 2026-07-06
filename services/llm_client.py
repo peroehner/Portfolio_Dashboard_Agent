@@ -260,6 +260,167 @@ class LLMClient:
         result["actionSource"] = "rule_hard_trigger" if hard else "rules_fallback"
         return result
 
+    def generate_base_assessment(self, context: dict[str, Any]) -> dict[str, Any]:
+        """Symbol-level assessment without personal thresholds, notes, or holdings.
+
+        One result per (symbol, UTC day) is stored in ``symbol_assessment`` and
+        personalized per user by ``AssessmentOverlayService``.
+        """
+        provider = self.active_provider()
+        if provider in ("openai", "gemini"):
+            try:
+                raw = (
+                    self._call_openai_base_assessment(context)
+                    if provider == "openai"
+                    else self._call_gemini_base_assessment(context)
+                )
+                result = self._normalize_assessment(
+                    raw,
+                    provider=provider,
+                    combined=self._empty_synthesis(),
+                )
+                result["actionSource"] = "llm"
+                return result
+            except (RuntimeError, json.JSONDecodeError, KeyError, ValueError) as exc:
+                result = self._fallback_base_assessment(context, provider, exc)
+                result["actionSource"] = "rules_fallback"
+                return result
+
+        result = self._normalize_assessment(
+            self._rule_based_base_assessment(context),
+            provider="rules",
+            combined=self._empty_synthesis(),
+        )
+        result["actionSource"] = "rules_fallback"
+        return result
+
+    def _fallback_base_assessment(
+        self,
+        context: dict[str, Any],
+        provider: str,
+        exc: Exception,
+    ) -> dict[str, Any]:
+        logging.warning("LLM base assessment failed (%s), using rules fallback: %s", provider, exc)
+        result = self._normalize_assessment(
+            self._rule_based_base_assessment(context),
+            provider="rules",
+            combined=self._empty_synthesis(),
+        )
+        result["llmFallback"] = True
+        result["llmError"] = self._classify_llm_error(exc)
+        result["attemptedProvider"] = provider
+        return result
+
+    def _rule_based_base_assessment(self, context: dict[str, Any]) -> dict[str, Any]:
+        price = context.get("currentPrice")
+        analyst_target = context.get("analystTarget1y")
+        screening = context.get("screening") or {}
+
+        action = "hold"
+        confidence = "medium"
+        factors: list[str] = []
+
+        if analyst_target and price and analyst_target > price:
+            upside = screening.get("upsidePct")
+            if upside is not None and upside > 30:
+                action = "watch"
+                factors.append(f"Analyst 1Y target implies {upside:.1f}% upside.")
+
+        fib_distance = screening.get("fibDistancePct")
+        if fib_distance is not None and fib_distance <= 3:
+            action = "watch" if action == "hold" else action
+            factors.append("Price is near a key Fibonacci retracement level.")
+
+        factors.extend(self._fundamentals_factors(context.get("fundamentals") or {}, price))
+        factors.extend(self._technical_factors(context.get("technical") or {}))
+        news = context.get("recentNews") or []
+        if news:
+            factors.append(f"{len(news)} recent headline(s) in the news feed.")
+
+        rationale = (
+            f"{context['symbol']} market-level view from fundamentals, technicals, and news. "
+            + " ".join(factors or ["No major market-level trigger; neutral stance."])
+        )
+        return {
+            "action": action,
+            "confidence": confidence,
+            "rationale": rationale,
+            "factors": factors or ["No active market triggers."],
+            "noteSynthesis": self._empty_synthesis(),
+        }
+
+    def _base_assessment_system_prompt(self) -> str:
+        return (
+            "You are a portfolio assistant producing a SYMBOL-LEVEL market assessment "
+            "that will be reused for multiple investors. You do NOT have access to any "
+            "one user's buy/sell thresholds, personal target price, holdings, or private "
+            "notes — only shared market data: live price, analyst consensus, Fibonacci "
+            "levels, fundamentals, recent news headlines, and computed technical signals. "
+            "Weigh valuation vs growth, technical confluence, and news sentiment. "
+            "Respond only with JSON: action, confidence, rationale, factors, noteSynthesis. "
+            "action: buy | sell | hold | watch (market-level stance, not position sizing). "
+            "confidence: high | medium | low. "
+            "factors: short strings citing specific inputs. "
+            "rationale: 2-4 sentences on the symbol's market picture. "
+            "noteSynthesis: use an empty summary with sentiment neutral."
+        )
+
+    def _base_assessment_user_prompt(self, context: dict[str, Any]) -> str:
+        payload = {
+            **context,
+            "noteSyntheses": [],
+            "noteSynthesis": self._empty_synthesis(),
+            "unsynthesizedNoteCount": 0,
+            "alerts": [],
+            "holding": None,
+            "targetPrice": None,
+            "buyBelow": None,
+            "sellAbove": None,
+        }
+        return (
+            "Produce a symbol-level market assessment (no personal portfolio context).\n\n"
+            f"Context JSON:\n{json.dumps(payload, indent=2)}"
+        )
+
+    def _call_openai_base_assessment(self, context: dict[str, Any]) -> dict[str, Any]:
+        payload = {
+            "model": self.openai_model,
+            "messages": [
+                {"role": "system", "content": self._base_assessment_system_prompt()},
+                {"role": "user", "content": self._base_assessment_user_prompt(context)},
+            ],
+            "temperature": 0.2,
+            "response_format": {"type": "json_object"},
+        }
+        response = self._post_json(
+            "https://api.openai.com/v1/chat/completions",
+            payload,
+            headers={"Authorization": f"Bearer {self.openai_api_key}"},
+        )
+        return json.loads(response["choices"][0]["message"]["content"])
+
+    def _call_gemini_base_assessment(self, context: dict[str, Any]) -> dict[str, Any]:
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{self.gemini_model}:generateContent?key={self.gemini_api_key}"
+        )
+        payload = {
+            "contents": [{
+                "parts": [{
+                    "text": self._base_assessment_system_prompt()
+                    + "\n\n"
+                    + self._base_assessment_user_prompt(context),
+                }],
+            }],
+            "generationConfig": {
+                "temperature": 0.2,
+                "responseMimeType": "application/json",
+            },
+        }
+        response = self._post_json(url, payload)
+        content = response["candidates"][0]["content"]["parts"][0]["text"]
+        return json.loads(content)
+
     def _fallback_assessment(
         self,
         context: dict[str, Any],
