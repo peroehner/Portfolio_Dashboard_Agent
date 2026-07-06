@@ -104,6 +104,11 @@ class AssessmentService:
         return self._save_assessment(symbol.upper(), result, context)
 
     def assess_portfolio(self, symbols: list[str] | None = None) -> list[dict[str, Any]]:
+        from services.plan_service import ensure_can_assess_all, record_assess_all
+
+        ensure_can_assess_all()
+        record_assess_all()
+
         if symbols:
             symbol_list = [str(symbol).upper() for symbol in symbols]
         else:

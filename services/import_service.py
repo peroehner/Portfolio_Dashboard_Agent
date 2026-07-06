@@ -93,7 +93,11 @@ class ImportService:
         if not isinstance(payload, dict):
             raise ValueError("Import payload must be a JSON object.")
 
-        import_mode, cleared_symbols = self._prepare_import(mode)
+        import_mode = self._normalize_mode(mode)
+        self._validate_symbol_capacity(payload, import_mode)
+        cleared_symbols = 0
+        if import_mode == "replace":
+            cleared_symbols = self.portfolio_service.clear_portfolio()
         symbols_imported = 0
         symbols_added = 0
         symbols_updated = 0
@@ -753,6 +757,36 @@ class ImportService:
             "updated": existing,
             "holding": holding,
         }
+
+    def _collect_payload_symbols(self, payload: dict[str, Any]) -> list[str]:
+        symbols: list[str] = []
+        for list_key in ("positions", "symbols", "holdings"):
+            if list_key in payload and isinstance(payload[list_key], list):
+                for item in payload[list_key]:
+                    if isinstance(item, dict) and item.get("symbol"):
+                        symbols.append(str(item["symbol"]).upper())
+        for symbol, details in payload.items():
+            if symbol in ("positions", "symbols", "holdings", "portfolio", "metadata"):
+                continue
+            if not isinstance(details, dict):
+                continue
+            normalized = self._normalize_symbol_record(details)
+            if normalized or "_technical" in details or "notes" in details:
+                symbols.append(str(symbol).upper())
+        return symbols
+
+    def _validate_symbol_capacity(self, payload: dict[str, Any], mode: str) -> None:
+        from services.plan_service import ensure_can_add_symbols
+
+        incoming = set(self._collect_payload_symbols(payload))
+        if not incoming:
+            return
+        if mode == "replace":
+            ensure_can_add_symbols(len(incoming))
+            return
+        existing = {item["symbol"] for item in self.portfolio_service.list_symbols()}
+        new_count = len([symbol for symbol in incoming if symbol not in existing])
+        ensure_can_add_symbols(new_count)
 
     def _prepare_import(self, mode: str) -> tuple[str, int]:
         import_mode = self._normalize_mode(mode)

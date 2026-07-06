@@ -24,6 +24,18 @@ from services.llm_client import LLMClient
 v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
 
 
+def _plan_limit_response(exc) -> tuple:
+    from services.plan_service import PlanLimitExceeded
+
+    assert isinstance(exc, PlanLimitExceeded)
+    body: dict = {"error": str(exc), "code": exc.code}
+    if exc.limit is not None:
+        body["limit"] = exc.limit
+    if exc.used is not None:
+        body["used"] = exc.used
+    return jsonify(body), 403
+
+
 def _app_build_id() -> str | None:
     """Short git/deploy id for the About panel (env on Render, else local git)."""
     for key in ("BUILD_SHA", "RENDER_GIT_COMMIT", "GIT_COMMIT"):
@@ -81,8 +93,11 @@ def get_me():
     """Current authenticated user (or the bootstrap user when auth is disabled)."""
     from auth import AUTH_ENABLED
     from db.database import get_current_user_id, get_user
+    from services.plan_service import get_user_plan, limits_payload
 
-    user = get_user(get_current_user_id())
+    user_id = get_current_user_id()
+    user = get_user(user_id)
+    plan = get_user_plan(user_id) if user else None
     return jsonify({
         "authEnabled": AUTH_ENABLED,
         "user": {
@@ -90,7 +105,9 @@ def get_me():
             "email": user["email"],
             "name": user["name"],
             "picture": user["picture"],
+            "plan": plan,
         } if user else None,
+        "planLimits": limits_payload(plan, user_id) if user else None,
     })
 
 
@@ -190,7 +207,14 @@ def create_symbol():
     symbol = data.get("symbol")
     if not symbol:
         return jsonify({"error": "symbol is required."}), 400
-    item = portfolio_service.upsert_symbol(symbol, data)
+    try:
+        item = portfolio_service.upsert_symbol(symbol, data)
+    except Exception as exc:
+        from services.plan_service import PlanLimitExceeded
+
+        if isinstance(exc, PlanLimitExceeded):
+            return _plan_limit_response(exc)
+        raise
     # Pull a live quote for just this new symbol so the Target detail panel can
     # show its current price immediately (best-effort; a bad ticker just leaves
     # the price empty and the symbol still gets created for editing).
@@ -252,6 +276,12 @@ def synthesize_all_notes(symbol):
         return jsonify({"error": str(exc)}), 404
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 502
+    except Exception as exc:
+        from services.plan_service import PlanLimitExceeded
+
+        if isinstance(exc, PlanLimitExceeded):
+            return _plan_limit_response(exc)
+        raise
     return jsonify({"symbol": symbol.upper(), "notes": notes})
 
 
@@ -270,6 +300,12 @@ def synthesize_note(symbol, note_id):
         return jsonify({"error": str(exc)}), 404
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 502
+    except Exception as exc:
+        from services.plan_service import PlanLimitExceeded
+
+        if isinstance(exc, PlanLimitExceeded):
+            return _plan_limit_response(exc)
+        raise
     return jsonify(note)
 
 
@@ -324,6 +360,12 @@ def import_payload():
         result = import_service.import_payload(payload, mode=mode)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        from services.plan_service import PlanLimitExceeded
+
+        if isinstance(exc, PlanLimitExceeded):
+            return _plan_limit_response(exc)
+        raise
     return jsonify({"status": "success", **result})
 
 
@@ -342,6 +384,12 @@ def import_file():
         )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        from services.plan_service import PlanLimitExceeded
+
+        if isinstance(exc, PlanLimitExceeded):
+            return _plan_limit_response(exc)
+        raise
     logging.info(
         "Import file %s mode=%s cleared=%s imported=%s portfolio=%s",
         upload.filename,
@@ -578,6 +626,12 @@ def assess_portfolio():
         return jsonify({"error": str(exc)}), 404
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 502
+    except Exception as exc:
+        from services.plan_service import PlanLimitExceeded
+
+        if isinstance(exc, PlanLimitExceeded):
+            return _plan_limit_response(exc)
+        raise
     return jsonify({"status": "success", "assessments": assessments})
 
 

@@ -108,6 +108,9 @@ class PortfolioService:
                     ),
                 )
             else:
+                from services.plan_service import ensure_can_add_symbols
+
+                ensure_can_add_symbols(1, user_id)
                 trade_below_price = payload.get("trade_below_price")
                 trade_above_price = payload.get("trade_above_price")
                 buy_below = (

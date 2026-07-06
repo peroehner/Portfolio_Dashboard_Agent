@@ -289,6 +289,10 @@ class NotesService:
         if note.get("synthesis") and not force:
             return note
 
+        from services.plan_service import ensure_can_synthesize, record_note_synthesis
+
+        ensure_can_synthesize()
+
         # An optional directive embedded in the note body (front matter `prompt:`
         # or a leading `@prompt:` line) steers synthesis for THIS note and takes
         # precedence over any caller-supplied guidance. All call sites (auto-synth
@@ -312,6 +316,8 @@ class NotesService:
                 (synthesis_json, provider, note_id, user_id, symbol),
             )
             conn.commit()
+
+        record_note_synthesis()
 
         updated = self.get_note(symbol, note_id)
         assert updated is not None

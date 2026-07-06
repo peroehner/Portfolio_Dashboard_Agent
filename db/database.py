@@ -72,6 +72,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         email TEXT UNIQUE NOT NULL,
         name TEXT,
         picture TEXT,
+        plan TEXT NOT NULL DEFAULT 'free',
         prefer_computed_trends BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TEXT NOT NULL DEFAULT app_now_text(),
         last_login_at TEXT
@@ -216,6 +217,15 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS user_daily_usage (
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        usage_date TEXT NOT NULL,
+        note_syntheses INTEGER NOT NULL DEFAULT 0,
+        assess_all_runs INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, usage_date)
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS symbol_market (
         symbol TEXT PRIMARY KEY,
         current_price DOUBLE PRECISION,
@@ -277,7 +287,17 @@ MIGRATION_STATEMENTS: tuple[str, ...] = (
     "ALTER TABLE holdings ADD COLUMN IF NOT EXISTS purchase_date TEXT",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS picture TEXT",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TEXT",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free'",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS prefer_computed_trends BOOLEAN NOT NULL DEFAULT FALSE",
+    """
+    CREATE TABLE IF NOT EXISTS user_daily_usage (
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        usage_date TEXT NOT NULL,
+        note_syntheses INTEGER NOT NULL DEFAULT 0,
+        assess_all_runs INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, usage_date)
+    )
+    """,
 )
 
 BOOTSTRAP_USER_EMAIL = os.environ.get("BOOTSTRAP_USER_EMAIL", "local@portfolio.local")
@@ -427,7 +447,7 @@ def get_or_create_user(
             (google_sub, email, name, picture),
         )
         row = conn.execute(
-            "SELECT id, google_sub, email, name, picture FROM users WHERE google_sub = %s",
+            "SELECT id, google_sub, email, name, picture, plan FROM users WHERE google_sub = %s",
             (google_sub,),
         ).fetchone()
         conn.commit()
@@ -437,7 +457,7 @@ def get_or_create_user(
 def get_user(user_id: int) -> dict | None:
     with get_connection() as conn:
         return conn.execute(
-            "SELECT id, google_sub, email, name, picture FROM users WHERE id = %s",
+            "SELECT id, google_sub, email, name, picture, plan FROM users WHERE id = %s",
             (user_id,),
         ).fetchone()
 
