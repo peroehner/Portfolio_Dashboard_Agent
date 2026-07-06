@@ -59,7 +59,7 @@ class SymbolAssessmentServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         _reset_schema()
         set_current_user_id(get_bootstrap_user_id())
-        PortfolioService().upsert_symbol("AAPL", {"current_price": 100.0})
+        PortfolioService().upsert_symbol("AAPL", {"target_price": 120.0})
         with get_connection() as conn:
             conn.execute(
                 """

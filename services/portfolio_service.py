@@ -6,17 +6,6 @@ from services.notes_service import NotesService
 
 
 class PortfolioService:
-    SYMBOL_FIELDS = (
-        "current_price",
-        "target_price",
-        "buy_below",
-        "sell_above",
-        "trade_below_price",
-        "trade_below_shares",
-        "trade_above_price",
-        "trade_above_shares",
-    )
-
     def list_symbols(self) -> list[dict[str, Any]]:
         user_id = get_current_user_id()
         with get_connection() as conn:
@@ -65,6 +54,7 @@ class PortfolioService:
         symbol = symbol.upper()
         user_id = get_current_user_id()
         payload = self._normalize_symbol_input(data)
+        self._maybe_seed_market(symbol, payload)
 
         with get_connection() as conn:
             existing = conn.execute(
@@ -74,7 +64,6 @@ class PortfolioService:
 
             if existing:
                 merged = {
-                    "current_price": payload.get("current_price", existing["current_price"]),
                     "target_price": payload.get("target_price", existing["target_price"]),
                     "buy_below": payload.get("buy_below", existing["buy_below"]),
                     "sell_above": payload.get("sell_above", existing["sell_above"]),
@@ -91,9 +80,6 @@ class PortfolioService:
                         "trade_above_shares", existing["trade_above_shares"]
                     ),
                     "annual_dividend": payload.get("annual_dividend", existing["annual_dividend"]),
-                    "analyst_target_1y": payload.get(
-                        "analyst_target_1y", existing["analyst_target_1y"]
-                    ),
                 }
                 if merged["trade_below_price"] is not None:
                     merged["buy_below"] = merged["trade_below_price"]
@@ -102,14 +88,13 @@ class PortfolioService:
                 conn.execute(
                     """
                     UPDATE symbols
-                    SET current_price = %s, target_price = %s, buy_below = %s, sell_above = %s,
+                    SET target_price = %s, buy_below = %s, sell_above = %s,
                         trade_below_price = %s, trade_below_shares = %s,
                         trade_above_price = %s, trade_above_shares = %s,
-                        annual_dividend = %s, analyst_target_1y = %s, updated_at = app_now_text()
+                        annual_dividend = %s, updated_at = app_now_text()
                     WHERE user_id = %s AND symbol = %s
                     """,
                     (
-                        merged["current_price"],
                         merged["target_price"],
                         merged["buy_below"],
                         merged["sell_above"],
@@ -118,7 +103,6 @@ class PortfolioService:
                         merged["trade_above_price"],
                         merged["trade_above_shares"],
                         merged["annual_dividend"],
-                        merged["analyst_target_1y"],
                         user_id,
                         symbol,
                     ),
@@ -139,17 +123,16 @@ class PortfolioService:
                 conn.execute(
                     """
                     INSERT INTO symbols (
-                        user_id, symbol, current_price, target_price, buy_below, sell_above,
+                        user_id, symbol, target_price, buy_below, sell_above,
                         trade_below_price, trade_below_shares,
                         trade_above_price, trade_above_shares,
-                        annual_dividend, analyst_target_1y
+                        annual_dividend
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         user_id,
                         symbol,
-                        payload.get("current_price"),
                         payload.get("target_price"),
                         buy_below,
                         sell_above,
@@ -158,7 +141,6 @@ class PortfolioService:
                         trade_above_price,
                         payload.get("trade_above_shares"),
                         payload.get("annual_dividend"),
-                        payload.get("analyst_target_1y"),
                     ),
                 )
             conn.commit()
@@ -241,6 +223,15 @@ class PortfolioService:
             }
         return portfolio
 
+    def _maybe_seed_market(self, symbol: str, payload: dict[str, float | None]) -> None:
+        market_payload = {
+            key: payload[key]
+            for key in ("current_price", "analyst_target_1y")
+            if key in payload and payload[key] is not None
+        }
+        if market_payload:
+            MarketDataService().seed_from_import(symbol, market_payload)
+
     def _normalize_symbol_input(self, data: dict[str, Any]) -> dict[str, float | None]:
         normalized: dict[str, float | None] = {}
         # Price-like fields: rounded to 2dp.
@@ -286,41 +277,15 @@ class PortfolioService:
 
     def _row_to_symbol(self, row, include_notes: bool) -> dict[str, Any]:
         keys = row.keys()
-        current_price = row["market_current_price"] if row.get("market_current_price") is not None else row["current_price"]
-        day_change_pct = (
-            row["market_day_change_pct"]
-            if row.get("market_day_change_pct") is not None
-            else (row["day_change_pct"] if "day_change_pct" in keys else None)
-        )
-        price_as_of = (
-            row["market_price_as_of"]
-            if row.get("market_price_as_of") is not None
-            else (row["price_as_of"] if "price_as_of" in keys else None)
-        )
-        analyst_target_1y = (
-            row["market_analyst_target_1y"]
-            if row.get("market_analyst_target_1y") is not None
-            else row["analyst_target_1y"]
-        )
-        analyst_target_low = (
-            row["market_analyst_target_low"]
-            if row.get("market_analyst_target_low") is not None
-            else (row["analyst_target_low"] if "analyst_target_low" in keys else None)
-        )
-        analyst_target_high = (
-            row["market_analyst_target_high"]
-            if row.get("market_analyst_target_high") is not None
-            else (row["analyst_target_high"] if "analyst_target_high" in keys else None)
-        )
         symbol = {
             "symbol": row["symbol"],
-            "currentPrice": current_price,
-            "dayChangePct": day_change_pct,
-            "priceAsOf": price_as_of,
+            "currentPrice": row.get("market_current_price"),
+            "dayChangePct": row.get("market_day_change_pct"),
+            "priceAsOf": row.get("market_price_as_of"),
             "targetPrice": row["target_price"],
-            "analystTarget1y": analyst_target_1y,
-            "analystTargetLow": analyst_target_low,
-            "analystTargetHigh": analyst_target_high,
+            "analystTarget1y": row.get("market_analyst_target_1y"),
+            "analystTargetLow": row.get("market_analyst_target_low"),
+            "analystTargetHigh": row.get("market_analyst_target_high"),
             "buyBelow": row["buy_below"],
             "sellAbove": row["sell_above"],
             "tradeBelowPrice": row["trade_below_price"] if "trade_below_price" in keys else None,

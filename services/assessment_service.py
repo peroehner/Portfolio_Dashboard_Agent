@@ -177,7 +177,7 @@ class AssessmentService:
                 """
                 SELECT a.symbol, a.action, a.confidence, a.rationale, a.factors,
                        a.provider, a.created_at,
-                       s.current_price, s.target_price, s.analyst_target_1y
+                       m.current_price, s.target_price, m.analyst_target_1y
                 FROM (
                     SELECT *, ROW_NUMBER() OVER (
                         PARTITION BY symbol ORDER BY created_at DESC, id DESC
@@ -186,6 +186,7 @@ class AssessmentService:
                     WHERE user_id = %s
                 ) a
                 JOIN symbols s ON s.user_id = %s AND s.symbol = a.symbol
+                LEFT JOIN symbol_market m ON m.symbol = a.symbol
                 WHERE a.rn = 1
                 ORDER BY a.created_at DESC, a.symbol
                 """,

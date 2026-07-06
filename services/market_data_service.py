@@ -140,6 +140,27 @@ class MarketDataService:
             )
             conn.commit()
 
+    def seed_from_import(self, symbol: str, data: dict[str, Any]) -> None:
+        """Persist import-time market hints on symbol_market (shared, optional)."""
+        symbol = symbol.upper()
+        price = data.get("current_price")
+        analyst_target = data.get("analyst_target_1y")
+        if price is None and analyst_target is None:
+            return
+        with get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO symbol_market (symbol, current_price, analyst_target_1y, updated_at)
+                VALUES (%s, %s, %s, app_now_text())
+                ON CONFLICT (symbol) DO UPDATE SET
+                    current_price = COALESCE(EXCLUDED.current_price, symbol_market.current_price),
+                    analyst_target_1y = COALESCE(EXCLUDED.analyst_target_1y, symbol_market.analyst_target_1y),
+                    updated_at = app_now_text()
+                """,
+                (symbol, price, analyst_target),
+            )
+            conn.commit()
+
     def sync_quotes(
         self,
         engine,
@@ -214,39 +235,9 @@ class MarketDataService:
                 )
 
                 if price is not None:
-                    conn.execute(
-                        """
-                        UPDATE symbols
-                        SET current_price = %s,
-                            day_change_pct = COALESCE(%s, day_change_pct),
-                            price_as_of = COALESCE(%s, price_as_of),
-                            updated_at = app_now_text()
-                        WHERE symbol = %s
-                        """,
-                        (price, day_change_pct, as_of, symbol),
-                    )
                     updated_prices += 1
                 if analyst_target is not None:
-                    conn.execute(
-                        """
-                        UPDATE symbols
-                        SET analyst_target_1y = %s, updated_at = app_now_text()
-                        WHERE symbol = %s
-                        """,
-                        (analyst_target, symbol),
-                    )
                     updated_targets += 1
-                if analyst_low is not None or analyst_high is not None:
-                    conn.execute(
-                        """
-                        UPDATE symbols
-                        SET analyst_target_low = COALESCE(%s, analyst_target_low),
-                            analyst_target_high = COALESCE(%s, analyst_target_high),
-                            updated_at = app_now_text()
-                        WHERE symbol = %s
-                        """,
-                        (analyst_low, analyst_high, symbol),
-                    )
             conn.commit()
 
         return {

@@ -89,7 +89,7 @@ class MarketDataServiceTests(unittest.TestCase):
                 ("AAPL",),
             ).fetchone()
             user_rows = conn.execute(
-                "SELECT user_id, current_price, target_price FROM symbols WHERE symbol = %s ORDER BY user_id",
+                "SELECT user_id, target_price FROM symbols WHERE symbol = %s ORDER BY user_id",
                 ("AAPL",),
             ).fetchall()
 
@@ -97,7 +97,6 @@ class MarketDataServiceTests(unittest.TestCase):
         self.assertEqual(market["current_price"], 101.5)
         self.assertEqual(market["analyst_target_1y"], 120.0)
         self.assertEqual(len(user_rows), 2)
-        self.assertTrue(all(row["current_price"] == 101.5 for row in user_rows))
         targets = sorted(row["target_price"] for row in user_rows)
         self.assertEqual(targets, [150.0, 160.0])
 

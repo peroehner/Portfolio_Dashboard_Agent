@@ -166,6 +166,15 @@ def background_sync_loop():
                 result["updated"],
                 total_new_alerts,
             )
+            try:
+                from services.daily_assessment_service import run_daily_assessments, should_run_today
+
+                if should_run_today():
+                    assess_result = run_daily_assessments(tickers)
+                    if not assess_result.get("skipped"):
+                        logging.info("Daily assessments: %s", assess_result)
+            except Exception:  # noqa: BLE001 - never block price sync
+                logging.exception("Daily assessment worker failed")
         time.sleep(300)
 
 

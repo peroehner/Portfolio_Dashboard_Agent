@@ -16,10 +16,12 @@ class HoldingsService:
             rows = conn.execute(
                 """
                 SELECT h.symbol, h.quantity, h.cost_basis, h.purchase_date, h.account_name,
-                       h.created_at, h.updated_at, s.current_price, s.day_change_pct,
-                       s.annual_dividend, s.analyst_target_1y, s.target_price
+                       h.created_at, h.updated_at,
+                       m.current_price, m.day_change_pct,
+                       s.annual_dividend, m.analyst_target_1y, s.target_price
                 FROM holdings h
                 LEFT JOIN symbols s ON s.user_id = h.user_id AND s.symbol = h.symbol
+                LEFT JOIN symbol_market m ON m.symbol = h.symbol
                 WHERE h.user_id = %s
                 ORDER BY h.symbol
                 """,
@@ -34,10 +36,12 @@ class HoldingsService:
             row = conn.execute(
                 """
                 SELECT h.symbol, h.quantity, h.cost_basis, h.purchase_date, h.account_name,
-                       h.created_at, h.updated_at, s.current_price, s.day_change_pct,
-                       s.annual_dividend, s.analyst_target_1y, s.target_price
+                       h.created_at, h.updated_at,
+                       m.current_price, m.day_change_pct,
+                       s.annual_dividend, m.analyst_target_1y, s.target_price
                 FROM holdings h
                 LEFT JOIN symbols s ON s.user_id = h.user_id AND s.symbol = h.symbol
+                LEFT JOIN symbol_market m ON m.symbol = h.symbol
                 WHERE h.user_id = %s AND h.symbol = %s
                 """,
                 (user_id, symbol),

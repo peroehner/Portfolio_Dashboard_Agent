@@ -81,7 +81,6 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     CREATE TABLE IF NOT EXISTS symbols (
         user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         symbol TEXT NOT NULL,
-        current_price DOUBLE PRECISION,
         target_price DOUBLE PRECISION,
         buy_below DOUBLE PRECISION,
         sell_above DOUBLE PRECISION,
@@ -90,11 +89,6 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         trade_above_price DOUBLE PRECISION,
         trade_above_shares DOUBLE PRECISION,
         annual_dividend DOUBLE PRECISION,
-        analyst_target_1y DOUBLE PRECISION,
-        analyst_target_low DOUBLE PRECISION,
-        analyst_target_high DOUBLE PRECISION,
-        day_change_pct DOUBLE PRECISION,
-        price_as_of TEXT,
         created_at TEXT NOT NULL DEFAULT app_now_text(),
         updated_at TEXT NOT NULL DEFAULT app_now_text(),
         PRIMARY KEY (user_id, symbol)
@@ -271,15 +265,10 @@ INDEX_STATEMENTS: tuple[str, ...] = (
 # without a manual migration. Safe to run on every boot.
 MIGRATION_STATEMENTS: tuple[str, ...] = (
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS annual_dividend DOUBLE PRECISION",
-    "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS analyst_target_1y DOUBLE PRECISION",
-    "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS analyst_target_low DOUBLE PRECISION",
-    "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS analyst_target_high DOUBLE PRECISION",
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS trade_below_price DOUBLE PRECISION",
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS trade_below_shares DOUBLE PRECISION",
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS trade_above_price DOUBLE PRECISION",
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS trade_above_shares DOUBLE PRECISION",
-    "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS day_change_pct DOUBLE PRECISION",
-    "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS price_as_of TEXT",
     "ALTER TABLE assessments ADD COLUMN IF NOT EXISTS note_synthesis TEXT",
     "ALTER TABLE assessments ADD COLUMN IF NOT EXISTS trading_recommendation TEXT",
     "ALTER TABLE notes ADD COLUMN IF NOT EXISTS synthesis TEXT",
@@ -562,12 +551,32 @@ def _run_data_migrations(conn: psycopg.Connection) -> None:
     _backfill_symbol_market(conn)
 
 
+def _symbols_has_market_columns(conn: psycopg.Connection) -> bool:
+    row = conn.execute(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'symbols'
+          AND column_name = 'current_price'
+        """
+    ).fetchone()
+    return row is not None
+
+
 def _backfill_symbol_market(conn: psycopg.Connection) -> None:
     """Copy the newest per-user market columns into symbol_market (one row per ticker)."""
     row = conn.execute(
         "SELECT 1 FROM app_meta WHERE key = %s", ("symbol_market_backfill_v1",)
     ).fetchone()
     if row is not None:
+        return
+    if not _symbols_has_market_columns(conn):
+        conn.execute(
+            "INSERT INTO app_meta (key, value) VALUES (%s, app_now_text()) "
+            "ON CONFLICT (key) DO NOTHING",
+            ("symbol_market_backfill_v1",),
+        )
         return
     conn.execute(
         """
@@ -603,6 +612,34 @@ def _backfill_symbol_market(conn: psycopg.Connection) -> None:
         "INSERT INTO app_meta (key, value) VALUES (%s, app_now_text()) "
         "ON CONFLICT (key) DO NOTHING",
         ("symbol_market_backfill_v1",),
+    )
+
+
+_SYMBOLS_MARKET_COLUMNS = (
+    "current_price",
+    "day_change_pct",
+    "price_as_of",
+    "analyst_target_1y",
+    "analyst_target_low",
+    "analyst_target_high",
+)
+
+
+def _slim_symbols_to_personal_only(conn: psycopg.Connection) -> None:
+    """Drop market columns from per-user symbols; symbol_market is canonical."""
+    row = conn.execute(
+        "SELECT 1 FROM app_meta WHERE key = %s", ("symbols_slim_v1",)
+    ).fetchone()
+    if row is not None:
+        return
+    if _symbols_has_market_columns(conn):
+        _backfill_symbol_market(conn)
+    for column in _SYMBOLS_MARKET_COLUMNS:
+        conn.execute(f"ALTER TABLE symbols DROP COLUMN IF EXISTS {column}")
+    conn.execute(
+        "INSERT INTO app_meta (key, value) VALUES (%s, app_now_text()) "
+        "ON CONFLICT (key) DO NOTHING",
+        ("symbols_slim_v1",),
     )
 
 
@@ -653,6 +690,8 @@ def init_db() -> None:
             conn.execute(statement)
         # 5. Data-level migrations / cleanups.
         _run_data_migrations(conn)
-        # 6. One-time seed of planned-trade prices from legacy buy/sell zones.
+        # 6. Drop legacy market columns from symbols (symbol_market is canonical).
+        _slim_symbols_to_personal_only(conn)
+        # 7. One-time seed of planned-trade prices from legacy buy/sell zones.
         _seed_trade_thresholds(conn)
         conn.commit()
