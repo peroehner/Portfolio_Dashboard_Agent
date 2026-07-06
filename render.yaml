@@ -55,5 +55,8 @@ services:
         sync: false
       - key: OAUTH_REDIRECT_URI
         sync: false
+      # Commercialization Phase A (optional — defaults are on):
+      #   DEDUP_BASE_ASSESSMENT=1, DAILY_ASSESSMENT_WORKER=1
+      #   SYMBOL_MARKET_FUNDAMENTALS=1
       # Other optional keys (set in dashboard):
       # LLM_PROVIDER, OPENAI_API_KEY, GEMINI_API_KEY, FINNHUB_API_KEY
