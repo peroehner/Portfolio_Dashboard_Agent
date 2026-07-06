@@ -1074,6 +1074,31 @@
     }
     .import-note.success { color: var(--accent-2); }
     .import-note.error { color: var(--danger); }
+    .plan-usage-hint {
+      margin: 0 0 0.35rem;
+      font-size: 0.82rem;
+      color: var(--muted, #9aa8bc);
+    }
+    .plan-badge {
+      display: inline-block;
+      padding: 0.1rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      background: #1e293b;
+    }
+    .plan-badge.plan-free { border-color: #475569; color: #94a3b8; }
+    .plan-badge.plan-standard { border-color: #2563eb; color: #93c5fd; background: #172554; }
+    .plan-badge.plan-pro { border-color: #7c3aed; color: #c4b5fd; background: #2e1065; }
+    .nav-agent-btn:disabled,
+    button.secondary:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
     .chip {
       display: inline-block;
       padding: 0.15rem 0.5rem;
@@ -3481,6 +3506,7 @@
     <div class="actions">
       <span id="userChip" hidden style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#9aa8bc">
         <img id="userAvatar" alt="" width="24" height="24" style="border-radius:50%;display:none">
+        <span id="userPlanBadge" class="plan-badge" hidden></span>
         <span id="userEmail"></span>
         <a id="logoutLink" href="/auth/logout" style="display:none;color:#7aa2f7;text-decoration:none">Logout</a>
       </span>
@@ -3738,6 +3764,7 @@
         <button type="button" class="secondary" onclick="exportPortfolio()">Export Portfolio</button>
         <input type="file" id="importFile" accept=".json,.csv,.txt,application/json,text/csv,text/plain" hidden>
       </div>
+      <p class="plan-usage-hint" id="planUsageHint" hidden></p>
       <p class="import-note" id="importNote">Merge updates existing symbols; replace clears all, then loads file only. Export saves a JSON snapshot (symbols, shares, purchase date, avg cost, thresholds, targets, notes) you can edit and re-import.</p>
     </div>
   </div>
@@ -3774,7 +3801,7 @@
       <form id="addSymbolForm" class="add-symbol-form">
         <label>Symbol</label>
         <input name="symbol" placeholder="AAPL" required>
-        <button type="submit" style="width:100%; margin-top:0.75rem;">Add Symbol</button>
+        <button type="submit" id="btnAddSymbol" style="width:100%; margin-top:0.75rem;">Add Symbol</button>
       </form>
     </section>
 
@@ -3891,7 +3918,7 @@
             <div class="empty" style="margin-top:0.35rem;">Tip: start a note with <code>@prompt: …</code> or a <code>--- prompt: --- </code> block to steer synthesis for that note.</div>
             <div class="target-actions" style="margin-top:0.5rem;">
               <button type="submit">Add Note</button>
-              <button type="button" class="secondary" onclick="synthesizeAllNotes()">Synthesize All Notes</button>
+              <button type="button" class="secondary" id="btnSynthesizeAll" onclick="synthesizeAllNotes()">Synthesize All Notes</button>
             </div>
           </form>
           <div id="noteSynthesisPreview"></div>
@@ -4077,7 +4104,13 @@
         ...options,
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || data.message || `Request failed (${response.status})`);
+      if (!response.ok) {
+        const error = new Error(data.error || data.message || `Request failed (${response.status})`);
+        if (data.code) error.code = data.code;
+        if (data.limit != null) error.limit = data.limit;
+        if (data.used != null) error.used = data.used;
+        throw error;
+      }
       return data;
     }
 
@@ -4286,6 +4319,135 @@
     }
 
     let signedInUserId = null;
+    let planLimits = null;
+
+    function formatPlanLabel(plan) {
+      const labels = { free: "Free", standard: "Standard", pro: "Pro" };
+      return labels[plan] || plan || "";
+    }
+
+    function synthesisRemaining() {
+      if (!planLimits || planLimits.noteSynthesisPerDay == null) return Infinity;
+      const used = planLimits.usage?.noteSyntheses || 0;
+      return Math.max(0, planLimits.noteSynthesisPerDay - used);
+    }
+
+    function assessAllRemaining() {
+      if (!planLimits || planLimits.assessAllPerDay == null) return Infinity;
+      const used = planLimits.usage?.assessAllRuns || 0;
+      return Math.max(0, planLimits.assessAllPerDay - used);
+    }
+
+    function isAtSymbolLimit() {
+      if (!planLimits || planLimits.maxSymbols == null) return false;
+      return (planLimits.symbolCount || 0) >= planLimits.maxSymbols;
+    }
+
+    function planErrorMessage(error) {
+      if (!error) return "Request failed";
+      if (error.message) return error.message;
+      return "Request failed";
+    }
+
+    function planLimitHint(code) {
+      if (!planLimits) return "";
+      if (code === "symbol_limit") {
+        return planLimits.maxSymbols == null
+          ? ""
+          : `Symbol cap: ${planLimits.symbolCount} tracked · ${planLimits.maxSymbols} max for new adds.`;
+      }
+      if (code === "note_synthesis_limit") {
+        return planLimits.noteSynthesisPerDay == null
+          ? ""
+          : `Daily synthesis limit (${planLimits.noteSynthesisPerDay}/day) reached.`;
+      }
+      if (code === "assess_all_limit") {
+        return planLimits.assessAllPerDay == null
+          ? ""
+          : `Daily Assess Portfolio limit (${planLimits.assessAllPerDay}/day) reached.`;
+      }
+      return "";
+    }
+
+    function renderPlanUsageHint() {
+      const hint = document.getElementById("planUsageHint");
+      if (!hint || !planLimits) {
+        if (hint) hint.hidden = true;
+        return;
+      }
+      const parts = [`Plan: ${formatPlanLabel(planLimits.plan)}`];
+      if (planLimits.maxSymbols != null) {
+        const atCap = isAtSymbolLimit();
+        parts.push(
+          atCap && planLimits.symbolCount > planLimits.maxSymbols
+            ? `${planLimits.symbolCount} symbols (cap ${planLimits.maxSymbols} for new adds)`
+            : `${planLimits.symbolCount} / ${planLimits.maxSymbols} symbols`,
+        );
+      } else if (planLimits.symbolCount != null) {
+        parts.push(`${planLimits.symbolCount} symbols`);
+      }
+      if (planLimits.noteSynthesisPerDay != null) {
+        parts.push(`synthesis ${planLimits.usage?.noteSyntheses || 0} / ${planLimits.noteSynthesisPerDay} today`);
+      }
+      if (planLimits.assessAllPerDay != null) {
+        parts.push(`Assess All ${planLimits.usage?.assessAllRuns || 0} / ${planLimits.assessAllPerDay} today`);
+      }
+      hint.textContent = parts.join(" · ");
+      hint.hidden = false;
+    }
+
+    function applyPlanLimitsUI() {
+      if (!planLimits) return;
+      renderPlanUsageHint();
+
+      const assessBtn = document.getElementById("btnAssess");
+      const synthAllBtn = document.getElementById("btnSynthesizeAll");
+      const addBtn = document.getElementById("btnAddSymbol");
+      const assessBlocked = assessAllRemaining() <= 0;
+      const synthBlocked = synthesisRemaining() <= 0;
+      const symbolBlocked = isAtSymbolLimit();
+
+      if (assessBtn && !assessBtn.classList.contains("btn-pending")) {
+        assessBtn.disabled = assessBlocked;
+        assessBtn.title = assessBlocked ? planLimitHint("assess_all_limit") : "";
+      }
+      if (synthAllBtn) {
+        synthAllBtn.disabled = synthBlocked;
+        synthAllBtn.title = synthBlocked ? planLimitHint("note_synthesis_limit") : "";
+      }
+      if (addBtn) {
+        addBtn.disabled = symbolBlocked;
+        addBtn.title = symbolBlocked ? planLimitHint("symbol_limit") : "";
+      }
+      const symbolInput = document.querySelector("#addSymbolForm input[name=symbol]");
+      if (symbolInput) symbolInput.disabled = symbolBlocked;
+      if (currentNotes.length && document.getElementById("notesList") && editingNoteId == null) {
+        renderTargetNotesList(currentNotes);
+      }
+    }
+
+    function applyPlanFromMe(data) {
+      if (!data) return;
+      if (data.user?.plan) {
+        const badge = document.getElementById("userPlanBadge");
+        if (badge) {
+          badge.textContent = formatPlanLabel(data.user.plan);
+          badge.className = `plan-badge plan-${data.user.plan}`;
+          badge.hidden = false;
+        }
+      }
+      if (data.planLimits) {
+        planLimits = data.planLimits;
+        applyPlanLimitsUI();
+      }
+    }
+
+    async function refreshPlanLimits() {
+      try {
+        const data = await api("/me");
+        applyPlanFromMe(data);
+      } catch (_) { /* non-fatal */ }
+    }
 
     async function loadMe() {
       try {
@@ -4302,6 +4464,7 @@
         if (data.user.picture) { avatar.src = data.user.picture; avatar.style.display = "inline-block"; }
         if (data.authEnabled) document.getElementById("logoutLink").style.display = "inline";
         chip.hidden = false;
+        applyPlanFromMe(data);
       } catch (_) { /* non-fatal */ }
     }
 
@@ -4465,6 +4628,7 @@
             window.location.reload();
             return;
           }
+          applyPlanFromMe(me);
         } catch (_) {
           return;
         }
@@ -5650,6 +5814,8 @@
       const synthesisBlock = synthesized
         ? renderSynthesisHtml(note.synthesis)
         : `<div class="empty" style="margin-top:0.35rem;">Not synthesized yet.</div>`;
+      const synthBlocked = synthesisRemaining() <= 0;
+      const synthTitle = synthBlocked ? escapeHtml(planLimitHint("note_synthesis_limit")) : "";
       return `
         <div class="note" data-note-id="${note.id}">
           <div class="note-head">
@@ -5659,7 +5825,7 @@
           ${synthesisBlock}
           <div class="actions" style="margin-top:0.4rem;">
             <button type="button" class="secondary" onclick="startEditNote(${note.id})">Edit</button>
-            <button type="button" class="secondary" onclick="synthesizeNote(${note.id}, ${synthesized ? "true" : "false"})">
+            <button type="button" class="secondary" ${synthBlocked ? "disabled" : ""} title="${synthTitle}" onclick="synthesizeNote(${note.id}, ${synthesized ? "true" : "false"})">
               ${synthesized ? "Re-synthesize" : "Synthesize"}
             </button>
             <button type="button" class="btn-danger" onclick="deleteTargetNote(${note.id})">Delete</button>
@@ -5823,6 +5989,10 @@
         setStatus("Note synthesis requires a server update — restart from Portfolio_Dashboard_Agent/ and redeploy.", "error");
         return;
       }
+      if (synthesisRemaining() <= 0) {
+        setStatus(planLimitHint("note_synthesis_limit") || "Daily synthesis limit reached.", "error");
+        return;
+      }
       if (hasExisting && !confirm("Re-synthesize this note? This replaces the stored synthesis.")) return;
       try {
         const url = `/symbols/${selectedSymbol}/notes/${noteId}/synthesize${hasExisting ? "?force=1" : ""}`;
@@ -5830,10 +6000,11 @@
           method: "POST",
           body: JSON.stringify({}),
         });
+        await refreshPlanLimits();
         await selectSymbol(selectedSymbol);
         setStatus(`Note synthesized for ${selectedSymbol}.`);
       } catch (error) {
-        setStatus(error.message, "error");
+        setStatus(planErrorMessage(error), "error");
       }
     }
 
@@ -5843,11 +6014,16 @@
         setStatus("Note synthesis requires a server update — restart from Portfolio_Dashboard_Agent/ and redeploy.", "error");
         return;
       }
+      if (synthesisRemaining() <= 0) {
+        setStatus(planLimitHint("note_synthesis_limit") || "Daily synthesis limit reached.", "error");
+        return;
+      }
       try {
         await api(`/symbols/${selectedSymbol}/notes/synthesize`, {
           method: "POST",
           body: JSON.stringify({}),
         });
+        await refreshPlanLimits();
         await selectSymbol(selectedSymbol);
         const notes = (await api(`/symbols/${selectedSymbol}`)).notes || [];
         const fallbacks = notes.filter((n) => n.synthesis && n.synthesis.llmFallback).length;
@@ -5859,7 +6035,7 @@
           fallbacks ? "error" : "success"
         );
       } catch (error) {
-        setStatus(error.message, "error");
+        setStatus(planErrorMessage(error), "error");
       }
     }
 
@@ -5868,6 +6044,10 @@
       const form = event.target;
       const symbol = form.symbol.value.trim().toUpperCase();
       if (!symbol) return;
+      if (isAtSymbolLimit()) {
+        setStatus(planLimitHint("symbol_limit") || "Symbol limit reached.", "error");
+        return;
+      }
       try {
         const created = await api("/symbols", {
           method: "POST",
@@ -5875,11 +6055,9 @@
         });
         form.reset();
         invalidateViewCaches();
-        // Make the just-added symbol the active selection so its current price,
-        // thresholds, and Personal Target open for editing right away. Seeding
-        // selectedSymbol first makes loadPortfolio() keep (not replace) it.
         const newSymbol = created?.symbol || symbol;
         selectedSymbol = newSymbol;
+        await refreshPlanLimits();
         await loadPortfolio();
         const priced = created?.currentPrice != null;
         setStatus(
@@ -5889,7 +6067,7 @@
           "success",
         );
       } catch (error) {
-        setStatus(error.message, "error");
+        setStatus(planErrorMessage(error), "error");
       }
     };
 
@@ -6019,17 +6197,24 @@
     }
 
     async function assessAll() {
+      if (assessAllRemaining() <= 0) {
+        setStatus(planLimitHint("assess_all_limit") || "Daily Assess Portfolio limit reached.", "error");
+        return;
+      }
       setStatus("Assessing portfolio… this can take a minute or two for a full portfolio.", "info");
       await withButtonPending("btnAssess", "Assessing…", async () => {
         try {
           const data = await api("/assess", { method: "POST" });
+          await refreshPlanLimits();
           await loadAssessments();
           await Promise.all([loadRecoChanges(), loadLatestAssessments()]);
           markRefreshed("SAI assessments");
           setStatus(`Generated ${data.assessments.length} assessments.`, "success");
           requestAnimationFrame(() => pulseUpdated("overviewMetrics"));
         } catch (error) {
-          setStatus(error.message, "error");
+          setStatus(planErrorMessage(error), "error");
+        } finally {
+          applyPlanLimitsUI();
         }
       });
     }
@@ -8261,7 +8446,13 @@
           body: form,
         });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Import failed");
+        if (!response.ok) {
+          const error = new Error(data.error || "Import failed");
+          if (data.code) error.code = data.code;
+          if (data.limit != null) error.limit = data.limit;
+          if (data.used != null) error.used = data.used;
+          throw error;
+        }
 
         if (mode === "replace") {
           if (data.mode !== "replace") {
@@ -8277,10 +8468,15 @@
         }
 
         await refreshAllViews(data, mode);
+        await refreshPlanLimits();
         setImportNote(summarizeImport(data, mode), "success");
         input.value = "";
       } catch (error) {
-        let msg = error.message;
+        let msg = planErrorMessage(error);
+        if (error.code) {
+          const hint = planLimitHint(error.code);
+          if (hint) msg = `${msg} ${hint}`;
+        }
         if (msg.includes("Unsupported file format") || msg.includes("importVersion")) {
           msg += " Restart the server: python3 main.py";
         }
