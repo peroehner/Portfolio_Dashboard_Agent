@@ -4604,13 +4604,40 @@
       });
       document.querySelectorAll("[data-vp-set]").forEach((btn) => {
         const tabId = btn.closest(".sel-clip-actions")?.dataset.clipTab;
-        const hasSelection = portfolioTabSelectedSymbols(tabId).length > 0;
+        const selected = portfolioTabSelectedSymbols(tabId);
+        const hasSelection = selected.length > 0;
         btn.disabled = !hasSelection;
-        btn.title = hasSelection
-          ? "Save the selected symbol(s) as the cross-tab filter"
-          : "Select symbol(s) in the table first";
+        updateSetFilterBtnTitle(btn, null);
       });
       updateFibRefreshButton();
+    }
+
+    function updateSetFilterBtnTitle(btn, event) {
+      const tabId = btn.closest(".sel-clip-actions")?.dataset.clipTab;
+      const count = portfolioTabSelectedSymbols(tabId).length;
+      if (!count) {
+        btn.title = "Select symbol(s) in the table first";
+        return;
+      }
+      const addMode = Boolean(event && (event.metaKey || event.ctrlKey));
+      btn.title = addMode
+        ? `Add ${count} selected symbol${count === 1 ? "" : "s"} to the cross-tab filter`
+        : `Save ${count} selected symbol${count === 1 ? "" : "s"} as the cross-tab filter`;
+    }
+
+    function initVpSetFilterHints() {
+      if (initVpSetFilterHints.done) return;
+      initVpSetFilterHints.done = true;
+      document.addEventListener("mouseover", (event) => {
+        const btn = event.target.closest("[data-vp-set]");
+        if (btn) updateSetFilterBtnTitle(btn, event);
+      });
+      const refreshHoveredSetFilterTitle = (event) => {
+        const btn = document.querySelector("[data-vp-set]:hover");
+        if (btn) updateSetFilterBtnTitle(btn, event);
+      };
+      document.addEventListener("keydown", refreshHoveredSetFilterTitle);
+      document.addEventListener("keyup", refreshHoveredSetFilterTitle);
     }
 
     const VP_FILTER_ICON = '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>';
@@ -4640,7 +4667,7 @@
       const svg = (inner) => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
       const setBtn = pasteOnly
         ? ""
-        : `<button type="button" class="vp-filter-btn" data-vp-set onclick="copyPortfolioSelection('${tabId}')" title="Select symbol(s) in the table first">${svg(setIcon)}<span>Set Filter</span></button>`;
+        : `<button type="button" class="vp-filter-btn" data-vp-set onclick="copyPortfolioSelection('${tabId}', event)" title="Select symbol(s) in the table first">${svg(setIcon)}<span>Set Filter</span></button>`;
       return setBtn
         + `<button type="button" class="vp-filter-btn" data-vp-apply onclick="pastePortfolioSelection('${tabId}')" disabled title="No filter set — use Set Filter first">${svg(filterIcon)}<span>Filter</span></button>`;
     }
@@ -4652,16 +4679,32 @@
       updateClipButtons();
     }
 
-    function copyPortfolioSelection(tabId) {
+    function copyPortfolioSelection(tabId, event) {
       if (!PORTFOLIO_CLIP_TABS.has(tabId)) return;
       const symbols = portfolioTabSelectedSymbols(tabId);
       if (!symbols.length) {
         setStatus("Select symbol(s) first, then Set Filter.", "error");
         return;
       }
-      selectionClipboard = symbols;
+      const incoming = symbols.map((s) => String(s).toUpperCase());
+      const addToFilter = Boolean(event && (event.metaKey || event.ctrlKey));
+      if (addToFilter && selectionClipboard.length) {
+        const previous = new Set(selectionClipboard.map((s) => String(s).toUpperCase()));
+        const merged = new Set([...previous, ...incoming]);
+        const addedCount = incoming.filter((s) => !previous.has(s)).length;
+        selectionClipboard = [...merged].sort();
+        updateClipButtons();
+        setStatus(
+          addedCount
+            ? `Added ${addedCount} symbol${addedCount === 1 ? "" : "s"} to filter (${selectionClipboard.length} total): ${selectionClipboard.join(", ")}.`
+            : `Filter unchanged (${selectionClipboard.length} symbol${selectionClipboard.length === 1 ? "" : "s"}).`,
+          addedCount ? "success" : "info"
+        );
+        return;
+      }
+      selectionClipboard = incoming;
       updateClipButtons();
-      setStatus(`Filter set: ${symbols.length} symbol${symbols.length === 1 ? "" : "s"} — ${symbols.join(", ")}.`, "success");
+      setStatus(`Filter set: ${incoming.length} symbol${incoming.length === 1 ? "" : "s"} — ${incoming.join(", ")}.`, "success");
     }
 
     function pastePortfolioSelection(tabId) {
@@ -11450,6 +11493,7 @@
     loadMe();
     resetNoteForm();
     renderSelClipControls();
+    initVpSetFilterHints();
     showView("overview");
     startAutoRefresh();
   </script>
