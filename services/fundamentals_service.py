@@ -35,6 +35,7 @@ from services.market_cache import (
     reset_yf_session,
     ticker_info_cache,
 )
+from services.market_data_service import MarketDataService
 
 # Finnhub's free tier allows ~60 API calls/minute. A whole-portfolio fetch can
 # burst past that, causing 429s. An optional global minimum interval between
@@ -193,6 +194,7 @@ class FundamentalsService:
         self.news_provider = os.environ.get("NEWS_PROVIDER", "").strip().lower()
         self.finnhub_api_key = os.environ.get("FINNHUB_API_KEY", "").strip()
         self.finnhub_news_days = int(os.environ.get("FINNHUB_NEWS_DAYS", "30"))
+        self.market_data_service = MarketDataService()
 
     def active_news_provider(self) -> str:
         if self.news_provider in ("finnhub", "yfinance"):
@@ -229,14 +231,22 @@ class FundamentalsService:
     def fetch_fundamentals(self, symbol: str) -> dict[str, Any]:
         """yfinance first; backfill from Finnhub when core financials are missing.
 
-        On datacenter IPs (e.g. Render) and increasingly on residential IPs,
-        Yahoo's quoteSummary often returns *partial* info: the price endpoint
-        still yields marketCap while the valuation/profitability modules fail.
-        A coarse "all empty" check would short-circuit the fallback and leave a
-        mostly-blank row, so instead we trigger Finnhub whenever the core
-        financials are missing and merge it into yfinance's gaps (yfinance wins
-        where it has a value).
+        When ``SYMBOL_MARKET_FUNDAMENTALS`` is enabled, a fresh row in
+        ``symbol_market.fundamentals_json`` is returned without hitting Yahoo.
+        Successful live fetches are written back for other users/processes.
         """
+        symbol = symbol.upper()
+        cached = self.market_data_service.get_fundamentals(symbol)
+        if cached is not None:
+            return cached
+
+        data = self._fetch_live_fundamentals(symbol)
+        if not self._is_empty_fundamentals(data):
+            self.market_data_service.save_fundamentals(symbol, data)
+        return data
+
+    def _fetch_live_fundamentals(self, symbol: str) -> dict[str, Any]:
+        """Network fetch path (yfinance + optional Finnhub merge)."""
         data = self._fetch_yfinance_fundamentals(symbol)
         if self._needs_finnhub(data) and self.finnhub_api_key:
             fh = self._cached_finnhub_fundamentals(symbol)

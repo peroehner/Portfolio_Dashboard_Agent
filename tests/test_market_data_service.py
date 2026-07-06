@@ -110,6 +110,95 @@ class MarketDataServiceTests(unittest.TestCase):
         self.assertEqual(symbol["currentPrice"], 101.5)
         self.assertEqual(symbol["targetPrice"], 150.0)
 
+    def test_save_and_get_fundamentals(self) -> None:
+        svc = MarketDataService()
+        sample = {
+            "valuation": {"forwardPe": 28.5, "marketCap": 3_000_000_000_000},
+            "growthProfitability": {"revenueGrowth": 0.08},
+        }
+        svc.save_fundamentals("AAPL", sample)
+        cached = svc.get_fundamentals("AAPL")
+        self.assertIsNotNone(cached)
+        assert cached is not None
+        self.assertEqual(cached["valuation"]["forwardPe"], 28.5)
+        self.assertEqual(cached["growthProfitability"]["revenueGrowth"], 0.08)
+
+    def test_get_fundamentals_miss_when_stale(self) -> None:
+        svc = MarketDataService()
+        sample = {"valuation": {"forwardPe": 20.0}}
+        svc.save_fundamentals("MSFT", sample)
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE symbol_market
+                SET fundamentals_json = jsonb_set(
+                    fundamentals_json,
+                    '{fetchedAt}',
+                    '"2020-01-01 00:00:00"'::jsonb
+                )
+                WHERE symbol = %s
+                """,
+                ("MSFT",),
+            )
+            conn.commit()
+        self.assertIsNone(svc.get_fundamentals("MSFT"))
+
+    def test_get_fundamentals_miss_when_disabled(self) -> None:
+        os.environ["SYMBOL_MARKET_FUNDAMENTALS"] = "0"
+        try:
+            svc = MarketDataService()
+            svc.save_fundamentals("GOOG", {"valuation": {"forwardPe": 22.0}})
+            self.assertIsNone(svc.get_fundamentals("GOOG"))
+        finally:
+            os.environ.pop("SYMBOL_MARKET_FUNDAMENTALS", None)
+
+
+@unittest.skipUnless(DB_AVAILABLE, "TEST_DATABASE_URL not set or unreachable")
+class FundamentalsPersistenceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        _reset_schema()
+        os.environ.pop("SYMBOL_MARKET_FUNDAMENTALS", None)
+
+    def test_fetch_fundamentals_reads_persisted_blob(self) -> None:
+        from unittest.mock import patch
+
+        from services.fundamentals_service import FundamentalsService
+
+        sample = {
+            "valuation": {"forwardPe": 31.0},
+            "growthProfitability": {"grossMargins": 0.45},
+        }
+        MarketDataService().save_fundamentals("NVDA", sample)
+
+        with patch.object(
+            FundamentalsService,
+            "_fetch_yfinance_fundamentals",
+            return_value={"valuation": {"forwardPe": 999.0}},
+        ) as mock_yf:
+            result = FundamentalsService().fetch_fundamentals("NVDA")
+
+        mock_yf.assert_not_called()
+        self.assertEqual(result["valuation"]["forwardPe"], 31.0)
+        self.assertEqual(result["growthProfitability"]["grossMargins"], 0.45)
+
+    def test_fetch_fundamentals_persists_live_fetch(self) -> None:
+        from unittest.mock import patch
+
+        from services.fundamentals_service import FundamentalsService
+
+        live = {
+            "valuation": {"forwardPe": 18.0},
+            "growthProfitability": {"operatingMargins": 0.25},
+        }
+        with patch.object(FundamentalsService, "_fetch_yfinance_fundamentals", return_value=live):
+            result = FundamentalsService().fetch_fundamentals("TSLA")
+
+        self.assertEqual(result["valuation"]["forwardPe"], 18.0)
+        cached = MarketDataService().get_fundamentals("TSLA")
+        self.assertIsNotNone(cached)
+        assert cached is not None
+        self.assertEqual(cached["growthProfitability"]["operatingMargins"], 0.25)
+
 
 if __name__ == "__main__":
     unittest.main()

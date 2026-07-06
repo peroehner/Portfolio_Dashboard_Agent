@@ -8,9 +8,30 @@ backward compatibility but reads prefer ``symbol_market``.
 
 from __future__ import annotations
 
+import json
+import os
+import time
+from datetime import datetime, timezone
 from typing import Any
 
 from db.database import get_connection, list_distinct_symbols
+
+# Reuse the fundamentals in-memory TTL as the default DB cache window.
+_DEFAULT_FUNDAMENTALS_TTL = float(os.environ.get("FUNDAMENTALS_CACHE_TTL_SECONDS", "21600"))
+
+
+def _utc_now_text() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _parse_utc_text(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        dt = datetime.strptime(str(value), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        return dt.timestamp()
+    except ValueError:
+        return None
 
 
 class MarketDataService:
@@ -46,6 +67,78 @@ class MarketDataService:
                 (wanted,),
             ).fetchall()
         return {row["symbol"]: self._row_to_market(row) for row in rows}
+
+    def fundamentals_ttl_seconds(self) -> float:
+        return float(
+            os.environ.get(
+                "SYMBOL_MARKET_FUNDAMENTALS_TTL_SECONDS",
+                str(_DEFAULT_FUNDAMENTALS_TTL),
+            )
+        )
+
+    def fundamentals_persistence_enabled(self) -> bool:
+        return os.environ.get("SYMBOL_MARKET_FUNDAMENTALS", "1").strip().lower() not in (
+            "0",
+            "false",
+            "no",
+            "off",
+        )
+
+    def get_fundamentals(
+        self,
+        symbol: str,
+        *,
+        max_age_seconds: float | None = None,
+    ) -> dict[str, Any] | None:
+        """Return shared fundamentals when the persisted blob is still fresh."""
+        if not self.fundamentals_persistence_enabled():
+            return None
+        symbol = symbol.upper()
+        ttl = self.fundamentals_ttl_seconds() if max_age_seconds is None else max_age_seconds
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT fundamentals_json FROM symbol_market WHERE symbol = %s",
+                (symbol,),
+            ).fetchone()
+        if not row or not row.get("fundamentals_json"):
+            return None
+        blob = row["fundamentals_json"]
+        if isinstance(blob, str):
+            try:
+                blob = json.loads(blob)
+            except json.JSONDecodeError:
+                return None
+        if not isinstance(blob, dict):
+            return None
+        fetched_at = _parse_utc_text(blob.get("fetchedAt"))
+        if fetched_at is None or (time.time() - fetched_at) > ttl:
+            return None
+        fundamentals = blob.get("fundamentals")
+        return fundamentals if isinstance(fundamentals, dict) else None
+
+    def save_fundamentals(self, symbol: str, fundamentals: dict[str, Any]) -> None:
+        """Persist fundamentals for a symbol (shared across all users)."""
+        if not self.fundamentals_persistence_enabled():
+            return
+        if not fundamentals:
+            return
+        symbol = symbol.upper()
+        payload = {
+            "fundamentals": fundamentals,
+            "fetchedAt": _utc_now_text(),
+        }
+        with get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO symbol_market (symbol, fundamentals_json, updated_at)
+                VALUES (%s, %s::jsonb, app_now_text())
+                ON CONFLICT (symbol) DO UPDATE SET
+                    fundamentals_json = EXCLUDED.fundamentals_json,
+                    updated_at = app_now_text()
+                """,
+                (symbol, json.dumps(payload)),
+            )
+            conn.commit()
 
     def sync_quotes(
         self,
