@@ -4072,6 +4072,7 @@
 
     async function api(path, options = {}) {
       const response = await fetch(API + path, {
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json", ...(options.headers || {}) },
         ...options,
       });
@@ -4284,11 +4285,18 @@
       }
     }
 
+    let signedInUserId = null;
+
     async function loadMe() {
       try {
         const data = await api("/me");
         const chip = document.getElementById("userChip");
         if (!data || !data.user) return;
+        if (signedInUserId != null && signedInUserId !== data.user.id) {
+          window.location.reload();
+          return;
+        }
+        signedInUserId = data.user.id;
         document.getElementById("userEmail").textContent = data.user.email || data.user.name || "";
         const avatar = document.getElementById("userAvatar");
         if (data.user.picture) { avatar.src = data.user.picture; avatar.style.display = "inline-block"; }
@@ -4450,6 +4458,17 @@
       // Skip when the tab is hidden, a refresh is mid-flight, or the user is
       // typing — so we never clobber input or waste calls in the background.
       if (document.hidden || autoRefreshInProgress || userIsInteracting()) return;
+      if (signedInUserId != null) {
+        try {
+          const me = await api("/me");
+          if (me?.user?.id != null && me.user.id !== signedInUserId) {
+            window.location.reload();
+            return;
+          }
+        } catch (_) {
+          return;
+        }
+      }
       const loader = autoRefreshLoaders[currentView];
       if (!loader) return;
       autoRefreshInProgress = true;
@@ -8236,7 +8255,11 @@
       form.append("file", input.files[0]);
       form.append("mode", mode);
       try {
-        const response = await fetch(`${API}/import/file?mode=${encodeURIComponent(mode)}`, { method: "POST", body: form });
+        const response = await fetch(`${API}/import/file?mode=${encodeURIComponent(mode)}`, {
+          method: "POST",
+          credentials: "same-origin",
+          body: form,
+        });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Import failed");
 
@@ -8269,7 +8292,7 @@
     async function exportPortfolio() {
       setImportNote("Preparing export…");
       try {
-        const response = await fetch(`${API}/export`);
+        const response = await fetch(`${API}/export`, { credentials: "same-origin" });
         if (!response.ok) {
           const err = await response.json().catch(() => ({}));
           throw new Error(err.error || "Export failed");

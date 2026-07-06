@@ -17,9 +17,15 @@ An optional ALLOWED_EMAILS allowlist (comma-separated) restricts who may sign in
 
 import os
 
-from flask import Blueprint, jsonify, redirect, request, session
+from flask import Blueprint, g, jsonify, redirect, request, session
 
-from db.database import get_bootstrap_user_id, get_or_create_user, set_current_user_id
+from db.database import (
+    clear_current_user_id,
+    get_bootstrap_user_id,
+    get_or_create_user,
+    reset_current_user_id,
+    set_current_user_id,
+)
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
@@ -163,14 +169,26 @@ def init_auth(app) -> None:
             return None
         if not AUTH_ENABLED:
             # Single-user mode: everyone is the bootstrap user.
-            set_current_user_id(get_bootstrap_user_id())
+            g._user_ctx_token = set_current_user_id(get_bootstrap_user_id())
             return None
         if _is_public(request.path):
+            g._user_ctx_token = None
+            clear_current_user_id()
             return None
         user_id = session.get("user_id")
         if user_id is None:
+            clear_current_user_id()
             if request.path.startswith("/api/"):
                 return jsonify({"status": "error", "message": "Authentication required."}), 401
             return redirect("/login")
-        set_current_user_id(int(user_id))
+        g._user_ctx_token = set_current_user_id(int(user_id))
+        return None
+
+    @app.teardown_request
+    def _unbind_current_user(_exc):
+        token = getattr(g, "_user_ctx_token", None)
+        if token is not None:
+            reset_current_user_id(token)
+        elif AUTH_ENABLED:
+            clear_current_user_id()
         return None

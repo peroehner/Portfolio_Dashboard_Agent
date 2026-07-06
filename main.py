@@ -81,7 +81,7 @@ from flask.json.provider import DefaultJSONProvider
 
 from api.v1 import v1_bp
 from auth import init_auth
-from db.database import init_db, list_distinct_symbols, list_user_ids, set_current_user_id
+from db.database import init_db, list_distinct_symbols, list_user_ids, reset_current_user_id, set_current_user_id
 from services.alerts_service import AlertsService
 from services.import_service import ImportService
 from services.portfolio_service import PortfolioService
@@ -152,8 +152,11 @@ def background_sync_loop():
             )
             total_new_alerts = 0
             for user_id in list_user_ids():
-                set_current_user_id(user_id)
-                new_alerts = alerts_service.evaluate_all(get_engine())
+                token = set_current_user_id(user_id)
+                try:
+                    new_alerts = alerts_service.evaluate_all(get_engine())
+                finally:
+                    reset_current_user_id(token)
                 total_new_alerts += len(new_alerts)
                 if new_alerts:
                     logging.info(

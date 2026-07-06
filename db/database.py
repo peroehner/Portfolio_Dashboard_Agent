@@ -282,10 +282,19 @@ MIGRATION_STATEMENTS: tuple[str, ...] = (
 
 BOOTSTRAP_USER_EMAIL = os.environ.get("BOOTSTRAP_USER_EMAIL", "local@portfolio.local")
 
+
+def oauth_configured() -> bool:
+    """True when Google OAuth env vars are set (multi-user mode)."""
+    return bool(
+        os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+        and os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+    )
+
+
 _pool: ConnectionPool | None = None
 
 # Request-scoped current user. None outside a request; get_current_user_id()
-# then falls back to the bootstrap user (single-user / scripts / background).
+# falls back to the bootstrap user only in single-user (no OAuth) mode.
 _current_user_id: contextvars.ContextVar[int | None] = contextvars.ContextVar(
     "current_user_id", default=None
 )
@@ -349,12 +358,25 @@ def reset_current_user_id(token: contextvars.Token) -> None:
     _current_user_id.reset(token)
 
 
+def clear_current_user_id() -> None:
+    """Drop the bound user for this context (worker threads / teardown)."""
+    _current_user_id.set(None)
+
+
 def get_current_user_id() -> int:
-    """Resolve the current user id, falling back to the bootstrap user when no
-    request context has set one (scripts, background jobs, tests)."""
+    """Resolve the current user id.
+
+    In multi-user (OAuth) mode the request auth guard must bind a user first;
+    falling back to the bootstrap user would leak another account's portfolio.
+  """
     user_id = _current_user_id.get()
     if user_id is not None:
         return user_id
+    if oauth_configured():
+        raise RuntimeError(
+            "current_user_id is not bound — auth guard or set_current_user_id() "
+            "must run before accessing per-user data"
+        )
     return get_bootstrap_user_id()
 
 
