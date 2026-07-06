@@ -471,9 +471,26 @@
       100% { background-color: transparent; box-shadow: 0 0 0 1px transparent; }
     }
     .pulse-updated { animation: pulse-updated 0.85s ease-out forwards; border-radius: 8px; }
+    @keyframes row-updated-flash {
+      0% { background-color: rgba(96, 165, 250, 0.42); }
+      55% { background-color: rgba(96, 165, 250, 0.14); }
+      100% { background-color: transparent; }
+    }
+    @keyframes row-updated-flash-selected {
+      0% { background-color: rgba(96, 165, 250, 0.48); }
+      55% { background-color: rgba(96, 165, 250, 0.2); }
+      100% { background-color: rgba(139, 92, 246, 0.16); }
+    }
+    table.data tbody tr.row-updated > td {
+      animation: row-updated-flash 0.2s ease-out;
+    }
+    table.data tbody tr.row-selected.row-updated > td {
+      animation-name: row-updated-flash-selected;
+    }
     @media (prefers-reduced-motion: reduce) {
       .btn-spinner { animation: none; }
       .pulse-updated { animation: none; }
+      table.data tbody tr.row-updated > td { animation: none; }
     }
     .threshold-proposal {
       margin-top: 0.35rem;
@@ -3911,7 +3928,7 @@
         </label>
         <span class="sel-clip-actions" data-clip-tab="screening" data-clip-paste-only="1"></span>
       </div>
-      <div id="screeningTable" class="portfolio-table-scroll"></div>
+      <div id="screeningTable" class="portfolio-table-scroll"><div class="empty">Loading screening…</div></div>
     </div>
   </div>
 
@@ -4007,6 +4024,7 @@
       screening: { query: "", data: null, fetchedAt: 0 },
       fib: { data: null, fetchedAt: 0 },
     };
+    let screeningLoadSeq = 0;
     let selectedSymbol = null;
     let targetCurrentPrice = null;
     // `currentView` starts null so the first showView() bootstrap renders even
@@ -4130,6 +4148,61 @@
       void el.offsetWidth; // force reflow so the animation restarts
       el.classList.add("pulse-updated");
       el.addEventListener("animationend", () => el.classList.remove("pulse-updated"), { once: true });
+    }
+
+    const tableRowSnapshots = new Map();
+    const pendingRowPulse = {};
+
+    function rowDataFingerprint(row) {
+      try {
+        return JSON.stringify(row);
+      } catch (_) {
+        return String(row?.symbol || row);
+      }
+    }
+
+    function pulseUpdatedTableRows(tableId, rows, keyColumn) {
+      if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
+      const table = document.querySelector(`table[data-table-id="${tableId}"]`);
+      if (!table || !rows?.length || !keyColumn) return;
+
+      const prev = tableRowSnapshots.get(tableId) || new Map();
+      const next = new Map();
+      const changedKeys = new Set();
+
+      rows.forEach((row) => {
+        const key = String(keyColumn.sortValue(row) ?? "");
+        if (!key) return;
+        const fingerprint = rowDataFingerprint(row);
+        next.set(key, fingerprint);
+        if (prev.has(key) && prev.get(key) !== fingerprint) changedKeys.add(key);
+      });
+
+      tableRowSnapshots.set(tableId, next);
+      if (!changedKeys.size) return;
+
+      table.querySelectorAll("tbody tr[data-row-key]").forEach((tr) => {
+        const key = tr.dataset.rowKey;
+        if (!changedKeys.has(key)) return;
+        tr.classList.remove("row-updated");
+        void tr.offsetWidth;
+        tr.classList.add("row-updated");
+        tr.addEventListener("animationend", () => tr.classList.remove("row-updated"), { once: true });
+      });
+    }
+
+    function flushTableRowPulse(tableId) {
+      const pending = pendingRowPulse[tableId];
+      if (!pending) return;
+      delete pendingRowPulse[tableId];
+      requestAnimationFrame(() => pulseUpdatedTableRows(tableId, pending.rows, pending.keyColumn));
+    }
+
+    function setSortableTableHtml(target, tableId, html) {
+      const el = typeof target === "string" ? document.getElementById(target) : target;
+      if (!el) return;
+      el.innerHTML = html;
+      flushTableRowPulse(tableId);
     }
 
     let importVersion = null;
@@ -4256,7 +4329,10 @@
     function showView(name) {
       // Re-selecting the active view is a no-op so it doesn't clobber
       // `previousView` (keeps the double-click toggle pair intact).
-      if (name === currentView) return;
+      if (name === currentView) {
+        if (name === "screening" && screeningTableIsEmpty()) loadScreening("", true);
+        return;
+      }
       const restoreSimulation = name === "simulation" && currentView === "overview" && savedSimulationSnapshot;
       previousView = currentView;
       currentView = name;
@@ -4293,6 +4369,11 @@
     const autoRefreshLoaders = {
       overview: () => loadOverview(),
       holdings: () => loadHoldings(),
+      screening: () => {
+        const cache = viewDataCache.screening;
+        if (!cache.data || screeningTableIsEmpty()) return loadScreening("", true);
+        renderScreeningView(cache.data);
+      },
     };
 
     // Parse an ISO YYYY-MM-DD date into a short "Mon DD" label (e.g. "Jun 26").
@@ -4336,6 +4417,7 @@
     const REFRESH_VIEW_LABELS = {
       overview: "Summary totals & metrics",
       holdings: "Holdings table",
+      screening: "Screening table",
     };
 
     function markRefreshed(what, success = true) {
@@ -4525,10 +4607,7 @@
       } else if (tabId === "simulation") {
         renderSimulationView();
       } else if (tabId === "screening") {
-        const cache = viewDataCache.screening;
-        if (cache.data) {
-          document.getElementById("screeningTable").innerHTML = renderScreeningTable(applyScreeningFilter(cache.data));
-        }
+        if (viewDataCache.screening.data) renderScreeningView();
       } else if (tabId === "fib") {
         renderFibMapView();
       } else if (tabId === "fundamentals") {
@@ -5140,6 +5219,7 @@
     }
 
     function invalidateViewCaches() {
+      screeningLoadSeq += 1;
       viewDataCache.screening = { query: "", data: null, fetchedAt: 0 };
       viewDataCache.fib = { data: null, fetchedAt: 0 };
     }
@@ -6042,7 +6122,10 @@
 
     function renderSortableTable(tableId, columns, rows, emptyMessage, options = {}) {
       tableDataCache[tableId] = rows;
-      if (!rows.length) return `<div class="empty">${emptyMessage}</div>`;
+      if (!rows.length) {
+        delete pendingRowPulse[tableId];
+        return `<div class="empty">${emptyMessage}</div>`;
+      }
       const sortedRows = sortRows(tableId, rows, columns);
       const headers = columns.map((column) => {
         const helpMark = column.help
@@ -6078,16 +6161,18 @@
         }).join("")}</tr>`;
       }).join("");
       const footer = options.footerHtml || "";
+      pendingRowPulse[tableId] = { rows: sortedRows, keyColumn };
       return `<table class="data" data-table-id="${tableId}"><thead><tr>${headers}</tr></thead><tbody>${body}</tbody>${footer}</table>`;
     }
 
     function rerenderTable(tableId) {
       if (tableId === "holdings") {
-        document.getElementById("holdingsTable").innerHTML = renderHoldingsTable(tableDataCache.holdings || []);
+        setSortableTableHtml("holdingsTable", "holdings", renderHoldingsTable(tableDataCache.holdings || []));
         syncHoldingsInspectorHead(selectedSymbol);
       }
       if (tableId === "screening") {
-        document.getElementById("screeningTable").innerHTML = renderScreeningTable(tableDataCache.screening || []);
+        if (viewDataCache.screening.data) renderScreeningView();
+        else setSortableTableHtml("screeningTable", "screening", renderScreeningTable(tableDataCache.screening || []));
       }
       if (tableId === "simulation") {
         renderSimulationView();
@@ -7112,7 +7197,7 @@
     }
 
     function renderHoldingsView() {
-      document.getElementById("holdingsTable").innerHTML = renderHoldingsTable(holdingsRowsForFilter());
+      setSortableTableHtml("holdingsTable", "holdings", renderHoldingsTable(holdingsRowsForFilter()));
       updateHoldingsFilterButtons();
       updateClipButtons();
       syncHoldingsInspectorHead(selectedSymbol);
@@ -7767,6 +7852,23 @@
       return "No screening results.";
     }
 
+    function screeningTableIsEmpty() {
+      const el = document.getElementById("screeningTable");
+      return !el || !el.innerHTML.trim();
+    }
+
+    function renderScreeningView(rows) {
+      const data = rows ?? viewDataCache.screening.data;
+      if (!data) return;
+      pruneVirtualSymbols("screening", data.map((r) => r.symbol));
+      setSortableTableHtml(
+        "screeningTable",
+        "screening",
+        renderScreeningTable(applyScreeningFilter(data))
+      );
+      updateClipButtons();
+    }
+
     let fibMapData = [];
     let fibMapBand = "all";
     let fibMapTicker = "";
@@ -8096,7 +8198,7 @@
 
     function renderFibMapView() {
       tableDataCache.fib = applyFibMapFilters(fibMapData);
-      document.getElementById("fibMapTable").innerHTML = renderFibMapTable();
+      setSortableTableHtml("fibMapTable", "fib", renderFibMapTable());
       updateFibFilterButtons();
       updateClipButtons();
     }
@@ -8248,31 +8350,39 @@
       updateScreeningFilterButtons();
       const cache = viewDataCache.screening;
       const now = Date.now();
-      const renderFiltered = (rows) => {
-        pruneVirtualSymbols("screening", (rows || []).map((r) => r.symbol));
-        document.getElementById("screeningTable").innerHTML = renderScreeningTable(applyScreeningFilter(rows));
-        updateClipButtons();
-      };
       if (
         !force
         && cache.data
         && cache.query === query
         && now - cache.fetchedAt < VIEW_CACHE_TTL_MS
       ) {
-        renderFiltered(cache.data);
+        renderScreeningView(cache.data);
         return;
       }
-      const data = await api(`/screen${query}`);
-      cache.query = query;
-      cache.data = data.results;
-      cache.fetchedAt = now;
-      renderFiltered(data.results);
-      // Pattern badges come from the shared /patterns map; fill them in once loaded.
-      loadSymbolPatterns().then(() => {
-        if (currentView === "screening" && cache.data) {
-          renderFiltered(cache.data);
+      const seq = ++screeningLoadSeq;
+      if (currentView === "screening" && !cache.data) {
+        document.getElementById("screeningTable").innerHTML = '<div class="empty">Loading screening…</div>';
+      }
+      try {
+        const data = await api(`/screen${query}`);
+        if (seq !== screeningLoadSeq) return;
+        cache.query = query;
+        cache.data = data.results || [];
+        cache.fetchedAt = Date.now();
+        renderScreeningView(cache.data);
+        // Pattern badges come from the shared /patterns map; fill them in once loaded.
+        loadSymbolPatterns().then(() => {
+          if (seq !== screeningLoadSeq) return;
+          if (currentView === "screening" && cache.data) renderScreeningView(cache.data);
+        });
+      } catch (error) {
+        if (seq !== screeningLoadSeq) return;
+        const message = escapeHtml(error.message || "Failed to load screening.");
+        if (currentView === "screening") {
+          document.getElementById("screeningTable").innerHTML = `<div class="empty">${message}</div>`;
         }
-      });
+        setStatus(error.message, "error");
+      }
     }
 
     // ---- Planned-trade Simulation -------------------------------------------
@@ -8695,15 +8805,19 @@
       const emptyMsg = getVirtualSymbols("simulation") && !tablePlan.symbols.length
         ? virtualFilterNoMatchMessage("simulation")
         : "No symbols with planned trades in this filter.";
-      tableEl.innerHTML = renderSortableTable(
+      setSortableTableHtml(
+        tableEl,
         "simulation",
-        simulationColumns,
-        tablePlan.symbols,
-        emptyMsg,
-        {
-          selectedKeys: selection,
-          footerHtml: simulationTotalsFooterHtml(scopedPlan, useSelection),
-        }
+        renderSortableTable(
+          "simulation",
+          simulationColumns,
+          tablePlan.symbols,
+          emptyMsg,
+          {
+            selectedKeys: selection,
+            footerHtml: simulationTotalsFooterHtml(scopedPlan, useSelection),
+          }
+        )
       );
       updateClipButtons();
     }
@@ -11384,6 +11498,7 @@
       } else {
         container.innerHTML = `<div class="fund-table-scroll portfolio-table-scroll">${table}</div>`;
       }
+      flushTableRowPulse(tableId);
       updateClipButtons();
     }
 
