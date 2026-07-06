@@ -221,6 +221,35 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         saved_at TEXT NOT NULL DEFAULT app_now_text()
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS symbol_market (
+        symbol TEXT PRIMARY KEY,
+        current_price DOUBLE PRECISION,
+        day_change_pct DOUBLE PRECISION,
+        price_as_of TEXT,
+        analyst_target_1y DOUBLE PRECISION,
+        analyst_target_low DOUBLE PRECISION,
+        analyst_target_high DOUBLE PRECISION,
+        company_name TEXT,
+        fundamentals_json JSONB,
+        updated_at TEXT NOT NULL DEFAULT app_now_text()
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS symbol_assessment (
+        symbol TEXT NOT NULL,
+        as_of_date TEXT NOT NULL,
+        action TEXT NOT NULL,
+        confidence TEXT NOT NULL,
+        rationale TEXT NOT NULL,
+        factors TEXT,
+        trading_recommendation TEXT,
+        provider TEXT NOT NULL,
+        analysis_json JSONB,
+        created_at TEXT NOT NULL DEFAULT app_now_text(),
+        PRIMARY KEY (symbol, as_of_date)
+    )
+    """,
 )
 
 # Indexes are created after the multi-user migration so that user_id exists on
@@ -234,6 +263,8 @@ INDEX_STATEMENTS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS idx_reco_changelog_created ON recommendation_changelog(created_at)",
     "CREATE INDEX IF NOT EXISTS idx_signal_outcomes_user ON signal_outcomes(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_signal_outcomes_pending ON signal_outcomes(user_id, outcome, eval_due_at)",
+    "CREATE INDEX IF NOT EXISTS idx_symbol_market_updated ON symbol_market(updated_at)",
+    "CREATE INDEX IF NOT EXISTS idx_symbol_assessment_created ON symbol_assessment(created_at)",
 )
 
 # Idempotent column adds so an already-deployed Postgres picks up new columns
@@ -416,6 +447,22 @@ def set_prefer_computed_trends(value: bool, user_id: int | None = None) -> bool:
     return bool(value)
 
 
+def list_distinct_symbols() -> list[str]:
+    """Return every ticker tracked by any user (union across portfolios)."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT symbol FROM symbols ORDER BY symbol"
+        ).fetchall()
+    return [row["symbol"] for row in rows]
+
+
+def list_user_ids() -> list[int]:
+    """Return all user ids (for per-user background jobs)."""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT id FROM users ORDER BY id").fetchall()
+    return [int(row["id"]) for row in rows]
+
+
 # --------------------------------------------------------------------------- #
 # Schema init + migrations
 # --------------------------------------------------------------------------- #
@@ -511,6 +558,51 @@ def _run_data_migrations(conn: psycopg.Connection) -> None:
         "INSERT INTO app_meta (key, value) VALUES (%s, app_now_text()) "
         "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
         ("assessment_max3_cleanup_v1",),
+    )
+    _backfill_symbol_market(conn)
+
+
+def _backfill_symbol_market(conn: psycopg.Connection) -> None:
+    """Copy the newest per-user market columns into symbol_market (one row per ticker)."""
+    row = conn.execute(
+        "SELECT 1 FROM app_meta WHERE key = %s", ("symbol_market_backfill_v1",)
+    ).fetchone()
+    if row is not None:
+        return
+    conn.execute(
+        """
+        INSERT INTO symbol_market (
+            symbol, current_price, day_change_pct, price_as_of,
+            analyst_target_1y, analyst_target_low, analyst_target_high, updated_at
+        )
+        SELECT DISTINCT ON (symbol)
+            symbol,
+            current_price,
+            day_change_pct,
+            price_as_of,
+            analyst_target_1y,
+            analyst_target_low,
+            analyst_target_high,
+            updated_at
+        FROM symbols
+        WHERE current_price IS NOT NULL
+           OR analyst_target_1y IS NOT NULL
+           OR day_change_pct IS NOT NULL
+        ORDER BY symbol, updated_at DESC NULLS LAST, user_id
+        ON CONFLICT (symbol) DO UPDATE SET
+            current_price = COALESCE(EXCLUDED.current_price, symbol_market.current_price),
+            day_change_pct = COALESCE(EXCLUDED.day_change_pct, symbol_market.day_change_pct),
+            price_as_of = COALESCE(EXCLUDED.price_as_of, symbol_market.price_as_of),
+            analyst_target_1y = COALESCE(EXCLUDED.analyst_target_1y, symbol_market.analyst_target_1y),
+            analyst_target_low = COALESCE(EXCLUDED.analyst_target_low, symbol_market.analyst_target_low),
+            analyst_target_high = COALESCE(EXCLUDED.analyst_target_high, symbol_market.analyst_target_high),
+            updated_at = GREATEST(EXCLUDED.updated_at, symbol_market.updated_at)
+        """
+    )
+    conn.execute(
+        "INSERT INTO app_meta (key, value) VALUES (%s, app_now_text()) "
+        "ON CONFLICT (key) DO NOTHING",
+        ("symbol_market_backfill_v1",),
     )
 
 

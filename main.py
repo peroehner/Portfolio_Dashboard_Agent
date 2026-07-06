@@ -81,7 +81,7 @@ from flask.json.provider import DefaultJSONProvider
 
 from api.v1 import v1_bp
 from auth import init_auth
-from db.database import get_bootstrap_user_id, init_db, set_current_user_id
+from db.database import init_db, list_distinct_symbols, list_user_ids, set_current_user_id
 from services.alerts_service import AlertsService
 from services.import_service import ImportService
 from services.portfolio_service import PortfolioService
@@ -129,33 +129,43 @@ def get_engine():
 
 
 def background_sync_loop():
-    """Background worker that continuously syncs prices via the engine."""
-    # Runs outside any request; operate as the bootstrap user. (When OAuth lands
-    # with multiple users this should iterate over all users.)
-    set_current_user_id(get_bootstrap_user_id())
+    """Background worker: one global price fetch, then per-user alert evaluation."""
     cycle = 0
     target_refresh_every = max(
         1,
         int(os.environ.get("TARGET_REFRESH_CYCLES", "12")),
     )
     while True:
-        symbols = portfolio_service.list_symbols()
-        if symbols:
+        tickers = list_distinct_symbols()
+        if tickers:
             cycle += 1
             refresh_targets = cycle % target_refresh_every == 0
             logging.info(
-                "Background Sync: Fetching data for %s assets (targets=%s).",
-                len(symbols),
+                "Background Sync: Fetching data for %s unique symbols (targets=%s).",
+                len(tickers),
                 refresh_targets,
             )
             result = portfolio_service.sync_prices(
                 get_engine(),
                 refresh_targets=refresh_targets,
+                global_sync=True,
             )
-            new_alerts = alerts_service.evaluate_all(get_engine())
-            if new_alerts:
-                logging.info(f"New alerts: {[alert['message'] for alert in new_alerts]}")
-            logging.info(f"Background Sync Complete. Updated {result['updated']} assets.")
+            total_new_alerts = 0
+            for user_id in list_user_ids():
+                set_current_user_id(user_id)
+                new_alerts = alerts_service.evaluate_all(get_engine())
+                total_new_alerts += len(new_alerts)
+                if new_alerts:
+                    logging.info(
+                        "New alerts for user %s: %s",
+                        user_id,
+                        [alert["message"] for alert in new_alerts],
+                    )
+            logging.info(
+                "Background Sync Complete. Updated %s symbols; %s new alerts.",
+                result["updated"],
+                total_new_alerts,
+            )
         time.sleep(300)
 
 

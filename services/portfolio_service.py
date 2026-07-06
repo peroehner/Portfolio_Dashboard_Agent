@@ -1,6 +1,7 @@
 from typing import Any
 
-from db.database import get_connection, get_current_user_id
+from db.database import get_connection, get_current_user_id, list_distinct_symbols
+from services.market_data_service import MarketDataService
 from services.notes_service import NotesService
 
 
@@ -20,7 +21,19 @@ class PortfolioService:
         user_id = get_current_user_id()
         with get_connection() as conn:
             rows = conn.execute(
-                "SELECT * FROM symbols WHERE user_id = %s ORDER BY symbol",
+                """
+                SELECT s.*,
+                       m.current_price AS market_current_price,
+                       m.day_change_pct AS market_day_change_pct,
+                       m.price_as_of AS market_price_as_of,
+                       m.analyst_target_1y AS market_analyst_target_1y,
+                       m.analyst_target_low AS market_analyst_target_low,
+                       m.analyst_target_high AS market_analyst_target_high
+                FROM symbols s
+                LEFT JOIN symbol_market m ON m.symbol = s.symbol
+                WHERE s.user_id = %s
+                ORDER BY s.symbol
+                """,
                 (user_id,),
             ).fetchall()
         return [self._row_to_symbol(row, include_notes=False) for row in rows]
@@ -30,7 +43,18 @@ class PortfolioService:
         user_id = get_current_user_id()
         with get_connection() as conn:
             row = conn.execute(
-                "SELECT * FROM symbols WHERE user_id = %s AND symbol = %s",
+                """
+                SELECT s.*,
+                       m.current_price AS market_current_price,
+                       m.day_change_pct AS market_day_change_pct,
+                       m.price_as_of AS market_price_as_of,
+                       m.analyst_target_1y AS market_analyst_target_1y,
+                       m.analyst_target_low AS market_analyst_target_low,
+                       m.analyst_target_high AS market_analyst_target_high
+                FROM symbols s
+                LEFT JOIN symbol_market m ON m.symbol = s.symbol
+                WHERE s.user_id = %s AND s.symbol = %s
+                """,
                 (user_id, symbol),
             ).fetchone()
         if row is None:
@@ -176,77 +200,33 @@ class PortfolioService:
         *,
         refresh_targets: bool = True,
         symbols: list[str] | None = None,
+        global_sync: bool = False,
     ) -> dict[str, Any]:
-        all_symbols = self.list_symbols()
-        if not all_symbols:
-            return {"updated": 0, "symbols": []}
-
-        if symbols:
-            wanted = {str(s).upper() for s in symbols}
-            tickers = [item["symbol"] for item in all_symbols if item["symbol"] in wanted]
+        if global_sync:
+            tickers = list_distinct_symbols()
         else:
-            tickers = [item["symbol"] for item in all_symbols]
+            all_symbols = self.list_symbols()
+            if not all_symbols:
+                return {"updated": 0, "symbols": []}
+            if symbols:
+                wanted = {str(s).upper() for s in symbols}
+                tickers = [item["symbol"] for item in all_symbols if item["symbol"] in wanted]
+            else:
+                tickers = [item["symbol"] for item in all_symbols]
+
         if not tickers:
-            return {"updated": 0, "symbols": all_symbols}
+            return {"updated": 0, "symbols": self.list_symbols() if not global_sync else []}
 
-        live_quotes = engine.fetch_market_quotes(
+        result = MarketDataService().sync_quotes(
+            engine,
             tickers,
-            include_analyst_targets=refresh_targets,
+            refresh_targets=refresh_targets,
         )
-        updated_prices = 0
-        updated_targets = 0
-        user_id = get_current_user_id()
-
-        with get_connection() as conn:
-            for symbol in tickers:
-                quote = live_quotes.get(symbol) or {}
-                price = quote.get("currentPrice")
-                day_change_pct = quote.get("dayChangePct")
-                analyst_target = quote.get("analystTarget1y")
-                analyst_low = quote.get("analystTargetLow")
-                analyst_high = quote.get("analystTargetHigh")
-                as_of = quote.get("priceAsOf")
-                if price is not None:
-                    conn.execute(
-                        """
-                        UPDATE symbols
-                        SET current_price = %s,
-                            day_change_pct = COALESCE(%s, day_change_pct),
-                            price_as_of = COALESCE(%s, price_as_of),
-                            updated_at = app_now_text()
-                        WHERE user_id = %s AND symbol = %s
-                        """,
-                        (price, day_change_pct, as_of, user_id, symbol),
-                    )
-                    updated_prices += 1
-                if analyst_target is not None:
-                    conn.execute(
-                        """
-                        UPDATE symbols
-                        SET analyst_target_1y = %s, updated_at = app_now_text()
-                        WHERE user_id = %s AND symbol = %s
-                        """,
-                        (analyst_target, user_id, symbol),
-                    )
-                    updated_targets += 1
-                if analyst_low is not None or analyst_high is not None:
-                    conn.execute(
-                        """
-                        UPDATE symbols
-                        SET analyst_target_low = COALESCE(%s, analyst_target_low),
-                            analyst_target_high = COALESCE(%s, analyst_target_high),
-                            updated_at = app_now_text()
-                        WHERE user_id = %s AND symbol = %s
-                        """,
-                        (analyst_low, analyst_high, user_id, symbol),
-                    )
-            conn.commit()
-
-        return {
-            "updated": updated_prices,
-            "updatedTargets": updated_targets,
-            "symbols": self.list_symbols(),
-        }
+        if global_sync:
+            result["symbols"] = tickers
+        else:
+            result["symbols"] = self.list_symbols()
+        return result
 
     def get_screener_input(self) -> dict[str, dict[str, Any]]:
         """Shape expected by PortfolioEngine.run_screener."""
@@ -306,15 +286,41 @@ class PortfolioService:
 
     def _row_to_symbol(self, row, include_notes: bool) -> dict[str, Any]:
         keys = row.keys()
+        current_price = row["market_current_price"] if row.get("market_current_price") is not None else row["current_price"]
+        day_change_pct = (
+            row["market_day_change_pct"]
+            if row.get("market_day_change_pct") is not None
+            else (row["day_change_pct"] if "day_change_pct" in keys else None)
+        )
+        price_as_of = (
+            row["market_price_as_of"]
+            if row.get("market_price_as_of") is not None
+            else (row["price_as_of"] if "price_as_of" in keys else None)
+        )
+        analyst_target_1y = (
+            row["market_analyst_target_1y"]
+            if row.get("market_analyst_target_1y") is not None
+            else row["analyst_target_1y"]
+        )
+        analyst_target_low = (
+            row["market_analyst_target_low"]
+            if row.get("market_analyst_target_low") is not None
+            else (row["analyst_target_low"] if "analyst_target_low" in keys else None)
+        )
+        analyst_target_high = (
+            row["market_analyst_target_high"]
+            if row.get("market_analyst_target_high") is not None
+            else (row["analyst_target_high"] if "analyst_target_high" in keys else None)
+        )
         symbol = {
             "symbol": row["symbol"],
-            "currentPrice": row["current_price"],
-            "dayChangePct": row["day_change_pct"] if "day_change_pct" in keys else None,
-            "priceAsOf": row["price_as_of"] if "price_as_of" in keys else None,
+            "currentPrice": current_price,
+            "dayChangePct": day_change_pct,
+            "priceAsOf": price_as_of,
             "targetPrice": row["target_price"],
-            "analystTarget1y": row["analyst_target_1y"],
-            "analystTargetLow": row["analyst_target_low"] if "analyst_target_low" in keys else None,
-            "analystTargetHigh": row["analyst_target_high"] if "analyst_target_high" in keys else None,
+            "analystTarget1y": analyst_target_1y,
+            "analystTargetLow": analyst_target_low,
+            "analystTargetHigh": analyst_target_high,
             "buyBelow": row["buy_below"],
             "sellAbove": row["sell_above"],
             "tradeBelowPrice": row["trade_below_price"] if "trade_below_price" in keys else None,
