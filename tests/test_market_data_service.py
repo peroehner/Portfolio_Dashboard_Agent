@@ -3,7 +3,8 @@ import unittest
 
 import psycopg
 
-TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+from db_test_env import TEST_DATABASE_URL
+
 if TEST_DATABASE_URL:
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 

@@ -4,12 +4,14 @@ from unittest.mock import MagicMock, patch
 
 import psycopg
 
-TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+from db_test_env import TEST_DATABASE_URL
+
 if TEST_DATABASE_URL:
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 from db.database import (  # noqa: E402
     close_pool,
+    get_bootstrap_user_id,
     get_connection,
     get_database_url,
     init_db,
@@ -56,7 +58,7 @@ MOCK_BASE_RESULT = {
 class SymbolAssessmentServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         _reset_schema()
-        set_current_user_id(1)
+        set_current_user_id(get_bootstrap_user_id())
         PortfolioService().upsert_symbol("AAPL", {"current_price": 100.0})
         with get_connection() as conn:
             conn.execute(

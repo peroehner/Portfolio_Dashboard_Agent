@@ -222,6 +222,8 @@ class SymbolAssessmentService:
     def _parse_json_field(raw, default):
         if not raw:
             return default
+        if isinstance(raw, dict):
+            return raw
         try:
             return json.loads(raw)
         except json.JSONDecodeError:

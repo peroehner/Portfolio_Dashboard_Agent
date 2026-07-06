@@ -4,19 +4,18 @@ import unittest.mock
 
 import psycopg
 
-# These tests DROP SCHEMA on the target database, so they must never run against
-# the dev/production DB. They only run when TEST_DATABASE_URL is explicitly set
-# to a throwaway database; otherwise the DB-backed tests are skipped. Pointing
-# the app at the test DB here ensures the pool and services use it too.
-TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+from db_test_env import TEST_DATABASE_URL
+
 if TEST_DATABASE_URL:
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 from db.database import (  # noqa: E402 - import after DATABASE_URL override
     close_pool,
+    get_bootstrap_user_id,
     get_database_url,
     init_db,
     reset_bootstrap_user_cache,
+    set_current_user_id,
 )
 from services.import_service import ImportService  # noqa: E402
 from services.inspector_service import InspectorService  # noqa: E402
@@ -70,6 +69,7 @@ class TechnicalImportTestCase(unittest.TestCase):
     def setUp(self):
         if DB_AVAILABLE:
             _reset_schema()
+            set_current_user_id(get_bootstrap_user_id())
         self.import_service = ImportService()
         self.technical_service = TechnicalService()
 
@@ -115,9 +115,10 @@ class TechnicalImportTestCase(unittest.TestCase):
     def test_inspector_uses_imported_fib_anchor(self):
         self.import_service.import_txt(SAMPLE_EXPORT, mode="merge")
         inspector = InspectorService()
-        with unittest.mock.patch("services.inspector_service.yf.Ticker") as ticker_mock:
-            ticker_mock.return_value.info = {}
-            data = inspector.inspect("TSLA")
+        with unittest.mock.patch("db.database.get_prefer_computed_trends", return_value=False):
+            with unittest.mock.patch("services.inspector_service.yf.Ticker") as ticker_mock:
+                ticker_mock.return_value.info = {}
+                data = inspector.inspect("TSLA")
         self.assertIsNotNone(data)
         assert data is not None
         self.assertEqual(data["trendWaveSource"], "import")
