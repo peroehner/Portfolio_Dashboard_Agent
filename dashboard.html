@@ -482,7 +482,7 @@
       100% { background-color: rgba(139, 92, 246, 0.16); }
     }
     table.data tbody tr.row-updated > td {
-      animation: row-updated-flash 0.2s ease-out;
+      animation: row-updated-flash 0.4s ease-out;
     }
     table.data tbody tr.row-selected.row-updated > td {
       animation-name: row-updated-flash-selected;
@@ -2064,7 +2064,13 @@
     @media (max-width: 700px) {
       .valuation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
-    #view-fundamentals { display: block; }
+    #view-fundamentals {
+      display: block;
+      --portfolio-chrome: 8.75rem;
+    }
+    #view-fundamentals > .panel.portfolio-table-panel {
+      height: calc(100vh - var(--portfolio-chrome));
+    }
     .fundamentals-tabbar {
       display: flex;
       flex-wrap: wrap;
@@ -2134,6 +2140,9 @@
     }
     @media (max-width: 1100px) {
       .fund-range-layout { grid-template-columns: 1fr; }
+      #view-fundamentals > .panel.portfolio-table-panel {
+        height: auto;
+      }
       .fund-range-layout .fund-table-panel {
         position: static;
       }
