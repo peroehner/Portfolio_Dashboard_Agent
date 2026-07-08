@@ -125,8 +125,7 @@ neutrals in the average).
   (`outcome IS NULL`), not symbol count or assessment count.
 - Scoring is evaluated when Summary loads (not a background cron).
 
-**When empty:** sample table shows the shape of future scores (hit %, W–L, avg
-ret) plus the ±band rules.
+**When empty:** one status line (e.g. `No matured scores yet · 151 bets still within the 21-day per-bet horizon — scores appear as each matures`). Long-form explanation and scoring rules live behind the **?** help button.
 
 **When populated:**
 

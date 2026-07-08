@@ -2289,30 +2289,22 @@
     }
     .track-record-head {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 0.6rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.5rem;
     }
+    .track-record-head h2 { margin: 0; }
     .track-record-sub {
       color: var(--muted);
       font-size: 0.8rem;
     }
-    .tr-empty {
+    .tr-status {
+      margin: 0;
       color: var(--muted);
       font-size: 0.86rem;
       line-height: 1.45;
     }
-    .tr-empty-lead { margin: 0 0 0.65rem; color: var(--text); }
-    .tr-empty-pending {
-      margin: 0 0 0.65rem;
-      padding: 0.5rem 0.65rem;
-      border-radius: 8px;
-      border: 1px solid rgba(147, 197, 253, 0.35);
-      background: rgba(147, 197, 253, 0.08);
-      color: #bfdbfe;
-    }
-    .tr-empty-hint { margin: 0 0 0.45rem; }
-    .tr-empty-foot { margin: 0.65rem 0 0; font-size: 0.8rem; }
-    .tr-empty-sample { opacity: 0.72; pointer-events: none; }
     .tr-overall {
       display: flex;
       align-items: center;
@@ -3671,7 +3663,46 @@
           <tr><td><span class="screening-tech-stance neutral">Neutral</span></td><td>No center level available; monitor key boundaries.</td></tr>
           <tr><td><span class="screening-tech-stance unknown">Unknown</span></td><td>Not enough technical data.</td></tr>
         </table>
+
+        <h4>9 · OBV and OBV vs Price</h4>
+        <p><strong>OBV</strong> (On-Balance Volume) adds volume on up-days and subtracts it on down-days. It is a flow gauge: rising OBV suggests accumulation, falling OBV suggests distribution.</p>
+        <table class="help-table">
+          <tr><th>Field</th><th>What it means</th></tr>
+          <tr><td><code>OBV Trend</code></td><td>Direction and strength of OBV slope over the recent window (e.g. <em>Accumulation</em>, <em>Distribution</em>). This is OBV by itself.</td></tr>
+          <tr><td><code>OBV vs Price</code></td><td>Four-quadrant confirmation/divergence check between price direction and OBV direction.</td></tr>
+        </table>
+        <table class="help-table">
+          <tr><th>OBV vs Price state</th><th>Interpretation</th></tr>
+          <tr><td><code>Bull confirm</code> (✓)</td><td>Price and OBV are both rising — move is volume-confirmed.</td></tr>
+          <tr><td><code>Bear confirm</code> (✓)</td><td>Price and OBV are both falling — down move is volume-confirmed.</td></tr>
+          <tr><td><code>Bearish divergence</code> (⚠)</td><td>Price rises while OBV weakens — upside may be fragile.</td></tr>
+          <tr><td><code>Bullish divergence</code> (⚡)</td><td>Price falls while OBV improves — downside may be fading.</td></tr>
+          <tr><td><code>Neutral</code> (·)</td><td>No clear signal or insufficient separation.</td></tr>
+        </table>
+        <p>Use OBV as a confirmation layer, not a standalone trigger: strongest conviction usually comes when pattern/fib structure and OBV agree.</p>
         <p style="margin-top:1rem;font-size:0.82rem;color:var(--muted,#9aa8bc);">Full guide: <code>docs/PATTERNS.md</code>.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="signalRecordHelp" class="help-modal-backdrop" hidden onclick="onSignalRecordHelpBackdrop(event)">
+    <div class="help-modal" role="dialog" aria-modal="true" aria-labelledby="signalRecordHelpTitle">
+      <div class="help-modal-head">
+        <h3 id="signalRecordHelpTitle">Agent Signal Record</h3>
+        <button type="button" class="help-modal-close" onclick="closeSignalRecordHelp()" aria-label="Close">&times;</button>
+      </div>
+      <div class="help-modal-body">
+        <p>After each assessment run, agent signals are captured as forward bets: SAI action, chart patterns, and confluence bias. Each bet waits the evaluation horizon (default <strong>21 days</strong>), then is scored against a <strong>±2% win/loss band</strong> (configurable via <code>TRACK_RECORD_BAND_PCT</code>).</p>
+        <p>Hit rates <strong>accumulate</strong> across all matured bets — there is no rolling window. Scores are read-only and do not yet change future runs.</p>
+        <h4>Scoring rules (±2% band)</h4>
+        <table class="help-table">
+          <tr><th>Signal</th><th>Win</th><th>Loss</th><th>Neutral</th></tr>
+          <tr><td>Bullish</td><td>Price rises more than <strong>+2%</strong></td><td>Price falls more than <strong>−2%</strong></td><td>Move inside ±2%</td></tr>
+          <tr><td>Bearish</td><td>Price falls more than <strong>−2%</strong></td><td>Price rises more than <strong>+2%</strong></td><td>Move inside ±2%</td></tr>
+          <tr><td>Hold / watch</td><td colspan="3">Always neutral — move is stored but not win/loss</td></tr>
+        </table>
+        <p><strong>Hit rate</strong> = wins ÷ (wins + losses). Neutrals are shown as <code>n</code> in the W–L column.</p>
+        <p style="margin-top:1rem;font-size:0.82rem;color:var(--muted,#9aa8bc);">Full guide: <code>docs/signal_track_record.md</code>.</p>
       </div>
     </div>
   </div>
@@ -3795,9 +3826,9 @@
     <div class="wide-panel" id="trackRecordPanel">
       <div class="track-record-head">
         <h2>Agent Signal Record</h2>
+        <button type="button" class="help-btn" onclick="openSignalRecordHelp()" title="How Agent Signal Record works" aria-label="How Agent Signal Record works">?</button>
         <span class="track-record-sub" id="trackRecordMeta"></span>
       </div>
-      <p class="visual-subtitle">After each assessment run, agent signals are captured as forward bets: SAI action, chart patterns, and confluence bias. Each bet waits the evaluation horizon (default 21 days), then is scored against a ±band. Hit rates <strong>accumulate</strong> across all matured bets — read-only; scores do not yet change future runs.</p>
       <div id="trackRecordBody"><div class="empty">Loading…</div></div>
     </div>
     <div class="wide-panel import-bar">
@@ -7235,28 +7266,12 @@
         .join("");
     }
 
-    function trackRecordEmptyPreview(horizonDays, bandPct, pending) {
+    function trackRecordStatusHtml(horizonDays, pending) {
       const horizon = horizonDays || 21;
-      const band = bandPct != null ? bandPct : 2;
-      const pendTxt = pending
-        ? `<p class="tr-empty-pending"><strong>${pending}</strong> bet${pending === 1 ? "" : "s"} still within the <strong>${horizon}-day</strong> per-bet horizon — scores appear as each matures (checked when Summary loads).</p>`
-        : "";
-      return `
-        <div class="tr-empty">
-          <p class="tr-empty-lead">No matured scores yet. Bets are captured when an assessment run completes (scheduled or manual).</p>
-          ${pendTxt}
-          <p class="tr-empty-hint">Matured bets accumulate — there is no rolling window. Once the first bets age out, you'll see an overall hit rate plus tables like:</p>
-          <div class="tr-section tr-empty-sample" aria-hidden="true">
-            <table class="tr-table">
-              <thead><tr><th>Signal</th><th class="tr-num">N</th><th class="tr-num">W–L</th><th class="tr-num">Hit</th><th class="tr-num">Avg ret</th></tr></thead>
-              <tbody>
-                <tr><td>buy</td><td class="tr-num">12</td><td class="tr-num">8–4</td><td class="tr-num"><span class="tr-rate tr-good">66.7%</span></td><td class="tr-num"><span class="pos">+3.2%</span></td></tr>
-                <tr><td>Double Bottom</td><td class="tr-num">5</td><td class="tr-num">3–1 <span class="tr-muted">(1n)</span></td><td class="tr-num"><span class="tr-rate tr-mid">75%</span></td><td class="tr-num"><span class="pos">+1.8%</span></td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="tr-empty-foot">Scoring rules: bullish bets win if price rises more than <strong>±${band}%</strong>; bearish bets win if it falls more than <strong>±${band}%</strong>. Moves inside the band, plus hold/watch calls, are neutral (shown as <span class="tr-muted">n</span>).</p>
-        </div>`;
+      if (!pending) {
+        return `<p class="tr-status">No matured scores yet.</p>`;
+      }
+      return `<p class="tr-status">No matured scores yet · <strong>${pending}</strong> bet${pending === 1 ? "" : "s"} still within the <strong>${horizon}-day</strong> per-bet horizon — scores appear as each matures (checked when Summary loads).</p>`;
     }
 
     function renderTrackRecord(data) {
@@ -7265,14 +7280,9 @@
       if (!body) return;
       const overall = data.overall || { count: 0 };
       const horizonDays = data.horizonDays || 21;
-      if (metaEl) {
-        const pend = data.pending
-          ? ` · ${data.pending} awaiting ${horizonDays}-day horizon`
-          : "";
-        metaEl.textContent = `±${data.horizonBandPct}% win/loss band${pend}`;
-      }
+      if (metaEl) metaEl.textContent = "";
       if (!overall.count) {
-        body.innerHTML = trackRecordEmptyPreview(horizonDays, data.horizonBandPct, data.pending);
+        body.innerHTML = trackRecordStatusHtml(horizonDays, data.pending);
         return;
       }
       const recos = (data.byLabel || []).filter((b) => b.kind === "recommendation");
@@ -8514,10 +8524,26 @@
       if (event.target && event.target.id === "patternsHelp") closePatternsHelp();
     }
 
+    function openSignalRecordHelp() {
+      const modal = document.getElementById("signalRecordHelp");
+      if (modal) modal.hidden = false;
+    }
+
+    function closeSignalRecordHelp() {
+      const modal = document.getElementById("signalRecordHelp");
+      if (modal) modal.hidden = true;
+    }
+
+    function onSignalRecordHelpBackdrop(event) {
+      if (event.target && event.target.id === "signalRecordHelp") closeSignalRecordHelp();
+    }
+
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
-        const modal = document.getElementById("patternsHelp");
-        if (modal && !modal.hidden) closePatternsHelp();
+        const patternsModal = document.getElementById("patternsHelp");
+        if (patternsModal && !patternsModal.hidden) closePatternsHelp();
+        const signalModal = document.getElementById("signalRecordHelp");
+        if (signalModal && !signalModal.hidden) closeSignalRecordHelp();
       }
     });
 
