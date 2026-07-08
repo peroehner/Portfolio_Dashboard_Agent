@@ -785,6 +785,12 @@
       font-size: 0.85rem;
       line-height: 1.45;
     }
+    .panel-hint {
+      margin: 0 0 0.55rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.45;
+    }
     .visual-card-head {
       display: flex;
       align-items: center;
@@ -3849,7 +3855,7 @@
 
   <main id="view-holdings" class="view" hidden>
     <section class="panel holdings-table-panel portfolio-table-panel">
-      <p class="empty" style="margin-top:0;">Click a symbol to inspect it. Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows; totals then apply to the selection. Double-click the table to expand full width.</p>
+      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Totals apply to the selection. Double-click table to expand full width.</p>
       <div class="holdings-filter-bar">
         <button type="button" class="secondary filter-btn active" data-holdings-filter="all" onclick="setHoldingsFilter('all')">All</button>
         <button type="button" class="secondary filter-btn" data-holdings-filter="large" onclick="setHoldingsFilter('large')" title="Top 20% by share count">Large</button>
@@ -4039,7 +4045,7 @@
 
   <div id="view-simulation" class="view" hidden>
     <div class="wide-panel portfolio-table-panel">
-      <p class="empty" style="margin-top:0;">Totals cover the whole filtered list by default. ⌘/Ctrl-click a row to scope to just that symbol (toggle more to build a subset, Shift-click for a range); a plain click clears the selection back to the full list.</p>
+      <p class="panel-hint">Totals apply to (filtered) list or a selected scope. Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows.</p>
       <div id="simulationKpis" class="sim-kpis"></div>
       <div class="screening-filter-bar">
         <button type="button" class="secondary filter-btn active" data-sim-filter="all" onclick="setSimulationFilter('all')" title="All symbols that have at least one priced planned-trade threshold">All (with plans)</button>
@@ -4109,7 +4115,6 @@
 
   <main id="view-fundamentals" class="view" hidden>
     <section class="panel portfolio-table-panel">
-      <p class="empty" style="margin-top:0;">Compare every tracked symbol side by side. Split across three tabs; click a column header to sort, or a symbol to open the Inspector.</p>
       <div class="fundamentals-tabbar">
         <button class="fund-tab active" data-fund-tab="val" onclick="setFundamentalsTab('val')">Valuation · Growth · Profitability</button>
         <button class="fund-tab" data-fund-tab="health" onclick="setFundamentalsTab('health')">Health · Analyst</button>
