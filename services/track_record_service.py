@@ -1,4 +1,5 @@
-"""Tier 4: self-scoring track record for assessment recommendations and patterns.
+"""Tier 4: Agent Signal Record — self-scoring for agent signals (recommendations,
+patterns, confluence) captured when an assessment run completes.
 
 Each assessment captures a forward-looking "signal outcome" (see
 AssessmentService._capture_signal_outcomes). Once the configured horizon elapses,
@@ -21,6 +22,7 @@ from services.portfolio_service import PortfolioService
 # wins only if the forward return clears +BAND; a bearish call wins only if it
 # falls past -BAND; anything inside the band is "neutral".
 TRACK_RECORD_BAND_PCT = float(os.environ.get("TRACK_RECORD_BAND_PCT", "2.0"))
+TRACK_RECORD_HORIZON_DAYS = max(1, int(os.environ.get("TRACK_RECORD_HORIZON_DAYS", "21")))
 
 
 class TrackRecordService:
@@ -136,6 +138,7 @@ class TrackRecordService:
             _accumulate(label_bucket, row)
 
         return {
+            "horizonDays": TRACK_RECORD_HORIZON_DAYS,
             "horizonBandPct": TRACK_RECORD_BAND_PCT,
             "pending": pending,
             "overall": _finalize(overall),

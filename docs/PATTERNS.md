@@ -1,7 +1,7 @@
 # Reading the Dashboard — Technical Signals & Chart Patterns
 
 A field guide to the technical overlays you see in the **Inspector**, the badges
-in the **Symbols** list and **Screening** table, and the **Signal Track Record**
+in the **Symbols** list and **Screening** table, and the **Agent Signal Record**
 on the Summary. It explains every label (including `forming` vs `confirmed`) and
 how each value is computed.
 
@@ -319,24 +319,16 @@ temper it) — always modulating, never overriding, the fundamental thesis.
 
 ---
 
-## 12. Signal Track Record (Summary)
+## 12. Agent Signal Record (Summary)
 
-Every assessment captures its recommendation, any detected pattern, **and** the
-fused confluence bias as a forward-looking "bet" (each in its own section —
-*Recommendations*, *Chart patterns*, *Confluence bias*). Vetoed/stale patterns and
-a `Mixed` confluence are skipped (not falsifiable). Once the horizon elapses
-they're scored:
+Full documentation: **[signal_track_record.md](signal_track_record.md)**.
 
-| Term | Meaning |
-|------|---------|
-| Horizon | Days after capture before scoring (`TRACK_RECORD_HORIZON_DAYS`, default 21). |
-| Band | Dead-band; moves smaller than this count as neutral (`TRACK_RECORD_BAND_PCT`, default 2%). |
-| Win / Loss | Forward move agreed / disagreed with the signal's direction beyond the band. |
-| Neutral | Move inside the band, or a hold/watch (non-directional) signal. |
-| Hit rate | `wins / (wins + losses)` — neutrals excluded. |
-
-It's **measurement only** — past hit rates are reported but do not yet re-weight
-future signals (auto-calibration is a planned next step).
+Each **assessment run** captures forward-looking bets: SAI action, detected chart
+patterns, and fused confluence bias (veto/stale patterns and `Mixed` confluence
+skipped). After `TRACK_RECORD_HORIZON_DAYS` (default 21) per bet, price is
+scored win/loss/neutral against a ±`TRACK_RECORD_BAND_PCT` band. **Scores
+accumulate** across all matured bets; the horizon is a per-bet wait, not a
+rolling stats window. Measurement only — no auto-calibration yet.
 
 ---
 

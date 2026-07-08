@@ -202,7 +202,7 @@ that session:
 
 ### Other render-time loaders — event-driven, no timers
 
-The remaining loaders (the Inspector, fundamentals, latest assessments, track
+The remaining loaders (the Inspector, fundamentals, latest agent reads, track
 record, and news-reaction badges) are **render-time / event-driven**: they run
 when their view or symbol is opened, not on any independent timer. For example,
 `loadLatestAssessments()` and `loadTrackRecord()` run as part of the Overview
@@ -220,8 +220,8 @@ any timer — they happen **only** when the user clicks the corresponding button
 | **Portfolio / symbol assessment** | "Assess" button | `POST /api/v1/assess`, `POST /api/v1/symbols/<symbol>/assess` |
 | **Note synthesis** | "Synthesize" button | `POST /api/v1/notes/synthesize` |
 
-(The companion doc *Assessment, Recommendation & News* states the same: *"Assessments
-are on-demand, never scheduled."*) The background loop deliberately does **not**
+(The companion doc *Assessment Trigger, Agent Read, Recommendation & News* states the
+same: *"Assessment triggers are on-demand, never scheduled."*) The background loop deliberately does **not**
 call the LLM — it only syncs prices, evaluates alerts, and periodically refreshes
 analyst targets.
 

@@ -1,14 +1,14 @@
-# Assessment, Recommendation & News — How the Reasoning Works
+# Assessment Trigger, Agent Read, Recommendation & News — How the Reasoning Works
 
 *A guided overview of how this dashboard turns raw inputs into a per-symbol
-**Assessment**, a discrete **Recommendation** (Buy / Watch / Hold / Sell), and a
+**Agent Read**, a discrete **Recommendation** (Buy / Watch / Hold / Sell), and a
 ranked, reaction-scored **News** feed. Everything below is drawn directly from
 the code in this repository — the real field names, thresholds, label sets, and
 decision order — not generic investing theory.*
 
 > **The mental model in one line.** *Notes + fundamentals + market context* are
 > distilled by an LLM (or a deterministic rules fallback) into a stored
-> **Assessment**; the **Recommendation** card re-presents that assessment and
+> **Agent Read**; the **Recommendation** card re-presents that read and
 > layers on a *market-grounded sentiment* derived from how the stock actually
 > reacted to recent **News**. Fundamentals and notes drive the thesis; technical
 > signals and news modulate timing and conviction.
@@ -17,8 +17,8 @@ These three areas share inputs but answer different questions:
 
 | Area | Question it answers | Primary engine | Stored / live? |
 |------|--------------------|----------------|----------------|
-| **Assessment** | "What's my integrated read on this name right now?" | `assessment_service.py` + `llm_client.py` | **Stored** in `assessments` (history kept) |
-| **Recommendation** | "What action, how confident, what's the mood?" | `inspector_service.py` (`build_symbol_recommendation`) | **Live** view over the latest assessment + news sentiment |
+| **Agent Read** | "What's my integrated read on this name right now?" | `assessment_service.py` + `llm_client.py` | **Stored** in `assessments` (history kept) |
+| **Recommendation** | "What action, how confident, what's the mood?" | `inspector_service.py` (`build_symbol_recommendation`) | **Live** view over the latest Agent Read + news sentiment |
 | **News** | "What moved, how much did it matter, which way?" | `news_relevance_service.py` + `fundamentals_service.py` | **Live**, scored on each fetch (cached) |
 
 ```
@@ -35,41 +35,41 @@ These three areas share inputs but answer different questions:
         |                        |                  |                   |
         v                        v                  v                   v
   +---------------------------------------------------+      relevance-weighted
-  | 1. ASSESSMENT  assessment_service._build_context  |      symbol sentiment
+  | 1. ASSESSMENT TRIGGER  assessment_service._build_context  | symbol sentiment
   |    + llm_client.generate_assessment (LLM/rules)   |              |
   |    -> action, confidence, rationale, factors      |              |
-  |    stored in `assessments` (+ track record)       |              |
+  |    stored in `assessments` as an Agent Read       |              |
   +---------------------------------------------------+              |
-                        |  latest stored assessment                  |
+                        |  latest stored Agent Read                 |
                         v                                            v
   +---------------------------------------------------------------------------+
   | 2. RECOMMENDATION  inspector_service.build_symbol_recommendation          |
-  |    action/confidence/rationale (from assessment) + headline               |
+  |    action/confidence/rationale (from Agent Read) + headline               |
   |    + sentiment (NEWS preferred, notes fallback) + drivers + watch items   |
   +---------------------------------------------------------------------------+
                         |
                         v
   +---------------------------------------------------------------------------+
   | 3. UI   dashboard.html                                                    |
-  |    Recommendation card / Screening chips . "Assessed" date .              |
+  |    Recommendation card / Screening chips . "Read On" date .               |
   |    Summary news feed (relevance badge + reaction) . sentiment chip        |
   +---------------------------------------------------------------------------+
 ```
 
 ---
 
-## Section 1 — Assessment
+## Section 1 — Assessment trigger and Agent Read
 
 **Where:** `services/assessment_service.py` (orchestration + persistence) and
 `services/llm_client.py` (the actual wording / scoring).
 
-### What an "assessment" is
+### What an "Agent Read" is
 
-An assessment is a **stored snapshot** of the app's integrated opinion on one
+An Agent Read is a **stored snapshot** of the app's integrated opinion on one
 symbol at one point in time. Each row carries a discrete `action`, a
 `confidence` level, a free-text `rationale`, a list of bullet `factors`, the
 `note_synthesis` it was built from, the `provider` that wrote it, and a
-`created_at` timestamp (surfaced in the UI as **"Assessed"**). History is kept
+`created_at` timestamp (surfaced in the UI as **"Read On"**). History is kept
 but capped — see *Storage & lifecycle* below.
 
 ### What feeds it (the context bundle)
@@ -158,7 +158,7 @@ flow"* (D/E > 150 **and** FCF < 0), *"Trading near 52-week high (92% of range)"*
 
 ### When / how it's (re)generated
 
-Assessments are **on-demand, never scheduled.** They are produced only when the
+Assessment triggers are **on-demand, never scheduled.** An Agent Read is produced only when the
 user triggers:
 
 - `POST /api/v1/assess` → `assess_portfolio` (all symbols, or a passed subset).
@@ -171,10 +171,10 @@ writes stay ordered (`assess_portfolio`, lines ~95–138). Note *synthesis*
 (`/notes/synthesize`); the assessment consumes the **already-stored** syntheses
 rather than re-parsing raw notes.
 
-### The "Assessed" timestamp
+### The "Read On" timestamp
 
 `created_at` on the row is set by the database at insert time. It is returned as
-`createdAt` (and as `assessedAt` in overview/recommendation payloads) and
+`createdAt` (and as `assessedAt` in overview/recommendation payloads for backward compatibility) and
 rendered in the UI as the day portion (`YYYY-MM-DD`) with the full timestamp on
 hover.
 
@@ -187,13 +187,14 @@ NULL), provider`. Three side effects fire in the same transaction:
 
 1. **Changelog** — `_record_recommendation_change` logs a row in
    `recommendation_changelog` **only when the discrete `action` differs** from
-   the previous assessment (the first-ever assessment for a symbol is skipped).
+   the previous Agent Read (the first-ever read for a symbol is skipped).
    This powers the Summary "recommendation changes" feed.
-2. **Track record** — when `TRACK_RECORD` is on (default), `_capture_signal_outcomes`
+2. **Agent Signal Record** — when `TRACK_RECORD` is on (default), `_capture_signal_outcomes`
    snapshots the recommendation, any non-vetoed/non-stale detected pattern, and a
    directional Confluence bias as forward-looking "bets" with an entry price and a
-   `TRACK_RECORD_HORIZON_DAYS` (default **21**) evaluation horizon. At most one
-   *pending* capture per `(symbol, kind, label)` to avoid flooding.
+   `TRACK_RECORD_HORIZON_DAYS` (default **21**) per-bet evaluation horizon. At most one
+   *pending* capture per `(symbol, kind, label)` to avoid flooding. Scored outcomes
+   accumulate (no rolling window). See **[signal_track_record.md](signal_track_record.md)**.
 3. **Trim** — `_trim_assessment_history` keeps only the newest
    `MAX_ASSESSMENTS_PER_SYMBOL = 3` rows per symbol.
 
@@ -208,9 +209,9 @@ NULL), provider`. Three side effects fire in the same transaction:
 ### What it is
 
 The Recommendation is **not a second model run** — it is a *presentation layer*
-over the latest stored assessment, enriched with a market-grounded sentiment and
+over the latest stored Agent Read, enriched with a market-grounded sentiment and
 some "what to watch" context. Its `action`, `confidence`, and `rationale` are
-taken **verbatim from the latest assessment** (lines ~597–603); if no assessment
+taken **verbatim from the latest Agent Read** (lines ~597–603); if no Agent Read
 exists yet, it defaults to `hold` / `medium` with a "synthesize then assess"
 prompt.
 
@@ -387,8 +388,8 @@ This is exactly what the Recommendation prefers for its sentiment chip
 · **SENTIMENT** (`bullish`/`neutral`/`bearish`, colored, with the sourcing detail
 on hover). The full card (`renderRecommendationCard`) adds the headline,
 rationale, the `drivers` list, a "What to watch" list, and a meta footer:
-`Assessed <date> · <provider> · <upside>% upside to target`. The Screening table
-shows the same chips per row and a separate **"Assessed"** date cell
+`Read <date> · <provider> · <upside>% upside to target`. The Screening table
+shows the same chips per row and a separate **"Read On"** date cell
 (`renderScreeningAssessedCell`, lines ~5237–5241).
 
 > **UI help vs. code — reconciled.** The Screening help text labels the chips
@@ -450,8 +451,8 @@ targets and alerts, the symbol's fundamentals, recent news, and computed
 technicals (including the Confluence verdict), and asks an LLM — or a transparent
 rules engine if no key/quota — to return a clamped **action** (buy/watch/hold/sell),
 a **confidence**, a **rationale**, and bullet **factors**, which are stored with
-an **Assessed** timestamp (history capped at 3, changes logged, outcomes tracked).
-The **Recommendation** card simply re-presents that latest assessment and adds a
+a **Read On** timestamp (history capped at 3, changes logged, outcomes tracked).
+The **Recommendation** card simply re-presents that latest Agent Read and adds a
 **sentiment** chip that prefers a *market-grounded* read — how strongly and which
 way the stock actually reacted to its recent **News** (a beta-adjusted,
 volatility-standardized, volume-confirmed daily event study scored 0–100 and

@@ -2296,6 +2296,23 @@
       color: var(--muted);
       font-size: 0.8rem;
     }
+    .tr-empty {
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.45;
+    }
+    .tr-empty-lead { margin: 0 0 0.65rem; color: var(--text); }
+    .tr-empty-pending {
+      margin: 0 0 0.65rem;
+      padding: 0.5rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid rgba(147, 197, 253, 0.35);
+      background: rgba(147, 197, 253, 0.08);
+      color: #bfdbfe;
+    }
+    .tr-empty-hint { margin: 0 0 0.45rem; }
+    .tr-empty-foot { margin: 0.65rem 0 0; font-size: 0.8rem; }
+    .tr-empty-sample { opacity: 0.72; pointer-events: none; }
     .tr-overall {
       display: flex;
       align-items: center;
@@ -2423,6 +2440,10 @@
     /* "1 per Symbol" is a filter, not a sort — give it a distinct (amber) accent. */
     #newsGroupBtn { color: #f59e0b; }
     #newsGroupBtn.active { background: #f59e0b; color: #1a1206; }
+    #recoDirUpBtn { color: #22c55e; }
+    #recoDirUpBtn.active { background: #22c55e; color: #0a1a0f; }
+    #recoDirDownBtn { color: #ef4444; }
+    #recoDirDownBtn.active { background: #ef4444; color: #1a0a0a; }
     .news-controls-label {
       font-size: 0.7rem;
       font-weight: 700;
@@ -3733,11 +3754,20 @@
       <div class="news-changes-grid">
         <div class="news-changes-col">
           <section class="nc-area">
-            <h3>Synthesized Agent Insights (SAI) Changes <span class="nc-count" id="recoChangesMeta"></span></h3>
+            <div class="nc-head">
+              <h3>Synthesized Agent Insights (SAI) Changes <span class="nc-count" id="recoChangesMeta"></span></h3>
+              <div class="news-controls">
+                <span class="news-controls-label">Direction</span>
+                <div class="fund-news-sort" id="recoDirToggle" role="group" aria-label="Filter SAI changes by direction">
+                  <button type="button" id="recoDirUpBtn" data-dir="up" onclick="setRecoChangesDirFilter('up')" title="Show upgrades only (e.g. sell → hold → buy)">▲ Up</button>
+                  <button type="button" id="recoDirDownBtn" data-dir="down" onclick="setRecoChangesDirFilter('down')" title="Show downgrades only (e.g. buy → hold → sell)">▼ Down</button>
+                </div>
+              </div>
+            </div>
             <div class="nc-scroll nc-scroll-reco" id="recoChangesList"><div class="empty">Loading…</div></div>
           </section>
           <section class="nc-area">
-            <h3>Latest Assessments <span class="nc-count" id="latestAssessmentsMeta"></span></h3>
+            <h3>Latest Agent Reads <span class="nc-count" id="latestAssessmentsMeta"></span></h3>
             <div class="nc-scroll nc-scroll-assess" id="latestAssessmentsBody"><div class="empty">Loading…</div></div>
           </section>
         </div>
@@ -3764,10 +3794,10 @@
     </div>
     <div class="wide-panel" id="trackRecordPanel">
       <div class="track-record-head">
-        <h2>Signal Track Record</h2>
+        <h2>Agent Signal Record</h2>
         <span class="track-record-sub" id="trackRecordMeta"></span>
       </div>
-      <p class="visual-subtitle">How past Synthesized Agent Insights, detected chart patterns, and the fused confluence bias actually played out over the evaluation horizon. Self-scoring only — signals are measured, not yet auto-weighted.</p>
+      <p class="visual-subtitle">After each assessment run, agent signals are captured as forward bets: SAI action, chart patterns, and confluence bias. Each bet waits the evaluation horizon (default 21 days), then is scored against a ±band. Hit rates <strong>accumulate</strong> across all matured bets — read-only; scores do not yet change future runs.</p>
       <div id="trackRecordBody"><div class="empty">Loading…</div></div>
     </div>
     <div class="wide-panel import-bar">
@@ -3946,7 +3976,7 @@
 
     <section class="panel target-assessments-panel">
       <div class="target-assessments-head">
-        <h2>Assessments</h2>
+        <h2>Agent Reads</h2>
         <button type="button" id="btnAssessSymbol" class="nav-agent-btn nav-agent-assess" onclick="assessSelected(event)" disabled>Assess Symbol</button>
       </div>
       <div id="assessmentsList"></div>
@@ -4041,7 +4071,7 @@
           PDF
         </button>
       </div>
-      <div id="inspectorEmpty" class="empty">Choose a symbol to inspect holdings, alerts, notes, and assessments.</div>
+      <div id="inspectorEmpty" class="empty">Choose a symbol to inspect holdings, alerts, notes, and agent reads.</div>
       <div id="inspectorPanel" hidden></div>
     </section>
   </main>
@@ -5725,10 +5755,10 @@
       const container = document.getElementById("assessmentsList");
       if (!container) return;
       if (!assessments.length) {
-        container.innerHTML = `<div class="empty">No assessments yet.</div>`;
+        container.innerHTML = `<div class="empty">No agent reads yet.</div>`;
         return;
       }
-      // "Clear history" appears once there's more than the latest assessment; it
+      // "Clear history" appears once there's more than the latest agent read; it
       // keeps the latest and removes the rest (mirrors the old Inspector control).
       const clearBtn = (selectedSymbol && assessments.length > 1)
         ? `<div class="target-actions" style="margin:0 0 0.6rem;"><button type="button" class="btn-danger" onclick="deleteTargetAssessmentHistory()">Clear history</button></div>`
@@ -5959,11 +5989,11 @@
 
     async function deleteTargetAssessment(assessmentId) {
       if (!selectedSymbol) return;
-      if (!confirm("Delete this assessment?")) return;
+      if (!confirm("Delete this agent read?")) return;
       try {
         await api(`/assessments/${assessmentId}?symbol=${encodeURIComponent(selectedSymbol)}`, { method: "DELETE" });
         await loadAssessments();
-        setStatus(`Assessment deleted for ${selectedSymbol}.`);
+        setStatus(`Agent read deleted for ${selectedSymbol}.`);
       } catch (error) {
         setStatus(error.message, "error");
       }
@@ -5972,7 +6002,7 @@
     async function deleteTargetAssessmentHistory() {
       if (!selectedSymbol) return;
       // Pull the full history (not just the displayed page) so "Clear history"
-      // truly removes everything except the latest assessment.
+      // truly removes everything except the latest agent read.
       let older = [];
       try {
         const data = await api(`/assessments?symbol=${encodeURIComponent(selectedSymbol)}&limit=500`);
@@ -5981,14 +6011,14 @@
         setStatus(error.message, "error");
         return;
       }
-      if (!older.length) { setStatus("No assessment history to delete."); return; }
-      if (!confirm(`Delete the entire assessment history (${older.length})? The latest assessment is kept.`)) return;
+      if (!older.length) { setStatus("No agent read history to delete."); return; }
+      if (!confirm(`Delete the entire agent read history (${older.length})? The latest agent read is kept.`)) return;
       try {
         for (const item of older) {
           await api(`/assessments/${item.id}?symbol=${encodeURIComponent(selectedSymbol)}`, { method: "DELETE" });
         }
         await loadAssessments();
-        setStatus(`Deleted assessment history (${older.length}) for ${selectedSymbol}.`);
+        setStatus(`Deleted agent read history (${older.length}) for ${selectedSymbol}.`);
       } catch (error) {
         setStatus(error.message, "error");
       }
@@ -6207,8 +6237,8 @@
           await loadTargetContext(item, assessInspectorData);
           setStatus(
             result.llmFallback
-              ? `Assessment complete for ${selectedSymbol} (rules fallback — Gemini quota/network).`
-              : `Assessment complete for ${selectedSymbol}.`,
+              ? `Agent read complete for ${selectedSymbol} (rules fallback — Gemini quota/network).`
+              : `Agent read complete for ${selectedSymbol}.`,
             result.llmFallback ? "error" : "success"
           );
           requestAnimationFrame(() => pulseUpdated("inspector-recommendation"));
@@ -6233,7 +6263,7 @@
           await loadAssessments();
           await Promise.all([loadRecoChanges(), loadLatestAssessments()]);
           markRefreshed("SAI assessments");
-          setStatus(`Generated ${data.assessments.length} assessments.`, "success");
+          setStatus(`Generated ${data.assessments.length} agent reads.`, "success");
           requestAnimationFrame(() => pulseUpdated("overviewMetrics"));
         } catch (error) {
           setStatus(planErrorMessage(error), "error");
@@ -6884,7 +6914,7 @@
     }
 
     function renderTopNewsItem(item) {
-      const meta = [item.publisher, item.published].filter(Boolean).join(" · ");
+      const meta = [item.publisher, formatLocalTs(item.published)].filter(Boolean).join(" · ");
       const badge = renderNewsReactBadge(item);
       const addNoteBtn = renderNewsAddNoteButton(item);
       return `
@@ -7023,6 +7053,7 @@
     let recoChangesAll = [];
     let latestAssessmentsAll = [];
     let newsChangesTickerFilter = "";
+    let recoChangesDirFilter = "";
 
     function newsChangesSymbolMatches(symbol) {
       const ticker = newsChangesTickerFilter.trim().toLowerCase();
@@ -7034,6 +7065,39 @@
       renderRecoChanges();
       renderLatestAssessments();
       renderTopNews();
+    }
+
+    function recoChangeDirection(change) {
+      const oldRank = saiFieldRank(change.oldAction, SAI_ACTION_RANK);
+      const newRank = saiFieldRank(change.newAction, SAI_ACTION_RANK);
+      if (newRank > oldRank) return "up";
+      if (newRank < oldRank) return "down";
+      return "flat";
+    }
+
+    function setRecoChangesDirFilter(dir) {
+      recoChangesDirFilter = recoChangesDirFilter === dir ? "" : dir;
+      updateRecoChangesControlStates();
+      renderRecoChanges();
+    }
+
+    function updateRecoChangesControlStates() {
+      const up = document.getElementById("recoDirUpBtn");
+      const down = document.getElementById("recoDirDownBtn");
+      if (up) up.classList.toggle("active", recoChangesDirFilter === "up");
+      if (down) down.classList.toggle("active", recoChangesDirFilter === "down");
+    }
+
+    function filterRecoChangesList() {
+      return recoChangesAll.filter((change) => {
+        if (!newsChangesSymbolMatches(change.symbol)) return false;
+        if (!recoChangesDirFilter) return true;
+        return recoChangeDirection(change) === recoChangesDirFilter;
+      });
+    }
+
+    function recoChangesFiltersActive() {
+      return Boolean(newsChangesTickerFilter.trim() || recoChangesDirFilter);
     }
 
     function setNewsSort(mode) {
@@ -7101,14 +7165,16 @@
     function renderRecoChanges() {
       const recoEl = document.getElementById("recoChangesList");
       if (!recoEl) return;
-      const changes = recoChangesAll.filter((change) => newsChangesSymbolMatches(change.symbol));
+      const changes = filterRecoChangesList();
+      const upN = changes.filter((change) => recoChangeDirection(change) === "up").length;
+      const downN = changes.filter((change) => recoChangeDirection(change) === "down").length;
       const recoMeta = document.getElementById("recoChangesMeta");
       if (recoMeta) {
-        recoMeta.textContent = changes.length ? `${changes.length}` : "";
+        recoMeta.textContent = changes.length ? `${changes.length} · ▲${upN} · ▼${downN}` : "";
       }
       recoEl.innerHTML = changes.length
         ? `<div class="topnews-feed">${changes.map(renderRecoChange).join("")}</div>`
-        : `<div class="empty">${recoChangesAll.length && newsChangesTickerFilter.trim() ? "No SAI changes match the current filter." : "No Synthesized Agent Insight (SAI) changes yet. Run Assess Portfolio to start tracking."}</div>`;
+        : `<div class="empty">${recoChangesAll.length && recoChangesFiltersActive() ? "No SAI changes match the current filter." : "No Synthesized Agent Insight (SAI) changes yet. Run Assess Portfolio to start tracking."}</div>`;
     }
 
     async function loadRecoChanges() {
@@ -7117,6 +7183,7 @@
       try {
         const data = await api("/recommendation-changes?limit=0");
         recoChangesAll = data.changes || [];
+        updateRecoChangesControlStates();
         renderRecoChanges();
       } catch (err) {
         recoChangesAll = [];
@@ -7168,17 +7235,44 @@
         .join("");
     }
 
+    function trackRecordEmptyPreview(horizonDays, bandPct, pending) {
+      const horizon = horizonDays || 21;
+      const band = bandPct != null ? bandPct : 2;
+      const pendTxt = pending
+        ? `<p class="tr-empty-pending"><strong>${pending}</strong> bet${pending === 1 ? "" : "s"} still within the <strong>${horizon}-day</strong> per-bet horizon — scores appear as each matures (checked when Summary loads).</p>`
+        : "";
+      return `
+        <div class="tr-empty">
+          <p class="tr-empty-lead">No matured scores yet. Bets are captured when an assessment run completes (scheduled or manual).</p>
+          ${pendTxt}
+          <p class="tr-empty-hint">Matured bets accumulate — there is no rolling window. Once the first bets age out, you'll see an overall hit rate plus tables like:</p>
+          <div class="tr-section tr-empty-sample" aria-hidden="true">
+            <table class="tr-table">
+              <thead><tr><th>Signal</th><th class="tr-num">N</th><th class="tr-num">W–L</th><th class="tr-num">Hit</th><th class="tr-num">Avg ret</th></tr></thead>
+              <tbody>
+                <tr><td>buy</td><td class="tr-num">12</td><td class="tr-num">8–4</td><td class="tr-num"><span class="tr-rate tr-good">66.7%</span></td><td class="tr-num"><span class="pos">+3.2%</span></td></tr>
+                <tr><td>Double Bottom</td><td class="tr-num">5</td><td class="tr-num">3–1 <span class="tr-muted">(1n)</span></td><td class="tr-num"><span class="tr-rate tr-mid">75%</span></td><td class="tr-num"><span class="pos">+1.8%</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="tr-empty-foot">Scoring rules: bullish bets win if price rises more than <strong>±${band}%</strong>; bearish bets win if it falls more than <strong>±${band}%</strong>. Moves inside the band, plus hold/watch calls, are neutral (shown as <span class="tr-muted">n</span>).</p>
+        </div>`;
+    }
+
     function renderTrackRecord(data) {
       const body = document.getElementById("trackRecordBody");
       const metaEl = document.getElementById("trackRecordMeta");
       if (!body) return;
       const overall = data.overall || { count: 0 };
+      const horizonDays = data.horizonDays || 21;
       if (metaEl) {
-        const pend = data.pending ? ` · ${data.pending} pending` : "";
-        metaEl.textContent = `±${data.horizonBandPct}% band${pend}`;
+        const pend = data.pending
+          ? ` · ${data.pending} awaiting ${horizonDays}-day horizon`
+          : "";
+        metaEl.textContent = `±${data.horizonBandPct}% win/loss band${pend}`;
       }
       if (!overall.count) {
-        body.innerHTML = `<div class="empty">No evaluated signals yet. Synthesized Agent Insights and patterns are scored once their horizon elapses — run Assess Portfolio to start the clock.</div>`;
+        body.innerHTML = trackRecordEmptyPreview(horizonDays, data.horizonBandPct, data.pending);
         return;
       }
       const recos = (data.byLabel || []).filter((b) => b.kind === "recommendation");
@@ -7204,7 +7298,7 @@
             <span>avg return ${trackRecordReturn(overall)}</span>
           </div>
         </div>
-        ${section("Synthesized Agent Insight", recos)}
+        ${section("SAI actions", recos)}
         ${section("Chart patterns", patterns)}
         ${section("Confluence bias", confluence)}`;
     }
@@ -7216,7 +7310,7 @@
         const data = await api("/track-record");
         renderTrackRecord(data);
       } catch (err) {
-        body.innerHTML = `<div class="empty">Could not load track record: ${escapeHtml(err.message)}</div>`;
+        body.innerHTML = `<div class="empty">Could not load agent signal record: ${escapeHtml(err.message)}</div>`;
       }
     }
 
@@ -7256,7 +7350,7 @@
     }
 
     // The assessment run completed at the newest assessedAt (overview is sorted
-    // newest-first), shown in the Latest Assessments header as "YYYY-MM-DD HH:MM:SS".
+    // newest-first), shown in the Latest Agent Reads header as "YYYY-MM-DD HH:MM:SS".
     // Server timestamps are UTC wall-clock with no tz designator. Parse them as
     // UTC and render "YYYY-MM-DD HH:MM:SS" in the viewer's LOCAL timezone.
     // Date-only values (no time) are returned unchanged so they never shift days.
@@ -7290,7 +7384,7 @@
       }
       body.innerHTML = list.length
         ? `<div class="topnews-feed">${list.map(renderLatestAssessmentItem).join("")}</div>`
-        : `<div class="empty">${latestAssessmentsAll.length && newsChangesTickerFilter.trim() ? "No assessments match the current filter." : "No assessments yet. Run Assess Portfolio to populate this overview."}</div>`;
+        : `<div class="empty">${latestAssessmentsAll.length && newsChangesTickerFilter.trim() ? "No agent reads match the current filter." : "No agent reads yet. Run Assess Portfolio to populate this overview."}</div>`;
     }
 
     async function loadLatestAssessments() {
@@ -8078,7 +8172,7 @@
       },
       {
         key: "assessedAt",
-        label: "Assessed",
+        label: "Read On",
         sortValue: (row) => row.assessedAt || "",
         render: (row) => renderScreeningAssessedCell(row),
       },
@@ -9235,7 +9329,7 @@
         .map((w) => `<li>${w}</li>`)
         .join("");
       const meta = [
-        rec.assessedAt ? `Assessed ${rec.assessedAt}` : null,
+        rec.assessedAt ? `Read ${rec.assessedAt}` : null,
         rec.provider || null,
         rec.upsidePct != null ? `${rec.upsidePct}% upside to target` : null,
       ].filter(Boolean).join(" · ");
@@ -10619,7 +10713,7 @@
         .map((w) => `<li>${escapeHtml(w)}</li>`)
         .join("");
       const meta = [
-        rec.assessedAt ? `Assessed ${escapeHtml(rec.assessedAt)}` : null,
+        rec.assessedAt ? `Read ${escapeHtml(rec.assessedAt)}` : null,
         rec.provider ? escapeHtml(rec.provider) : null,
         rec.upsidePct != null ? `${rec.upsidePct}% upside to target` : null,
       ].filter(Boolean).join(" · ");
