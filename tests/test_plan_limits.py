@@ -22,11 +22,9 @@ from services.import_service import ImportService  # noqa: E402
 from services.notes_service import NotesService  # noqa: E402
 from services.plan_service import (  # noqa: E402
     PlanLimitExceeded,
-    ensure_can_assess_all,
-    ensure_can_synthesize,
+    ensure_can_manual_ai_action,
     get_plan_limits,
-    record_assess_all,
-    record_note_synthesis,
+    record_manual_ai_action,
     set_user_plan,
 )
 from services.portfolio_service import PortfolioService  # noqa: E402
@@ -76,14 +74,12 @@ class PlanLimitsTests(unittest.TestCase):
     def test_free_plan_limits(self) -> None:
         limits = get_plan_limits("free")
         self.assertEqual(limits.max_symbols, 10)
-        self.assertEqual(limits.note_synthesis_per_day, 5)
-        self.assertEqual(limits.assess_all_per_day, 1)
+        self.assertEqual(limits.manual_ai_actions_per_day, 6)
 
     def test_standard_plan_limits(self) -> None:
         limits = get_plan_limits("standard")
         self.assertEqual(limits.max_symbols, 50)
-        self.assertIsNone(limits.note_synthesis_per_day)
-        self.assertIsNone(limits.assess_all_per_day)
+        self.assertIsNone(limits.manual_ai_actions_per_day)
 
     def test_symbol_limit_blocks_eleventh_symbol(self) -> None:
         portfolio = PortfolioService()
@@ -115,15 +111,29 @@ class PlanLimitsTests(unittest.TestCase):
                 "synthesize_note",
                 return_value={"summary": f"synth {index}", "provider": "rules"},
             ):
-                notes.synthesize_note("AAPL", note["id"])
+                notes.synthesize_note("AAPL", note["id"], force=True)
         with patch.object(
             notes.llm_client,
             "synthesize_note",
             return_value={"summary": "sixth", "provider": "rules"},
         ):
+            notes.synthesize_note(
+                "AAPL",
+                notes.add_note("AAPL", {"text": "sixth"})["id"],
+                force=True,
+            )
+        with patch.object(
+            notes.llm_client,
+            "synthesize_note",
+            return_value={"summary": "seventh", "provider": "rules"},
+        ):
             with self.assertRaises(PlanLimitExceeded) as ctx:
-                notes.synthesize_note("AAPL", notes.add_note("AAPL", {"text": "sixth"})["id"])
-        self.assertEqual(ctx.exception.code, "note_synthesis_limit")
+                notes.synthesize_note(
+                    "AAPL",
+                    notes.add_note("AAPL", {"text": "seventh"})["id"],
+                    force=True,
+                )
+        self.assertEqual(ctx.exception.code, "manual_ai_actions_limit")
 
     def test_assess_all_daily_limit(self) -> None:
         PortfolioService().upsert_symbol("AAPL", {"target_price": 150.0})
@@ -136,12 +146,12 @@ class PlanLimitsTests(unittest.TestCase):
             "provider": "rules",
         }
         fake_context = {"symbol": "AAPL"}
-        with patch.object(service, "_compute_assessment", return_value=(fake_result, fake_context)):
-            service.assess_portfolio()
+        for _ in range(6):
+            record_manual_ai_action(self.user_id)
         with patch.object(service, "_compute_assessment", return_value=(fake_result, fake_context)):
             with self.assertRaises(PlanLimitExceeded) as ctx:
                 service.assess_portfolio()
-        self.assertEqual(ctx.exception.code, "assess_all_limit")
+        self.assertEqual(ctx.exception.code, "manual_ai_actions_limit")
 
     def test_pro_plan_has_no_symbol_cap(self) -> None:
         set_user_plan("pro", self.user_id)
@@ -153,12 +163,13 @@ class PlanLimitsTests(unittest.TestCase):
     def test_standard_allows_unlimited_synthesis(self) -> None:
         set_user_plan("standard", self.user_id)
         for _ in range(6):
-            ensure_can_synthesize(self.user_id)
-            record_note_synthesis(self.user_id)
+            ensure_can_manual_ai_action(self.user_id)
+            record_manual_ai_action(self.user_id)
 
     def test_single_symbol_assess_not_gated(self) -> None:
+        set_user_plan("standard", self.user_id)
         PortfolioService().upsert_symbol("AAPL", {"target_price": 150.0})
-        record_assess_all(self.user_id)
+        record_manual_ai_action(self.user_id)
         service = AssessmentService()
         fake_result = {
             "action": "hold",

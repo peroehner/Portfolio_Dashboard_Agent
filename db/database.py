@@ -222,6 +222,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         usage_date TEXT NOT NULL,
         note_syntheses INTEGER NOT NULL DEFAULT 0,
         assess_all_runs INTEGER NOT NULL DEFAULT 0,
+        manual_ai_actions INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (user_id, usage_date)
     )
     """,
@@ -295,9 +296,11 @@ MIGRATION_STATEMENTS: tuple[str, ...] = (
         usage_date TEXT NOT NULL,
         note_syntheses INTEGER NOT NULL DEFAULT 0,
         assess_all_runs INTEGER NOT NULL DEFAULT 0,
+        manual_ai_actions INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (user_id, usage_date)
     )
     """,
+    "ALTER TABLE user_daily_usage ADD COLUMN IF NOT EXISTS manual_ai_actions INTEGER NOT NULL DEFAULT 0",
 )
 
 BOOTSTRAP_USER_EMAIL = os.environ.get("BOOTSTRAP_USER_EMAIL", "local@portfolio.local")

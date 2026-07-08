@@ -170,7 +170,7 @@ class NotesService:
         # never block note creation, so any failure is swallowed with a warning.
         if NOTE_AUTOSYNTH and self.llm_client.active_provider() in ("openai", "gemini"):
             try:
-                note = self.synthesize_note(symbol, note_id)
+                note = self.synthesize_note(symbol, note_id, manual=False)
             except Exception as exc:  # noqa: BLE001 - note is already saved; synthesis is best-effort
                 logging.warning(
                     "Auto-synthesis failed for note %s (%s); leaving unsynthesized: %s",
@@ -278,7 +278,12 @@ class NotesService:
         return updated
 
     def synthesize_note(
-        self, symbol: str, note_id: int, force: bool = False, guidance: str | None = None
+        self,
+        symbol: str,
+        note_id: int,
+        force: bool = False,
+        guidance: str | None = None,
+        manual: bool = True,
     ) -> dict[str, Any]:
         """Send raw note + prompt to LLM; persist synthesis on the note."""
         symbol = symbol.upper()
@@ -289,9 +294,10 @@ class NotesService:
         if note.get("synthesis") and not force:
             return note
 
-        from services.plan_service import ensure_can_synthesize, record_note_synthesis
+        from services.plan_service import ensure_can_manual_ai_action, record_manual_ai_action
 
-        ensure_can_synthesize()
+        if manual:
+            ensure_can_manual_ai_action()
 
         # An optional directive embedded in the note body (front matter `prompt:`
         # or a leading `@prompt:` line) steers synthesis for THIS note and takes
@@ -317,7 +323,8 @@ class NotesService:
             )
             conn.commit()
 
-        record_note_synthesis()
+        if manual:
+            record_manual_ai_action()
 
         updated = self.get_note(symbol, note_id)
         assert updated is not None
@@ -369,7 +376,7 @@ class NotesService:
                 time.sleep(batch_delay)
             try:
                 note = self.synthesize_note(
-                    row["symbol"], row["id"], force=force, guidance=guidance
+                    row["symbol"], row["id"], force=force, guidance=guidance, manual=False
                 )
                 provider = note.get("synthesisProvider") or "unknown"
                 providers[provider] = providers.get(provider, 0) + 1

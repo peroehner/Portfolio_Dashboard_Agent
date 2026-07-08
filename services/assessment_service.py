@@ -100,14 +100,18 @@ class AssessmentService:
         return result, context
 
     def assess_symbol(self, symbol: str) -> dict[str, Any]:
+        from services.plan_service import ensure_can_manual_ai_action, record_manual_ai_action
+
+        ensure_can_manual_ai_action()
         result, context = self._compute_assessment(symbol)
-        return self._save_assessment(symbol.upper(), result, context)
+        saved = self._save_assessment(symbol.upper(), result, context)
+        record_manual_ai_action()
+        return saved
 
     def assess_portfolio(self, symbols: list[str] | None = None) -> list[dict[str, Any]]:
-        from services.plan_service import ensure_can_assess_all, record_assess_all
+        from services.plan_service import ensure_can_manual_ai_action, record_manual_ai_action
 
-        ensure_can_assess_all()
-        record_assess_all()
+        ensure_can_manual_ai_action()
 
         if symbols:
             symbol_list = [str(symbol).upper() for symbol in symbols]
@@ -151,6 +155,8 @@ class AssessmentService:
                 continue
             result, context = computed[sym]
             assessments.append(self._save_assessment(sym, result, context))
+        if assessments:
+            record_manual_ai_action()
         return assessments
 
     def list_assessments(self, symbol: str | None = None, limit: int = 20) -> list[dict[str, Any]]:

@@ -41,6 +41,10 @@
       color: var(--text);
       line-height: 1.5;
     }
+    body.app-busy,
+    body.app-busy * {
+      cursor: progress !important;
+    }
     header {
       display: flex;
       justify-content: space-between;
@@ -3931,7 +3935,7 @@
             <div class="empty" style="margin-top:0.35rem;">Tip: start a note with <code>@prompt: …</code> or a <code>--- prompt: --- </code> block to steer synthesis for that note.</div>
             <div class="target-actions" style="margin-top:0.5rem;">
               <button type="submit">Add Note</button>
-              <button type="button" class="secondary" id="btnSynthesizeAll" onclick="synthesizeAllNotes()">Synthesize All Notes</button>
+              <button type="button" class="secondary" id="btnSynthesizeAll" onclick="synthesizeAllNotes(event)">Synthesize All Notes</button>
             </div>
           </form>
           <div id="noteSynthesisPreview"></div>
@@ -4165,6 +4169,11 @@
     // Shared in-flight button state: disable + spinner + "…" label for the
     // duration of an async op, restored on success or error. Accepts a button
     // element or an element id.
+    let pendingUiOps = 0;
+    function setGlobalBusy(on) {
+      document.body.classList.toggle("app-busy", on);
+    }
+
     async function withButtonPending(button, pendingLabel, asyncFn) {
       const btn = typeof button === "string" ? document.getElementById(button) : button;
       if (!btn) return asyncFn();
@@ -4173,10 +4182,14 @@
       btn.disabled = true;
       btn.classList.add("btn-pending");
       btn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span>${escapeHtml(pendingLabel)}`;
+      pendingUiOps += 1;
+      setGlobalBusy(true);
       updateNavAgentGlyph();
       try {
         return await asyncFn();
       } finally {
+        pendingUiOps = Math.max(0, pendingUiOps - 1);
+        setGlobalBusy(pendingUiOps > 0);
         btn.disabled = prevDisabled;
         btn.classList.remove("btn-pending");
         btn.innerHTML = prevHtml;
@@ -4339,16 +4352,10 @@
       return labels[plan] || plan || "";
     }
 
-    function synthesisRemaining() {
-      if (!planLimits || planLimits.noteSynthesisPerDay == null) return Infinity;
-      const used = planLimits.usage?.noteSyntheses || 0;
-      return Math.max(0, planLimits.noteSynthesisPerDay - used);
-    }
-
-    function assessAllRemaining() {
-      if (!planLimits || planLimits.assessAllPerDay == null) return Infinity;
-      const used = planLimits.usage?.assessAllRuns || 0;
-      return Math.max(0, planLimits.assessAllPerDay - used);
+    function manualAiActionsRemaining() {
+      if (!planLimits || planLimits.manualAiActionsPerDay == null) return Infinity;
+      const used = planLimits.usage?.manualAiActions || 0;
+      return Math.max(0, planLimits.manualAiActionsPerDay - used);
     }
 
     function isAtSymbolLimit() {
@@ -4369,15 +4376,10 @@
           ? ""
           : `Symbol cap: ${planLimits.symbolCount} tracked · ${planLimits.maxSymbols} max for new adds.`;
       }
-      if (code === "note_synthesis_limit") {
-        return planLimits.noteSynthesisPerDay == null
+      if (code === "manual_ai_actions_limit") {
+        return planLimits.manualAiActionsPerDay == null
           ? ""
-          : `Daily synthesis limit (${planLimits.noteSynthesisPerDay}/day) reached.`;
-      }
-      if (code === "assess_all_limit") {
-        return planLimits.assessAllPerDay == null
-          ? ""
-          : `Daily Assess Portfolio limit (${planLimits.assessAllPerDay}/day) reached.`;
+          : `Daily Manual AI Actions limit (${planLimits.manualAiActionsPerDay}/day) reached.`;
       }
       return "";
     }
@@ -4399,11 +4401,8 @@
       } else if (planLimits.symbolCount != null) {
         parts.push(`${planLimits.symbolCount} symbols`);
       }
-      if (planLimits.noteSynthesisPerDay != null) {
-        parts.push(`synthesis ${planLimits.usage?.noteSyntheses || 0} / ${planLimits.noteSynthesisPerDay} today`);
-      }
-      if (planLimits.assessAllPerDay != null) {
-        parts.push(`Assess All ${planLimits.usage?.assessAllRuns || 0} / ${planLimits.assessAllPerDay} today`);
+      if (planLimits.manualAiActionsPerDay != null) {
+        parts.push(`Manual AI Actions ${planLimits.usage?.manualAiActions || 0} / ${planLimits.manualAiActionsPerDay} today`);
       }
       hint.textContent = parts.join(" · ");
       hint.hidden = false;
@@ -4416,17 +4415,16 @@
       const assessBtn = document.getElementById("btnAssess");
       const synthAllBtn = document.getElementById("btnSynthesizeAll");
       const addBtn = document.getElementById("btnAddSymbol");
-      const assessBlocked = assessAllRemaining() <= 0;
-      const synthBlocked = synthesisRemaining() <= 0;
+      const manualBlocked = manualAiActionsRemaining() <= 0;
       const symbolBlocked = isAtSymbolLimit();
 
       if (assessBtn && !assessBtn.classList.contains("btn-pending")) {
-        assessBtn.disabled = assessBlocked;
-        assessBtn.title = assessBlocked ? planLimitHint("assess_all_limit") : "";
+        assessBtn.disabled = manualBlocked;
+        assessBtn.title = manualBlocked ? planLimitHint("manual_ai_actions_limit") : "";
       }
       if (synthAllBtn) {
-        synthAllBtn.disabled = synthBlocked;
-        synthAllBtn.title = synthBlocked ? planLimitHint("note_synthesis_limit") : "";
+        synthAllBtn.disabled = manualBlocked;
+        synthAllBtn.title = manualBlocked ? planLimitHint("manual_ai_actions_limit") : "";
       }
       if (addBtn) {
         addBtn.disabled = symbolBlocked;
@@ -5827,8 +5825,8 @@
       const synthesisBlock = synthesized
         ? renderSynthesisHtml(note.synthesis)
         : `<div class="empty" style="margin-top:0.35rem;">Not synthesized yet.</div>`;
-      const synthBlocked = synthesisRemaining() <= 0;
-      const synthTitle = synthBlocked ? escapeHtml(planLimitHint("note_synthesis_limit")) : "";
+      const synthBlocked = manualAiActionsRemaining() <= 0;
+      const synthTitle = synthBlocked ? escapeHtml(planLimitHint("manual_ai_actions_limit")) : "";
       return `
         <div class="note" data-note-id="${note.id}">
           <div class="note-head">
@@ -5838,7 +5836,7 @@
           ${synthesisBlock}
           <div class="actions" style="margin-top:0.4rem;">
             <button type="button" class="secondary" onclick="startEditNote(${note.id})">Edit</button>
-            <button type="button" class="secondary" ${synthBlocked ? "disabled" : ""} title="${synthTitle}" onclick="synthesizeNote(${note.id}, ${synthesized ? "true" : "false"})">
+            <button type="button" class="secondary" ${synthBlocked ? "disabled" : ""} title="${synthTitle}" onclick="synthesizeNote(event, ${note.id}, ${synthesized ? "true" : "false"})">
               ${synthesized ? "Re-synthesize" : "Synthesize"}
             </button>
             <button type="button" class="btn-danger" onclick="deleteTargetNote(${note.id})">Delete</button>
@@ -5996,60 +5994,66 @@
       }
     }
 
-    async function synthesizeNote(noteId, hasExisting) {
+    async function synthesizeNote(event, noteId, hasExisting) {
       if (!selectedSymbol) return;
       if (!noteSynthesisSupported) {
         setStatus("Note synthesis requires a server update — restart from Portfolio_Dashboard_Agent/ and redeploy.", "error");
         return;
       }
-      if (synthesisRemaining() <= 0) {
-        setStatus(planLimitHint("note_synthesis_limit") || "Daily synthesis limit reached.", "error");
+      if (manualAiActionsRemaining() <= 0) {
+        setStatus(planLimitHint("manual_ai_actions_limit") || "Daily Manual AI Actions limit reached.", "error");
         return;
       }
       if (hasExisting && !confirm("Re-synthesize this note? This replaces the stored synthesis.")) return;
-      try {
-        const url = `/symbols/${selectedSymbol}/notes/${noteId}/synthesize${hasExisting ? "?force=1" : ""}`;
-        await api(url, {
-          method: "POST",
-          body: JSON.stringify({}),
-        });
-        await refreshPlanLimits();
-        await selectSymbol(selectedSymbol);
-        setStatus(`Note synthesized for ${selectedSymbol}.`);
-      } catch (error) {
-        setStatus(planErrorMessage(error), "error");
-      }
+      const btn = event?.currentTarget;
+      await withButtonPending(btn, hasExisting ? "Re-synthesizing…" : "Synthesizing…", async () => {
+        try {
+          const url = `/symbols/${selectedSymbol}/notes/${noteId}/synthesize${hasExisting ? "?force=1" : ""}`;
+          await api(url, {
+            method: "POST",
+            body: JSON.stringify({}),
+          });
+          await refreshPlanLimits();
+          await selectSymbol(selectedSymbol);
+          setStatus(`Note synthesized for ${selectedSymbol}.`);
+        } catch (error) {
+          setStatus(planErrorMessage(error), "error");
+        }
+      });
     }
 
-    async function synthesizeAllNotes() {
+    async function synthesizeAllNotes(event) {
       if (!selectedSymbol) return;
       if (!noteSynthesisSupported) {
         setStatus("Note synthesis requires a server update — restart from Portfolio_Dashboard_Agent/ and redeploy.", "error");
         return;
       }
-      if (synthesisRemaining() <= 0) {
-        setStatus(planLimitHint("note_synthesis_limit") || "Daily synthesis limit reached.", "error");
+      if (manualAiActionsRemaining() <= 0) {
+        setStatus(planLimitHint("manual_ai_actions_limit") || "Daily Manual AI Actions limit reached.", "error");
         return;
       }
-      try {
-        await api(`/symbols/${selectedSymbol}/notes/synthesize`, {
-          method: "POST",
-          body: JSON.stringify({}),
-        });
-        await refreshPlanLimits();
-        await selectSymbol(selectedSymbol);
-        const notes = (await api(`/symbols/${selectedSymbol}`)).notes || [];
-        const fallbacks = notes.filter((n) => n.synthesis && n.synthesis.llmFallback).length;
-        const geminiOk = notes.filter((n) => n.synthesis && !n.synthesis.llmFallback && n.synthesisProvider === "gemini").length;
-        setStatus(
-          fallbacks
-            ? `Synthesized: ${geminiOk} via Gemini, ${fallbacks} rules fallback (rate limit). Click Re-synthesize on the fallback notes — or wait 1 min and retry All.`
-            : `All ${notes.length} notes synthesized via Gemini for ${selectedSymbol}.`,
-          fallbacks ? "error" : "success"
-        );
-      } catch (error) {
-        setStatus(planErrorMessage(error), "error");
-      }
+      const btn = event?.currentTarget || document.getElementById("btnSynthesizeAll");
+      await withButtonPending(btn, "Synthesizing…", async () => {
+        try {
+          await api(`/symbols/${selectedSymbol}/notes/synthesize`, {
+            method: "POST",
+            body: JSON.stringify({}),
+          });
+          await refreshPlanLimits();
+          await selectSymbol(selectedSymbol);
+          const notes = (await api(`/symbols/${selectedSymbol}`)).notes || [];
+          const fallbacks = notes.filter((n) => n.synthesis && n.synthesis.llmFallback).length;
+          const geminiOk = notes.filter((n) => n.synthesis && !n.synthesis.llmFallback && n.synthesisProvider === "gemini").length;
+          setStatus(
+            fallbacks
+              ? `Synthesized: ${geminiOk} via Gemini, ${fallbacks} rules fallback (rate limit). Click Re-synthesize on the fallback notes — or wait 1 min and retry All.`
+              : `All ${notes.length} notes synthesized via Gemini for ${selectedSymbol}.`,
+            fallbacks ? "error" : "success"
+          );
+        } catch (error) {
+          setStatus(planErrorMessage(error), "error");
+        }
+      });
     }
 
     document.getElementById("addSymbolForm").onsubmit = async (event) => {
@@ -6184,10 +6188,15 @@
 
     async function assessSelected(event) {
       if (!selectedSymbol) return;
+      if (manualAiActionsRemaining() <= 0) {
+        setStatus(planLimitHint("manual_ai_actions_limit") || "Daily Manual AI Actions limit reached.", "error");
+        return;
+      }
       const btn = (event && event.currentTarget) || document.getElementById("btnAssessSymbol");
       await withButtonPending(btn, "Assessing…", async () => {
         try {
           const result = await api(`/symbols/${selectedSymbol}/assess`, { method: "POST" });
+          await refreshPlanLimits();
           await loadAssessments();
           const [item, inspector] = await Promise.all([
             api(`/symbols/${selectedSymbol}`),
@@ -6204,14 +6213,16 @@
           );
           requestAnimationFrame(() => pulseUpdated("inspector-recommendation"));
         } catch (error) {
-          setStatus(error.message, "error");
+          setStatus(planErrorMessage(error), "error");
+        } finally {
+          applyPlanLimitsUI();
         }
       });
     }
 
     async function assessAll() {
-      if (assessAllRemaining() <= 0) {
-        setStatus(planLimitHint("assess_all_limit") || "Daily Assess Portfolio limit reached.", "error");
+      if (manualAiActionsRemaining() <= 0) {
+        setStatus(planLimitHint("manual_ai_actions_limit") || "Daily Manual AI Actions limit reached.", "error");
         return;
       }
       setStatus("Assessing portfolio… this can take a minute or two for a full portfolio.", "info");
@@ -6489,10 +6500,13 @@
       const clickAttrs = options.interactive
         ? ` role="button" tabindex="0" title="${escapeHtml(options.title || "")}" onclick="${options.onClick || ""}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${options.onClick || ""}}"`
         : "";
+      const labelTitleAttr = options.labelTitle
+        ? ` title="${escapeHtml(options.labelTitle)}"`
+        : "";
       return `
         <div class="projection-row${rowClass}${clickClass}"${clickAttrs}>
           <div class="projection-row-header">
-            <div class="projection-label">${label}</div>
+            <div class="projection-label"${labelTitleAttr}>${label}</div>
             <div class="projection-value">${projectionValueLine(value, pct)}</div>
           </div>
           <div class="progress-track">
@@ -6642,7 +6656,10 @@
           "roc",
           rocBarWidth,
           "",
-          holdingsLink
+          {
+            ...holdingsLink,
+            labelTitle: "ROC = Return on Capital (operating return on invested capital). Unlike ROE, ROC includes both debt and equity capital.",
+          }
         ));
       }
 
@@ -7982,6 +7999,20 @@
     const SIM_NET_GAINS_HELP = "Realized gain on in-scope SELL legs:\n• (avg sell price − cost/share) × shares sold\n• Cost/share — holding average cost when on file, otherwise share-weighted planned BUY threshold\n• — when no in-scope sells, or no derivable cost (UNKNOWN-WINS)";
     const SIM_WARN_HELP = "Warnings on planned-trade rows:\n• ⚠ — planned sell exceeds shares held (a paired buy leg may cover it)\n• $0 — priced leg has no share quantity set";
     const FUND_LEVEL_SORT_HELP = "Deviation sort by |price − level| / level:\n• Click cycles closest first → furthest first → unsorted\n• Applies to the reference level in this column";
+    const FUND_BETA_HELP = "Beta measures volatility vs the broad market (typically S&P 500):\n• 1.0 = roughly market-like swings\n• >1.0 = more volatile than market\n• <1.0 = less volatile than market";
+    const FUND_CURRENT_RATIO_HELP = "Current Ratio = current assets / current liabilities:\n• >1.0 means short-term assets cover short-term obligations\n• Higher can signal stronger near-term liquidity";
+    const FUND_QUICK_RATIO_HELP = "Quick Ratio = (cash + marketable securities + receivables) / current liabilities:\n• Excludes inventory for a stricter liquidity check\n• >1.0 generally indicates strong short-term coverage";
+    const FUND_MKT_CAP_HELP = "Mkt Cap = Market Capitalization (share price × shares outstanding).";
+    const FUND_PE_HELP = "P/E = Price-to-Earnings ratio (share price / earnings per share).";
+    const FUND_FWD_PE_HELP = "Fwd P/E = Forward Price-to-Earnings ratio (price vs expected next-year EPS).";
+    const FUND_PB_HELP = "P/B = Price-to-Book ratio (market value vs book value/equity).";
+    const FUND_PS_HELP = "P/S = Price-to-Sales ratio (market value vs revenue).";
+    const FUND_PEG_HELP = "PEG = Price/Earnings-to-Growth ratio (P/E adjusted by expected earnings growth).";
+    const FUND_EVEBITDA_HELP = "EV/EBITDA = Enterprise Value-to-EBITDA multiple.";
+    const FUND_REV_GROWTH_HELP = "Rev Growth = Revenue Growth (year-over-year).";
+    const FUND_EARN_GROWTH_HELP = "Earn Growth = Earnings Growth (year-over-year).";
+    const FUND_OP_MARGIN_HELP = "Op Margin = Operating Margin.";
+    const FUND_ROE_HELP = "ROE = Return on Equity (net income / shareholder equity).";
 
     const screeningColumns = [
       { key: "symbol", label: "Symbol", help: SYMBOL_HELP, sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
@@ -11466,10 +11497,10 @@
         return [
           fundSymbolColumn(),
           fundPriceColumn(),
-          { key: "beta", label: "Beta", sortValue: (r) => fundNum(fundVal(r, "profile", "beta")), render: (r) => formatRatio(fundVal(r, "profile", "beta")) },
+          { key: "beta", label: "Beta", help: FUND_BETA_HELP, sortValue: (r) => fundNum(fundVal(r, "profile", "beta")), render: (r) => formatRatio(fundVal(r, "profile", "beta")) },
           { key: "d2e", label: "Debt/Equity", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "debtToEquity")), render: (r) => formatRatio(fundVal(r, "financialHealth", "debtToEquity")) },
-          { key: "current", label: "Current Ratio", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "currentRatio")), render: (r) => formatRatio(fundVal(r, "financialHealth", "currentRatio")) },
-          { key: "quick", label: "Quick Ratio", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "quickRatio")), render: (r) => formatRatio(fundVal(r, "financialHealth", "quickRatio")) },
+          { key: "current", label: "Current Ratio", help: FUND_CURRENT_RATIO_HELP, sortValue: (r) => fundNum(fundVal(r, "financialHealth", "currentRatio")), render: (r) => formatRatio(fundVal(r, "financialHealth", "currentRatio")) },
+          { key: "quick", label: "Quick Ratio", help: FUND_QUICK_RATIO_HELP, sortValue: (r) => fundNum(fundVal(r, "financialHealth", "quickRatio")), render: (r) => formatRatio(fundVal(r, "financialHealth", "quickRatio")) },
           { key: "fcf", label: "Free Cash Flow", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "freeCashflow")), render: (r) => { const v = fundVal(r, "financialHealth", "freeCashflow"); const cls = (fundNum(v) ?? 0) >= 0 ? "gain-pos" : "gain-neg"; return `<span class="${cls}">${formatLargeMoney(v)}</span>`; } },
           { key: "cash", label: "Total Cash", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "totalCash")), render: (r) => formatLargeMoney(fundVal(r, "financialHealth", "totalCash")) },
           { key: "debt", label: "Total Debt", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "totalDebt")), render: (r) => formatLargeMoney(fundVal(r, "financialHealth", "totalDebt")) },
@@ -11521,19 +11552,19 @@
         fundSymbolColumn(),
         fundPriceColumn(),
         { key: "sector", label: "Sector", sortValue: (r) => fundVal(r, "profile", "sector") || "", render: (r) => fundVal(r, "profile", "sector") || "—" },
-        { key: "mktCap", label: "Mkt Cap", sortValue: (r) => fundNum(fundVal(r, "profile", "marketCap")), render: (r) => formatLargeMoney(fundVal(r, "profile", "marketCap")) },
-        { key: "ttmPe", label: "P/E", sortValue: (r) => fundNum(fundVal(r, "valuation", "trailingPe")), render: (r) => formatRatio(fundVal(r, "valuation", "trailingPe")) },
-        { key: "fwdPe", label: "Fwd P/E", sortValue: (r) => fundNum(fundVal(r, "valuation", "forwardPe")), render: (r) => formatRatio(fundVal(r, "valuation", "forwardPe")) },
-        { key: "pb", label: "P/B", sortValue: (r) => fundNum(fundVal(r, "valuation", "priceToBook")), render: (r) => formatRatio(fundVal(r, "valuation", "priceToBook")) },
-        { key: "ps", label: "P/S", sortValue: (r) => fundNum(fundVal(r, "valuation", "priceToSales")), render: (r) => formatRatio(fundVal(r, "valuation", "priceToSales")) },
-        { key: "peg", label: "PEG", sortValue: (r) => fundNum(fundVal(r, "valuation", "pegRatio")), render: (r) => formatRatio(fundVal(r, "valuation", "pegRatio")) },
-        { key: "ev", label: "EV/EBITDA", sortValue: (r) => fundNum(fundVal(r, "valuation", "evToEbitda")), render: (r) => formatRatio(fundVal(r, "valuation", "evToEbitda")) },
-        { key: "revG", label: "Rev Growth", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "revenueGrowth")), render: (r) => formatColoredRatioPercent(fundVal(r, "growthProfitability", "revenueGrowth")) },
-        { key: "earnG", label: "Earn Growth", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "earningsGrowth")), render: (r) => formatColoredRatioPercent(fundVal(r, "growthProfitability", "earningsGrowth")) },
+        { key: "mktCap", label: "Mkt Cap", help: FUND_MKT_CAP_HELP, sortValue: (r) => fundNum(fundVal(r, "profile", "marketCap")), render: (r) => formatLargeMoney(fundVal(r, "profile", "marketCap")) },
+        { key: "ttmPe", label: "P/E", help: FUND_PE_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "trailingPe")), render: (r) => formatRatio(fundVal(r, "valuation", "trailingPe")) },
+        { key: "fwdPe", label: "Fwd P/E", help: FUND_FWD_PE_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "forwardPe")), render: (r) => formatRatio(fundVal(r, "valuation", "forwardPe")) },
+        { key: "pb", label: "P/B", help: FUND_PB_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "priceToBook")), render: (r) => formatRatio(fundVal(r, "valuation", "priceToBook")) },
+        { key: "ps", label: "P/S", help: FUND_PS_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "priceToSales")), render: (r) => formatRatio(fundVal(r, "valuation", "priceToSales")) },
+        { key: "peg", label: "PEG", help: FUND_PEG_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "pegRatio")), render: (r) => formatRatio(fundVal(r, "valuation", "pegRatio")) },
+        { key: "ev", label: "EV/EBITDA", help: FUND_EVEBITDA_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "evToEbitda")), render: (r) => formatRatio(fundVal(r, "valuation", "evToEbitda")) },
+        { key: "revG", label: "Rev Growth", help: FUND_REV_GROWTH_HELP, sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "revenueGrowth")), render: (r) => formatColoredRatioPercent(fundVal(r, "growthProfitability", "revenueGrowth")) },
+        { key: "earnG", label: "Earn Growth", help: FUND_EARN_GROWTH_HELP, sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "earningsGrowth")), render: (r) => formatColoredRatioPercent(fundVal(r, "growthProfitability", "earningsGrowth")) },
         { key: "gm", label: "Gross Margin", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "grossMargin")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "grossMargin")) },
-        { key: "om", label: "Op Margin", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "operatingMargin")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "operatingMargin")) },
+        { key: "om", label: "Op Margin", help: FUND_OP_MARGIN_HELP, sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "operatingMargin")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "operatingMargin")) },
         { key: "pm", label: "Profit Margin", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "profitMargin")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "profitMargin")) },
-        { key: "roe", label: "ROE", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "returnOnEquity")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "returnOnEquity")) },
+        { key: "roe", label: "ROE", help: FUND_ROE_HELP, sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "returnOnEquity")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "returnOnEquity")) },
       ];
     }
 
