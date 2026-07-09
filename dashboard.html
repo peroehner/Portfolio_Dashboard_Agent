@@ -1100,6 +1100,94 @@
     }
     .import-note.success { color: var(--accent-2); }
     .import-note.error { color: var(--danger); }
+    .onboarding-panel {
+      border: 1px solid rgba(96, 165, 250, 0.35);
+      background: linear-gradient(180deg, rgba(37, 99, 235, 0.12), rgba(26, 35, 50, 0.4));
+      margin-bottom: 0.85rem;
+    }
+    .onboarding-panel h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: normal;
+    }
+    .onboarding-panel p {
+      margin: 0.35rem 0 0.75rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .onboarding-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .sample-picker-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      margin: 0.75rem 0 1rem;
+      max-height: 16rem;
+      overflow-y: auto;
+      padding-right: 0.2rem;
+    }
+    .sample-picker-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.55rem;
+      padding: 0.55rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      cursor: pointer;
+    }
+    .sample-picker-row:hover {
+      border-color: rgba(96, 165, 250, 0.45);
+    }
+    .sample-picker-row input {
+      margin-top: 0.2rem;
+      flex-shrink: 0;
+    }
+    .sample-picker-main {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .sample-picker-symbol {
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+    .sample-picker-meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+    .sample-picker-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      align-items: center;
+      margin-bottom: 0.35rem;
+    }
+    .onboarding-guide {
+      margin-top: 1rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid var(--border);
+    }
+    .onboarding-guide h4 {
+      margin: 0 0 0.45rem;
+      font-size: 0.88rem;
+      color: var(--text);
+    }
+    .onboarding-guide ul {
+      margin: 0;
+      padding-left: 1.1rem;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
     .plan-usage-hint {
       margin: 0 0 0.35rem;
       font-size: 0.82rem;
@@ -3841,7 +3929,7 @@
         <h2 class="section-title">Consol</h2>
         <button type="button" class="secondary" onclick="loadConsol()">Refresh</button>
       </div>
-      <p class="panel-hint">Author-only workload snapshot. Open via logo click. Background sync runs every 5 min; daily assessments pre-warm shared base reads once per UTC day.</p>
+      <p class="panel-hint">Author-only workload snapshot. Toggle via logo click or Cmd/Ctrl+Shift+Y. Background sync runs every 5 min; daily assessments pre-warm shared base reads once per UTC day.</p>
       <div class="summary-strip" id="consolMetrics"></div>
       <div id="consolTrend"></div>
       <div id="consolUsersTable" style="margin-top:0.8rem;"><div class="empty">Loading…</div></div>
@@ -3850,6 +3938,15 @@
   </div>
 
   <div id="view-overview" class="view">
+    <div id="onboardingPanel" class="wide-panel onboarding-panel" hidden>
+      <h2>Welcome — start with a sample portfolio?</h2>
+      <p>PDA works best with a few symbols to explore. Load the curated sample (6 tickers with positions, watch-only, and trade gates for Simulation), pick the ones you want, then edit freely.</p>
+      <div class="onboarding-actions">
+        <button type="button" onclick="openSamplePortfolioModal()">Build from sample</button>
+        <button type="button" class="secondary" onclick="pickImportFile()">Import my own file</button>
+        <button type="button" class="secondary" onclick="dismissOnboardingPanel()">Start empty</button>
+      </div>
+    </div>
     <div class="wide-panel">
       <div class="summary-strip" id="overviewMetrics"></div>
     </div>
@@ -3942,6 +4039,39 @@
       </div>
       <p class="plan-usage-hint" id="planUsageHint" hidden></p>
       <p class="import-note" id="importNote">Merge updates existing symbols; replace clears all, then loads file only. Export saves a JSON snapshot (symbols, shares, purchase date, avg cost, thresholds, targets, notes) you can edit and re-import.</p>
+      <p class="import-note" id="importSampleLink" hidden><button type="button" class="secondary" onclick="openSamplePortfolioModal()">Try sample portfolio</button> — curated starter set when your portfolio is empty.</p>
+    </div>
+  </div>
+
+  <div id="samplePortfolioModal" class="help-modal-backdrop" hidden onclick="onSamplePortfolioBackdrop(event)">
+    <div class="help-modal" role="dialog" aria-modal="true" aria-labelledby="samplePortfolioTitle">
+      <div class="help-modal-head">
+        <h3 id="samplePortfolioTitle">Sample portfolio</h3>
+        <button type="button" class="help-modal-close" onclick="closeSamplePortfolioModal()" aria-label="Close">&times;</button>
+      </div>
+      <div class="help-modal-body">
+        <p>Select symbols to import. Prices sync on the next background refresh; run <strong>Sync Prices</strong> for immediate quotes.</p>
+        <div class="sample-picker-toolbar">
+          <button type="button" class="secondary" onclick="selectAllSampleSymbols(true)">Select all</button>
+          <button type="button" class="secondary" onclick="selectAllSampleSymbols(false)">Select none</button>
+          <span class="import-note" id="samplePickerMeta"></span>
+        </div>
+        <div id="samplePickerList" class="sample-picker-list"><div class="empty">Loading…</div></div>
+        <div class="onboarding-actions">
+          <button type="button" id="btnImportSampleSelected" onclick="importSelectedSamplePortfolio()">Add selected</button>
+          <button type="button" class="secondary" id="btnImportSampleAll" onclick="importAllSamplePortfolio()">Add all</button>
+          <button type="button" class="secondary" onclick="closeSamplePortfolioModal()">Cancel</button>
+        </div>
+        <div class="onboarding-guide">
+          <h4>After import — quick edits</h4>
+          <ul>
+            <li><strong>Add a symbol:</strong> Target tab → sidebar form at the bottom.</li>
+            <li><strong>Edit thresholds / position:</strong> click a symbol → Target tab → Save Settings.</li>
+            <li><strong>Delete a symbol:</strong> Target tab → Delete Symbol (removes notes, alerts, and position for you only).</li>
+            <li><strong>See value:</strong> Sync Prices, then try Screening, Simulation, and Assess Portfolio.</li>
+          </ul>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -4426,6 +4556,8 @@
     let importVersion = null;
     let noteSynthesisSupported = false;
     let authorConsoleEnabled = false;
+    let onboardingSkippedWhileEmpty = false;
+    let samplePortfolioPayload = null;
     let editingNoteId = null;
     let currentNotes = [];
     let currentAssessments = [];
@@ -4446,7 +4578,7 @@
       const logoBtn = document.getElementById("brandLogoBtn");
       if (logo) logo.classList.toggle("is-author-entry", authorConsoleEnabled);
       if (logoBtn) {
-        logoBtn.title = authorConsoleEnabled ? "Open Consol (author)" : "Portfolio Dashboard Agent";
+        logoBtn.title = authorConsoleEnabled ? "Toggle Consol (author)" : "Portfolio Dashboard Agent";
       }
       if (!authorConsoleEnabled && currentView === "consol") {
         showView("overview");
@@ -4456,6 +4588,10 @@
     function openAuthorConsol() {
       if (!authorConsoleEnabled) {
         showToast("Consol is author-only. Set AUTHOR_EMAIL to your login email to enable it.", "info");
+        return;
+      }
+      if (currentView === "consol") {
+        showView(previousView || "overview");
         return;
       }
       showView("consol");
@@ -4507,7 +4643,7 @@
           docs.openapi ? `<a href="${docs.openapi}" target="_blank" rel="noopener">OpenAPI</a>` : "",
         ].filter(Boolean);
         if (authorConsoleEnabled) {
-          linkParts.push("Author shortcut: Cmd/Ctrl+Shift+Y");
+          linkParts.push("Author shortcut: Cmd/Ctrl+Shift+Y (toggle)");
         }
         links.innerHTML = linkParts.join(" · ");
       }
@@ -7172,6 +7308,7 @@
       }
       loadLatestAssessments();
       loadTrackRecord();
+      updateOnboardingPanel(data.symbolCount ?? 0);
       markRefreshed("Summary totals & metrics");
     }
 
@@ -8836,6 +8973,212 @@
       setSortableTableHtml("fibMapTable", "fib", renderFibMapTable());
       updateFibFilterButtons();
       updateClipButtons();
+    }
+
+    function symbolsRemainingCapacity() {
+      if (!planLimits || planLimits.maxSymbols == null) return Infinity;
+      const used = planLimits.symbolCount || 0;
+      return Math.max(0, planLimits.maxSymbols - used);
+    }
+
+    function updateOnboardingPanel(symbolCount) {
+      const panel = document.getElementById("onboardingPanel");
+      const sampleLink = document.getElementById("importSampleLink");
+      const isEmpty = Number(symbolCount || 0) === 0;
+      if (!isEmpty) {
+        onboardingSkippedWhileEmpty = false;
+        if (panel) panel.hidden = true;
+        if (sampleLink) sampleLink.hidden = true;
+        return;
+      }
+      if (sampleLink) sampleLink.hidden = false;
+      if (panel) panel.hidden = onboardingSkippedWhileEmpty;
+    }
+
+    function dismissOnboardingPanel() {
+      onboardingSkippedWhileEmpty = true;
+      const panel = document.getElementById("onboardingPanel");
+      if (panel) panel.hidden = true;
+    }
+
+    function sampleShareTierLabel(shares) {
+      const qty = shares == null || shares === "" ? 0 : Number(shares);
+      if (!Number.isFinite(qty) || qty <= 0) return "Watch-only";
+      if (qty <= 15) return "Small (by share count)";
+      if (qty <= 40) return "Medium (by share count)";
+      return "Large (by share count)";
+    }
+
+    function samplePositionSummary(pos) {
+      const parts = [sampleShareTierLabel(pos.shares)];
+      if (pos.tradeBelowPrice != null || pos.tradeAbovePrice != null) parts.push("trade gates");
+      if (pos.targetPrice != null) parts.push("personal target");
+      return parts.join(" · ");
+    }
+
+    async function ensureSamplePortfolioLoaded() {
+      if (samplePortfolioPayload) return samplePortfolioPayload;
+      samplePortfolioPayload = await api("/sample-portfolio");
+      return samplePortfolioPayload;
+    }
+
+    function renderSamplePickerList() {
+      const listEl = document.getElementById("samplePickerList");
+      const metaEl = document.getElementById("samplePickerMeta");
+      if (!listEl || !samplePortfolioPayload) return;
+      const positions = Array.isArray(samplePortfolioPayload.positions)
+        ? samplePortfolioPayload.positions
+        : [];
+      const remaining = symbolsRemainingCapacity();
+      if (!positions.length) {
+        listEl.innerHTML = '<div class="empty">Sample portfolio is empty.</div>';
+        return;
+      }
+      listEl.innerHTML = positions.map((pos) => {
+        const symbol = String(pos.symbol || "").toUpperCase();
+        return `
+          <label class="sample-picker-row">
+            <input type="checkbox" class="sample-symbol-check" data-symbol="${escapeHtml(symbol)}" checked>
+            <span class="sample-picker-main">
+              <span class="sample-picker-symbol">${escapeHtml(symbol)}</span>
+              <div class="sample-picker-meta">${escapeHtml(samplePositionSummary(pos))}</div>
+            </span>
+          </label>`;
+      }).join("");
+      const boxes = [...listEl.querySelectorAll(".sample-symbol-check")];
+      if (remaining !== Infinity && remaining < boxes.length) {
+        boxes.forEach((box, index) => { box.checked = index < remaining; });
+      }
+      boxes.forEach((box) => {
+        box.addEventListener("change", enforceSampleSelectionCap);
+      });
+      if (metaEl) {
+        const capNote = remaining === Infinity
+          ? `${positions.length} symbols available`
+          : `Up to ${remaining} new symbol${remaining === 1 ? "" : "s"} on your plan`;
+        metaEl.textContent = capNote;
+      }
+      const btnAll = document.getElementById("btnImportSampleAll");
+      const btnSel = document.getElementById("btnImportSampleSelected");
+      const blocked = remaining === 0;
+      if (btnAll) btnAll.disabled = blocked;
+      if (btnSel) btnSel.disabled = blocked;
+    }
+
+    function selectedSampleSymbols() {
+      return [...document.querySelectorAll(".sample-symbol-check:checked")]
+        .map((el) => String(el.dataset.symbol || "").toUpperCase())
+        .filter(Boolean);
+    }
+
+    function selectAllSampleSymbols(checked) {
+      document.querySelectorAll(".sample-symbol-check").forEach((box) => {
+        box.checked = checked;
+      });
+      if (checked) enforceSampleSelectionCap();
+    }
+
+    function enforceSampleSelectionCap() {
+      const remaining = symbolsRemainingCapacity();
+      if (remaining === Infinity) return;
+      const checked = [...document.querySelectorAll(".sample-symbol-check:checked")];
+      if (checked.length <= remaining) return;
+      checked.slice(remaining).forEach((box) => { box.checked = false; });
+      setStatus(`Your plan allows ${remaining} new symbol${remaining === 1 ? "" : "s"} — selection trimmed.`, "info");
+    }
+
+    function openSamplePortfolioModal() {
+      const modal = document.getElementById("samplePortfolioModal");
+      if (!modal) return;
+      modal.hidden = false;
+      refreshPlanLimits()
+        .then(() => ensureSamplePortfolioLoaded())
+        .then(() => {
+          renderSamplePickerList();
+        })
+        .catch((err) => {
+          const listEl = document.getElementById("samplePickerList");
+          if (listEl) {
+            listEl.innerHTML = `<div class="empty">Could not load sample: ${escapeHtml(err.message || "request failed")}</div>`;
+          }
+        });
+    }
+
+    function closeSamplePortfolioModal() {
+      const modal = document.getElementById("samplePortfolioModal");
+      if (modal) modal.hidden = true;
+    }
+
+    function onSamplePortfolioBackdrop(event) {
+      if (event.target?.id === "samplePortfolioModal") closeSamplePortfolioModal();
+    }
+
+    async function importSamplePortfolioSymbols(symbols) {
+      if (!symbols.length) {
+        setStatus("Select at least one symbol.", "error");
+        return;
+      }
+      const remaining = symbolsRemainingCapacity();
+      if (remaining !== Infinity && symbols.length > remaining) {
+        setStatus(
+          `Select at most ${remaining} symbol${remaining === 1 ? "" : "s"} for your plan.`,
+          "error",
+        );
+        return;
+      }
+      await ensureSamplePortfolioLoaded();
+      const wanted = new Set(symbols.map((s) => String(s).toUpperCase()));
+      const positions = (samplePortfolioPayload.positions || []).filter(
+        (pos) => wanted.has(String(pos.symbol || "").toUpperCase()),
+      );
+      if (!positions.length) {
+        setStatus("No matching symbols in sample file.", "error");
+        return;
+      }
+      const payload = {
+        format: samplePortfolioPayload.format,
+        version: samplePortfolioPayload.version,
+        positions,
+      };
+      const btnSel = document.getElementById("btnImportSampleSelected");
+      const btnAll = document.getElementById("btnImportSampleAll");
+      if (btnSel) btnSel.disabled = true;
+      if (btnAll) btnAll.disabled = true;
+      try {
+        const data = await api("/import?mode=merge", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        closeSamplePortfolioModal();
+        onboardingSkippedWhileEmpty = true;
+        await refreshAllViews(data, "merge");
+        await refreshPlanLimits();
+        setImportNote(summarizeImport(data, "merge"), "success");
+        setStatus(
+          `Sample imported (${data.symbolsImported} symbol${data.symbolsImported === 1 ? "" : "s"}). Open Target to edit, then Sync Prices and Assess Portfolio.`,
+          "success",
+        );
+        if (data.symbols?.length) {
+          selectedSymbol = data.symbols[0].symbol;
+          showView("portfolio");
+        }
+      } catch (error) {
+        let msg = planErrorMessage(error);
+        const hint = error.code ? planLimitHint(error.code) : "";
+        if (hint) msg = `${msg} ${hint}`;
+        setStatus(msg, "error");
+      } finally {
+        renderSamplePickerList();
+      }
+    }
+
+    async function importSelectedSamplePortfolio() {
+      await importSamplePortfolioSymbols(selectedSampleSymbols());
+    }
+
+    async function importAllSamplePortfolio() {
+      const positions = samplePortfolioPayload?.positions || [];
+      await importSamplePortfolioSymbols(positions.map((p) => p.symbol));
     }
 
     function pickImportFile() {

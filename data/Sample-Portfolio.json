@@ -1,0 +1,90 @@
+{
+  "currency": "USD",
+  "exportedAt": "2026-07-09T17:14:53+00:00",
+  "format": "portfolio-dashboard",
+  "positions": [
+    {
+      "analystTarget1y": 315.57,
+      "avgCost": 313,
+      "buyBelow": 272.83,
+      "currentPrice": 314.98,
+      "purchaseDate": "2026-03-24",
+      "sellAbove": 380,
+      "shares": 10,
+      "symbol": "AAPL",
+      "targetPrice": 420,
+      "tradeAbovePrice": 380,
+      "tradeAboveShares": -10,
+      "tradeBelowPrice": 272.83,
+      "tradeBelowShares": 10
+    },
+    {
+      "analystTarget1y": 182.28,
+      "avgCost": null,
+      "currentPrice": 196.66,
+      "purchaseDate": null,
+      "shares": null,
+      "symbol": "CRWD"
+    },
+    {
+      "analystTarget1y": 428.54,
+      "avgCost": 350,
+      "buyBelow": 322.12,
+      "currentPrice": 352.13,
+      "purchaseDate": "2026-04-02",
+      "sellAbove": 404.23,
+      "shares": 25,
+      "symbol": "GOOG",
+      "targetPrice": 430,
+      "tradeAbovePrice": 404.23,
+      "tradeAboveShares": -10,
+      "tradeBelowPrice": 322.12,
+      "tradeBelowShares": 25
+    },
+    {
+      "analystTarget1y": 13,
+      "avgCost": 4,
+      "buyBelow": 8.24,
+      "currentPrice": 8.78,
+      "purchaseDate": "2026-02-05",
+      "sellAbove": 15,
+      "shares": 100,
+      "symbol": "IBRX",
+      "targetPrice": 70,
+      "tradeAbovePrice": 15,
+      "tradeAboveShares": -50,
+      "tradeBelowPrice": 8.24,
+      "tradeBelowShares": 100
+    },
+    {
+      "avgCost": 105,
+      "buyBelow": 100,
+      "currentPrice": 127.43,
+      "purchaseDate": "2026-03-06",
+      "sellAbove": 163.7,
+      "shares": 35,
+      "symbol": "PLTR",
+      "targetPrice": 250,
+      "tradeAbovePrice": 163.7,
+      "tradeAboveShares": -20,
+      "tradeBelowPrice": 100,
+      "tradeBelowShares": 15
+    },
+    {
+      "analystTarget1y": 248.93,
+      "avgCost": 235,
+      "buyBelow": 148.06,
+      "currentPrice": 157.51,
+      "purchaseDate": "2025-03-12",
+      "sellAbove": 199.38,
+      "shares": 10,
+      "symbol": "SAP",
+      "targetPrice": 300,
+      "tradeAbovePrice": 199.38,
+      "tradeAboveShares": -10,
+      "tradeBelowPrice": 148.06,
+      "tradeBelowShares": 10
+    }
+  ],
+  "version": 1
+}

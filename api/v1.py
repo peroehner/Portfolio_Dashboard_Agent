@@ -1,6 +1,8 @@
+import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
@@ -25,6 +27,10 @@ from services.llm_client import LLMClient
 from services.plan_service import normalize_plan, plan_override
 
 v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
+
+SAMPLE_PORTFOLIO_PATH = (
+    Path(__file__).resolve().parents[1] / "data" / "Sample-Portfolio.json"
+)
 
 
 def _plan_limit_response(exc) -> tuple:
@@ -478,6 +484,14 @@ def get_simulation_snapshot():
 def save_simulation_snapshot():
     data = request.get_json(silent=True) or {}
     return jsonify({"simulation": simulation_service.save_snapshot(data)})
+
+
+@v1_bp.route("/sample-portfolio", methods=["GET"])
+def get_sample_portfolio():
+    """Read-only starter portfolio for empty-state onboarding (merge-importable)."""
+    if not SAMPLE_PORTFOLIO_PATH.is_file():
+        return jsonify({"error": "Sample portfolio not found."}), 404
+    return jsonify(json.loads(SAMPLE_PORTFOLIO_PATH.read_text(encoding="utf-8")))
 
 
 @v1_bp.route("/import", methods=["POST"])
