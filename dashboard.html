@@ -1138,26 +1138,34 @@
       display: flex;
       align-items: flex-start;
       gap: 0.55rem;
+      margin: 0;
       padding: 0.55rem 0.65rem;
       border: 1px solid var(--border);
       border-radius: 8px;
       background: var(--panel);
       cursor: pointer;
+      color: var(--text);
     }
     .sample-picker-row:hover {
       border-color: rgba(96, 165, 250, 0.45);
     }
-    .sample-picker-row input {
-      margin-top: 0.2rem;
-      flex-shrink: 0;
+    .sample-picker-row input[type="checkbox"] {
+      width: auto;
+      min-width: 1rem;
+      padding: 0;
+      margin: 0.15rem 0 0;
+      flex: 0 0 auto;
     }
     .sample-picker-main {
       flex: 1 1 auto;
       min-width: 0;
     }
     .sample-picker-symbol {
+      display: block;
       font-weight: 700;
+      font-size: 0.95rem;
       letter-spacing: 0.03em;
+      color: var(--text);
     }
     .sample-picker-meta {
       font-size: 0.78rem;
