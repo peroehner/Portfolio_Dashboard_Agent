@@ -63,6 +63,13 @@
       align-items: center;
       gap: 0.75rem;
     }
+    .brand-logo-btn {
+      border: none;
+      padding: 0;
+      margin: 0;
+      background: transparent;
+      line-height: 0;
+    }
     .brand-logo {
       width: 44px;
       height: 44px;
@@ -72,6 +79,13 @@
       border: 1px solid rgba(59, 130, 246, 0.35);
       box-shadow: 0 0 18px rgba(59, 130, 246, 0.18);
       flex-shrink: 0;
+    }
+    .brand-logo.is-author-entry {
+      cursor: pointer;
+    }
+    .brand-logo.is-author-entry:hover {
+      border-color: rgba(96, 165, 250, 0.65);
+      box-shadow: 0 0 22px rgba(59, 130, 246, 0.32);
     }
     .brand-text {
       display: flex;
@@ -1106,6 +1120,68 @@
     .plan-badge.plan-free { border-color: #475569; color: #94a3b8; }
     .plan-badge.plan-standard { border-color: #2563eb; color: #93c5fd; background: #172554; }
     .plan-badge.plan-pro { border-color: #7c3aed; color: #c4b5fd; background: #2e1065; }
+    .consol-trend {
+      margin-top: 0.85rem;
+      padding: 0.85rem 0.95rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel-2);
+    }
+    .consol-trend-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.65rem;
+    }
+    .consol-trend-head h3 {
+      margin: 0;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .consol-trend-note {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .consol-trend-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.45rem;
+      min-height: 5.5rem;
+    }
+    .consol-trend-bar {
+      flex: 1 1 0;
+      min-width: 2.2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .consol-trend-bar-fill-wrap {
+      width: 100%;
+      height: 4.5rem;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .consol-trend-bar-fill {
+      width: 72%;
+      min-height: 2px;
+      border-radius: 4px 4px 0 0;
+      background: linear-gradient(180deg, #60a5fa, #2563eb);
+    }
+    .consol-trend-bar-val {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .consol-trend-bar-date {
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.15;
+    }
     .nav-agent-btn:disabled,
     button.secondary:disabled {
       opacity: 0.45;
@@ -3520,7 +3596,9 @@
   <header>
     <div class="meta">
       <div class="brand">
-        <img src="/assets/logo.png" alt="Portfolio Dashboard Agent" class="brand-logo" width="44" height="44">
+        <button type="button" class="brand-logo-btn" id="brandLogoBtn" onclick="openAuthorConsol()" aria-label="Portfolio Dashboard Agent" title="Portfolio Dashboard Agent">
+          <img src="/assets/logo.png" alt="" class="brand-logo" id="brandLogo" width="44" height="44">
+        </button>
         <div class="brand-text">
           <h1>Portfolio Dashboard Agent</h1>
           <span class="brand-tagline">Holdings · Thresholds · Agent Intelligence</span>
@@ -3756,6 +3834,20 @@
       </div>
     </div>
   </nav>
+
+  <div id="view-consol" class="view" hidden>
+    <div class="wide-panel">
+      <div class="view-title-wrap">
+        <h2 class="section-title">Consol</h2>
+        <button type="button" class="secondary" onclick="loadConsol()">Refresh</button>
+      </div>
+      <p class="panel-hint">Author-only workload snapshot. Open via logo click. Background sync runs every 5 min; daily assessments pre-warm shared base reads once per UTC day.</p>
+      <div class="summary-strip" id="consolMetrics"></div>
+      <div id="consolTrend"></div>
+      <div id="consolUsersTable" style="margin-top:0.8rem;"><div class="empty">Loading…</div></div>
+      <div id="consolUsageTable" style="margin-top:0.8rem;"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
 
   <div id="view-overview" class="view">
     <div class="wide-panel">
@@ -4333,6 +4425,7 @@
 
     let importVersion = null;
     let noteSynthesisSupported = false;
+    let authorConsoleEnabled = false;
     let editingNoteId = null;
     let currentNotes = [];
     let currentAssessments = [];
@@ -4342,8 +4435,47 @@
         const data = await api("/config");
         importVersion = data.importVersion;
         noteSynthesisSupported = !!(data.features && data.features.noteSynthesis);
+        authorConsoleEnabled = !!(data.features && data.features.authorConsoleEnabled);
+        applyConsolVisibility();
         renderHeaderInfo(data);
       } catch (_) { /* non-fatal */ }
+    }
+
+    function applyConsolVisibility() {
+      const logo = document.getElementById("brandLogo");
+      const logoBtn = document.getElementById("brandLogoBtn");
+      if (logo) logo.classList.toggle("is-author-entry", authorConsoleEnabled);
+      if (logoBtn) {
+        logoBtn.title = authorConsoleEnabled ? "Open Consol (author)" : "Portfolio Dashboard Agent";
+      }
+      if (!authorConsoleEnabled && currentView === "consol") {
+        showView("overview");
+      }
+    }
+
+    function openAuthorConsol() {
+      if (!authorConsoleEnabled) {
+        showToast("Consol is author-only. Set AUTHOR_EMAIL to your login email to enable it.", "info");
+        return;
+      }
+      showView("consol");
+    }
+
+    function handleAuthorShortcut(event) {
+      if (!authorConsoleEnabled) return;
+      if (!(event.shiftKey && (event.ctrlKey || event.metaKey))) return;
+      if (String(event.key || "").toLowerCase() !== "y") return;
+      const target = event.target;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+      event.preventDefault();
+      openAuthorConsol();
+    }
+
+    function renderTierBadge(tier) {
+      const plan = (tier || "free").toLowerCase();
+      return `<span class="plan-badge plan-${escapeHtml(plan)}">${escapeHtml(formatPlanLabel(plan))}</span>`;
     }
 
     function renderHeaderInfo(config) {
@@ -4369,11 +4501,15 @@
       const links = document.getElementById("headerInfoLinks");
       if (links) {
         const docs = config.docs || {};
-        links.innerHTML = [
+        const linkParts = [
           docs.api ? `<a href="${docs.api}" target="_blank" rel="noopener">API docs</a>` : "",
           docs.replit ? `<a href="${docs.replit}" target="_blank" rel="noopener">Replit mobile</a>` : "",
           docs.openapi ? `<a href="${docs.openapi}" target="_blank" rel="noopener">OpenAPI</a>` : "",
-        ].filter(Boolean).join(" · ");
+        ].filter(Boolean);
+        if (authorConsoleEnabled) {
+          linkParts.push("Author shortcut: Cmd/Ctrl+Shift+Y");
+        }
+        links.innerHTML = linkParts.join(" · ");
       }
     }
 
@@ -4545,6 +4681,131 @@
       } catch (_) { /* non-fatal */ }
     }
 
+    function renderConsolMetrics(data) {
+      const el = document.getElementById("consolMetrics");
+      if (!el) return;
+      const totals = data?.totals || {};
+      const cards = [
+        { label: "Synced symbols", value: Number(totals.syncedSymbols || 0).toLocaleString() },
+        { label: "Assessed today (UTC)", value: Number(totals.assessedToday || 0).toLocaleString() },
+        { label: "Users with symbols", value: Number(totals.usersWithSymbols || 0).toLocaleString() },
+        { label: "Total symbol rows", value: Number(totals.symbolRows || 0).toLocaleString() },
+      ];
+      el.innerHTML = cards.map((card) => `
+        <div class="metric">
+          <div class="label">${escapeHtml(card.label)}</div>
+          <div class="value">${escapeHtml(card.value)}</div>
+        </div>
+      `).join("");
+    }
+
+    function formatConsolDayLabel(iso) {
+      if (!iso) return "";
+      const parts = String(iso).split("-");
+      if (parts.length !== 3) return iso;
+      const dt = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
+      return dt.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+    }
+
+    function renderConsolTrend(data) {
+      const el = document.getElementById("consolTrend");
+      if (!el) return;
+      const rows = Array.isArray(data?.assessedLast7Days) ? data.assessedLast7Days : [];
+      if (!rows.length) {
+        el.innerHTML = "";
+        return;
+      }
+      const max = Math.max(1, ...rows.map((row) => Number(row.assessed || 0)));
+      const overrideNote = data.planOverride
+        ? ` · env override: ${escapeHtml(formatPlanLabel(data.planOverride))}`
+        : "";
+      el.innerHTML = `
+        <div class="consol-trend">
+          <div class="consol-trend-head">
+            <h3>Assessed symbols (last 7 UTC days)</h3>
+            <span class="consol-trend-note">Sync every ${Number(data.syncIntervalSeconds || 300)}s${overrideNote}</span>
+          </div>
+          <div class="consol-trend-bars">
+            ${rows.map((row) => {
+              const count = Number(row.assessed || 0);
+              const pct = Math.max(2, Math.round((count / max) * 100));
+              return `
+                <div class="consol-trend-bar">
+                  <div class="consol-trend-bar-val">${count.toLocaleString()}</div>
+                  <div class="consol-trend-bar-fill-wrap">
+                    <div class="consol-trend-bar-fill" style="height:${pct}%;"></div>
+                  </div>
+                  <div class="consol-trend-bar-date">${escapeHtml(formatConsolDayLabel(row.date))}</div>
+                </div>`;
+            }).join("")}
+          </div>
+        </div>`;
+    }
+
+    function renderConsolTables(data) {
+      const usersEl = document.getElementById("consolUsersTable");
+      const usageEl = document.getElementById("consolUsageTable");
+      if (usersEl) {
+        const rows = Array.isArray(data?.users) ? data.users : [];
+        if (!rows.length) {
+          usersEl.innerHTML = '<div class="empty">No users found.</div>';
+        } else {
+          usersEl.innerHTML = `
+            <h3 style="margin:0 0 0.45rem;">Users · tier · symbols</h3>
+            <table>
+              <thead><tr><th>User</th><th>Tier</th><th style="text-align:right;">Symbols</th></tr></thead>
+              <tbody>
+                ${rows.map((row) => `
+                  <tr>
+                    <td>${escapeHtml(row.email || `User ${row.id}`)}</td>
+                    <td>${renderTierBadge(row.tier)}</td>
+                    <td style="text-align:right;">${Number(row.symbolCount || 0).toLocaleString()}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>`;
+        }
+      }
+      if (usageEl) {
+        const rows = Array.isArray(data?.usageToday) ? data.usageToday : [];
+        if (!rows.length) {
+          usageEl.innerHTML = '<div class="empty">No usage rows for today yet.</div>';
+        } else {
+          usageEl.innerHTML = `
+            <h3 style="margin:0 0 0.45rem;">Today usage (UTC)</h3>
+            <table>
+              <thead><tr><th>User</th><th>Tier</th><th style="text-align:right;">Manual AI Actions</th><th style="text-align:right;">Assess Portfolio runs</th></tr></thead>
+              <tbody>
+                ${rows.map((row) => `
+                  <tr>
+                    <td>${escapeHtml(row.email || `User ${row.userId}`)}</td>
+                    <td>${renderTierBadge(row.tier)}</td>
+                    <td style="text-align:right;">${Number(row.manualAiActions || 0).toLocaleString()}</td>
+                    <td style="text-align:right;">${Number(row.assessAllRuns || 0).toLocaleString()}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>`;
+        }
+      }
+    }
+
+    async function loadConsol() {
+      if (!authorConsoleEnabled) return;
+      try {
+        const data = await api("/consol");
+        renderConsolMetrics(data);
+        renderConsolTrend(data);
+        renderConsolTables(data);
+      } catch (err) {
+        const usersEl = document.getElementById("consolUsersTable");
+        const usageEl = document.getElementById("consolUsageTable");
+        const msg = `<div class="empty">Consol unavailable: ${escapeHtml(err?.message || "request failed")}</div>`;
+        if (usersEl) usersEl.innerHTML = msg;
+        if (usageEl) usageEl.innerHTML = "";
+      }
+    }
+
     function loadView(name, options = {}) {
       if (name === "overview") return loadOverview();
       if (name === "holdings") return loadHoldings();
@@ -4554,11 +4815,12 @@
       if (name === "fib") return loadFibMap();
       if (name === "inspector") return loadInspectorOptions();
       if (name === "fundamentals") return loadFundamentals();
+      if (name === "consol") return loadConsol();
       return Promise.resolve();
     }
 
     const PORTFOLIO_VIEWS = new Set([
-      "overview", "holdings", "screening", "simulation", "fib", "fundamentals",
+      "overview", "holdings", "screening", "simulation", "fib", "fundamentals", "consol",
     ]);
     const SYMBOL_VIEWS = new Set(["portfolio", "inspector"]);
 
@@ -11997,6 +12259,7 @@
     resetNoteForm();
     renderSelClipControls();
     initVpSetFilterHints();
+    document.addEventListener("keydown", handleAuthorShortcut);
     showView("overview");
     startAutoRefresh();
   </script>

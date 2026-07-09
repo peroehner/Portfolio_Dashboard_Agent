@@ -1,9 +1,11 @@
 import logging
 import os
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, request
 
 from api.openapi_spec import OPENAPI_SPEC
+from db.database import get_connection, get_current_user_id, get_user
 from services.alerts_service import AlertsService
 from services.assessment_service import AssessmentService
 from services.fib_service import FibService
@@ -20,6 +22,7 @@ from services.simulation_service import SimulationService
 from services.technical_service import TechnicalService
 from services.track_record_service import TrackRecordService
 from services.llm_client import LLMClient
+from services.plan_service import normalize_plan, plan_override
 
 v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
 
@@ -56,6 +59,24 @@ def _app_build_id() -> str | None:
         return out or None
     except Exception:
         return None
+
+
+def _author_email() -> str:
+    configured = (os.environ.get("AUTHOR_EMAIL") or "").strip().lower()
+    if configured:
+        return configured
+    return (os.environ.get("BOOTSTRAP_USER_EMAIL") or "local@portfolio.local").strip().lower()
+
+
+def _author_console_allowed() -> bool:
+    try:
+        user = get_user(get_current_user_id())
+    except Exception:
+        return False
+    if not user:
+        return False
+    email = str(user.get("email") or "").strip().lower()
+    return bool(email) and email == _author_email()
 
 portfolio_service = PortfolioService()
 notes_service = NotesService()
@@ -133,6 +154,7 @@ def get_config():
         "importModes": ["merge", "replace"],
         "features": {
             "noteSynthesis": True,
+            "authorConsoleEnabled": _author_console_allowed(),
         },
         "geminiModel": client.gemini_model if client.active_provider() == "gemini" else None,
         "docs": {
@@ -141,6 +163,116 @@ def get_config():
             "openapi": "/api/v1/openapi.json",
         },
     })
+
+
+@v1_bp.route("/consol", methods=["GET"])
+def consol_workload():
+    """Author-only workload snapshot for hidden console tab."""
+    if not _author_console_allowed():
+        return jsonify({"error": "Not found"}), 404
+
+    with get_connection() as conn:
+        totals_row = conn.execute(
+            """
+            SELECT
+                COUNT(DISTINCT symbol) AS synced_symbols,
+                COUNT(DISTINCT user_id) AS users_with_symbols,
+                COUNT(*) AS symbol_rows
+            FROM symbols
+            """
+        ).fetchone()
+        user_rows = conn.execute(
+            """
+            SELECT
+                u.id,
+                u.email,
+                u.plan,
+                COUNT(s.symbol) AS symbol_count
+            FROM users u
+            LEFT JOIN symbols s ON s.user_id = u.id
+            GROUP BY u.id, u.email, u.plan
+            ORDER BY symbol_count DESC, u.id
+            """
+        ).fetchall()
+        assessed_row = conn.execute(
+            """
+            SELECT COUNT(*) AS assessed_today
+            FROM symbol_assessment
+            WHERE as_of_date = to_char(timezone('UTC', now()), 'YYYY-MM-DD')
+            """
+        ).fetchone()
+        utc_row = conn.execute(
+            "SELECT to_char(timezone('UTC', now()), 'YYYY-MM-DD') AS utc_date"
+        ).fetchone()
+        usage_rows = conn.execute(
+            """
+            SELECT
+                udu.user_id,
+                u.email,
+                u.plan,
+                udu.manual_ai_actions,
+                udu.assess_all_runs
+            FROM user_daily_usage udu
+            JOIN users u ON u.id = udu.user_id
+            WHERE udu.usage_date = to_char(timezone('UTC', now()), 'YYYY-MM-DD')
+            ORDER BY udu.manual_ai_actions DESC, udu.assess_all_runs DESC, udu.user_id
+            """
+        ).fetchall()
+        trend_rows = conn.execute(
+            """
+            SELECT as_of_date, COUNT(*) AS assessed_count
+            FROM symbol_assessment
+            WHERE as_of_date >= to_char(timezone('UTC', now()) - interval '6 days', 'YYYY-MM-DD')
+            GROUP BY as_of_date
+            ORDER BY as_of_date
+            """
+        ).fetchall()
+
+    today_utc = datetime.now(timezone.utc).date()
+    trend_by_date = {
+        str(row["as_of_date"]): int(row["assessed_count"] or 0) for row in trend_rows
+    }
+    assessed_last_7_days = []
+    for offset in range(6, -1, -1):
+        day = today_utc - timedelta(days=offset)
+        iso = day.isoformat()
+        assessed_last_7_days.append({"date": iso, "assessed": trend_by_date.get(iso, 0)})
+
+    override = plan_override()
+    return jsonify(
+        {
+            "authorEmail": _author_email(),
+            "utcDate": utc_row["utc_date"],
+            "planOverride": override,
+            "syncIntervalSeconds": 300,
+            "totals": {
+                "syncedSymbols": int(totals_row["synced_symbols"] or 0),
+                "usersWithSymbols": int(totals_row["users_with_symbols"] or 0),
+                "symbolRows": int(totals_row["symbol_rows"] or 0),
+                "assessedToday": int(assessed_row["assessed_today"] or 0),
+            },
+            "assessedLast7Days": assessed_last_7_days,
+            "users": [
+                {
+                    "id": int(row["id"]),
+                    "email": row["email"],
+                    "tier": normalize_plan(row.get("plan")),
+                    "symbolCount": int(row["symbol_count"] or 0),
+                }
+                for row in user_rows
+            ],
+            "usageToday": [
+                {
+                    "userId": int(row["user_id"]),
+                    "email": row["email"],
+                    "tier": normalize_plan(row.get("plan")),
+                    "manualAiActions": int(row["manual_ai_actions"] or 0),
+                    "assessAllRuns": int(row["assess_all_runs"] or 0),
+                }
+                for row in usage_rows
+            ],
+        }
+    )
 
 
 @v1_bp.route("/openapi.json", methods=["GET"])
