@@ -169,4 +169,5 @@ def fib_levels_cache_footprint() -> dict[str, Any]:
         "rowCount": count,
         "payloadBytes": approx_bytes,
         "maxEntries": _CACHE_MAX_ENTRIES,
+        "ttlSeconds": float(os.environ.get("FIB_CACHE_TTL_SECONDS", "900")),
     }

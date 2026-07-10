@@ -65,10 +65,8 @@ class TtlCache:
         with self._lock:
             self._entries.clear()
 
-    def footprint(self) -> dict[str, int]:
+    def footprint(self) -> dict[str, int | float]:
         """Approximate in-process footprint for author console diagnostics."""
-        import json
-
         approx_bytes = 0
         with self._lock:
             count = len(self._entries)
@@ -77,8 +75,31 @@ class TtlCache:
         return {
             "entries": count,
             "maxEntries": self.max_entries,
+            "ttlSeconds": self.ttl,
             "approxBytes": approx_bytes,
         }
+
+    def entry_breakdown(self, limit: int = 15) -> list[dict[str, Any]]:
+        """Per-key payload sizes, largest first (skips expired entries)."""
+        now = time.time()
+        items: list[tuple[str, int]] = []
+        with self._lock:
+            for key, (expires_at, value) in self._entries.items():
+                if expires_at <= now:
+                    continue
+                items.append((_cache_key_label(key), _approx_payload_bytes(value)))
+        items.sort(key=lambda pair: pair[1], reverse=True)
+        cap = max(1, int(limit))
+        return [
+            {"label": label, "payloadBytes": nbytes}
+            for label, nbytes in items[:cap]
+        ]
+
+
+def _cache_key_label(key: Hashable) -> str:
+    if isinstance(key, tuple):
+        return "/".join(str(part) for part in key)
+    return str(key)
 
 
 def _approx_payload_bytes(value: Any) -> int:

@@ -250,11 +250,24 @@ def _in_process_caches() -> list[dict[str, Any]]:
                 "rowCount": fp["entries"],
                 "payloadBytes": fp["approxBytes"],
                 "maxEntries": fp["maxEntries"],
+                "ttlSeconds": fp["ttlSeconds"],
                 "storage": "memory",
             }
         )
-    caches.append({**fib_levels_cache_footprint(), "storage": "memory"})
+    fib_fp = fib_levels_cache_footprint()
+    caches.append({**fib_fp, "storage": "memory"})
     return caches
+
+
+def _history_cache_breakdown() -> list[dict[str, Any]]:
+    from services.technical_signals_service import _history_cache
+
+    rows = _history_cache.entry_breakdown(limit=15)
+    for row in rows:
+        label = str(row.get("label") or "")
+        symbol = label.split("/", 1)[0] if label else label
+        row["symbol"] = symbol
+    return rows
 
 
 def build_footprint_snapshot() -> dict[str, Any]:
@@ -272,5 +285,6 @@ def build_footprint_snapshot() -> dict[str, Any]:
         "caches": {
             "totalApproxBytes": cache_bytes,
             "categories": cache_rows,
+            "historyBySymbol": _history_cache_breakdown(),
         },
     }

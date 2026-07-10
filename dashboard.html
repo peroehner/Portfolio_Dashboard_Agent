@@ -1289,6 +1289,24 @@
       color: var(--muted);
       margin-bottom: 0.35rem;
     }
+    .consol-detail-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr);
+      gap: 1rem;
+      align-items: start;
+      margin-top: 0.8rem;
+    }
+    .consol-detail-col {
+      min-width: 0;
+    }
+    .consol-users-col {
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+    }
+    @media (max-width: 960px) {
+      .consol-detail-grid { grid-template-columns: 1fr; }
+    }
     .nav-agent-btn:disabled,
     button.secondary:disabled {
       opacity: 0.45;
@@ -3951,9 +3969,13 @@
       <p class="panel-hint">Author-only workload snapshot. Toggle via logo click or Cmd/Ctrl+Shift+Y. Background sync runs every 5 min; daily assessments pre-warm shared base reads once per UTC day.</p>
       <div class="summary-strip" id="consolMetrics"></div>
       <div id="consolTrend"></div>
-      <div id="consolFootprint" style="margin-top:0.8rem;"></div>
-      <div id="consolUsersTable" style="margin-top:0.8rem;"><div class="empty">Loading…</div></div>
-      <div id="consolUsageTable" style="margin-top:0.8rem;"><div class="empty">Loading…</div></div>
+      <div class="consol-detail-grid">
+        <div id="consolFootprint" class="consol-detail-col"></div>
+        <div class="consol-detail-col consol-users-col">
+          <div id="consolUsersTable"><div class="empty">Loading…</div></div>
+          <div id="consolUsageTable"><div class="empty">Loading…</div></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -4911,9 +4933,18 @@
       return `${(n / (1024 * 1024)).toFixed(1)} MB`;
     }
 
-    function renderConsolFootprintTable(title, totalLabel, totalBytes, rows) {
+    function formatConsolTtl(seconds) {
+      const s = Number(seconds);
+      if (!Number.isFinite(s) || s <= 0) return "—";
+      if (s >= 3600 && s % 3600 === 0) return `${s / 3600}h`;
+      if (s >= 60 && s % 60 === 0) return `${Math.round(s / 60)}m`;
+      return `${Math.round(s)}s`;
+    }
+
+    function renderConsolFootprintTable(title, totalLabel, totalBytes, rows, options = {}) {
       if (!rows.length) return "";
       const sorted = [...rows].sort((a, b) => Number(b.payloadBytes || 0) - Number(a.payloadBytes || 0));
+      const showCacheLimits = options.mode === "cache";
       return `
         <section style="margin-top:0.75rem;">
           <h3 style="margin:0 0 0.35rem;">${escapeHtml(title)}</h3>
@@ -4922,7 +4953,8 @@
             <thead>
               <tr>
                 <th>Category</th>
-                <th style="text-align:right;">Rows / entries</th>
+                <th style="text-align:right;">${showCacheLimits ? "Entries" : "Rows"}</th>
+                ${showCacheLimits ? '<th style="text-align:right;">Cap</th><th style="text-align:right;">TTL</th>' : ""}
                 <th style="text-align:right;">Payload</th>
               </tr>
             </thead>
@@ -4931,6 +4963,35 @@
                 <tr>
                   <td>${escapeHtml(row.label || row.key || "")}</td>
                   <td style="text-align:right;">${Number(row.rowCount || 0).toLocaleString()}</td>
+                  ${showCacheLimits ? `
+                    <td style="text-align:right;">${Number(row.maxEntries || 0).toLocaleString()}</td>
+                    <td style="text-align:right;">${formatConsolTtl(row.ttlSeconds)}</td>
+                  ` : ""}
+                  <td style="text-align:right;">${formatConsolBytes(row.payloadBytes)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </section>`;
+    }
+
+    function renderConsolHistoryBreakdown(rows) {
+      if (!rows.length) return "";
+      return `
+        <section style="margin-top:0.75rem;">
+          <h3 style="margin:0 0 0.35rem;">Technical history by symbol</h3>
+          <p class="consol-footprint-total">Largest cached price-history frames in this worker</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th style="text-align:right;">Frame size</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((row) => `
+                <tr>
+                  <td>${escapeHtml(row.symbol || row.label || "")}</td>
                   <td style="text-align:right;">${formatConsolBytes(row.payloadBytes)}</td>
                 </tr>
               `).join("")}
@@ -4957,14 +5018,17 @@
             "Database (Postgres)",
             "Total estimated payload",
             fp.database?.totalPayloadBytes,
-            fp.database?.categories || []
+            fp.database?.categories || [],
+            { mode: "database" }
           )}
           ${renderConsolFootprintTable(
             "In-process caches",
             "Total approx. cache RAM",
             fp.caches?.totalApproxBytes,
-            fp.caches?.categories || []
+            fp.caches?.categories || [],
+            { mode: "cache" }
           )}
+          ${renderConsolHistoryBreakdown(fp.caches?.historyBySymbol || [])}
         </div>`;
     }
 
@@ -5027,8 +5091,10 @@
       } catch (err) {
         const usersEl = document.getElementById("consolUsersTable");
         const usageEl = document.getElementById("consolUsageTable");
+        const footprintEl = document.getElementById("consolFootprint");
         const msg = `<div class="empty">Consol unavailable: ${escapeHtml(err?.message || "request failed")}</div>`;
-        if (usersEl) usersEl.innerHTML = msg;
+        if (footprintEl) footprintEl.innerHTML = msg;
+        if (usersEl) usersEl.innerHTML = "";
         if (usageEl) usageEl.innerHTML = "";
       }
     }

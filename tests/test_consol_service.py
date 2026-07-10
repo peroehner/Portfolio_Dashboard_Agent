@@ -24,3 +24,5 @@ def test_build_footprint_snapshot_shape():
     cache_keys = {row["key"] for row in snap["caches"]["categories"]}
     assert "ticker_info" in cache_keys
     assert "fib_levels" in cache_keys
+    assert "ttlSeconds" in snap["caches"]["categories"][0]
+    assert isinstance(snap["caches"].get("historyBySymbol"), list)
