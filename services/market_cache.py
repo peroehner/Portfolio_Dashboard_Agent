@@ -65,6 +65,41 @@ class TtlCache:
         with self._lock:
             self._entries.clear()
 
+    def footprint(self) -> dict[str, int]:
+        """Approximate in-process footprint for author console diagnostics."""
+        import json
+
+        approx_bytes = 0
+        with self._lock:
+            count = len(self._entries)
+            for _key, (_expires_at, value) in self._entries.items():
+                approx_bytes += _approx_payload_bytes(value)
+        return {
+            "entries": count,
+            "maxEntries": self.max_entries,
+            "approxBytes": approx_bytes,
+        }
+
+
+def _approx_payload_bytes(value: Any) -> int:
+    import json
+
+    if value is None:
+        return 0
+    try:
+        import pandas as pd
+
+        if isinstance(value, pd.DataFrame):
+            return int(value.memory_usage(deep=True).sum())
+        if isinstance(value, pd.Series):
+            return int(value.memory_usage(deep=True))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        return len(json.dumps(value, default=str).encode("utf-8"))
+    except Exception:  # noqa: BLE001
+        return 64
+
 
 _ticker_info_ttl = float(os.environ.get("YFINANCE_INFO_CACHE_TTL_SECONDS", "900"))
 _ticker_info_max = int(os.environ.get("YFINANCE_INFO_CACHE_MAX_ENTRIES", "48"))

@@ -148,3 +148,25 @@ class FibService:
             _LEVELS_CACHE.move_to_end(cache_key)
             while len(_LEVELS_CACHE) > _CACHE_MAX_ENTRIES:
                 _LEVELS_CACHE.popitem(last=False)
+
+
+def fib_levels_cache_footprint() -> dict[str, Any]:
+    import json
+
+    approx_bytes = 0
+    with _CACHE_LOCK:
+        count = len(_LEVELS_CACHE)
+        for _key, (_expires_at, payload) in _LEVELS_CACHE.items():
+            if payload is None:
+                continue
+            try:
+                approx_bytes += len(json.dumps(payload, default=str).encode("utf-8"))
+            except Exception:  # noqa: BLE001
+                approx_bytes += 64
+    return {
+        "key": "fib_levels",
+        "label": "fib levels",
+        "rowCount": count,
+        "payloadBytes": approx_bytes,
+        "maxEntries": _CACHE_MAX_ENTRIES,
+    }

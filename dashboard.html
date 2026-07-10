@@ -1278,6 +1278,17 @@
       text-align: center;
       line-height: 1.15;
     }
+    .consol-footprint-note {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin: 0 0 0.55rem;
+      line-height: 1.35;
+    }
+    .consol-footprint-total {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
     .nav-agent-btn:disabled,
     button.secondary:disabled {
       opacity: 0.45;
@@ -3940,6 +3951,7 @@
       <p class="panel-hint">Author-only workload snapshot. Toggle via logo click or Cmd/Ctrl+Shift+Y. Background sync runs every 5 min; daily assessments pre-warm shared base reads once per UTC day.</p>
       <div class="summary-strip" id="consolMetrics"></div>
       <div id="consolTrend"></div>
+      <div id="consolFootprint" style="margin-top:0.8rem;"></div>
       <div id="consolUsersTable" style="margin-top:0.8rem;"><div class="empty">Loading…</div></div>
       <div id="consolUsageTable" style="margin-top:0.8rem;"><div class="empty">Loading…</div></div>
     </div>
@@ -4829,11 +4841,16 @@
       const el = document.getElementById("consolMetrics");
       if (!el) return;
       const totals = data?.totals || {};
+      const rss = data?.footprint?.process?.rssMb;
       const cards = [
         { label: "Synced symbols", value: Number(totals.syncedSymbols || 0).toLocaleString() },
         { label: "Assessed today (UTC)", value: Number(totals.assessedToday || 0).toLocaleString() },
         { label: "Users with symbols", value: Number(totals.usersWithSymbols || 0).toLocaleString() },
         { label: "Total symbol rows", value: Number(totals.symbolRows || 0).toLocaleString() },
+        {
+          label: "Worker RSS",
+          value: rss != null && Number.isFinite(rss) ? `${rss} MB` : "—",
+        },
       ];
       el.innerHTML = cards.map((card) => `
         <div class="metric">
@@ -4883,6 +4900,71 @@
                 </div>`;
             }).join("")}
           </div>
+        </div>`;
+    }
+
+    function formatConsolBytes(bytes) {
+      const n = Number(bytes);
+      if (!Number.isFinite(n) || n <= 0) return "—";
+      if (n < 1024) return `${n.toLocaleString()} B`;
+      if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+      return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    function renderConsolFootprintTable(title, totalLabel, totalBytes, rows) {
+      if (!rows.length) return "";
+      const sorted = [...rows].sort((a, b) => Number(b.payloadBytes || 0) - Number(a.payloadBytes || 0));
+      return `
+        <section style="margin-top:0.75rem;">
+          <h3 style="margin:0 0 0.35rem;">${escapeHtml(title)}</h3>
+          <p class="consol-footprint-total">${escapeHtml(totalLabel)}: ${formatConsolBytes(totalBytes)}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th style="text-align:right;">Rows / entries</th>
+                <th style="text-align:right;">Payload</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sorted.map((row) => `
+                <tr>
+                  <td>${escapeHtml(row.label || row.key || "")}</td>
+                  <td style="text-align:right;">${Number(row.rowCount || 0).toLocaleString()}</td>
+                  <td style="text-align:right;">${formatConsolBytes(row.payloadBytes)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </section>`;
+    }
+
+    function renderConsolFootprint(data) {
+      const el = document.getElementById("consolFootprint");
+      if (!el) return;
+      const fp = data?.footprint;
+      if (!fp) {
+        el.innerHTML = "";
+        return;
+      }
+      el.innerHTML = `
+        <div class="consol-trend">
+          <div class="consol-trend-head">
+            <h3>Data footprint</h3>
+          </div>
+          <p class="consol-footprint-note">Postgres payload is an on-disk size estimate (text/JSON columns). In-process caches are approximate live RAM in this worker only — not shared across Render instances.</p>
+          ${renderConsolFootprintTable(
+            "Database (Postgres)",
+            "Total estimated payload",
+            fp.database?.totalPayloadBytes,
+            fp.database?.categories || []
+          )}
+          ${renderConsolFootprintTable(
+            "In-process caches",
+            "Total approx. cache RAM",
+            fp.caches?.totalApproxBytes,
+            fp.caches?.categories || []
+          )}
         </div>`;
     }
 
@@ -4940,6 +5022,7 @@
         const data = await api("/consol");
         renderConsolMetrics(data);
         renderConsolTrend(data);
+        renderConsolFootprint(data);
         renderConsolTables(data);
       } catch (err) {
         const usersEl = document.getElementById("consolUsersTable");
@@ -7411,8 +7494,8 @@
       return id;
     }
 
-    function newsPublishedToDateInput(published) {
-      if (published == null || published === "") return todayISO();
+    function newsPublishedIsoDate(published) {
+      if (published == null || published === "") return null;
       if (typeof published === "number" && Number.isFinite(published)) {
         const ms = published > 1e12 ? published : published * 1000;
         const dt = new Date(ms);
@@ -7433,19 +7516,29 @@
         const d = String(parsed.getDate()).padStart(2, "0");
         return `${y}-${m}-${d}`;
       }
-      return todayISO();
+      return null;
+    }
+
+    function newsPublishedToDateInput(published) {
+      return newsPublishedIsoDate(published) || todayISO();
     }
 
     function buildNoteDraftFromNews(item) {
       const article = normalizeNewsArticle(item);
+      const today = todayISO();
+      const pubDate = newsPublishedIsoDate(article.published);
+      let title = article.title || "";
+      if (pubDate && pubDate < today && title) {
+        title = `[${pubDate}] ${title}`;
+      }
       const lines = [];
-      if (article.title) lines.push(article.title);
+      if (title) lines.push(title);
       if (article.summary) lines.push("", article.summary);
       if (article.link && article.link !== article.title) lines.push("", article.link);
       return {
-        date: newsPublishedToDateInput(article.published),
+        date: today,
         source: newsSourceLabel(article),
-        text: lines.join("\n").trim() || article.title || "News clip",
+        text: lines.join("\n").trim() || title || "News clip",
       };
     }
 

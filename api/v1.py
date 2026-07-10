@@ -245,12 +245,15 @@ def consol_workload():
         assessed_last_7_days.append({"date": iso, "assessed": trend_by_date.get(iso, 0)})
 
     override = plan_override()
+    from services.consol_service import build_footprint_snapshot
+
     return jsonify(
         {
             "authorEmail": _author_email(),
             "utcDate": utc_row["utc_date"],
             "planOverride": override,
             "syncIntervalSeconds": 300,
+            "footprint": build_footprint_snapshot(),
             "totals": {
                 "syncedSymbols": int(totals_row["synced_symbols"] or 0),
                 "usersWithSymbols": int(totals_row["users_with_symbols"] or 0),
