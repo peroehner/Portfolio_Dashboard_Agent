@@ -908,6 +908,7 @@
     }
     .sim-kpi.lead { border-color: rgba(59, 130, 246, 0.45); background: rgba(59, 130, 246, 0.1); }
     .sim-kpi-label { font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+    .sim-kpi-label sup { text-transform: none; font-size: 0.95em; vertical-align: super; }
     .sim-kpi-value { font-size: 1.05rem; font-weight: 700; }
     .sim-kpi.lead .sim-kpi-value { font-size: 1.25rem; }
     .sim-caption { margin-top: 0.6rem; font-size: 0.72rem; color: var(--muted); }
@@ -4319,11 +4320,14 @@
         <button type="button" class="secondary filter-btn active" data-sim-legs="both" onclick="setSimulationLegs('both')" title="Include both buy and sell legs in the totals">Both</button>
         <button type="button" class="secondary filter-btn" data-sim-legs="buys" onclick="setSimulationLegs('buys')" title="Only buy legs count toward the totals">Buys</button>
         <button type="button" class="secondary filter-btn" data-sim-legs="sells" onclick="setSimulationLegs('sells')" title="Only sell legs count toward the totals">Sells</button>
+        <span class="sim-legs-sep" aria-hidden="true"></span>
+        <button type="button" class="secondary filter-btn active" data-sim-pricing="threshold" onclick="setSimulationPricingMode('threshold')" title="Execute planned sizes at their threshold prices (default)">Thresholds</button>
+        <button type="button" class="secondary filter-btn" data-sim-pricing="current" onclick="setSimulationPricingMode('current')" title="Execute planned sizes at today's price — net cash and gains for tax-balancing what-if">Current Price</button>
         <button type="button" class="success" style="margin-left:auto;" onclick="saveSimulationSnapshot()">Save to Summary</button>
         <span class="sel-clip-actions" data-clip-tab="simulation" style="margin-left:0.4rem;"></span>
       </div>
       <div id="simulationTable" class="portfolio-table-scroll"></div>
-      <div class="sim-caption">assumes every boundary hits · ignores fees/taxes/slippage · flows, not a balance</div>
+      <div class="sim-caption" id="simulationCaption">assumes every boundary hits at threshold prices · ignores fees/taxes/slippage · flows, not a balance</div>
     </div>
   </div>
 
@@ -5442,7 +5446,8 @@
       if (tabId === "simulation") {
         const filterLabels = { all: "All", close: "Close Trades", far: "Far Trades" };
         const legLabels = { both: "Both", buys: "Buys", sells: "Sells" };
-        return `${filterLabels[simulationFilter] || simulationFilter} · ${legLabels[simulationLegs] || simulationLegs}`;
+        const pricingLabels = { threshold: "Thresholds", current: "Current Price" };
+        return `${filterLabels[simulationFilter] || simulationFilter} · ${legLabels[simulationLegs] || simulationLegs} · ${pricingLabels[simulationPricingMode] || simulationPricingMode}`;
       }
       if (tabId === "screening") {
         const filterLabels = { all: "All", upside: "High Upside", close: "Close Trades", far: "Far Trades" };
@@ -7148,6 +7153,9 @@
       return {
         filter: ["all", "close", "far"].includes(filter) ? filter : "all",
         legs: ["both", "buys", "sells"].includes(legs) ? legs : "both",
+        pricingMode: ["threshold", "current"].includes(String(sim.pricingMode || "threshold").toLowerCase())
+          ? String(sim.pricingMode || "threshold").toLowerCase()
+          : "threshold",
         useSelection: !!sim.useSelection,
         selectedSymbols: Array.isArray(sim.selectedSymbols)
           ? sim.selectedSymbols.map((symbol) => String(symbol).toUpperCase()).filter(Boolean)
@@ -7172,6 +7180,8 @@
       else if (sim.filter === "far") parts.push("Far Trades");
       if (sim.legs === "buys") parts.push("Buys only");
       else if (sim.legs === "sells") parts.push("Sells only");
+      if (sim.pricingMode === "current") parts.push("@ current price");
+      else if (sim.pricingMode === "threshold") parts.push("@ thresholds");
       if (sim.useSelection && Array.isArray(sim.selectedSymbols) && sim.selectedSymbols.length) {
         parts.push(sim.selectedSymbols.length === 1
           ? sim.selectedSymbols[0]
@@ -9549,14 +9559,18 @@
     // Pure client-side projection from the cached screening rows. Each symbol has
     // up to two legs (below / above); a leg counts only when its threshold PRICE
     // is set. Direction is sign-first on the SIGNED share field (>0 buy, <0 sell,
-    // null/0 defaults below→buy / above→sell). Cash uses the THRESHOLD price.
+    // null/0 defaults below→buy / above→sell). Threshold mode uses gate prices;
+    // current-price mode uses today's quote for cash/gains while Close % still
+    // measures distance to the planned thresholds.
     let simulationFilter = "all";
     let simulationLegs = "both";
+    let simulationPricingMode = "threshold";
 
     function applySimulationCriteria(criteria) {
       if (!criteria) return;
       simulationFilter = criteria.filter;
       simulationLegs = criteria.legs;
+      simulationPricingMode = criteria.pricingMode || "threshold";
       if (criteria.useSelection && criteria.selectedSymbols.length) {
         multiSelection.simulation = new Set(criteria.selectedSymbols);
         multiAnchor.simulation = criteria.selectedSymbols[criteria.selectedSymbols.length - 1] || null;
@@ -9592,7 +9606,8 @@
       return { side, price, qty, buy, qtyNotSet: !shares };
     }
 
-    function computeTradePlan(rows, legFilter = "both") {
+    function computeTradePlan(rows, legFilter = "both", pricingMode = simulationPricingMode) {
+      const atCurrent = pricingMode === "current";
       const keepLeg = (leg) =>
         legFilter === "both" || (legFilter === "buys" ? leg.buy : !leg.buy);
       const symbols = [];
@@ -9621,21 +9636,27 @@
         const buyLegList = [];
         const sellLegList = [];
         legs.forEach((leg) => {
+          const execPrice = atCurrent
+            ? (currentPrice > 0 ? currentPrice : null)
+            : leg.price;
+          if (execPrice == null) return;
+          leg.execPrice = execPrice;
           if (leg.qtyNotSet) qtyNotSet = true;
           if (leg.buy) {
-            cashInvested += leg.price * leg.qty;
+            cashInvested += execPrice * leg.qty;
             sharesIn += leg.qty;
             buyLegs += 1;
             boughtMktDelta += leg.qty * currentPrice;
             buyLegList.push(leg);
           } else {
-            cashGenerated += leg.price * leg.qty;
+            cashGenerated += execPrice * leg.qty;
             sharesOut += leg.qty;
             sellLegs += 1;
             soldMktDelta += leg.qty * currentPrice;
             sellLegList.push(leg);
           }
         });
+        if (!buyLegList.length && !sellLegList.length) return;
         const held = (row.holding && Number(row.holding.quantity)) || 0;
         const oversell = sharesOut > held;
         if (oversell) oversellCount += 1;
@@ -9739,12 +9760,17 @@
 
     function simLegCell(legs) {
       if (!legs || !legs.length) return "—";
+      const atCurrent = simulationPricingMode === "current";
       return legs
         .map((leg) => {
           const qty = leg.qty
             ? `×${simQty(leg.qty)}`
             : `<span class="sim-noqty" title="priced leg has no share quantity set (contributes $0)">×0</span>`;
-          return `${formatMoney(leg.price)} ${qty}`;
+          const displayPrice = atCurrent ? (leg.execPrice ?? leg.price) : leg.price;
+          const thresholdHint = atCurrent && leg.price != null
+            ? ` title="Planned threshold ${formatMoney(leg.price)}"`
+            : "";
+          return `<span${thresholdHint}>${formatMoney(displayPrice)} ${qty}</span>`;
         })
         .join(" + ");
     }
@@ -9942,14 +9968,26 @@
       document.querySelectorAll("#view-simulation [data-sim-legs]").forEach((button) => {
         button.classList.toggle("active", button.dataset.simLegs === simulationLegs);
       });
+      document.querySelectorAll("#view-simulation [data-sim-pricing]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.simPricing === simulationPricingMode);
+      });
+    }
+
+    function updateSimulationCaption() {
+      const el = document.getElementById("simulationCaption");
+      if (!el) return;
+      el.textContent = simulationPricingMode === "current"
+        ? "executes planned share sizes at today's price · Close % still uses thresholds · ignores fees/taxes/slippage · flows, not a balance"
+        : "assumes every boundary hits at threshold prices · ignores fees/taxes/slippage · flows, not a balance";
     }
 
     function renderSimulationView() {
       const tableEl = document.getElementById("simulationTable");
       if (!tableEl) return;
       updateSimulationFilterButtons();
+      updateSimulationCaption();
       const candidates = simulationCandidates();
-      const tablePlan = computeTradePlan(candidates, simulationLegs);
+      const tablePlan = computeTradePlan(candidates, simulationLegs, simulationPricingMode);
       // Scope rule: any selection (≥1 row) → simulate just that subset; no
       // selection → simulate the full filtered set. A plain click clears the
       // selection (whole list); Cmd/Ctrl-click selects a single row.
@@ -9960,7 +9998,7 @@
       const scopeRows = useSelection
         ? candidates.filter((row) => scoped.has(row.symbol))
         : candidates;
-      const scopedPlan = computeTradePlan(scopeRows, simulationLegs);
+      const scopedPlan = computeTradePlan(scopeRows, simulationLegs, simulationPricingMode);
       renderSimulationKpis(scopedPlan, useSelection);
       const emptyMsg = getVirtualSymbols("simulation") && !tablePlan.symbols.length
         ? virtualFilterNoMatchMessage("simulation")
@@ -9992,6 +10030,11 @@
       renderSimulationView();
     }
 
+    function setSimulationPricingMode(mode) {
+      simulationPricingMode = mode === "current" ? "current" : "threshold";
+      renderSimulationView();
+    }
+
     async function loadSimulation(options = {}) {
       let restoreCriteria = null;
       if (options.restore) {
@@ -10019,14 +10062,14 @@
       try {
         const candidates = simulationCandidates();
         const selection = getMultiSelection("simulation");
-        const tablePlan = computeTradePlan(candidates, simulationLegs);
+        const tablePlan = computeTradePlan(candidates, simulationLegs, simulationPricingMode);
         const present = new Set(tablePlan.symbols.map((row) => row.symbol));
         const scoped = new Set([...selection].filter((symbol) => present.has(symbol)));
         const useSelection = scoped.size >= 1;
         const scopeRows = useSelection
           ? candidates.filter((row) => scoped.has(row.symbol))
           : candidates;
-        const plan = computeTradePlan(scopeRows, simulationLegs);
+        const plan = computeTradePlan(scopeRows, simulationLegs, simulationPricingMode);
         if (!plan.symbols.length) {
           setStatus("Nothing to save — no symbols with planned trades in scope.", "error");
           return;
@@ -10051,6 +10094,7 @@
           scopeCount: plan.scopeCount,
           filter: simulationFilter,
           legs: simulationLegs,
+          pricingMode: simulationPricingMode,
           useSelection,
           selectedSymbols: useSelection ? [...scoped] : [],
         };

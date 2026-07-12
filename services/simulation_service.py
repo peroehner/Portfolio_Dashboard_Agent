@@ -20,6 +20,7 @@ _MONEY_FIELDS = (
 _COUNT_FIELDS = ("buyLegs", "sellLegs", "oversellCount", "scopeCount")
 _FILTER_VALUES = frozenset({"all", "close", "far"})
 _LEGS_VALUES = frozenset({"both", "buys", "sells"})
+_PRICING_VALUES = frozenset({"threshold", "current"})
 
 
 def _as_float(value: Any) -> float | None:
@@ -44,6 +45,11 @@ def _as_filter(value: Any) -> str:
 def _as_legs(value: Any) -> str:
     lowered = str(value or "both").strip().lower()
     return lowered if lowered in _LEGS_VALUES else "both"
+
+
+def _as_pricing(value: Any) -> str:
+    lowered = str(value or "threshold").strip().lower()
+    return lowered if lowered in _PRICING_VALUES else "threshold"
 
 
 def _as_symbol_list(value: Any) -> list[str]:
@@ -87,6 +93,7 @@ class SimulationService:
 
         payload["filter"] = _as_filter(data.get("filter"))
         payload["legs"] = _as_legs(data.get("legs"))
+        payload["pricingMode"] = _as_pricing(data.get("pricingMode"))
         selected = _as_symbol_list(data.get("selectedSymbols"))
         use_selection = _as_bool(data.get("useSelection")) and bool(selected)
         payload["useSelection"] = use_selection

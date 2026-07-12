@@ -1,7 +1,7 @@
 """Criteria normalization for saved simulation snapshots."""
 import unittest
 
-from services.simulation_service import _as_bool, _as_filter, _as_legs, _as_symbol_list
+from services.simulation_service import _as_bool, _as_filter, _as_legs, _as_pricing, _as_symbol_list
 
 
 class SimulationCriteriaHelpersTest(unittest.TestCase):
@@ -15,6 +15,12 @@ class SimulationCriteriaHelpersTest(unittest.TestCase):
         self.assertEqual(_as_legs("buys"), "buys")
         self.assertEqual(_as_legs("SELLS"), "sells")
         self.assertEqual(_as_legs("nope"), "both")
+
+    def test_pricing_values(self):
+        self.assertEqual(_as_pricing("threshold"), "threshold")
+        self.assertEqual(_as_pricing("CURRENT"), "current")
+        self.assertEqual(_as_pricing("invalid"), "threshold")
+        self.assertEqual(_as_pricing(None), "threshold")
 
     def test_symbol_list(self):
         self.assertEqual(_as_symbol_list(["aapl", " msft "]), ["AAPL", "MSFT"])
