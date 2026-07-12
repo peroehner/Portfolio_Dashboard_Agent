@@ -3408,6 +3408,72 @@
       font-weight: 700;
       white-space: nowrap;
     }
+    .sim-tax-proposal {
+      margin-top: 0.85rem;
+      padding: 0.85rem 0.95rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel-2);
+    }
+    .sim-tax-proposal-head {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      margin-bottom: 0.45rem;
+    }
+    .sim-tax-proposal-head h3 {
+      margin: 0;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .sim-tax-proposal-note {
+      margin: 0 0 0.55rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .sim-tax-proposal table { font-size: 0.82rem; }
+    .sim-tax-proposal table a.sim-tax-symbol-link {
+      color: #93c5fd;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .sim-tax-proposal table a.sim-tax-symbol-link:hover {
+      color: #bfdbfe;
+      text-decoration: underline;
+    }
+    .sim-tax-proposal tr.sim-tax-pick-row {
+      background: rgba(59, 130, 246, 0.1);
+    }
+    .sim-tax-criteria {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.45rem;
+      font-size: 0.72rem;
+    }
+    .sim-tax-crit {
+      padding: 0.08rem 0.35rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .sim-tax-crit.pass { color: #86efac; border-color: rgba(34, 197, 94, 0.35); }
+    .sim-tax-crit.fail { color: var(--muted); opacity: 0.75; }
+    .sim-tax-proposal details {
+      margin-top: 0.65rem;
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+    .sim-tax-proposal details summary {
+      cursor: pointer;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .sim-tax-proposal details ol {
+      margin: 0.4rem 0 0;
+      padding-left: 1.2rem;
+    }
+    .sim-tax-proposal details li { margin-bottom: 0.25rem; }
     .sim-gaintax-tax {
       color: var(--muted);
       font-weight: 600;
@@ -3917,6 +3983,16 @@
     </div>
   </div>
 
+  <div id="taxLossProposalHelp" class="help-modal-backdrop" hidden onclick="onTaxLossProposalHelpBackdrop(event)">
+    <div class="help-modal" role="dialog" aria-modal="true" aria-labelledby="taxLossProposalHelpTitle">
+      <div class="help-modal-head">
+        <h3 id="taxLossProposalHelpTitle">Tax-Loss Selling Proposal</h3>
+        <button type="button" class="help-modal-close" onclick="closeTaxLossProposalHelp()" aria-label="Close">&times;</button>
+      </div>
+      <div class="help-modal-body" id="taxLossProposalHelpBody"></div>
+    </div>
+  </div>
+
   <nav class="tabs" aria-label="Portfolio views">
     <div class="nav-tabs-main">
     <div class="nav-group nav-group-portfolio">
@@ -4328,6 +4404,7 @@
       </div>
       <div id="simulationTable" class="portfolio-table-scroll"></div>
       <div class="sim-caption" id="simulationCaption">assumes every boundary hits at threshold prices · ignores fees/taxes/slippage · flows, not a balance</div>
+      <div id="simulationTaxProposal" class="sim-tax-proposal" hidden></div>
     </div>
   </div>
 
@@ -9125,6 +9202,8 @@
         if (patternsModal && !patternsModal.hidden) closePatternsHelp();
         const signalModal = document.getElementById("signalRecordHelp");
         if (signalModal && !signalModal.hidden) closeSignalRecordHelp();
+        const taxModal = document.getElementById("taxLossProposalHelp");
+        if (taxModal && !taxModal.hidden) closeTaxLossProposalHelp();
       }
     });
 
@@ -9472,6 +9551,12 @@
     const TRADE_CLOSE_PCT = 10;
     const TRADE_FAR_PCT = 100;
     const SIM_TAX_RATE = 0.26375; // est. German capital-gains tax on realized gains: 25% Abgeltungssteuer + 5.5% Soli
+    const TAX_PROPOSAL_MIN_GAIN_PCT = 15;
+    const TAX_PROPOSAL_PEAK_PCT = 95;
+    const TAX_PROPOSAL_MAX_POSITIONS = 10;
+    const TAX_PROPOSAL_SAI_ACTION_WEIGHT = { sell: 20, watch: 12, hold: 4, buy: 0 };
+    const TAX_PROPOSAL_SAI_CONF_BONUS = { high: 3, medium: 2, low: 1 };
+    let fundamentalsCacheAt = 0;
 
     function screeningRowSentiment(row) {
       return (row.recommendation?.sentiment || "neutral").toLowerCase();
@@ -10018,6 +10103,393 @@
         )
       );
       updateClipButtons();
+      renderTaxLossProposal(scopedPlan, useSelection);
+    }
+
+    function taxProposalLossPool(scopedPlan) {
+      return (scopedPlan?.symbols || []).reduce((sum, row) => {
+        const g = Number(row.netGains);
+        return g < 0 ? sum + Math.abs(g) : sum;
+      }, 0);
+    }
+
+    function taxProposalLossUniverse() {
+      return (viewDataCache.screening.data || []).filter((row) => {
+        const below = evalTradeLeg(row.tradeBelowPrice, row.tradeBelowShares, "below");
+        const above = evalTradeLeg(row.tradeAbovePrice, row.tradeAboveShares, "above");
+        return (below && !below.buy) || (above && !above.buy);
+      });
+    }
+
+    function taxProposalWinnerUniverse() {
+      return (viewDataCache.screening.data || []).filter((row) => {
+        const held = Number(row.holding?.quantity) || 0;
+        if (held <= 0) return false;
+        const gainPct = Number(row.holding?.gainPct);
+        const unrealized = Number(row.holding?.unrealizedGain);
+        return (Number.isFinite(gainPct) && gainPct > 0)
+          || (Number.isFinite(unrealized) && unrealized > 0);
+      });
+    }
+
+    function taxProposalSellPlanQty(row) {
+      let qty = 0;
+      [evalTradeLeg(row.tradeBelowPrice, row.tradeBelowShares, "below"),
+        evalTradeLeg(row.tradeAbovePrice, row.tradeAboveShares, "above")].forEach((leg) => {
+        if (leg && !leg.buy && leg.qty) qty += leg.qty;
+      });
+      return qty;
+    }
+
+    function taxProposalGainPerShare(screenRow) {
+      const price = Number(screenRow.currentPrice);
+      const costBasis = Number(screenRow.holding?.costBasis);
+      if (!Number.isFinite(price) || !Number.isFinite(costBasis)) return null;
+      return price - costBasis;
+    }
+
+    function taxProposalMaxTrimShares(screenRow, sellPlanQty) {
+      const held = Number(screenRow.holding?.quantity) || 0;
+      if (sellPlanQty > 0) return Math.min(sellPlanQty, held);
+      return held;
+    }
+
+    function fundamentalsMapBySymbol() {
+      const map = new Map();
+      (fundamentalsRows || []).forEach((row) => {
+        if (row?.symbol) map.set(String(row.symbol).toUpperCase(), row);
+      });
+      return map;
+    }
+
+    async function ensureFundamentalsCache() {
+      const now = Date.now();
+      if (fundamentalsRows.length && now - fundamentalsCacheAt < VIEW_CACHE_TTL_MS) return;
+      try {
+        const data = await api("/fundamentals");
+        fundamentalsRows = data.symbols || [];
+        fundamentalsCacheAt = now;
+      } catch (_) { /* 52W criterion may be unavailable */ }
+    }
+
+    function fundPeakProximityPct(screenRow, fundRow) {
+      const price = Number(screenRow?.currentPrice);
+      const high = fundNum(fundRow ? fundVal(fundRow, "priceRange", "high52w") : null);
+      if (!Number.isFinite(price) || !Number.isFinite(high) || high <= 0) return null;
+      return (price / high) * 100;
+    }
+
+    function taxProposalExcluded(screenRow) {
+      const action = String(screenRow?.recommendation?.action || "").toLowerCase();
+      const conf = String(screenRow?.recommendation?.confidence || "").toLowerCase();
+      if (action === "buy" && conf === "high") {
+        return { excluded: true, reason: "SAI Buy · high confidence" };
+      }
+      return { excluded: false, reason: "" };
+    }
+
+    function taxProposalSaiWeight(screenRow) {
+      const action = String(screenRow?.recommendation?.action || "hold").toLowerCase();
+      let weight = TAX_PROPOSAL_SAI_ACTION_WEIGHT[action] ?? 0;
+      const conf = String(screenRow?.recommendation?.confidence || "medium").toLowerCase();
+      if ((action === "sell" || action === "watch") && TAX_PROPOSAL_SAI_CONF_BONUS[conf]) {
+        weight += TAX_PROPOSAL_SAI_CONF_BONUS[conf];
+      }
+      return weight;
+    }
+
+    function buildTaxLossProposal(lossPool) {
+      const winnerRows = taxProposalWinnerUniverse();
+      const fundBySymbol = fundamentalsMapBySymbol();
+      const lossRows = taxProposalLossUniverse();
+      const sellPlan = computeTradePlan(lossRows, "sells", "current");
+      const sellPlanBySymbol = new Map(sellPlan.symbols.map((row) => [row.symbol, row]));
+      const diagnostics = {
+        universeCount: winnerRows.length,
+        withCostBasis: 0,
+        excludedSaiTech: 0,
+        failedGain: 0,
+        failedPeak: 0,
+        peakMissing: 0,
+        qualified: 0,
+      };
+      const candidates = [];
+      winnerRows.forEach((screenRow) => {
+        const gainPct = Number(screenRow.holding?.gainPct);
+        const significantGain = Number.isFinite(gainPct)
+          ? gainPct >= TAX_PROPOSAL_MIN_GAIN_PCT
+          : false;
+        if (!significantGain) {
+          diagnostics.failedGain += 1;
+          return;
+        }
+        const gainPerShare = taxProposalGainPerShare(screenRow);
+        if (gainPerShare == null || !(gainPerShare > 0)) return;
+        diagnostics.withCostBasis += 1;
+        const exclusion = taxProposalExcluded(screenRow);
+        if (exclusion.excluded) {
+          diagnostics.excludedSaiTech += 1;
+          return;
+        }
+        const held = Number(screenRow.holding?.quantity) || 0;
+        const planRow = sellPlanBySymbol.get(screenRow.symbol);
+        const sellPlanQty = Number(planRow?.sharesOut) || taxProposalSellPlanQty(screenRow);
+        const maxShares = taxProposalMaxTrimShares(screenRow, sellPlanQty);
+        if (maxShares <= 0) return;
+        const fundRow = fundBySymbol.get(screenRow.symbol);
+        const peakPct = fundPeakProximityPct(screenRow, fundRow);
+        if (peakPct == null) {
+          diagnostics.peakMissing += 1;
+          return;
+        }
+        if (peakPct < TAX_PROPOSAL_PEAK_PCT) {
+          diagnostics.failedPeak += 1;
+          return;
+        }
+        const netGainsMax = gainPerShare * maxShares;
+        const currentPrice = Number(screenRow.currentPrice) || 0;
+        const hasSellPlan = sellPlanQty > 0;
+        const isTrim = hasSellPlan ? held > sellPlanQty : maxShares < held;
+        const saiWeight = taxProposalSaiWeight(screenRow);
+        let score = 40 + 25;
+        if (hasSellPlan) score += 20;
+        if (isTrim) score += 10;
+        score += Math.min(15, netGainsMax / 5000);
+        score += saiWeight;
+        diagnostics.qualified += 1;
+        candidates.push({
+          symbol: screenRow.symbol,
+          held,
+          sellQtyMax: maxShares,
+          sellPlanCap: hasSellPlan ? sellPlanQty : null,
+          netGainsMax,
+          gainPerShare,
+          cashGenerated: maxShares * currentPrice,
+          gainPct,
+          peakPct,
+          significantGain: true,
+          nearPeak: true,
+          hasSellPlan,
+          isTrim,
+          score,
+          saiWeight,
+          saiAction: screenRow.recommendation?.action || "—",
+          saiConfidence: screenRow.recommendation?.confidence || "—",
+          techBias: screenRow.confluence?.bias || screenRow.techStance || "—",
+          currentPrice,
+        });
+      });
+      candidates.sort((a, b) => b.score - a.score || b.netGainsMax - a.netGainsMax);
+      let remaining = lossPool;
+      const picks = [];
+      for (const cand of candidates) {
+        if (picks.length >= TAX_PROPOSAL_MAX_POSITIONS || remaining <= 0) break;
+        const gainPerShare = cand.gainPerShare;
+        if (!(gainPerShare > 0)) continue;
+        const targetGain = Math.min(cand.netGainsMax, remaining);
+        let shares = Math.ceil(targetGain / gainPerShare);
+        shares = Math.max(1, Math.min(cand.sellQtyMax, shares));
+        const suggestGain = shares * gainPerShare;
+        picks.push({
+          ...cand,
+          suggestShares: shares,
+          suggestGain,
+          suggestCash: shares * (Number(cand.currentPrice) || 0),
+        });
+        remaining = Math.max(0, remaining - suggestGain);
+      }
+      const offsetGain = picks.reduce((sum, row) => sum + row.suggestGain, 0);
+      return {
+        lossPool,
+        offsetGain,
+        remainingLoss: Math.max(0, lossPool - offsetGain),
+        picks,
+        candidateCount: candidates.length,
+        candidates,
+        diagnostics,
+      };
+    }
+
+    function renderTaxProposalTrimCell(cand) {
+      const capNote = cand.hasSellPlan
+        ? (cand.isTrim ? ` · plan cap ${simQty(cand.sellPlanCap)}` : " · plan cap")
+        : "";
+      return `up to ${simQty(cand.sellQtyMax)} of ${simQty(cand.held)}${capNote}`;
+    }
+
+    function renderTaxProposalCandidateRows(candidates, picks) {
+      const pickBySymbol = new Map((picks || []).map((row) => [row.symbol, row]));
+      return candidates.map((cand) => {
+        const pick = pickBySymbol.get(cand.symbol);
+        return `
+          <tr class="${pick ? "sim-tax-pick-row" : ""}">
+            <td><a class="sim-tax-symbol-link" href="#" onclick="selectSymbol('${cand.symbol}'); showView('portfolio'); return false;">${escapeHtml(cand.symbol)}</a></td>
+            <td>${pick ? `${simQty(pick.suggestShares)} of ${simQty(cand.held)}` : "—"}</td>
+            <td>${renderTaxProposalTrimCell(cand)}</td>
+            <td style="text-align:right;">${pick ? renderColoredMoneyCell(pick.suggestGain) : "—"}</td>
+            <td style="text-align:right;">${renderColoredMoneyCell(cand.netGainsMax)}</td>
+            <td style="text-align:right;">${pick ? formatMoney(pick.suggestCash) : formatMoney(cand.cashGenerated)}</td>
+            <td style="text-align:right;">${Number.isFinite(cand.gainPct) ? `${cand.gainPct.toFixed(1)}%` : "—"}</td>
+            <td style="text-align:right;">${cand.peakPct != null ? `${cand.peakPct.toFixed(1)}%` : "—"}</td>
+            <td style="text-align:right;" title="Ranking score (higher = preferred for tax-loss pairing)">${Math.round(cand.score)}</td>
+            <td>${escapeHtml(String(cand.saiAction))} · ${escapeHtml(String(cand.techBias))}</td>
+            <td>${renderTaxCriteriaTags(cand)}</td>
+          </tr>`;
+      }).join("");
+    }
+
+    function renderTaxProposalTable(candidates, picks) {
+      if (!candidates.length) return "";
+      const pickCount = (picks || []).length;
+      return `
+        <h4 style="margin:0.65rem 0 0.35rem;font-size:0.82rem;font-weight:600;color:var(--text);">
+          Qualified candidates (${candidates.length})${pickCount ? ` · ${pickCount} in proposed allocation` : ""}
+        </h4>
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Proposed sell</th>
+              <th>Max trim</th>
+              <th style="text-align:right;">Proposed gain</th>
+              <th style="text-align:right;">Max gain</th>
+              <th style="text-align:right;">Cash</th>
+              <th style="text-align:right;">Gain %</th>
+              <th style="text-align:right;">52W peak</th>
+              <th style="text-align:right;">Score</th>
+              <th>SAI / Tech</th>
+              <th>Criteria</th>
+            </tr>
+          </thead>
+          <tbody>${renderTaxProposalCandidateRows(candidates, picks)}</tbody>
+        </table>`;
+    }
+
+    function renderTaxDiagnostics(diag) {
+      if (!diag) return "";
+      return `
+        <table style="margin-top:0.55rem;font-size:0.78rem;">
+          <thead><tr><th>Scan step</th><th style="text-align:right;">Count</th></tr></thead>
+          <tbody>
+            <tr><td>Holdings with positive gain (full portfolio)</td><td style="text-align:right;">${diag.universeCount}</td></tr>
+            <tr><td>…with avg cost basis (taxable gain computable)</td><td style="text-align:right;">${diag.withCostBasis}</td></tr>
+            <tr><td>Excluded · SAI Buy high confidence</td><td style="text-align:right;">${diag.excludedSaiTech}</td></tr>
+            <tr><td>Failed · gain &lt; ${TAX_PROPOSAL_MIN_GAIN_PCT}%</td><td style="text-align:right;">${diag.failedGain}</td></tr>
+            <tr><td>Failed · 52W peak data missing</td><td style="text-align:right;">${diag.peakMissing}</td></tr>
+            <tr><td>Failed · below ${TAX_PROPOSAL_PEAK_PCT}% of 52W high</td><td style="text-align:right;">${diag.failedPeak}</td></tr>
+            <tr><td><strong>Qualified candidates</strong></td><td style="text-align:right;"><strong>${diag.qualified}</strong></td></tr>
+          </tbody>
+        </table>`;
+    }
+
+    function renderTaxCriteriaTags(row) {
+      const saiLabel = row.saiWeight != null
+        ? `SAI +${row.saiWeight}`
+        : "SAI";
+      const tags = [
+        { label: `Gain ≥${TAX_PROPOSAL_MIN_GAIN_PCT}%`, pass: row.significantGain },
+        { label: `Peak ≥${TAX_PROPOSAL_PEAK_PCT}%`, pass: row.nearPeak },
+        { label: row.hasSellPlan ? (row.isTrim ? "Trim · plan cap" : "Plan cap") : "Holdings trim", pass: true },
+        { label: saiLabel, pass: true },
+      ];
+      return `<span class="sim-tax-criteria">${tags.map((tag) =>
+        `<span class="sim-tax-crit ${tag.pass ? "pass" : "fail"}">${tag.pass ? "✓" : "○"} ${escapeHtml(tag.label)}</span>`
+      ).join("")}</span>`;
+    }
+
+    function simTaxProposalHeadHtml() {
+      return `
+        <div class="sim-tax-proposal-head">
+          <h3>Tax-Loss Selling Proposal</h3>
+          <button type="button" class="help-btn" onclick="openTaxLossProposalHelp()" title="How the tax-loss selling proposal works" aria-label="How the tax-loss selling proposal works">?</button>
+        </div>`;
+    }
+
+    function taxLossProposalHelpHtml() {
+      const taxPct = (SIM_TAX_RATE * 100).toFixed(3);
+      return `
+        <p>Pairs simulated <strong>sell losses</strong> in your current Simulation scope with <strong>winner trims</strong> so realized gains can offset losses for tax planning. Planning aid only — not tax advice.</p>
+        <h4>Loss pool</h4>
+        <p>Sum of negative Net Gains from the current Simulation table scope (selection + filters). Updates when you change scope or pricing mode.</p>
+        <h4>Qualified candidates</h4>
+        <p>All holdings with positive unrealized gain, scanned across the full portfolio:</p>
+        <ul>
+          <li>Gain ≥ ${TAX_PROPOSAL_MIN_GAIN_PCT}% on the holding (avg cost required)</li>
+          <li>Price ≥ ${TAX_PROPOSAL_PEAK_PCT}% of 52-week high (Fundamentals)</li>
+          <li>Excluded: SAI Buy with high confidence only</li>
+        </ul>
+        <h4>Trim cap</h4>
+        <p>If a sell threshold qty exists, proposed sell never exceeds it; otherwise trim from held shares.</p>
+        <h4>Ranking score</h4>
+        <table class="help-table">
+          <tr><th>Factor</th><th>Points</th></tr>
+          <tr><td>Passed gain &amp; peak qualifiers</td><td>65 base</td></tr>
+          <tr><td>Has sell plan (threshold)</td><td>+20</td></tr>
+          <tr><td>Trim vs full exit</td><td>+10</td></tr>
+          <tr><td>Max gain size</td><td>up to +15</td></tr>
+          <tr><td>SAI Sell (+ confidence bonus up to +3)</td><td>+20</td></tr>
+          <tr><td>SAI Watch (+ confidence bonus)</td><td>+12</td></tr>
+          <tr><td>SAI Hold</td><td>+4</td></tr>
+          <tr><td>SAI Buy (if not excluded)</td><td>+0</td></tr>
+        </table>
+        <h4>Allocation</h4>
+        <p>Greedy fill by score until the loss pool is covered (max ${TAX_PROPOSAL_MAX_POSITIONS} proposed lines). Highlighted rows are the recommended allocation; other rows are alternate candidates.</p>
+        <p class="help-caveat">Est. tax uses ${taxPct}% on paired gains (Abgeltungssteuer + Soli).</p>`;
+    }
+
+    function openTaxLossProposalHelp() {
+      const body = document.getElementById("taxLossProposalHelpBody");
+      if (body) body.innerHTML = taxLossProposalHelpHtml();
+      const modal = document.getElementById("taxLossProposalHelp");
+      if (modal) modal.hidden = false;
+    }
+
+    function closeTaxLossProposalHelp() {
+      const modal = document.getElementById("taxLossProposalHelp");
+      if (modal) modal.hidden = true;
+    }
+
+    function onTaxLossProposalHelpBackdrop(event) {
+      if (event.target && event.target.id === "taxLossProposalHelp") closeTaxLossProposalHelp();
+    }
+
+    function renderTaxLossProposal(scopedPlan, useSelection) {
+      const el = document.getElementById("simulationTaxProposal");
+      if (!el) return;
+      if (simulationPricingMode !== "current" || simulationLegs === "buys") {
+        el.hidden = true;
+        return;
+      }
+      const lossPool = taxProposalLossPool(scopedPlan);
+      const scopeLabel = useSelection
+        ? `${scopedPlan.scopeCount} selected symbol${scopedPlan.scopeCount === 1 ? "" : "s"}`
+        : `${scopedPlan.scopeCount} symbol${scopedPlan.scopeCount === 1 ? "" : "s"} in Simulation scope`;
+      const proposal = buildTaxLossProposal(lossPool);
+      el.hidden = false;
+      if (!lossPool) {
+        el.innerHTML = `
+          ${simTaxProposalHeadHtml()}
+          <p class="sim-tax-proposal-note">No sell losses in current Simulation scope (${scopeLabel}). Select or filter to loss positions (negative Net Gains) to build a loss pool.</p>
+          ${renderTaxDiagnostics(proposal.diagnostics)}`;
+        return;
+      }
+      if (!proposal.candidates.length) {
+        el.innerHTML = `
+          ${simTaxProposalHeadHtml()}
+          <p class="sim-tax-proposal-note">Loss pool <strong>${formatMoney(proposal.lossPool)}</strong> from ${scopeLabel} — no winner trims matched every criterion.</p>
+          ${renderTaxDiagnostics(proposal.diagnostics)}`;
+        return;
+      }
+      el.innerHTML = `
+        ${simTaxProposalHeadHtml()}
+        <p class="sim-tax-proposal-note">
+          Loss pool <strong>${formatMoney(proposal.lossPool)}</strong> from ${scopeLabel}.
+          Proposed winner trims offset <strong>${formatMoney(proposal.offsetGain)}</strong>
+          ${proposal.remainingLoss > 0 ? `(≈ ${formatMoney(proposal.remainingLoss)} loss still unpaired)` : "(fully paired)"}.
+          Est. tax shield ≈ <strong>${formatMoney(proposal.offsetGain * SIM_TAX_RATE)}</strong> at ${(SIM_TAX_RATE * 100).toFixed(3)}%.
+          Highlighted rows are the recommended allocation; other rows show alternate candidates.
+        </p>
+        ${renderTaxProposalTable(proposal.candidates, proposal.picks)}`;
     }
 
     function setSimulationFilter(filter) {
@@ -10027,11 +10499,19 @@
 
     function setSimulationLegs(legs) {
       simulationLegs = legs || "both";
+      if (simulationLegs !== "buys" && simulationPricingMode === "current") {
+        ensureFundamentalsCache().then(() => renderSimulationView());
+        return;
+      }
       renderSimulationView();
     }
 
     function setSimulationPricingMode(mode) {
       simulationPricingMode = mode === "current" ? "current" : "threshold";
+      if (simulationPricingMode === "current" && simulationLegs !== "buys") {
+        ensureFundamentalsCache().then(() => renderSimulationView());
+        return;
+      }
       renderSimulationView();
     }
 
@@ -10050,6 +10530,7 @@
         cache.data = data.results;
         cache.fetchedAt = now;
       }
+      await ensureFundamentalsCache();
       if (restoreCriteria) applySimulationCriteria(restoreCriteria);
       const present = new Set((cache.data || []).filter(hasPricedLeg).map((row) => row.symbol));
       pruneVirtualSymbols("simulation", present);
