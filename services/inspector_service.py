@@ -27,7 +27,12 @@ class InspectorService:
         self.technical_signals_service = TechnicalSignalsService()
         self.fundamentals_service = FundamentalsService()
 
-    def inspect(self, symbol: str, include_news: bool = True) -> dict[str, Any] | None:
+    def inspect(
+        self,
+        symbol: str,
+        include_news: bool = True,
+        lite: bool = False,
+    ) -> dict[str, Any] | None:
         """Build the full inspector payload for a symbol.
 
         ``include_news`` controls the (relatively expensive) market-grounded news
@@ -35,6 +40,10 @@ class InspectorService:
         falls back to note/neutral sentiment; the frontend then fetches and
         memoizes the news sentiment lazily via ``/symbols/<symbol>/news-sentiment``
         so flipping between symbols doesn't re-run the event study every switch.
+
+        ``lite`` is a mobile-friendly fast path: it skips history-backed technical
+        computations (trend waves, patterns, Fibonacci-from-history) and returns a
+        compact payload suitable for phone screens that don't render those sections.
         """
         symbol = symbol.upper()
         symbol_data = self.portfolio_service.get_symbol(symbol)
@@ -58,7 +67,7 @@ class InspectorService:
         # opted to prefer computed trends). The imported snapshot otherwise wins
         # so curated anchors are preserved.
         computed_chart = None
-        if ASSESSMENT_TECHNICALS and not imported_trends:
+        if not lite and ASSESSMENT_TECHNICALS and not imported_trends:
             computed_chart = self.technical_signals_service.get_chart(symbol)
 
         # Chart patterns and volume context are derived from price history and are
@@ -68,7 +77,7 @@ class InspectorService:
         volume_meta: dict[str, Any] | None = None
         volume_profile_meta: dict[str, Any] | None = None
         confluence_meta: dict[str, Any] | None = None
-        if ASSESSMENT_TECHNICALS:
+        if not lite and ASSESSMENT_TECHNICALS:
             source = computed_chart
             if source is None:
                 source = self.technical_signals_service.get_signals(symbol)
@@ -80,25 +89,22 @@ class InspectorService:
 
         # Fib precedence: imported anchor > computed swing > generic 90d lookback
         # (imported anchor skipped when computed is preferred).
-        fib = None if prefer_computed else self.technical_service.fib_from_snapshot(symbol, technical_snapshot)
-        if not fib and computed_chart:
-            fib = computed_chart.get("fib")
-        if not fib:
-            fib = self.fib_service.get_levels(symbol)
+        fib = None
+        if not lite:
+            fib = None if prefer_computed else self.technical_service.fib_from_snapshot(symbol, technical_snapshot)
+            if not fib and computed_chart:
+                fib = computed_chart.get("fib")
+            if not fib:
+                fib = self.fib_service.get_levels(symbol)
 
-        nearest = (
-            self.fib_service.nearest_level(
+        nearest = None
+        closest = None
+        if not lite and price is not None and fib:
+            nearest = self.fib_service.nearest_level(
                 symbol, price, self.screening_service.fib_proximity_pct, fib=fib
             )
-            if price is not None and fib
-            else None
-        )
-        # Keep the advisory consistent with the Fib we actually display.
-        closest = (
-            self.fib_service.closest_level(symbol, price, fib=fib)
-            if price is not None and fib
-            else None
-        )
+            # Keep the advisory consistent with the Fib we actually display.
+            closest = self.fib_service.closest_level(symbol, price, fib=fib)
         technical_advisory = build_technical_advisory(price, fib, closest)
         screen_row = self.screening_service._score_symbol(
             {**symbol_data, "notes": symbol_data.get("notes", [])},
@@ -119,6 +125,35 @@ class InspectorService:
         )
 
         valuation = self._valuation_metrics(symbol, symbol_data, screen_row, holding)
+
+        if lite:
+            return {
+                "symbol": symbol,
+                "newsSentimentDeferred": not include_news,
+                "quote": symbol_data,
+                "companyName": valuation.get("companyName"),
+                "holding": holding,
+                "alerts": ui_alerts,
+                "fib": None,
+                "fibBlueprint": None,
+                "technicalSnapshot": technical_snapshot,
+                "nearestFib": None,
+                "screening": screen_row,
+                "assessments": assessments,
+                "recommendation": recommendation,
+                "positionMechanics": self._position_mechanics(holding),
+                "valuation": valuation,
+                "trendWaves": [],
+                "trendWaveSource": "lite",
+                "importedFibLevels": [],
+                "chartTimeline": None,
+                "technicalAdvisory": technical_advisory,
+                "chartPatterns": [],
+                "volume": None,
+                "volumeProfile": None,
+                "confluence": None,
+                "chartPoints": self._chart_points(symbol_data, holding, None),
+            }
 
         return {
             "symbol": symbol,

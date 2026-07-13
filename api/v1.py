@@ -703,7 +703,8 @@ def inspect_symbol(symbol):
         "false",
         "no",
     )
-    result = inspector_service.inspect(symbol, include_news=include_news)
+    lite = request.args.get("lite", "0").strip().lower() in ("1", "true", "yes")
+    result = inspector_service.inspect(symbol, include_news=include_news, lite=lite)
     if result is None:
         return jsonify({"error": f"Symbol {symbol.upper()} not found."}), 404
     return jsonify(result)

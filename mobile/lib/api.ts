@@ -100,15 +100,26 @@ export const api = {
   config: fetchConfig,
   overview: () => apiFetch<import("./types").Overview>("/overview"),
   portfolio: () => apiFetch<{ symbols: import("./types").PortfolioSymbol[] }>("/portfolio"),
+  holdings: () => apiFetch<{ holdings: import("./types").Holding[] }>("/holdings"),
   newsFeed: (newsLimit = 40) =>
     apiFetch<import("./types").NewsFeed>(`/news-feed?newsLimit=${newsLimit}&changesLimit=30`),
   alerts: (status = "active") =>
     apiFetch<{ alerts: import("./types").Alert[] }>(`/alerts?status=${status}`),
   dismissAlert: (id: number) =>
     apiFetch(`/alerts/${id}/dismiss`, { method: "POST" }),
+  updateSymbol: (symbol: string, data: Partial<import("./types").PortfolioSymbol>) =>
+    apiFetch<import("./types").PortfolioSymbol>(`/symbols/${encodeURIComponent(symbol)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  addNote: (symbol: string, data: import("./types").Note) =>
+    apiFetch<import("./types").Note>(`/symbols/${encodeURIComponent(symbol)}/notes`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   inspector: (symbol: string) =>
     apiFetch<import("./types").InspectorPayload>(
-      `/symbols/${encodeURIComponent(symbol)}/inspector?includeNews=false`,
+      `/symbols/${encodeURIComponent(symbol)}/inspector?includeNews=false&lite=1`,
     ),
   assessmentsOverview: () =>
     apiFetch<{ assessments: import("./types").Assessment[] }>("/assessments/overview"),

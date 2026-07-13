@@ -7,7 +7,7 @@ import { colors, radii, spacing } from "@/lib/theme";
 import type { PortfolioSymbol } from "@/lib/types";
 
 interface SymbolRowProps {
-  item: PortfolioSymbol & { latestAssessment?: { action?: string; confidence?: string } | null };
+  item: PortfolioSymbol;
   showWeight?: boolean;
   weightPct?: number | null;
 }

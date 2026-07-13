@@ -24,6 +24,11 @@ export interface Overview {
   latestAssessments?: Assessment[];
 }
 
+export interface SaiSummary {
+  action?: SaiAction;
+  confidence?: string;
+}
+
 export interface PortfolioSymbol {
   symbol: string;
   currentPrice?: number | null;
@@ -33,7 +38,7 @@ export interface PortfolioSymbol {
   buyBelow?: number | null;
   sellAbove?: number | null;
   notes?: Note[];
-  latestAssessment?: Assessment | null;
+  latestAssessment?: SaiSummary | null;
 }
 
 export interface Holding {
