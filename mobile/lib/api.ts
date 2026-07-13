@@ -5,6 +5,7 @@ import type { ApiConfig } from "./types";
 const DEFAULT_BASE = "http://localhost:5001/api/v1";
 const HEALTH_RETRIES = 3;
 const HEALTH_RETRY_MS = 4000;
+const FETCH_TIMEOUT_MS = 12000;
 
 export class ApiError extends Error {
   status: number;
@@ -45,6 +46,28 @@ async function parseJson<T>(res: Response): Promise<T> {
   }
 }
 
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new ApiError(`Request timed out after ${Math.round(timeoutMs / 1000)}s`, 408);
+    }
+    throw err;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
@@ -60,10 +83,14 @@ export async function apiFetch<T>(
     headers.set("Authorization", `Bearer ${devToken}`);
   }
 
-  const res = await fetch(url, {
-    ...options,
-    headers,
-  });
+  const res = await fetchWithTimeout(
+    url,
+    {
+      ...options,
+      headers,
+    },
+    FETCH_TIMEOUT_MS,
+  );
 
   const data = await parseJson<{ error?: string; message?: string } & T>(res);
   if (!res.ok) {
