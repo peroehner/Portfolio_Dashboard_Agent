@@ -216,7 +216,9 @@ def add_cors_headers(response):
     """Allow browser/API access through ngrok and other cross-origin frontends."""
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, ngrok-skip-browser-warning"
+    response.headers["Access-Control-Allow-Headers"] = (
+        "Content-Type, Authorization, ngrok-skip-browser-warning"
+    )
     return response
 
 

@@ -167,9 +167,9 @@ Register the redirect URI in [Google Cloud Console](https://console.cloud.google
 
 **Note:** Free-tier web instances sleep when idle. Managed Postgres persists across redeploys (the `free` DB plan expires after 30 days).
 
-## Mobile (Replit)
+## Mobile (iOS)
 
-The API is designed for a future Replit mobile client. See [docs/REPLIT.md](docs/REPLIT.md) for integration instructions and an agent prompt.
+Expo app in [`mobile/`](mobile/). See [docs/MOBILE.md](docs/MOBILE.md) for setup (`npm install` → `npm run ios`). The API client guide in [docs/REPLIT.md](docs/REPLIT.md) still documents endpoint shapes.
 
 ## Project structure
 
@@ -177,6 +177,7 @@ The API is designed for a future Replit mobile client. See [docs/REPLIT.md](docs
 ├── main.py              # Flask app, background sync, deploy entry
 ├── engine.py            # yfinance + optional sentiment
 ├── dashboard.html       # Web UI
+├── mobile/              # Expo iOS client (v1)
 ├── api/v1.py            # REST routes
 ├── services/            # Business logic
 ├── db/database.py       # Postgres schema + migrations

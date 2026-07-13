@@ -55,6 +55,12 @@ services:
         sync: false
       - key: OAUTH_REDIRECT_URI
         sync: false
+      # Optional — personal iPhone testing via Expo Go (never for public App Store):
+      #   MOBILE_DEV_TOKEN, MOBILE_DEV_USER_EMAIL
+      - key: MOBILE_DEV_TOKEN
+        sync: false
+      - key: MOBILE_DEV_USER_EMAIL
+        sync: false
       # Commercialization Phase A (optional — defaults are on):
       #   DEDUP_BASE_ASSESSMENT=1, DAILY_ASSESSMENT_WORKER=1
       #   SYMBOL_MARKET_FUNDAMENTALS=1

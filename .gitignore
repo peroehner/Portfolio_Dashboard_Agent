@@ -4,3 +4,6 @@ __pycache__/
 .env
 data/*
 !data/Sample-Portfolio.json
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/

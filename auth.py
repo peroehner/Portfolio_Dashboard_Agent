@@ -22,6 +22,7 @@ from flask import Blueprint, g, jsonify, redirect, request, session
 from db.database import (
     clear_current_user_id,
     get_bootstrap_user_id,
+    get_connection,
     get_or_create_user,
     reset_current_user_id,
     set_current_user_id,
@@ -30,6 +31,11 @@ from db.database import (
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
 AUTH_ENABLED = bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
+
+# Optional local-only bearer token so the Expo simulator can call the API while
+# OAuth is enabled. Set MOBILE_DEV_TOKEN in .env and the same value as
+# EXPO_PUBLIC_MOBILE_DEV_TOKEN in mobile/.env. Never enable on production.
+MOBILE_DEV_TOKEN = os.environ.get("MOBILE_DEV_TOKEN", "").strip()
 
 # Optional allowlist: only these emails may sign in. Empty = any Google account.
 _ALLOWED_EMAILS = {
@@ -65,6 +71,30 @@ def _is_public(path: str) -> bool:
     if path in _PUBLIC_EXACT:
         return True
     return any(path.startswith(p) for p in _PUBLIC_PREFIXES)
+
+
+def _mobile_dev_user_id() -> int:
+    """Portfolio user bound to a mobile dev-token request."""
+    email = (
+        os.environ.get("MOBILE_DEV_USER_EMAIL", "").strip()
+        or os.environ.get("AUTHOR_EMAIL", "").strip()
+    ).lower()
+    if email:
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT id FROM users WHERE lower(email) = %s",
+                (email,),
+            ).fetchone()
+        if row:
+            return int(row["id"])
+    return get_bootstrap_user_id()
+
+
+def _mobile_dev_token_valid() -> bool:
+    if not MOBILE_DEV_TOKEN:
+        return False
+    auth_header = request.headers.get("Authorization", "")
+    return auth_header == f"Bearer {MOBILE_DEV_TOKEN}"
 
 
 LOGIN_PAGE = """<!doctype html>
@@ -177,6 +207,9 @@ def init_auth(app) -> None:
             return None
         user_id = session.get("user_id")
         if user_id is None:
+            if _mobile_dev_token_valid():
+                g._user_ctx_token = set_current_user_id(_mobile_dev_user_id())
+                return None
             clear_current_user_id()
             if request.path.startswith("/api/"):
                 return jsonify({"status": "error", "message": "Authentication required."}), 401
