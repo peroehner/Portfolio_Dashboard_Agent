@@ -4094,7 +4094,7 @@
     <div class="wide-panel" id="newsChangesPanel">
       <h2>Portfolio News and Changes</h2>
       <div class="news-changes-filter-bar">
-        <input type="text" id="newsChangesTickerFilter" class="fib-ticker-filter" placeholder="Filter by ticker..." oninput="setNewsChangesTickerFilter(this.value)">
+        <input type="text" id="newsChangesTickerFilter" class="fib-ticker-filter" placeholder="Filter by ticker (comma-separated)..." oninput="setNewsChangesTickerFilter(this.value)">
       </div>
       <div class="news-changes-grid">
         <div class="news-changes-col">
@@ -7744,9 +7744,18 @@
     let newsChangesTickerFilter = "";
     let recoChangesDirFilter = "";
 
+    function newsChangesSymbolTerms() {
+      return newsChangesTickerFilter
+        .split(",")
+        .map((term) => term.trim().toLowerCase())
+        .filter(Boolean);
+    }
+
     function newsChangesSymbolMatches(symbol) {
-      const ticker = newsChangesTickerFilter.trim().toLowerCase();
-      return !ticker || String(symbol || "").toLowerCase().includes(ticker);
+      const terms = newsChangesSymbolTerms();
+      if (!terms.length) return true;
+      const sym = String(symbol || "").toLowerCase();
+      return terms.some((term) => sym.includes(term));
     }
 
     function setNewsChangesTickerFilter(value) {
