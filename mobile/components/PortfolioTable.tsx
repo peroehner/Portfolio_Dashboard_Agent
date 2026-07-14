@@ -1,8 +1,7 @@
 import { Link } from "expo-router";
 import { useRef } from "react";
 import {
-  NativeScrollEvent,
-  NativeSyntheticEvent,
+  Animated,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -102,29 +101,16 @@ export function PortfolioTable({
   const symbolWidth = stickyColumns[0].width;
   const saiWidth = stickyColumns[1].width;
   const tableWidth = scrollColumns.reduce((sum, col) => sum + col.width, 0);
-  const headerScrollRef = useRef<ScrollView>(null);
-  const bodyScrollRef = useRef<ScrollView>(null);
-  const syncing = useRef(false);
+  const scrollX = useRef(new Animated.Value(0)).current;
 
   function handleHeaderSort(key: PortfolioSortKey) {
     onSortChange(cyclePortfolioSort(sort, key));
   }
 
-  function syncHorizontalScroll(source: "header" | "body") {
-    return (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (syncing.current) return;
-      syncing.current = true;
-      const x = event.nativeEvent.contentOffset.x;
-      const target = source === "header" ? bodyScrollRef.current : headerScrollRef.current;
-      target?.scrollTo({ x, animated: false });
-      syncing.current = false;
-    };
-  }
-
   return (
     <View style={styles.wrap}>
       <View style={styles.headerRow}>
-        <View style={{ width: stickyWidth, flexShrink: 0, flexDirection: "row" }}>
+        <View style={[styles.stickyHeader, { width: stickyWidth }]}>
           {stickyColumns.map((col) => (
             <SortHeader
               key={col.key}
@@ -135,16 +121,13 @@ export function PortfolioTable({
             />
           ))}
         </View>
-        <ScrollView
-          ref={headerScrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          scrollEventThrottle={16}
-          onScroll={syncHorizontalScroll("header")}
-          style={styles.scrollHeader}
-          contentContainerStyle={{ width: tableWidth }}
-        >
-          <View style={[styles.scrollHeaderInner, { width: tableWidth }]}>
+        <View style={styles.scrollHeaderClip}>
+          <Animated.View
+            style={[
+              styles.scrollHeaderInner,
+              { width: tableWidth, transform: [{ translateX: Animated.multiply(scrollX, -1) }] },
+            ]}
+          >
             {scrollColumns.map((col) => (
               <SortHeader
                 key={col.key}
@@ -154,8 +137,8 @@ export function PortfolioTable({
                 onPress={() => handleHeaderSort(col.key)}
               />
             ))}
-          </View>
-        </ScrollView>
+          </Animated.View>
+        </View>
       </View>
 
       <ScrollView
@@ -184,12 +167,13 @@ export function PortfolioTable({
             ))}
           </View>
 
-          <ScrollView
-            ref={bodyScrollRef}
+          <Animated.ScrollView
             horizontal
             showsHorizontalScrollIndicator
             scrollEventThrottle={16}
-            onScroll={syncHorizontalScroll("body")}
+            onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+              useNativeDriver: true,
+            })}
             style={styles.scrollBody}
             contentContainerStyle={{ width: tableWidth }}
           >
@@ -198,7 +182,14 @@ export function PortfolioTable({
                 <Link key={row.symbol} href={`/symbol/${row.symbol}`} asChild>
                   <Pressable style={styles.scrollDataRow}>
                     {scrollColumns.map((col) => (
-                      <View key={col.key} style={[styles.dataCell, { width: col.width }]}>
+                      <View
+                        key={col.key}
+                        style={[
+                          styles.dataCell,
+                          { width: col.width },
+                          col.align === "right" && styles.alignRightCell,
+                        ]}
+                      >
                         <Text
                           style={[
                             styles.cellText,
@@ -215,7 +206,7 @@ export function PortfolioTable({
                 </Link>
               ))}
             </View>
-          </ScrollView>
+          </Animated.ScrollView>
         </View>
       </ScrollView>
     </View>
@@ -232,15 +223,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
     zIndex: 2,
+    elevation: 2,
+  },
+  stickyHeader: {
+    flexShrink: 0,
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    zIndex: 3,
+    overflow: "hidden",
+    elevation: 3,
   },
   headerCell: {
     flexShrink: 0,
     height: HEADER_HEIGHT,
     justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.xs,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: colors.border,
+    overflow: "hidden",
   },
   headerCellActive: {
     backgroundColor: colors.surfaceAlt,
@@ -251,8 +251,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textTransform: "uppercase",
   },
-  scrollHeader: {
+  scrollHeaderClip: {
     flex: 1,
+    overflow: "hidden",
   },
   scrollHeaderInner: {
     flexDirection: "row",
@@ -273,7 +274,7 @@ const styles = StyleSheet.create({
   },
   stickyDataRow: {
     flexDirection: "row",
-    minHeight: ROW_HEIGHT,
+    height: ROW_HEIGHT,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
     alignItems: "center",
@@ -306,11 +307,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   headerCellRight: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    paddingLeft: 0,
-    width: "100%",
+    alignItems: "flex-end",
   },
   symbol: {
     color: colors.link,
@@ -323,13 +320,15 @@ const styles = StyleSheet.create({
   scrollDataRow: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: ROW_HEIGHT,
+    height: ROW_HEIGHT,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   dataCell: {
+    flexShrink: 0,
     justifyContent: "center",
     paddingHorizontal: spacing.xs,
+    height: ROW_HEIGHT,
   },
   cellText: {
     color: colors.text,
@@ -338,5 +337,8 @@ const styles = StyleSheet.create({
   },
   alignRight: {
     textAlign: "right",
+  },
+  alignRightCell: {
+    alignItems: "flex-end",
   },
 });
