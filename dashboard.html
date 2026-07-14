@@ -53,9 +53,12 @@
       padding: 1rem 1.25rem;
       border-bottom: 1px solid var(--border);
       background: var(--panel);
+    }
+    .app-chrome {
       position: sticky;
       top: 0;
       z-index: 10;
+      background: var(--panel);
     }
     h1 { margin: 0; font-size: 1.15rem; }
     .brand {
@@ -3785,6 +3788,7 @@
   </style>
 </head>
 <body>
+  <div class="app-chrome">
   <header>
     <div class="meta">
       <div class="brand">
@@ -3818,6 +3822,52 @@
       </span>
     </div>
   </header>
+
+  <nav class="tabs" aria-label="Portfolio views">
+    <div class="nav-tabs-main">
+    <div class="nav-group nav-group-portfolio">
+      <span class="nav-group-label" title="Portfolio-wide summary and sortable tables across all symbols">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Portfolio
+      </span>
+      <div class="nav-group-tabs">
+        <button class="active" data-view="overview" onclick="showView('overview')" ondblclick="togglePreviousView()">Summary</button>
+        <button data-view="holdings" onclick="showView('holdings')" ondblclick="togglePreviousView()">Holdings</button>
+        <button data-view="screening" onclick="showView('screening')" ondblclick="togglePreviousView()">Screening</button>
+        <button data-view="simulation" onclick="showView('simulation')" ondblclick="togglePreviousView()">Simulation</button>
+        <button data-view="fib" onclick="showView('fib')" ondblclick="togglePreviousView()">Patterns &amp; Tech Signals</button>
+        <button data-view="fundamentals" onclick="showView('fundamentals')" ondblclick="togglePreviousView()">Fundamentals</button>
+      </div>
+    </div>
+    <div class="nav-divider" aria-hidden="true"></div>
+    <div class="nav-group nav-group-symbol">
+      <span class="nav-group-label" title="Edit and inspect one symbol at a time">
+        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        Per symbol
+      </span>
+      <div class="nav-group-tabs">
+        <button data-view="portfolio" onclick="showView('portfolio')" ondblclick="togglePreviousView()">Target</button>
+        <button data-view="inspector" onclick="showView('inspector')" ondblclick="togglePreviousView()">Inspector</button>
+      </div>
+    </div>
+    </div>
+    <div class="nav-divider" aria-hidden="true"></div>
+    <div class="nav-group nav-group-agents">
+      <span class="nav-group-label" title="Run portfolio agents — prices, alerts, and assessments also refresh in the background">
+        <span class="nav-agent-glyph" id="navAgentGlyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.582a.5.5 0 0 1 0 .962L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 19l2-2"/><path d="M5 18l-2 2"/></svg>
+          <span class="nav-agent-pulse"></span>
+        </span>
+        Agents
+      </span>
+      <div class="nav-group-tabs">
+        <button type="button" class="nav-agent-btn nav-agent-sync" id="btnSync" onclick="syncPortfolio()">Sync Prices</button>
+        <button type="button" class="nav-agent-btn nav-agent-assess" id="btnAssess" onclick="assessAll()">Assess Portfolio</button>
+      </div>
+    </div>
+  </nav>
+  </div>
+
   <div id="toast" hidden></div>
 
   <div id="inspectorChartFullscreen" class="chart-fs" hidden onclick="onInspectorFsBackdrop(event)" ondblclick="closeInspectorChartFullscreen()" title="Double-click to exit full screen">
@@ -3992,50 +4042,6 @@
       <div class="help-modal-body" id="taxLossProposalHelpBody"></div>
     </div>
   </div>
-
-  <nav class="tabs" aria-label="Portfolio views">
-    <div class="nav-tabs-main">
-    <div class="nav-group nav-group-portfolio">
-      <span class="nav-group-label" title="Portfolio-wide summary and sortable tables across all symbols">
-        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        Portfolio
-      </span>
-      <div class="nav-group-tabs">
-        <button class="active" data-view="overview" onclick="showView('overview')" ondblclick="togglePreviousView()">Summary</button>
-        <button data-view="holdings" onclick="showView('holdings')" ondblclick="togglePreviousView()">Holdings</button>
-        <button data-view="screening" onclick="showView('screening')" ondblclick="togglePreviousView()">Screening</button>
-        <button data-view="simulation" onclick="showView('simulation')" ondblclick="togglePreviousView()">Simulation</button>
-        <button data-view="fib" onclick="showView('fib')" ondblclick="togglePreviousView()">Patterns &amp; Tech Signals</button>
-        <button data-view="fundamentals" onclick="showView('fundamentals')" ondblclick="togglePreviousView()">Fundamentals</button>
-      </div>
-    </div>
-    <div class="nav-divider" aria-hidden="true"></div>
-    <div class="nav-group nav-group-symbol">
-      <span class="nav-group-label" title="Edit and inspect one symbol at a time">
-        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-        Per symbol
-      </span>
-      <div class="nav-group-tabs">
-        <button data-view="portfolio" onclick="showView('portfolio')" ondblclick="togglePreviousView()">Target</button>
-        <button data-view="inspector" onclick="showView('inspector')" ondblclick="togglePreviousView()">Inspector</button>
-      </div>
-    </div>
-    </div>
-    <div class="nav-divider" aria-hidden="true"></div>
-    <div class="nav-group nav-group-agents">
-      <span class="nav-group-label" title="Run portfolio agents — prices, alerts, and assessments also refresh in the background">
-        <span class="nav-agent-glyph" id="navAgentGlyph" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.582a.5.5 0 0 1 0 .962L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 19l2-2"/><path d="M5 18l-2 2"/></svg>
-          <span class="nav-agent-pulse"></span>
-        </span>
-        Agents
-      </span>
-      <div class="nav-group-tabs">
-        <button type="button" class="nav-agent-btn nav-agent-sync" id="btnSync" onclick="syncPortfolio()">Sync Prices</button>
-        <button type="button" class="nav-agent-btn nav-agent-assess" id="btnAssess" onclick="assessAll()">Assess Portfolio</button>
-      </div>
-    </div>
-  </nav>
 
   <div id="view-consol" class="view" hidden>
     <div class="wide-panel">

@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useMemo, useState } from "react";
 import {
   Pressable,
@@ -24,7 +25,6 @@ import {
 import { colors, radii, spacing } from "@/lib/theme";
 import type { NewsFeed, NewsItem } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
-import { useDoubleTap } from "@/lib/useDoubleTap";
 
 type Pane = "changes" | "news";
 
@@ -64,6 +64,49 @@ function dirBtnTextStyle(active: boolean, kind: "up" | "down") {
   return { color: kind === "up" ? "#22c55e" : "#ef4444" };
 }
 
+function PaneHeader({
+  title,
+  count,
+  expanded,
+  onExpand,
+  onSplit,
+}: {
+  title: string;
+  count?: string;
+  expanded: boolean;
+  onExpand: () => void;
+  onSplit: () => void;
+}) {
+  return (
+    <View style={styles.paneHead}>
+      <View style={styles.paneHeadLeft}>
+        <Text style={styles.paneTitle}>{title}</Text>
+        {count ? <Text style={styles.paneCount}>{count}</Text> : null}
+      </View>
+      {expanded ? (
+        <Pressable
+          style={styles.paneAction}
+          onPress={onSplit}
+          accessibilityLabel="Show both columns"
+          hitSlop={8}
+        >
+          <Ionicons name="contract-outline" size={16} color={colors.link} />
+          <Text style={styles.paneActionText}>Split</Text>
+        </Pressable>
+      ) : (
+        <Pressable
+          style={styles.paneAction}
+          onPress={onExpand}
+          accessibilityLabel={`Expand ${title}`}
+          hitSlop={8}
+        >
+          <Ionicons name="expand-outline" size={16} color={colors.link} />
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
 export default function NewsScreen() {
   const [filter, setFilter] = useState("");
   const [dirFilter, setDirFilter] = useState<RecoChangesDirFilter>("");
@@ -95,13 +138,6 @@ export default function NewsScreen() {
     [data?.topNews, filter],
   );
 
-  const toggleChanges = useDoubleTap(() => {
-    setExpanded((prev) => (prev === "changes" ? null : "changes"));
-  });
-  const toggleNews = useDoubleTap(() => {
-    setExpanded((prev) => (prev === "news" ? null : "news"));
-  });
-
   const showChanges = expanded !== "news";
   const showNews = expanded !== "changes";
   const split = expanded === null;
@@ -111,17 +147,17 @@ export default function NewsScreen() {
     setDirFilter((prev) => (prev === dir ? "" : dir));
   }
 
+  const subtitle = data?.newsCheckedAt
+    ? `Checked ${data.newsCheckedAt}${split ? " · tap ⤢ to expand a column" : " · tap Split to show both"}`
+    : split
+      ? "Tap ⤢ on a column header to expand"
+      : "Tap Split to show both columns";
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <Screen
         title="News & Changes"
-        subtitle={
-          data?.newsCheckedAt
-            ? `Checked ${data.newsCheckedAt}${split ? " · double-tap pane to expand" : ""}`
-            : split
-              ? "Double-tap pane to expand"
-              : undefined
-        }
+        subtitle={subtitle}
         loading={loading && !data}
         error={error}
         onRetry={() => void refresh()}
@@ -137,21 +173,22 @@ export default function NewsScreen() {
           autoCorrect={false}
         />
 
-        <View style={styles.split}>
+        <View style={[styles.split, split && styles.splitColumns]}>
           {showChanges ? (
-            <View style={[styles.pane, split && styles.paneHalf]}>
-              <Pressable onPress={toggleChanges}>
-                <View style={styles.paneHead}>
-                  <Text style={styles.paneTitle}>
-                    Changes{expanded === "changes" ? " ↓" : ""}
-                  </Text>
-                  {changesFullscreen && changeCounts.total > 0 ? (
-                    <Text style={styles.paneCount}>
-                      {changeCounts.total} · ▲{changeCounts.up} · ▼{changeCounts.down}
-                    </Text>
-                  ) : null}
-                </View>
-              </Pressable>
+            <View style={[styles.pane, split && styles.paneColumn]}>
+              <PaneHeader
+                title="Changes"
+                count={
+                  changesFullscreen && changeCounts.total > 0
+                    ? `${changeCounts.total} · ▲${changeCounts.up} · ▼${changeCounts.down}`
+                    : split
+                      ? String(changes.length)
+                      : undefined
+                }
+                expanded={changesFullscreen}
+                onExpand={() => setExpanded("changes")}
+                onSplit={() => setExpanded(null)}
+              />
               {changesFullscreen ? (
                 <View style={styles.dirControls}>
                   <Text style={styles.dirLabel}>Direction</Text>
@@ -210,15 +247,15 @@ export default function NewsScreen() {
             </View>
           ) : null}
 
-          {split ? <View style={styles.divider} /> : null}
-
           {showNews ? (
-            <View style={[styles.pane, split && styles.paneHalf]}>
-              <Pressable onPress={toggleNews}>
-                <Text style={styles.paneTitle}>
-                  News{expanded === "news" ? " ↓" : ""}
-                </Text>
-              </Pressable>
+            <View style={[styles.pane, split && styles.paneColumn, split && styles.paneColumnRight]}>
+              <PaneHeader
+                title="News"
+                count={split ? String(news.length) : undefined}
+                expanded={expanded === "news"}
+                onExpand={() => setExpanded("news")}
+                onSplit={() => setExpanded(null)}
+              />
               <ScrollView
                 nestedScrollEnabled
                 showsVerticalScrollIndicator
@@ -278,43 +315,72 @@ const styles = StyleSheet.create({
   split: {
     flex: 1,
     flexDirection: "row",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+  },
+  splitColumns: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.sm,
   },
   pane: {
     flex: 1,
     minWidth: 0,
   },
-  paneHalf: {
+  paneColumn: {
     flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    overflow: "hidden",
   },
-  divider: {
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: colors.border,
+  paneColumnRight: {
+    borderLeftWidth: 1,
   },
   paneHead: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: spacing.sm,
-    paddingRight: spacing.sm,
-    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.surfaceAlt,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
+  },
+  paneHeadLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minWidth: 0,
   },
   paneTitle: {
     color: colors.text,
     fontSize: 13,
     fontWeight: "700",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
     flexShrink: 0,
   },
   paneCount: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
     flexShrink: 1,
+  },
+  paneAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  paneActionText: {
+    color: colors.link,
+    fontSize: 12,
+    fontWeight: "600",
   },
   dirControls: {
     flexDirection: "row",

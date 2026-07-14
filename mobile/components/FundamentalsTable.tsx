@@ -1,8 +1,7 @@
 import { Link } from "expo-router";
 import { useMemo, useRef } from "react";
 import {
-  NativeScrollEvent,
-  NativeSyntheticEvent,
+  Animated,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -166,23 +165,10 @@ export function FundamentalsTable({
   const sortedRows = useMemo(() => sortFundamentalsRows(rows, sort), [rows, sort]);
   const stickyWidth = stickyColumns.reduce((sum, col) => sum + col.width, 0);
   const tableWidth = scrollColumns.reduce((sum, col) => sum + col.width, 0);
-  const headerScrollRef = useRef<ScrollView>(null);
-  const bodyScrollRef = useRef<ScrollView>(null);
-  const syncing = useRef(false);
+  const scrollX = useRef(new Animated.Value(0)).current;
 
   function handleHeaderSort(key: FundamentalsSortKey) {
     onSortChange(cycleFundamentalsSort(sort, key));
-  }
-
-  function syncHorizontalScroll(source: "header" | "body") {
-    return (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (syncing.current) return;
-      syncing.current = true;
-      const x = event.nativeEvent.contentOffset.x;
-      const target = source === "header" ? bodyScrollRef.current : headerScrollRef.current;
-      target?.scrollTo({ x, animated: false });
-      syncing.current = false;
-    };
   }
 
   return (
@@ -199,16 +185,13 @@ export function FundamentalsTable({
             />
           ))}
         </View>
-        <ScrollView
-          ref={headerScrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          scrollEventThrottle={16}
-          onScroll={syncHorizontalScroll("header")}
-          style={styles.scrollHeader}
-          contentContainerStyle={{ width: tableWidth }}
-        >
-          <View style={[styles.scrollHeaderInner, { width: tableWidth }]}>
+        <View style={styles.scrollHeaderClip}>
+          <Animated.View
+            style={[
+              styles.scrollHeaderInner,
+              { width: tableWidth, transform: [{ translateX: Animated.multiply(scrollX, -1) }] },
+            ]}
+          >
             {scrollColumns.map((col) => (
               <SortHeader
                 key={col.key}
@@ -218,8 +201,8 @@ export function FundamentalsTable({
                 onPress={() => handleHeaderSort(col.key)}
               />
             ))}
-          </View>
-        </ScrollView>
+          </Animated.View>
+        </View>
       </View>
 
       <ScrollView
@@ -239,12 +222,13 @@ export function FundamentalsTable({
             ))}
           </View>
 
-          <ScrollView
-            ref={bodyScrollRef}
+          <Animated.ScrollView
             horizontal
             showsHorizontalScrollIndicator
             scrollEventThrottle={16}
-            onScroll={syncHorizontalScroll("body")}
+            onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+              useNativeDriver: true,
+            })}
             style={styles.scrollBody}
             contentContainerStyle={{ width: tableWidth }}
           >
@@ -259,7 +243,7 @@ export function FundamentalsTable({
                 </Link>
               ))}
             </View>
-          </ScrollView>
+          </Animated.ScrollView>
         </View>
       </ScrollView>
     </View>
@@ -306,7 +290,10 @@ const styles = StyleSheet.create({
   headerTextRange: {
     color: colors.link,
   },
-  scrollHeader: { flex: 1 },
+  scrollHeaderClip: {
+    flex: 1,
+    overflow: "hidden",
+  },
   scrollHeaderInner: {
     flexDirection: "row",
     height: HEADER_HEIGHT,
@@ -369,6 +356,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   dataCell: {
+    flexShrink: 0,
     justifyContent: "center",
     paddingHorizontal: spacing.xs,
     height: ROW_HEIGHT,

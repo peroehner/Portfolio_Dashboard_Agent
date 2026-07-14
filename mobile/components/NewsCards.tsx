@@ -24,7 +24,9 @@ export function NewsCard({ item, compact, onAddNote }: NewsCardProps) {
       <View style={styles.metaRow}>
         <Link href={`/symbol/${item.symbol}`} asChild>
           <Pressable style={styles.symbolPress}>
-            <Text style={[styles.symbol, compact && styles.symbolCompact]}>{item.symbol}</Text>
+            <Text style={[styles.symbol, compact && styles.symbolCompact]} numberOfLines={1}>
+              {item.symbol}
+            </Text>
           </Pressable>
         </Link>
         <View style={styles.metaRight}>
@@ -69,7 +71,9 @@ export function SaiChangeCard({ change, compact }: { change: RecommendationChang
         <View style={styles.metaRow}>
           <Link href={`/symbol/${change.symbol}`} asChild>
             <Pressable style={styles.symbolPress}>
-              <Text style={[styles.symbol, styles.symbolCompact]}>{change.symbol}</Text>
+              <Text style={[styles.symbol, styles.symbolCompact]} numberOfLines={1}>
+                {change.symbol}
+              </Text>
             </Pressable>
           </Link>
           {meta ? <Text style={styles.date}>{meta}</Text> : null}
@@ -135,6 +139,7 @@ const styles = StyleSheet.create({
   },
   symbolPress: {
     flexShrink: 1,
+    minWidth: 0,
   },
   symbol: {
     color: colors.link,
