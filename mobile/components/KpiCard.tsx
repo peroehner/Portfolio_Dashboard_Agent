@@ -21,8 +21,6 @@ export function KpiCard({ label, value, hint, valueColor }: KpiCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    flex: 1,
-    minWidth: "46%",
     backgroundColor: colors.surface,
     borderRadius: radii.md,
     padding: spacing.md,

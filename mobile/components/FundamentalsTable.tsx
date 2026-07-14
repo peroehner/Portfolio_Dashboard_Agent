@@ -1,5 +1,5 @@
 import { Link } from "expo-router";
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import {
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -12,53 +12,30 @@ import {
   type RefreshControlProps,
 } from "react-native";
 
-import { SaiBadge } from "@/components/SaiBadge";
+import { RangeBar, TargetRangeBar } from "@/components/RangeBar";
 import {
-  formatMoney,
-  formatPct,
-  formatPrice,
-  formatQty,
-  formatWeight,
-  pctColor,
-} from "@/lib/format";
-import {
-  cyclePortfolioSort,
-  portfolioTableColumns,
+  cycleFundamentalsSort,
+  fundamentalsColumns,
+  renderFundamentalsCell,
+  sortFundamentalsRows,
   sortHeaderLabel,
-  type PortfolioColumn,
-  type PortfolioSortKey,
-  type PortfolioSortState,
-} from "@/lib/portfolioTable";
+  type FundamentalsColumn,
+  type FundamentalsSortKey,
+  type FundamentalsSortState,
+  type FundamentalsTab,
+} from "@/lib/fundamentalsTable";
 import { colors, spacing } from "@/lib/theme";
-import type { PortfolioRow } from "@/lib/types";
+import type { FundamentalsRow } from "@/lib/types";
 
 const ROW_HEIGHT = 44;
-const HEADER_HEIGHT = 36;
+const HEADER_HEIGHT = 40;
 
-interface PortfolioTableProps {
-  rows: PortfolioRow[];
-  sort: PortfolioSortState;
-  onSortChange: (sort: PortfolioSortState) => void;
-  landscape?: boolean;
+interface FundamentalsTableProps {
+  rows: FundamentalsRow[];
+  tab: FundamentalsTab;
+  sort: FundamentalsSortState;
+  onSortChange: (sort: FundamentalsSortState) => void;
   refreshControl?: React.ReactElement<RefreshControlProps>;
-}
-
-function renderCell(row: PortfolioRow, col: PortfolioColumn): string {
-  if (col.key === "symbol" || col.key === "sai") return "";
-  const value = row[col.key as keyof PortfolioRow];
-  if (col.key === "quantity") return formatQty(value as number | null);
-  if (col.key === "weightPct") return formatWeight(value as number | null);
-  if (col.pct) return formatPct(value as number | null);
-  if (col.money) return formatMoney(value as number | null, true);
-  if (col.price) return formatPrice(value as number | null);
-  if (value == null || value === "") return "—";
-  return String(value);
-}
-
-function cellColor(row: PortfolioRow, col: PortfolioColumn): string {
-  if (!col.pct) return colors.text;
-  const value = row[col.key as keyof PortfolioRow] as number | null | undefined;
-  return pctColor(value);
 }
 
 function SortHeader({
@@ -67,47 +44,134 @@ function SortHeader({
   onPress,
   width,
 }: {
-  col: PortfolioColumn;
-  sort: PortfolioSortState;
+  col: FundamentalsColumn;
+  sort: FundamentalsSortState;
   onPress: () => void;
   width: number;
 }) {
   const active = sort.key === col.key;
+  const isRange = col.kind === "range52";
   return (
     <Pressable
       style={[
         styles.headerCell,
         { width },
         active && styles.headerCellActive,
-        col.align === "right" && styles.headerCellRight,
+        col.align === "right" && styles.headerCellAlignRight,
       ]}
       onPress={onPress}
     >
-      <Text style={[styles.headerText, col.align === "right" && styles.alignRight]}>
+      <Text
+        style={[
+          styles.headerText,
+          col.align === "right" && styles.alignRight,
+          isRange && styles.headerTextRange,
+        ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+      >
         {sortHeaderLabel(col.label, col.key, sort)}
       </Text>
     </Pressable>
   );
 }
 
-export function PortfolioTable({
+function StickyCell({
+  row,
+  col,
+  width,
+}: {
+  row: FundamentalsRow;
+  col: FundamentalsColumn;
+  width: number;
+}) {
+  if (col.kind === "symbol") {
+    return (
+      <View style={[styles.symbolCell, { width }]}>
+        <Link href={`/symbol/${row.symbol}`} asChild>
+          <Pressable style={styles.symbolPress}>
+            <Text style={styles.symbol} numberOfLines={1}>
+              {row.symbol}
+            </Text>
+          </Pressable>
+        </Link>
+      </View>
+    );
+  }
+
+  if (col.kind === "price") {
+    const cell = renderFundamentalsCell(row, col);
+    if ("custom" in cell) return null;
+    return (
+      <View style={[styles.dataCellSticky, { width }, styles.alignRightCell]}>
+        <Text style={styles.cellText} numberOfLines={1}>
+          {cell.text}
+        </Text>
+      </View>
+    );
+  }
+
+  if (col.kind === "range52") {
+    return (
+      <View style={[styles.rangeCell, { width }]}>
+        <RangeBar row={row} width={width - spacing.sm} />
+      </View>
+    );
+  }
+
+  return null;
+}
+
+function ScrollCell({ row, col, width }: { row: FundamentalsRow; col: FundamentalsColumn; width: number }) {
+  const rendered = renderFundamentalsCell(row, col);
+  if ("custom" in rendered) {
+    if (rendered.custom === "targetRange") {
+      return (
+        <View style={[styles.dataCell, { width }]}>
+          <TargetRangeBar row={row} width={width - spacing.xs} />
+        </View>
+      );
+    }
+    return (
+      <View style={[styles.dataCell, { width }]}>
+        <Text style={styles.cellText}>—</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.dataCell, { width }, col.align === "right" && styles.alignRightCell]}>
+      <Text
+        style={[styles.cellText, rendered.color ? { color: rendered.color } : null]}
+        numberOfLines={1}
+      >
+        {rendered.text}
+      </Text>
+    </View>
+  );
+}
+
+export function FundamentalsTable({
   rows,
+  tab,
   sort,
   onSortChange,
-  landscape = false,
   refreshControl,
-}: PortfolioTableProps) {
-  const { sticky: stickyColumns, scroll: scrollColumns } = portfolioTableColumns(landscape);
+}: FundamentalsTableProps) {
+  const { sticky: stickyColumns, scroll: scrollColumns } = useMemo(
+    () => fundamentalsColumns(tab),
+    [tab],
+  );
+  const sortedRows = useMemo(() => sortFundamentalsRows(rows, sort), [rows, sort]);
   const stickyWidth = stickyColumns.reduce((sum, col) => sum + col.width, 0);
-  const symbolWidth = stickyColumns[0].width;
-  const saiWidth = stickyColumns[1].width;
   const tableWidth = scrollColumns.reduce((sum, col) => sum + col.width, 0);
   const headerScrollRef = useRef<ScrollView>(null);
   const bodyScrollRef = useRef<ScrollView>(null);
   const syncing = useRef(false);
 
-  function handleHeaderSort(key: PortfolioSortKey) {
-    onSortChange(cyclePortfolioSort(sort, key));
+  function handleHeaderSort(key: FundamentalsSortKey) {
+    onSortChange(cycleFundamentalsSort(sort, key));
   }
 
   function syncHorizontalScroll(source: "header" | "body") {
@@ -124,7 +188,7 @@ export function PortfolioTable({
   return (
     <View style={styles.wrap}>
       <View style={styles.headerRow}>
-        <View style={{ width: stickyWidth, flexShrink: 0, flexDirection: "row" }}>
+        <View style={[styles.stickyHeader, { width: stickyWidth }]}>
           {stickyColumns.map((col) => (
             <SortHeader
               key={col.key}
@@ -166,20 +230,11 @@ export function PortfolioTable({
       >
         <View style={styles.bodyRow}>
           <View style={[styles.stickyBody, { width: stickyWidth }]}>
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <View key={row.symbol} style={[styles.stickyDataRow, { width: stickyWidth }]}>
-                <View style={[styles.symbolCell, { width: symbolWidth }]}>
-                  <Link href={`/symbol/${row.symbol}`} asChild>
-                    <Pressable style={styles.symbolPress}>
-                      <Text style={styles.symbol} numberOfLines={1}>
-                        {row.symbol}
-                      </Text>
-                    </Pressable>
-                  </Link>
-                </View>
-                <View style={[styles.saiCell, { width: saiWidth }]}>
-                  <SaiBadge action={row.saiAction} mini />
-                </View>
+                {stickyColumns.map((col) => (
+                  <StickyCell key={col.key} row={row} col={col} width={col.width} />
+                ))}
               </View>
             ))}
           </View>
@@ -194,22 +249,11 @@ export function PortfolioTable({
             contentContainerStyle={{ width: tableWidth }}
           >
             <View style={{ width: tableWidth }}>
-              {rows.map((row) => (
+              {sortedRows.map((row) => (
                 <Link key={row.symbol} href={`/symbol/${row.symbol}`} asChild>
                   <Pressable style={styles.scrollDataRow}>
                     {scrollColumns.map((col) => (
-                      <View key={col.key} style={[styles.dataCell, { width: col.width }]}>
-                        <Text
-                          style={[
-                            styles.cellText,
-                            col.align === "right" && styles.alignRight,
-                            { color: cellColor(row, col) },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {renderCell(row, col)}
-                        </Text>
-                      </View>
+                      <ScrollCell key={col.key} row={row} col={col} width={col.width} />
                     ))}
                   </Pressable>
                 </Link>
@@ -223,120 +267,113 @@ export function PortfolioTable({
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    flex: 1,
-  },
+  wrap: { flex: 1 },
   headerRow: {
     flexDirection: "row",
     backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
     zIndex: 2,
+    elevation: 2,
+  },
+  stickyHeader: {
+    flexShrink: 0,
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    zIndex: 3,
+    overflow: "hidden",
+    elevation: 3,
   },
   headerCell: {
     flexShrink: 0,
     height: HEADER_HEIGHT,
     justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.xs,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: colors.border,
+    overflow: "hidden",
   },
-  headerCellActive: {
-    backgroundColor: colors.surfaceAlt,
+  headerCellActive: { backgroundColor: colors.surfaceAlt },
+  headerCellAlignRight: {
+    alignItems: "flex-end",
   },
   headerText: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
     textTransform: "uppercase",
   },
-  scrollHeader: {
-    flex: 1,
+  headerTextRange: {
+    color: colors.link,
   },
+  scrollHeader: { flex: 1 },
   scrollHeaderInner: {
     flexDirection: "row",
     height: HEADER_HEIGHT,
     alignItems: "center",
   },
-  bodyScroll: {
-    flex: 1,
-  },
-  bodyRow: {
-    flexDirection: "row",
-  },
+  bodyScroll: { flex: 1 },
+  bodyRow: { flexDirection: "row" },
   stickyBody: {
     flexShrink: 0,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: colors.border,
     backgroundColor: colors.bg,
+    zIndex: 1,
+    elevation: 1,
   },
   stickyDataRow: {
     flexDirection: "row",
-    minHeight: ROW_HEIGHT,
+    height: ROW_HEIGHT,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
     alignItems: "center",
     flexShrink: 0,
+    overflow: "visible",
   },
   symbolCell: {
     flexShrink: 0,
     justifyContent: "center",
     paddingLeft: spacing.sm,
     paddingRight: spacing.xs,
-    minHeight: ROW_HEIGHT,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: colors.border,
-    overflow: "hidden",
-  },
-  symbolPress: {
-    justifyContent: "center",
-    minHeight: ROW_HEIGHT,
-  },
-  saiCell: {
-    flexShrink: 0,
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
     height: ROW_HEIGHT,
-    paddingLeft: 0,
-    paddingRight: spacing.sm,
     borderRightWidth: StyleSheet.hairlineWidth,
     borderRightColor: colors.border,
     overflow: "hidden",
   },
-  headerCellRight: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    paddingLeft: 0,
-    width: "100%",
+  symbolPress: { justifyContent: "center", flex: 1 },
+  symbol: { color: colors.link, fontSize: 14, fontWeight: "700" },
+  dataCellSticky: {
+    justifyContent: "center",
+    paddingHorizontal: spacing.xs,
+    height: ROW_HEIGHT,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: colors.border,
   },
-  symbol: {
-    color: colors.link,
-    fontSize: 14,
-    fontWeight: "700",
+  rangeCell: {
+    justifyContent: "center",
+    alignItems: "flex-end",
+    paddingHorizontal: spacing.xs,
+    height: ROW_HEIGHT,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: colors.border,
+    overflow: "visible",
+    zIndex: 1,
   },
-  scrollBody: {
-    flex: 1,
-  },
+  scrollBody: { flex: 1 },
   scrollDataRow: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: ROW_HEIGHT,
+    height: ROW_HEIGHT,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   dataCell: {
     justifyContent: "center",
     paddingHorizontal: spacing.xs,
+    height: ROW_HEIGHT,
   },
-  cellText: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  alignRight: {
-    textAlign: "right",
-  },
+  alignRightCell: { alignItems: "flex-end" },
+  cellText: { color: colors.text, fontSize: 12, fontWeight: "500" },
+  alignRight: { textAlign: "right" },
 });

@@ -7,7 +7,7 @@ Native iOS client in [`mobile/`](../mobile/). Expo + React Native, same Flask AP
 | Where | Device | API | Command |
 |-------|--------|-----|---------|
 | **Local** | iOS Simulator only | `localhost:5001` | `npm run ios:local` |
-| **Render** | Real iPhone (Expo Go) | `*.onrender.com` | `npm run start:render` → scan QR |
+| **Render** | Real iPhone (Expo Go) | `*.onrender.com` | `npm start` → scan QR (auto) or `npm run start:render` |
 
 Keep local dev simple (simulator + local API). Use Render for real-device testing without Wi‑Fi IP / firewall setup.
 
@@ -17,8 +17,9 @@ Keep local dev simple (simulator + local API). Use Render for real-device testin
 
 | Tab | API | Purpose |
 |-----|-----|---------|
-| **Overview** | `GET /overview` | KPIs, top holdings, recent alerts |
-| **Portfolio** | `GET /portfolio`, `GET /assessments/overview` | Symbol list with SAI badges |
+| **Summary** | `GET /overview` | KPIs, allocation chart, recent alerts |
+| **Portfolio** | `GET /portfolio`, `GET /assessments/overview` | Sortable holdings table with SAI |
+| **Fundamentals** | `GET /fundamentals?includeNews=0` | Valuation/growth + health/analyst tables, 52W range |
 | **News** | `GET /news-feed` | SAI changes + ranked news |
 | **Alerts** | `GET /alerts`, `POST /alerts/{id}/dismiss` | Active alerts, dismiss |
 | **Symbol** (stack) | `GET /symbols/{symbol}/inspector` | Price, position, thresholds, recommendation |
@@ -67,21 +68,12 @@ Restart the Render service after saving.
 
 ```bash
 cd mobile
+npm start
 ```
 
-Set the token in `mobile/.env` to match Render (or export it when starting):
+Scan the QR code with your iPhone **Camera** → opens in **Expo Go**. The app auto-uses Render on a physical device (localhost only works in the simulator).
 
-```bash
-EXPO_PUBLIC_MOBILE_DEV_TOKEN=pda-render-mobile-dev
-```
-
-Then:
-
-```bash
-npm run start:render
-```
-
-Scan the QR code with your iPhone **Camera** → opens in **Expo Go**.
+To force Render on every device: `npm run start:render`.
 
 **First load** after Render sleep can take 15–30 seconds (the app retries automatically).
 

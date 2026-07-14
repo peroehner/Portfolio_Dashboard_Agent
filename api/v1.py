@@ -800,19 +800,22 @@ def assess_symbol(symbol):
 
 @v1_bp.route("/fundamentals", methods=["GET"])
 def list_fundamentals():
+    include_news = request.args.get("includeNews", default=1, type=int) > 0
     symbols_meta = portfolio_service.list_symbols()
     enrichment = fundamentals_service.get_enrichment_bulk([s["symbol"] for s in symbols_meta])
     rows = []
     for meta in symbols_meta:
         symbol = meta["symbol"]
         data = enrichment.get(symbol.upper(), {})
-        rows.append({
+        row = {
             "symbol": symbol,
             "currentPrice": meta.get("currentPrice"),
             "dayChangePct": meta.get("dayChangePct"),
             "fundamentals": data.get("fundamentals", {}),
-            "recentNews": data.get("recentNews", []),
-        })
+        }
+        if include_news:
+            row["recentNews"] = data.get("recentNews", [])
+        rows.append(row)
     return jsonify({"symbols": rows})
 
 

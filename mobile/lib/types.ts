@@ -24,6 +24,26 @@ export interface Overview {
   latestAssessments?: Assessment[];
 }
 
+export interface FundamentalsGroups {
+  profile?: Record<string, unknown>;
+  valuation?: Record<string, unknown>;
+  growthProfitability?: Record<string, unknown>;
+  financialHealth?: Record<string, unknown>;
+  analyst?: Record<string, unknown>;
+  priceRange?: Record<string, unknown>;
+}
+
+export interface FundamentalsRow {
+  symbol: string;
+  currentPrice?: number | null;
+  dayChangePct?: number | null;
+  fundamentals?: FundamentalsGroups;
+}
+
+export interface FundamentalsFeed {
+  symbols: FundamentalsRow[];
+}
+
 export interface SaiSummary {
   action?: SaiAction;
   confidence?: string;

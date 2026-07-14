@@ -68,6 +68,7 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     paddingHorizontal: 4,
     borderRadius: 4,
+    alignSelf: "center",
   },
   alignRight: {
     alignSelf: "flex-end",

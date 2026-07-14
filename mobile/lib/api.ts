@@ -1,11 +1,45 @@
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 
 import type { ApiConfig } from "./types";
 
 const DEFAULT_BASE = "http://localhost:5001/api/v1";
+const RENDER_BASE = "https://portfolio-dashboard-agent.onrender.com/api/v1";
 const HEALTH_RETRIES = 3;
 const HEALTH_RETRY_MS = 4000;
-const FETCH_TIMEOUT_MS = 12000;
+const DEFAULT_TIMEOUT_MS = 12000;
+const NEWS_FEED_TIMEOUT_MS = 45000;
+const FUNDAMENTALS_TIMEOUT_MS = 45000;
+
+function pointsAtLocalhost(url: string): boolean {
+  return /localhost|127\.0\.0\.1/i.test(url);
+}
+
+/** True when this client cannot use the dev machine's localhost API. */
+function prefersRemoteApi(): boolean {
+  if (Platform.OS === "ios") {
+    // Only the iOS Simulator reports simulator: true; real devices do not.
+    if (Constants.platform?.ios?.simulator === true) return false;
+    return true;
+  }
+  if (Platform.OS === "android") {
+    return Constants.isDevice;
+  }
+  return Constants.isDevice;
+}
+
+function resolveApiBase(envUrl?: string): string {
+  const fromEnv = envUrl?.trim();
+  const remote = prefersRemoteApi();
+
+  if (fromEnv) {
+    const base = fromEnv.replace(/\/$/, "");
+    if (remote && pointsAtLocalhost(base)) return RENDER_BASE;
+    return base;
+  }
+
+  return remote ? RENDER_BASE : DEFAULT_BASE;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -18,9 +52,7 @@ export class ApiError extends Error {
 }
 
 export function getApiBaseUrl(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
-  if (fromEnv) return fromEnv.replace(/\/$/, "");
-  return DEFAULT_BASE;
+  return resolveApiBase(process.env.EXPO_PUBLIC_API_BASE_URL);
 }
 
 export function getApiHostLabel(): string {
@@ -70,12 +102,13 @@ async function fetchWithTimeout(
 
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {},
+  options: RequestInit & { timeoutMs?: number } = {},
 ): Promise<T> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchOptions } = options;
   const base = getApiBaseUrl();
   const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
-  const headers = new Headers(options.headers);
-  if (!headers.has("Content-Type") && options.body) {
+  const headers = new Headers(fetchOptions.headers);
+  if (!headers.has("Content-Type") && fetchOptions.body) {
     headers.set("Content-Type", "application/json");
   }
   const devToken = process.env.EXPO_PUBLIC_MOBILE_DEV_TOKEN?.trim();
@@ -86,10 +119,10 @@ export async function apiFetch<T>(
   const res = await fetchWithTimeout(
     url,
     {
-      ...options,
+      ...fetchOptions,
       headers,
     },
-    FETCH_TIMEOUT_MS,
+    timeoutMs,
   );
 
   const data = await parseJson<{ error?: string; message?: string } & T>(res);
@@ -128,8 +161,15 @@ export const api = {
   overview: () => apiFetch<import("./types").Overview>("/overview"),
   portfolio: () => apiFetch<{ symbols: import("./types").PortfolioSymbol[] }>("/portfolio"),
   holdings: () => apiFetch<{ holdings: import("./types").Holding[] }>("/holdings"),
+  fundamentals: () =>
+    apiFetch<import("./types").FundamentalsFeed>("/fundamentals?includeNews=0", {
+      timeoutMs: FUNDAMENTALS_TIMEOUT_MS,
+    }),
   newsFeed: (newsLimit = 40) =>
-    apiFetch<import("./types").NewsFeed>(`/news-feed?newsLimit=${newsLimit}&changesLimit=30`),
+    apiFetch<import("./types").NewsFeed>(
+      `/news-feed?newsLimit=${newsLimit}&changesLimit=30`,
+      { timeoutMs: NEWS_FEED_TIMEOUT_MS },
+    ),
   alerts: (status = "active") =>
     apiFetch<{ alerts: import("./types").Alert[] }>(`/alerts?status=${status}`),
   dismissAlert: (id: number) =>

@@ -46,6 +46,48 @@ export function titleCaseAction(action?: string | null): string {
   return action.charAt(0).toUpperCase() + action.slice(1).toLowerCase();
 }
 
+export function formatLargeMoney(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 1e12) return `${sign}$${(abs / 1e12).toFixed(2)}T`;
+  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
+  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(1)}k`;
+  return `${sign}$${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
+
+export function formatRatio(value: number | null | undefined, digits = 2): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return Number(value).toFixed(digits);
+}
+
+/** yfinance-style fraction (0.166) → 16.6% */
+export function formatRatioPercent(value: number | null | undefined, digits = 1): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  const amount = Number(value) * 100;
+  if (!Number.isFinite(amount)) return "—";
+  return `${amount.toFixed(digits)}%`;
+}
+
+export function formatColoredRatioPercent(value: number | null | undefined, digits = 1): {
+  text: string;
+  color: string;
+} {
+  if (value == null || Number.isNaN(value)) {
+    return { text: "—", color: "#94a3b8" };
+  }
+  const amount = Number(value) * 100;
+  if (!Number.isFinite(amount)) {
+    return { text: "—", color: "#94a3b8" };
+  }
+  const sign = amount > 0 ? "+" : "";
+  return {
+    text: `${sign}${amount.toFixed(digits)}%`,
+    color: amount >= 0 ? "#4ade80" : "#f87171",
+  };
+}
+
 export function formatRelativeDate(value?: string | null): string {
   if (!value) return "";
   const date = new Date(value);
