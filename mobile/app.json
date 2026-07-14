@@ -3,7 +3,7 @@
     "name": "Portfolio Dashboard",
     "slug": "pda-mobile",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "scheme": "pda",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,

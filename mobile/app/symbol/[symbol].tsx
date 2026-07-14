@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useNavigation } from "expo-router";
-import { useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   RefreshControl,
@@ -12,10 +13,16 @@ import {
 } from "react-native";
 
 import { AlertRow } from "@/components/AlertRow";
+import { HoldingsCompactCard } from "@/components/inspector/HoldingsCompactCard";
+import { QuoteHeader } from "@/components/inspector/QuoteHeader";
+import { TechnicalPanel } from "@/components/inspector/TechnicalPanel";
+import { SaiSummaryCard } from "@/components/inspector/SaiSummaryCard";
+import { SymbolTabBar, type SymbolTab } from "@/components/inspector/SymbolTabBar";
 import { SaiBadge } from "@/components/SaiBadge";
 import { Screen } from "@/components/Screen";
 import { api } from "@/lib/api";
-import { formatMoney, formatPct, formatPrice, pctColor } from "@/lib/format";
+import { getRecommendationDrivers, headlineForAction } from "@/lib/inspectorHelpers";
+import { formatPrice } from "@/lib/format";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { InspectorPayload, Note, PortfolioSymbol } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
@@ -40,33 +47,104 @@ function todayIso(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function mergeInspector(
+  lite?: InspectorPayload | null,
+  full?: InspectorPayload | null,
+): InspectorPayload | null {
+  if (!lite && !full) return null;
+  if (!full) return lite ?? null;
+  if (!lite) return full;
+  return { ...lite, ...full, quote: full.quote ?? lite.quote, holding: full.holding ?? lite.holding };
+}
+
 export default function SymbolDetailScreen() {
   const navigation = useNavigation();
   const { symbol } = useLocalSearchParams<{ symbol: string }>();
   const sym = String(symbol || "").toUpperCase();
+  const [tab, setTab] = useState<SymbolTab>("summary");
+  const [fullData, setFullData] = useState<InspectorPayload | null>(null);
+  const [fullLoading, setFullLoading] = useState(false);
+  const [fullError, setFullError] = useState<string | null>(null);
+  const [newsSentiment, setNewsSentiment] = useState<{
+    sentiment?: string;
+    detail?: string;
+    count?: number;
+  } | null>(null);
 
-  const { data, loading, error, refresh } = useApiQuery<InspectorPayload>(
-    () => api.inspector(sym),
-    [sym],
-  );
+  const {
+    data: liteData,
+    loading,
+    error,
+    refresh: refreshLite,
+  } = useApiQuery<InspectorPayload>(() => api.inspector(sym, { lite: true }), [sym]);
+
+  const data = useMemo(() => {
+    const base = mergeInspector(liteData, fullData);
+    if (!base?.recommendation || !newsSentiment?.count) return base;
+    const rec = { ...base.recommendation };
+    rec.sentiment = newsSentiment.sentiment || rec.sentiment;
+    rec.sentimentSource = "news";
+    rec.sentimentDetail = newsSentiment.detail;
+    rec.headline = headlineForAction(rec.action, rec.sentiment);
+    return { ...base, recommendation: rec };
+  }, [liteData, fullData, newsSentiment]);
+  const quote = data?.quote;
+  const drivers = useMemo(() => getRecommendationDrivers(data), [data]);
+
+  const loadFull = useCallback(async () => {
+    if (fullData || fullLoading) return;
+    setFullLoading(true);
+    setFullError(null);
+    try {
+      const payload = await api.inspector(sym, { lite: false });
+      setFullData(payload);
+    } catch (err) {
+      setFullError(err instanceof Error ? err.message : "Failed to load technical data");
+    } finally {
+      setFullLoading(false);
+    }
+  }, [sym, fullData, fullLoading]);
+
+  useEffect(() => {
+    setFullData(null);
+    setFullError(null);
+    setNewsSentiment(null);
+    setTab("summary");
+  }, [sym]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api
+      .newsSentiment(sym)
+      .then((res) => {
+        if (!cancelled && res.newsSentiment?.count) {
+          setNewsSentiment(res.newsSentiment);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [sym]);
+
+  useEffect(() => {
+    if (tab === "technical") {
+      void loadFull();
+    }
+  }, [tab, loadFull]);
 
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-
   const [buyBelow, setBuyBelow] = useState("");
   const [sellAbove, setSellAbove] = useState("");
   const [targetPrice, setTargetPrice] = useState("");
-
   const [noteDate, setNoteDate] = useState(todayIso());
-  const [noteSource, setNoteSource] = useState("Mobile");
+  const [noteTitle, setNoteTitle] = useState("");
   const [noteText, setNoteText] = useState("");
-
-  const quote = data?.quote;
 
   const notes = useMemo(() => {
     const list = (quote?.notes ?? []).slice();
-    // Most recent first (lexicographic works for YYYY-MM-DD and YYYY-Qn; best-effort)
     list.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
     return list;
   }, [quote?.notes]);
@@ -93,9 +171,29 @@ export default function SymbolDetailScreen() {
     });
   }, [navigation, sym, quote?.buyBelow, quote?.sellAbove, quote?.targetPrice]);
 
-  const mechanics = data?.positionMechanics;
-  const recommendation = data?.recommendation;
-  const screening = data?.screening;
+  async function refreshAll() {
+    setFullData(null);
+    setNewsSentiment(null);
+    await refreshLite();
+    void api
+      .newsSentiment(sym)
+      .then((res) => {
+        if (res.newsSentiment?.count) setNewsSentiment(res.newsSentiment);
+      })
+      .catch(() => {});
+    if (tab !== "summary") {
+      setFullLoading(true);
+      try {
+        const payload = await api.inspector(sym, { lite: false });
+        setFullData(payload);
+        setFullError(null);
+      } catch (err) {
+        setFullError(err instanceof Error ? err.message : "Failed to load technical data");
+      } finally {
+        setFullLoading(false);
+      }
+    }
+  }
 
   async function saveThresholds() {
     setSaving(true);
@@ -108,7 +206,7 @@ export default function SymbolDetailScreen() {
       };
       await api.updateSymbol(sym, payload);
       setEditOpen(false);
-      await refresh();
+      await refreshAll();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to save thresholds");
     } finally {
@@ -123,12 +221,12 @@ export default function SymbolDetailScreen() {
     try {
       const payload: Note = {
         date: noteDate.trim() || todayIso(),
-        source: noteSource.trim() || "Mobile",
+        source: noteTitle.trim() || undefined,
         text: noteText.trim(),
       };
       await api.addNote(sym, payload);
       setNoteText("");
-      await refresh();
+      await refreshAll();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to add note");
     } finally {
@@ -136,12 +234,12 @@ export default function SymbolDetailScreen() {
     }
   }
 
+  const technicalLoading = tab === "technical" && fullLoading && !fullData;
+
   return (
-    <Screen
-      loading={loading && !data}
-      error={error}
-      onRetry={() => void refresh()}
-    >
+    <Screen loading={loading && !data} error={error} onRetry={() => void refreshAll()}>
+      <SymbolTabBar active={tab} onChange={setTab} />
+
       <Modal
         visible={editOpen}
         animationType="slide"
@@ -194,92 +292,65 @@ export default function SymbolDetailScreen() {
         </View>
       </Modal>
 
-        <ScrollView
-          refreshControl={
-            <RefreshControl
-              refreshing={loading && !!data}
-              onRefresh={() => void refresh()}
-              tintColor={colors.accent}
+      {technicalLoading ? (
+        <View style={styles.techLoading}>
+          <ActivityIndicator color={colors.accent} />
+          <Text style={styles.techLoadingText}>Loading technical data…</Text>
+        </View>
+      ) : null}
+
+      {fullError && tab === "technical" ? (
+        <Text style={styles.fullError}>{fullError}</Text>
+      ) : null}
+
+      <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={(loading && !!data) || fullLoading}
+            onRefresh={() => void refreshAll()}
+            tintColor={colors.accent}
+          />
+        }
+        contentContainerStyle={styles.scroll}
+      >
+        {tab === "summary" ? (
+          <>
+            <QuoteHeader
+              companyName={data?.companyName}
+              price={quote?.currentPrice}
+              dayChangePct={quote?.dayChangePct}
             />
-          }
-          contentContainerStyle={styles.scroll}
-        >
-          <View style={styles.hero}>
-            {data?.companyName ? (
-              <Text style={styles.company}>{data.companyName}</Text>
-            ) : null}
-            <Text style={styles.price}>{formatPrice(quote?.currentPrice)}</Text>
-            <Text style={[styles.day, { color: pctColor(quote?.dayChangePct) }]}>
-              {formatPct(quote?.dayChangePct)} today
-            </Text>
-            <View style={styles.recoRow}>
-              <SaiBadge
-                action={recommendation?.action}
-                confidence={recommendation?.confidence}
-              />
-              {screening?.pScore != null ? (
-                <Text style={styles.pScore}>P-Score {screening.pScore}</Text>
-              ) : null}
-            </View>
-            {recommendation?.headline ? (
-              <Text style={styles.headline}>{recommendation.headline}</Text>
-            ) : null}
-          </View>
+            <SaiSummaryCard data={data} />
+            <HoldingsCompactCard data={data} />
 
-          {mechanics?.quantity ? (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Position</Text>
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Shares</Text>
-                <Text style={styles.statValue}>{mechanics.quantity}</Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Market value</Text>
-                <Text style={styles.statValue}>{formatMoney(mechanics.marketValue)}</Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Unrealized gain</Text>
-                <Text style={[styles.statValue, { color: pctColor(mechanics.gainPct) }]}>
-                  {formatMoney(mechanics.unrealizedGain)} ({formatPct(mechanics.gainPct)})
-                </Text>
-              </View>
-              {mechanics.weightPct != null ? (
-                <View style={styles.statRow}>
-                  <Text style={styles.statLabel}>Weight</Text>
-                  <Text style={styles.statValue}>{mechanics.weightPct.toFixed(1)}%</Text>
+              <Text style={styles.cardTitle}>Thresholds</Text>
+              <View style={styles.thresholdGrid}>
+                <View style={styles.thresholdCell}>
+                  <Text style={styles.statLabel}>Buy below</Text>
+                  <Text style={styles.statValue}>{formatPrice(quote?.buyBelow)}</Text>
                 </View>
-              ) : null}
+                <View style={styles.thresholdCell}>
+                  <Text style={styles.statLabel}>Sell above</Text>
+                  <Text style={styles.statValue}>{formatPrice(quote?.sellAbove)}</Text>
+                </View>
+                <View style={styles.thresholdCell}>
+                  <Text style={styles.statLabel}>Personal target</Text>
+                  <Text style={styles.statValue}>{formatPrice(quote?.targetPrice)}</Text>
+                </View>
+                <View style={styles.thresholdCell}>
+                  <Text style={styles.statLabel}>Analyst 1Y</Text>
+                  <Text style={styles.statValue}>{formatPrice(quote?.analystTarget1y)}</Text>
+                </View>
+              </View>
             </View>
-          ) : null}
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Thresholds</Text>
-            <View style={styles.statRow}>
-              <Text style={styles.statLabel}>Buy below</Text>
-              <Text style={styles.statValue}>{formatPrice(quote?.buyBelow)}</Text>
-            </View>
-            <View style={styles.statRow}>
-              <Text style={styles.statLabel}>Sell above</Text>
-              <Text style={styles.statValue}>{formatPrice(quote?.sellAbove)}</Text>
-            </View>
-            <View style={styles.statRow}>
-              <Text style={styles.statLabel}>Personal target</Text>
-              <Text style={styles.statValue}>{formatPrice(quote?.targetPrice)}</Text>
-            </View>
-            <View style={styles.statRow}>
-              <Text style={styles.statLabel}>Analyst 1Y</Text>
-              <Text style={styles.statValue}>{formatPrice(quote?.analystTarget1y)}</Text>
-            </View>
-          </View>
-
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Notes</Text>
-            <View style={styles.noteForm}>
-              <View style={styles.noteRow}>
-                <View style={styles.noteCol}>
-                  <Text style={styles.inputLabel}>Date</Text>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Notes</Text>
+              <View style={styles.noteForm}>
+                <View style={styles.noteRow}>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, styles.noteDateInput]}
                     value={noteDate}
                     onChangeText={setNoteDate}
                     placeholder="YYYY-MM-DD"
@@ -287,97 +358,99 @@ export default function SymbolDetailScreen() {
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
-                </View>
-                <View style={styles.noteCol}>
-                  <Text style={styles.inputLabel}>Source</Text>
                   <TextInput
-                    style={styles.input}
-                    value={noteSource}
-                    onChangeText={setNoteSource}
-                    placeholder="Mobile"
+                    style={[styles.input, styles.noteTitleInput]}
+                    value={noteTitle}
+                    onChangeText={setNoteTitle}
+                    placeholder="Title"
                     placeholderTextColor={colors.textMuted}
                   />
                 </View>
+                <TextInput
+                  style={[styles.input, styles.noteText]}
+                  value={noteText}
+                  onChangeText={setNoteText}
+                  placeholder="Add a note…"
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                />
+                <Pressable
+                  style={[styles.primaryBtn, (!noteText.trim() || saving) && styles.primaryBtnDisabled]}
+                  onPress={() => void addNote()}
+                  disabled={!noteText.trim() || saving}
+                >
+                  <Text style={styles.primaryBtnText}>{saving ? "Saving…" : "Add note"}</Text>
+                </Pressable>
+                {saveError ? <Text style={styles.modalError}>{saveError}</Text> : null}
               </View>
-              <Text style={styles.inputLabel}>Text</Text>
-              <TextInput
-                style={[styles.input, styles.noteText]}
-                value={noteText}
-                onChangeText={setNoteText}
-                placeholder="Add a note…"
-                placeholderTextColor={colors.textMuted}
-                multiline
-              />
-              <Pressable
-                style={[styles.primaryBtn, (!noteText.trim() || saving) && styles.primaryBtnDisabled]}
-                onPress={() => void addNote()}
-                disabled={!noteText.trim() || saving}
-              >
-                <Text style={styles.primaryBtnText}>{saving ? "Saving…" : "Add note"}</Text>
-              </Pressable>
-              {saveError ? <Text style={styles.modalError}>{saveError}</Text> : null}
+
+              {notes.length ? (
+                <View style={styles.notesList}>
+                  {notes.slice(0, 10).map((note) => (
+                    <View
+                      key={note.id ?? `${note.date}-${note.source}-${note.text}`}
+                      style={styles.noteItem}
+                    >
+                      <Text style={styles.noteMeta}>
+                        {(note.date || "—") + (note.source ? ` · ${note.source}` : "")}
+                      </Text>
+                      {note.text ? (
+                        <Text style={styles.noteBody} numberOfLines={5}>
+                          {note.text}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.emptyInline}>No notes yet.</Text>
+              )}
             </View>
 
-            {notes.length ? (
-              <View style={styles.notesList}>
-                {notes.slice(0, 10).map((note) => (
-                  <View key={note.id ?? `${note.date}-${note.source}-${note.text}`} style={styles.noteItem}>
-                    <Text style={styles.noteMeta}>
-                      {(note.date || "—") + (note.source ? ` · ${note.source}` : "")}
-                    </Text>
-                    {note.text ? (
-                      <Text style={styles.noteBody} numberOfLines={5}>
-                        {note.text}
+            {drivers.length > 0 ? (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Drivers</Text>
+                {drivers.map((reason, idx) => (
+                  <Text key={idx} style={styles.reason}>
+                    · {reason}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {(data?.alerts?.length ?? 0) > 0 ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Active alerts</Text>
+                {data?.alerts?.map((alert) => (
+                  <AlertRow key={alert.id} alert={alert} />
+                ))}
+              </View>
+            ) : null}
+
+            {(data?.assessments?.length ?? 0) > 0 ? (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Recent assessments</Text>
+                {data?.assessments?.slice(0, 3).map((item) => (
+                  <View key={item.id ?? item.createdAt} style={styles.assessment}>
+                    <View style={styles.assessmentHead}>
+                      <SaiBadge action={item.action} confidence={item.confidence} compact />
+                      <Text style={styles.assessmentDate}>{item.createdAt}</Text>
+                    </View>
+                    {item.rationale ? (
+                      <Text style={styles.reason} numberOfLines={4}>
+                        {item.rationale}
                       </Text>
                     ) : null}
                   </View>
                 ))}
               </View>
-            ) : (
-              <Text style={styles.emptyInline}>No notes yet.</Text>
-            )}
-          </View>
+            ) : null}
+          </>
+        ) : null}
 
-          {(recommendation?.reasons?.length ?? 0) > 0 ? (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Recommendation reasons</Text>
-              {recommendation?.reasons?.map((reason, idx) => (
-                <Text key={idx} style={styles.reason}>
-                  • {reason}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-
-          {(data?.alerts?.length ?? 0) > 0 ? (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Active alerts</Text>
-              {data?.alerts?.map((alert) => (
-                <AlertRow key={alert.id} alert={alert} />
-              ))}
-            </View>
-          ) : null}
-
-          {(data?.assessments?.length ?? 0) > 0 ? (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Recent assessments</Text>
-              {data?.assessments?.slice(0, 3).map((item) => (
-                <View key={item.id ?? item.createdAt} style={styles.assessment}>
-                  <View style={styles.assessmentHead}>
-                    <SaiBadge action={item.action} confidence={item.confidence} compact />
-                    <Text style={styles.assessmentDate}>{item.createdAt}</Text>
-                  </View>
-                  {item.rationale ? (
-                    <Text style={styles.reason} numberOfLines={4}>
-                      {item.rationale}
-                    </Text>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-          ) : null}
-        </ScrollView>
-      </Screen>
+        {tab === "technical" && !technicalLoading ? <TechnicalPanel data={data} /> : null}
+      </ScrollView>
+    </Screen>
   );
 }
 
@@ -388,40 +461,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
-  hero: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
+  techLoading: {
+    alignItems: "center",
+    paddingVertical: spacing.md,
     gap: spacing.sm,
   },
-  company: {
-    color: colors.textMuted,
-    fontSize: 14,
-  },
-  price: {
-    color: colors.text,
-    fontSize: 36,
-    fontWeight: "700",
-  },
-  day: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  recoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-  pScore: {
+  techLoadingText: {
     color: colors.textMuted,
     fontSize: 13,
   },
-  headline: {
-    color: colors.text,
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: spacing.xs,
+  fullError: {
+    color: colors.danger,
+    fontSize: 13,
+    textAlign: "center",
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   card: {
     backgroundColor: colors.surface,
@@ -439,21 +493,23 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: spacing.xs,
   },
-  statRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: spacing.md,
-  },
   statLabel: {
     color: colors.textMuted,
-    fontSize: 14,
+    fontSize: 12,
   },
   statValue: {
     color: colors.text,
     fontSize: 14,
     fontWeight: "600",
-    flexShrink: 1,
-    textAlign: "right",
+  },
+  thresholdGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  thresholdCell: {
+    width: "48%",
+    gap: 2,
   },
   section: {
     marginTop: spacing.sm,
@@ -477,7 +533,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
   },
-  noteCol: {
+  noteDateInput: {
+    width: 118,
+  },
+  noteTitleInput: {
     flex: 1,
   },
   inputLabel: {
@@ -497,7 +556,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   noteText: {
-    minHeight: 90,
+    minHeight: 72,
     textAlignVertical: "top",
   },
   primaryBtn: {

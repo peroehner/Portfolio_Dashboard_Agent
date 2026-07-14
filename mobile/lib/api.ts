@@ -144,10 +144,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  inspector: (symbol: string) =>
-    apiFetch<import("./types").InspectorPayload>(
-      `/symbols/${encodeURIComponent(symbol)}/inspector?includeNews=false&lite=1`,
-    ),
+  inspector: (symbol: string, options?: { lite?: boolean }) => {
+    const lite = options?.lite !== false;
+    return apiFetch<import("./types").InspectorPayload>(
+      `/symbols/${encodeURIComponent(symbol)}/inspector?includeNews=false&lite=${lite ? "1" : "0"}`,
+    );
+  },
+  newsSentiment: (symbol: string) =>
+    apiFetch<{
+      symbol: string;
+      newsSentiment: {
+        sentiment?: string;
+        detail?: string;
+        count?: number;
+      } | null;
+    }>(`/symbols/${encodeURIComponent(symbol)}/news-sentiment`),
   assessmentsOverview: () =>
     apiFetch<{ assessments: import("./types").Assessment[] }>("/assessments/overview"),
   sync: () => apiFetch("/sync", { method: "POST" }),

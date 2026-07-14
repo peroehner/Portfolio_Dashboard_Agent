@@ -47,7 +47,7 @@ export default function OverviewScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <Screen
-        title="Overview"
+        title="Summary"
         subtitle={subtitle}
         loading={loading && !data}
         error={error}

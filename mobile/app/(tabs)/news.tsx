@@ -1,29 +1,80 @@
 import { useMemo, useState } from "react";
 import {
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { NewsCard, SaiChangeCard } from "@/components/NewsCards";
+import { NoteModal, type NoteDraft } from "@/components/NoteModal";
 import { Screen } from "@/components/Screen";
 import { api } from "@/lib/api";
 import { symbolMatchesFilter } from "@/lib/filters";
+import {
+  changeTimestamp,
+  filterRecoChanges,
+  recoChangesCounts,
+  type RecoChangesDirFilter,
+} from "@/lib/newsFilters";
 import { colors, radii, spacing } from "@/lib/theme";
-import type { NewsFeed } from "@/lib/types";
+import type { NewsFeed, NewsItem } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
+import { useDoubleTap } from "@/lib/useDoubleTap";
+
+type Pane = "changes" | "news";
+
+function todayIso(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function buildNoteDraftFromNews(item: NewsItem): NoteDraft {
+  const parts: string[] = [];
+  if (item.summary) parts.push(item.summary);
+  if (item.link) parts.push(item.link);
+  return {
+    symbol: item.symbol,
+    date: todayIso(),
+    title: item.title || item.publisher || "",
+    text: parts.join("\n\n"),
+  };
+}
+
+function dirBtnStyle(active: boolean, kind: "up" | "down") {
+  if (!active) {
+    return kind === "up"
+      ? { borderColor: "#22c55e", backgroundColor: colors.surface }
+      : { borderColor: "#ef4444", backgroundColor: colors.surface };
+  }
+  return kind === "up"
+    ? { borderColor: "#22c55e", backgroundColor: "#22c55e" }
+    : { borderColor: "#ef4444", backgroundColor: "#ef4444" };
+}
+
+function dirBtnTextStyle(active: boolean, kind: "up" | "down") {
+  if (active) return { color: kind === "up" ? "#0a1a0f" : "#1a0a0a" };
+  return { color: kind === "up" ? "#22c55e" : "#ef4444" };
+}
 
 export default function NewsScreen() {
   const [filter, setFilter] = useState("");
+  const [dirFilter, setDirFilter] = useState<RecoChangesDirFilter>("");
+  const [expanded, setExpanded] = useState<Pane | null>(null);
+  const [noteDraft, setNoteDraft] = useState<NoteDraft | null>(null);
   const { data, loading, error, refresh } = useApiQuery<NewsFeed>(
     () => api.newsFeed(),
     [],
   );
 
-  const changes = useMemo(
+  const tickerFilteredChanges = useMemo(
     () =>
       (data?.recommendationChanges ?? []).filter((item) =>
         symbolMatchesFilter(item.symbol, filter),
@@ -31,58 +82,179 @@ export default function NewsScreen() {
     [data?.recommendationChanges, filter],
   );
 
+  const changes = useMemo(
+    () => filterRecoChanges(tickerFilteredChanges, dirFilter),
+    [tickerFilteredChanges, dirFilter],
+  );
+
+  const changeCounts = useMemo(() => recoChangesCounts(changes), [changes]);
+
   const news = useMemo(
     () =>
       (data?.topNews ?? []).filter((item) => symbolMatchesFilter(item.symbol, filter)),
     [data?.topNews, filter],
   );
 
+  const toggleChanges = useDoubleTap(() => {
+    setExpanded((prev) => (prev === "changes" ? null : "changes"));
+  });
+  const toggleNews = useDoubleTap(() => {
+    setExpanded((prev) => (prev === "news" ? null : "news"));
+  });
+
+  const showChanges = expanded !== "news";
+  const showNews = expanded !== "changes";
+  const split = expanded === null;
+  const changesFullscreen = expanded === "changes";
+
+  function toggleDirFilter(dir: "up" | "down") {
+    setDirFilter((prev) => (prev === dir ? "" : dir));
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <Screen
         title="News & Changes"
-        subtitle={data?.newsCheckedAt ? `Checked ${data.newsCheckedAt}` : undefined}
+        subtitle={
+          data?.newsCheckedAt
+            ? `Checked ${data.newsCheckedAt}${split ? " · double-tap pane to expand" : ""}`
+            : split
+              ? "Double-tap pane to expand"
+              : undefined
+        }
         loading={loading && !data}
         error={error}
         onRetry={() => void refresh()}
+        contentStyle={styles.screenContent}
       >
         <TextInput
           style={styles.filter}
-          placeholder="Filter tickers (comma-separated)…"
+          placeholder="Filter…"
           placeholderTextColor={colors.textMuted}
           value={filter}
           onChangeText={setFilter}
           autoCapitalize="characters"
           autoCorrect={false}
         />
-        <ScrollView
-          refreshControl={
-            <RefreshControl
-              refreshing={loading && !!data}
-              onRefresh={() => void refresh()}
-              tintColor={colors.accent}
-            />
-          }
-          contentContainerStyle={styles.scroll}
-        >
-          <Text style={styles.sectionTitle}>SAI changes</Text>
-          {changes.length === 0 ? (
-            <Text style={styles.empty}>No SAI changes match the filter.</Text>
-          ) : (
-            changes.map((change, idx) => (
-              <SaiChangeCard key={`${change.symbol}-${change.changedAt}-${idx}`} change={change} />
-            ))
-          )}
 
-          <Text style={[styles.sectionTitle, styles.sectionGap]}>Latest news</Text>
-          {news.length === 0 ? (
-            <Text style={styles.empty}>No news matches the filter.</Text>
-          ) : (
-            news.map((item, idx) => (
-              <NewsCard key={`${item.symbol}-${item.title}-${idx}`} item={item} />
-            ))
-          )}
-        </ScrollView>
+        <View style={styles.split}>
+          {showChanges ? (
+            <View style={[styles.pane, split && styles.paneHalf]}>
+              <Pressable onPress={toggleChanges}>
+                <View style={styles.paneHead}>
+                  <Text style={styles.paneTitle}>
+                    Changes{expanded === "changes" ? " ↓" : ""}
+                  </Text>
+                  {changesFullscreen && changeCounts.total > 0 ? (
+                    <Text style={styles.paneCount}>
+                      {changeCounts.total} · ▲{changeCounts.up} · ▼{changeCounts.down}
+                    </Text>
+                  ) : null}
+                </View>
+              </Pressable>
+              {changesFullscreen ? (
+                <View style={styles.dirControls}>
+                  <Text style={styles.dirLabel}>Direction</Text>
+                  <View style={styles.dirBtns}>
+                    <Pressable
+                      style={[styles.dirBtn, dirBtnStyle(dirFilter === "up", "up")]}
+                      onPress={() => toggleDirFilter("up")}
+                    >
+                      <Text style={[styles.dirBtnText, dirBtnTextStyle(dirFilter === "up", "up")]}>
+                        ▲ Up
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.dirBtn, dirBtnStyle(dirFilter === "down", "down")]}
+                      onPress={() => toggleDirFilter("down")}
+                    >
+                      <Text
+                        style={[styles.dirBtnText, dirBtnTextStyle(dirFilter === "down", "down")]}
+                      >
+                        ▼ Down
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
+              <ScrollView
+                nestedScrollEnabled
+                showsVerticalScrollIndicator
+                refreshControl={
+                  expanded === "changes" ? (
+                    <RefreshControl
+                      refreshing={loading && !!data}
+                      onRefresh={() => void refresh()}
+                      tintColor={colors.accent}
+                    />
+                  ) : undefined
+                }
+                contentContainerStyle={styles.paneScroll}
+              >
+                {changes.length === 0 ? (
+                  <Text style={styles.empty}>
+                    {tickerFilteredChanges.length && (filter.trim() || dirFilter)
+                      ? "No changes match the current filter."
+                      : "No changes"}
+                  </Text>
+                ) : (
+                  changes.map((change, idx) => (
+                    <SaiChangeCard
+                      key={`${change.symbol}-${changeTimestamp(change) ?? idx}-${idx}`}
+                      change={change}
+                      compact={split}
+                    />
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          {split ? <View style={styles.divider} /> : null}
+
+          {showNews ? (
+            <View style={[styles.pane, split && styles.paneHalf]}>
+              <Pressable onPress={toggleNews}>
+                <Text style={styles.paneTitle}>
+                  News{expanded === "news" ? " ↓" : ""}
+                </Text>
+              </Pressable>
+              <ScrollView
+                nestedScrollEnabled
+                showsVerticalScrollIndicator
+                refreshControl={
+                  expanded === "news" ? (
+                    <RefreshControl
+                      refreshing={loading && !!data}
+                      onRefresh={() => void refresh()}
+                      tintColor={colors.accent}
+                    />
+                  ) : undefined
+                }
+                contentContainerStyle={styles.paneScroll}
+              >
+                {news.length === 0 ? (
+                  <Text style={styles.empty}>No news</Text>
+                ) : (
+                  news.map((item, idx) => (
+                    <NewsCard
+                      key={`${item.symbol}-${item.title}-${idx}`}
+                      item={item}
+                      compact={split}
+                      onAddNote={(newsItem) => setNoteDraft(buildNoteDraftFromNews(newsItem))}
+                    />
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          ) : null}
+        </View>
+
+        <NoteModal
+          visible={!!noteDraft}
+          draft={noteDraft}
+          onClose={() => setNoteDraft(null)}
+        />
       </Screen>
     </SafeAreaView>
   );
@@ -90,6 +262,7 @@ export default function NewsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
+  screenContent: { flex: 1 },
   filter: {
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
@@ -100,22 +273,88 @@ const styles = StyleSheet.create({
     color: colors.text,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    fontSize: 15,
+    fontSize: 14,
   },
-  scroll: { paddingBottom: spacing.xl },
-  sectionTitle: {
+  split: {
+    flex: 1,
+    flexDirection: "row",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  pane: {
+    flex: 1,
+    minWidth: 0,
+  },
+  paneHalf: {
+    flex: 1,
+  },
+  divider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+  },
+  paneHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    paddingRight: spacing.sm,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  paneTitle: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "700",
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    flexShrink: 0,
   },
-  sectionGap: {
-    marginTop: spacing.lg,
+  paneCount: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+    flexShrink: 1,
+  },
+  dirControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  dirLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  dirBtns: {
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  dirBtn: {
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  dirBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  paneScroll: {
+    paddingVertical: spacing.xs,
+    paddingBottom: spacing.lg,
   },
   empty: {
     color: colors.textMuted,
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
+    fontSize: 12,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.md,
   },
 });

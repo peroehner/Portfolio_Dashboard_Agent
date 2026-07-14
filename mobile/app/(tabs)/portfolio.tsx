@@ -2,33 +2,28 @@ import { useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { PortfolioTable } from "@/components/PortfolioTable";
 import { Screen } from "@/components/Screen";
-import { SymbolRow } from "@/components/SymbolRow";
 import { api } from "@/lib/api";
 import { symbolMatchesFilter } from "@/lib/filters";
+import {
+  buildPortfolioRows,
+  sortPortfolioRows,
+  type PortfolioSortState,
+} from "@/lib/portfolioTable";
 import { colors, radii, spacing } from "@/lib/theme";
-import type { Assessment, Holding, PortfolioSymbol, SaiAction } from "@/lib/types";
+import type { Assessment, Holding } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
 
 type PortfolioMode = "all" | "holdings" | "watch";
-type SortKey = "symbol" | "value" | "gainPct" | "dayChangePct" | "sai";
-
-function actionRank(action?: SaiAction | null): number {
-  const key = String(action || "").toLowerCase();
-  if (key === "sell") return 4;
-  if (key === "watch") return 3;
-  if (key === "hold") return 2;
-  if (key === "buy") return 1;
-  return 0;
-}
 
 function pillActiveStyle(active: boolean) {
   return active
@@ -37,9 +32,11 @@ function pillActiveStyle(active: boolean) {
 }
 
 export default function PortfolioScreen() {
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
   const [filter, setFilter] = useState("");
   const [mode, setMode] = useState<PortfolioMode>("all");
-  const [sortKey, setSortKey] = useState<SortKey>("symbol");
+  const [sort, setSort] = useState<PortfolioSortState>({ key: null, direction: null });
   const { data, loading, error, refresh } = useApiQuery(
     async () => {
       const [portfolio, assessments, holdings] = await Promise.all([
@@ -68,58 +65,43 @@ export default function PortfolioScreen() {
     return map;
   }, [data?.holdings]);
 
-  const symbols = useMemo(() => {
-    const rows = [...(data?.portfolio?.symbols ?? [])];
-    const filtered = rows
-      .filter((row) => symbolMatchesFilter(row.symbol, filter))
-      .filter((row) => {
-        const holding = holdingBySymbol.get(row.symbol);
-        const hasShares = (holding?.quantity || 0) > 0;
-        if (mode === "holdings") return hasShares;
-        if (mode === "watch") return !hasShares;
-        return true;
-      });
-
-    filtered.sort((a, b) => {
-      if (sortKey === "symbol") return a.symbol.localeCompare(b.symbol);
-      const ha = holdingBySymbol.get(a.symbol);
-      const hb = holdingBySymbol.get(b.symbol);
-      const aa = assessmentBySymbol.get(a.symbol);
-      const ab = assessmentBySymbol.get(b.symbol);
-      if (sortKey === "value") return (hb?.marketValue || 0) - (ha?.marketValue || 0);
-      if (sortKey === "gainPct") return (hb?.gainPct || 0) - (ha?.gainPct || 0);
-      if (sortKey === "dayChangePct") return (hb?.dayChangePct || 0) - (ha?.dayChangePct || 0);
-      if (sortKey === "sai") return actionRank(ab?.action) - actionRank(aa?.action);
-      return 0;
+  const rows = useMemo(() => {
+    const symbols = [...(data?.portfolio?.symbols ?? [])].filter((row) => {
+      if (!symbolMatchesFilter(row.symbol, filter)) return false;
+      const holding = holdingBySymbol.get(row.symbol);
+      const hasShares = (holding?.quantity || 0) > 0;
+      if (mode === "holdings") return hasShares;
+      if (mode === "watch") return !hasShares;
+      return true;
     });
-    return filtered;
-  }, [data?.portfolio?.symbols, filter, mode, sortKey, holdingBySymbol, assessmentBySymbol]);
+
+    const built = buildPortfolioRows(symbols, holdingBySymbol, assessmentBySymbol);
+    return sortPortfolioRows(built, sort);
+  }, [data?.portfolio?.symbols, filter, mode, sort, holdingBySymbol, assessmentBySymbol]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <Screen
         title="Portfolio"
-        subtitle={`${data?.portfolio?.symbols?.length ?? 0} symbols`}
+        subtitle={
+          isLandscape ? undefined : `${rows.length} shown · tap headers to sort · swipe columns →`
+        }
         loading={loading && !data}
         error={error}
         onRetry={() => void refresh()}
+        contentStyle={styles.screenContent}
       >
-        <TextInput
-          style={styles.filter}
-          placeholder="Filter tickers (comma-separated)…"
-          placeholderTextColor={colors.textMuted}
-          value={filter}
-          onChangeText={setFilter}
-          autoCapitalize="characters"
-          autoCorrect={false}
-        />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.controls}
-        >
-          <View style={styles.controlGroup}>
-            <Text style={styles.controlLabel}>Show</Text>
+        {!isLandscape ? (
+          <View style={styles.toolbar}>
+            <TextInput
+              style={styles.filter}
+              placeholder="Filter…"
+              placeholderTextColor={colors.textMuted}
+              value={filter}
+              onChangeText={setFilter}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
             <Pressable
               style={[styles.pill, pillActiveStyle(mode === "all")]}
               onPress={() => setMode("all")}
@@ -139,71 +121,25 @@ export default function PortfolioScreen() {
               <Text style={styles.pillText}>Watch</Text>
             </Pressable>
           </View>
-          <View style={styles.controlGroup}>
-            <Text style={styles.controlLabel}>Sort</Text>
-            <Pressable
-              style={[styles.pill, pillActiveStyle(sortKey === "symbol")]}
-              onPress={() => setSortKey("symbol")}
-            >
-              <Text style={styles.pillText}>Symbol</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.pill, pillActiveStyle(sortKey === "value")]}
-              onPress={() => setSortKey("value")}
-            >
-              <Text style={styles.pillText}>Value</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.pill, pillActiveStyle(sortKey === "gainPct")]}
-              onPress={() => setSortKey("gainPct")}
-            >
-              <Text style={styles.pillText}>Gain%</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.pill, pillActiveStyle(sortKey === "dayChangePct")]}
-              onPress={() => setSortKey("dayChangePct")}
-            >
-              <Text style={styles.pillText}>Day%</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.pill, pillActiveStyle(sortKey === "sai")]}
-              onPress={() => setSortKey("sai")}
-            >
-              <Text style={styles.pillText}>SAI</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
-        <ScrollView
-          refreshControl={
-            <RefreshControl
-              refreshing={loading && !!data}
-              onRefresh={() => void refresh()}
-              tintColor={colors.accent}
-            />
-          }
-        >
-          {symbols.length === 0 && data ? (
-            <Text style={styles.empty}>No symbols match the filter.</Text>
-          ) : (
-            symbols.map((item: PortfolioSymbol) => {
-              const assessment = assessmentBySymbol.get(item.symbol);
-              const holding = holdingBySymbol.get(item.symbol);
-              return (
-                <SymbolRow
-                  key={item.symbol}
-                  item={{
-                    ...item,
-                    latestAssessment: assessment
-                      ? { action: assessment.action, confidence: assessment.confidence }
-                      : null,
-                  }}
-                  showWeight={mode !== "watch"}
-                  weightPct={holding?.weightPct ?? null}
-                />
-              );
-            })
-          )}
-        </ScrollView>
+        ) : null}
+
+        {rows.length === 0 && data ? (
+          <Text style={styles.empty}>No symbols match the filter.</Text>
+        ) : (
+          <PortfolioTable
+            rows={rows}
+            sort={sort}
+            onSortChange={setSort}
+            landscape={isLandscape}
+            refreshControl={
+              <RefreshControl
+                refreshing={loading && !!data}
+                onRefresh={() => void refresh()}
+                tintColor={colors.accent}
+              />
+            }
+          />
+        )}
       </Screen>
     </SafeAreaView>
   );
@@ -211,43 +147,35 @@ export default function PortfolioScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  filter: {
+  screenContent: { flex: 1 },
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
+  },
+  filter: {
+    flex: 1,
+    minWidth: 72,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.md,
     color: colors.text,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: 15,
-  },
-  controls: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.sm,
-    gap: spacing.lg,
-  },
-  controlGroup: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  controlLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: "700",
-    marginRight: 2,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    fontSize: 13,
   },
   pill: {
     borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
   },
   pillText: {
     color: colors.text,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
   },
   empty: {

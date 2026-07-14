@@ -22,6 +22,18 @@ export function formatPrice(value: number | null | undefined): string {
   return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+export function formatQty(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  const n = Number(value);
+  if (!Number.isFinite(n) || n === 0) return "—";
+  return n % 1 === 0 ? String(n) : n.toFixed(2);
+}
+
+export function formatWeight(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `${value.toFixed(1)}%`;
+}
+
 export function pctColor(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return "#94a3b8";
   if (value > 0) return "#4ade80";
