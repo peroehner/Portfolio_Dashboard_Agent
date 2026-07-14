@@ -82,7 +82,12 @@ function SortHeader({
       ]}
       onPress={onPress}
     >
-      <Text style={[styles.headerText, col.align === "right" && styles.alignRight]}>
+      <Text
+        style={[styles.headerText, col.align === "right" && styles.alignRight]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.85}
+      >
         {sortHeaderLabel(col.label, col.key, sort)}
       </Text>
     </Pressable>

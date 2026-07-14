@@ -37,7 +37,7 @@ export interface PortfolioColumn {
 }
 
 export const STICKY_COLUMNS: PortfolioColumn[] = [
-  { key: "symbol", label: "Symbol", width: 68, sticky: true },
+  { key: "symbol", label: "Symbol", width: 74, sticky: true },
   { key: "sai", label: "SAI", width: 54, sticky: true, align: "right" },
 ];
 
@@ -49,16 +49,32 @@ export const PORTFOLIO_SCROLL_COLUMNS: PortfolioColumn[] = [
   { key: "weightPct", label: "Wt %", width: 58, align: "right" },
   { key: "annualDividend", label: "Div", width: 68, align: "right", money: true },
   { key: "unrealizedGain", label: "Gain", width: 72, align: "right", money: true },
-  { key: "gainPct", label: "Gain %", width: 64, align: "right", pct: true },
-  { key: "analystTarget1y", label: "1YT", width: 72, align: "right", price: true },
-  { key: "analystUpsidePct", label: "1YT %", width: 64, align: "right", pct: true },
+  { key: "gainPct", label: "Gain %", width: 72, align: "right", pct: true },
+  { key: "analystTarget1y", label: "1YT", width: 78, align: "right", price: true },
+  { key: "analystUpsidePct", label: "1YT %", width: 68, align: "right", pct: true },
   { key: "analystTargetValue", label: "1YT Val", width: 76, align: "right", money: true },
-  { key: "personalTarget", label: "PT", width: 72, align: "right", price: true },
-  { key: "personalUpsidePct", label: "PT %", width: 64, align: "right", pct: true },
+  { key: "personalTarget", label: "PT", width: 78, align: "right", price: true },
+  { key: "personalUpsidePct", label: "PT %", width: 68, align: "right", pct: true },
   { key: "personalTargetValue", label: "PT Val", width: 76, align: "right", money: true },
 ];
 
 const LANDSCAPE_WIDTH_SCALE = 0.78;
+
+/** Keep header labels on one line when columns are scaled for landscape. */
+const LANDSCAPE_MIN_WIDTHS: Partial<Record<PortfolioSortKey, number>> = {
+  symbol: 62,
+  gainPct: 58,
+  analystTarget1y: 54,
+  analystUpsidePct: 56,
+  personalTarget: 52,
+  personalUpsidePct: 54,
+};
+
+function landscapeColumnWidth(col: PortfolioColumn): number {
+  const scaled = Math.round(col.width * LANDSCAPE_WIDTH_SCALE);
+  const floor = LANDSCAPE_MIN_WIDTHS[col.key] ?? (col.sticky ? 48 : 50);
+  return Math.max(floor, scaled);
+}
 
 export function portfolioTableColumns(landscape: boolean): {
   sticky: PortfolioColumn[];
@@ -70,11 +86,11 @@ export function portfolioTableColumns(landscape: boolean): {
   return {
     sticky: STICKY_COLUMNS.map((col) => ({
       ...col,
-      width: Math.max(48, Math.round(col.width * LANDSCAPE_WIDTH_SCALE)),
+      width: landscapeColumnWidth(col),
     })),
     scroll: PORTFOLIO_SCROLL_COLUMNS.map((col) => ({
       ...col,
-      width: Math.max(50, Math.round(col.width * LANDSCAPE_WIDTH_SCALE)),
+      width: landscapeColumnWidth(col),
     })),
   };
 }
