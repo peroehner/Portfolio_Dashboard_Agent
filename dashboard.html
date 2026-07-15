@@ -6374,7 +6374,7 @@
       const inspectorData = inspector ? normalizeInspectorData(inspector) : null;
       if (inspectorData) await applyNewsSentimentToInspector(symbol, inspectorData);
       targetCurrentPrice = item.currentPrice ?? null;
-      setDetailSymbolHead(symbol, item, inspector?.companyName);
+      setDetailSymbolHead(symbol, item, inspectorData?.companyName || item?.companyName);
       document.getElementById("detailEmpty").hidden = true;
       document.getElementById("detailPanel").hidden = false;
 

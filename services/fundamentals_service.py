@@ -302,10 +302,18 @@ class FundamentalsService:
             "valuation": self._collect(info, _VALUATION_FIELDS),
             "growthProfitability": self._collect(info, _GROWTH_PROFIT_FIELDS),
             "financialHealth": self._collect(info, _HEALTH_FIELDS),
-            "profile": self._collect(info, _PROFILE_FIELDS),
+            "profile": self._profile_from_info(info),
             "analyst": self._collect(info, _ANALYST_FIELDS),
             "priceRange": self._collect(info, _RANGE_FIELDS),
         }
+
+    def _profile_from_info(self, info: dict[str, Any]) -> dict[str, Any]:
+        profile = self._collect(info, _PROFILE_FIELDS)
+        if not profile.get("name"):
+            name = info.get("longName") or info.get("shortName")
+            if name:
+                profile["name"] = str(name)
+        return profile
 
     def _fetch_finnhub_fundamentals(self, symbol: str) -> dict[str, Any]:
         if not self.finnhub_api_key:
@@ -362,6 +370,9 @@ class FundamentalsService:
             mcap = profile.get("marketCapitalization")  # in millions of currency
             if isinstance(mcap, (int, float)) and mcap:
                 out["profile"]["marketCap"] = round(float(mcap) * 1_000_000, 2)
+            company = profile.get("name")
+            if company:
+                out["profile"]["name"] = str(company)
 
         recs = self._finnhub_get(
             f"https://finnhub.io/api/v1/stock/recommendation?symbol={qsym}&token={token}",

@@ -441,6 +441,10 @@ class InspectorService:
             market = MarketDataService().get_market(symbol)
             if market:
                 metrics["companyName"] = market.get("companyName")
+        if not metrics.get("companyName"):
+            from services.company_name import resolve_company_name
+
+            metrics["companyName"] = resolve_company_name(symbol)
         return metrics
 
     def _detect_trend_waves(self, symbol: str) -> list[dict[str, Any]]:

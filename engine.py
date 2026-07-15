@@ -43,6 +43,8 @@ class PortfolioEngine:
 
         from services.market_cache import yf_throttle
 
+        from services.company_name import resolve_company_name
+
         day_changes = {ticker: None for ticker in tickers}
         prices = {ticker: None for ticker in tickers}
         price_as_of = {ticker: None for ticker in tickers}
@@ -89,7 +91,7 @@ class PortfolioEngine:
             day_pct = day_changes.get(ticker)
             if day_pct is None:
                 day_pct = self._day_change_pct_from_info(info, price)
-            company_name = info.get("longName") or info.get("shortName")
+            company_name = resolve_company_name(ticker, info)
             quotes[ticker] = {
                 "currentPrice": (
                     round(float(price), 2)

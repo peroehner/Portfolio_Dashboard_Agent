@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from db.database import get_connection, list_distinct_symbols
+from services.company_name import resolve_company_name
 
 # Reuse the fundamentals in-memory TTL as the default DB cache window.
 _DEFAULT_FUNDAMENTALS_TTL = float(os.environ.get("FUNDAMENTALS_CACHE_TTL_SECONDS", "21600"))
@@ -127,7 +128,24 @@ class MarketDataService:
             "fundamentals": fundamentals,
             "fetchedAt": _utc_now_text(),
         }
+        profile = fundamentals.get("profile") if isinstance(fundamentals, dict) else None
+        company_name = None
+        if isinstance(profile, dict):
+            raw_name = profile.get("name")
+            if raw_name:
+                company_name = str(raw_name).strip() or None
         with get_connection() as conn:
+            if company_name:
+                conn.execute(
+                    """
+                    INSERT INTO symbol_market (symbol, company_name, updated_at)
+                    VALUES (%s, %s, app_now_text())
+                    ON CONFLICT (symbol) DO UPDATE SET
+                        company_name = COALESCE(EXCLUDED.company_name, symbol_market.company_name),
+                        updated_at = app_now_text()
+                    """,
+                    (symbol, company_name),
+                )
             conn.execute(
                 """
                 INSERT INTO symbol_market (symbol, fundamentals_json, updated_at)
@@ -190,6 +208,8 @@ class MarketDataService:
                 analyst_high = quote.get("analystTargetHigh")
                 as_of = quote.get("priceAsOf")
                 company_name = quote.get("companyName") or quote.get("shortName")
+                if not company_name:
+                    company_name = resolve_company_name(symbol)
 
                 if not any(
                     value is not None
