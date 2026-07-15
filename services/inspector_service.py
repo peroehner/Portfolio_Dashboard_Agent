@@ -131,7 +131,7 @@ class InspectorService:
                 "symbol": symbol,
                 "newsSentimentDeferred": not include_news,
                 "quote": symbol_data,
-                "companyName": valuation.get("companyName"),
+                "companyName": valuation.get("companyName") or symbol_data.get("companyName"),
                 "holding": holding,
                 "alerts": ui_alerts,
                 "fib": None,
@@ -159,7 +159,7 @@ class InspectorService:
             "symbol": symbol,
             "newsSentimentDeferred": not include_news,
             "quote": symbol_data,
-            "companyName": valuation.get("companyName"),
+            "companyName": valuation.get("companyName") or symbol_data.get("companyName"),
             "holding": holding,
             "alerts": ui_alerts,
             "fib": fib,
@@ -433,6 +433,14 @@ class InspectorService:
             )
         except Exception:
             pass
+        if not metrics.get("companyName"):
+            metrics["companyName"] = symbol_data.get("companyName")
+        if not metrics.get("companyName"):
+            from services.market_data_service import MarketDataService
+
+            market = MarketDataService().get_market(symbol)
+            if market:
+                metrics["companyName"] = market.get("companyName")
         return metrics
 
     def _detect_trend_waves(self, symbol: str) -> list[dict[str, Any]]:

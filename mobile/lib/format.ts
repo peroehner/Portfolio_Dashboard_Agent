@@ -90,7 +90,31 @@ export function formatColoredRatioPercent(value: number | null | undefined, digi
 
 export function formatRelativeDate(value?: string | null): string {
   if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
+  const date = parseDateInput(value);
+  if (!date) return value;
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/** e.g. Jul 12 23:24 — for quote/news timestamps in subtitles. */
+export function formatShortDateTime(value?: string | null): string {
+  if (!value) return "";
+  const date = parseDateInput(value);
+  if (!date) return value;
+  const datePart = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const timePart = date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return `${datePart} ${timePart}`;
+}
+
+function parseDateInput(value: string): Date | null {
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime())) return date;
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+  if (!m) return null;
+  const [, y, mo, d, h = "0", mi = "0"] = m;
+  const parsed = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi));
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }

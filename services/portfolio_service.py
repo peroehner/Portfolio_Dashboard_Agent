@@ -17,7 +17,8 @@ class PortfolioService:
                        m.price_as_of AS market_price_as_of,
                        m.analyst_target_1y AS market_analyst_target_1y,
                        m.analyst_target_low AS market_analyst_target_low,
-                       m.analyst_target_high AS market_analyst_target_high
+                       m.analyst_target_high AS market_analyst_target_high,
+                       m.company_name AS market_company_name
                 FROM symbols s
                 LEFT JOIN symbol_market m ON m.symbol = s.symbol
                 WHERE s.user_id = %s
@@ -39,7 +40,8 @@ class PortfolioService:
                        m.price_as_of AS market_price_as_of,
                        m.analyst_target_1y AS market_analyst_target_1y,
                        m.analyst_target_low AS market_analyst_target_low,
-                       m.analyst_target_high AS market_analyst_target_high
+                       m.analyst_target_high AS market_analyst_target_high,
+                       m.company_name AS market_company_name
                 FROM symbols s
                 LEFT JOIN symbol_market m ON m.symbol = s.symbol
                 WHERE s.user_id = %s AND s.symbol = %s
@@ -285,6 +287,7 @@ class PortfolioService:
             "currentPrice": row.get("market_current_price"),
             "dayChangePct": row.get("market_day_change_pct"),
             "priceAsOf": row.get("market_price_as_of"),
+            "companyName": row.get("market_company_name"),
             "targetPrice": row["target_price"],
             "analystTarget1y": row.get("market_analyst_target_1y"),
             "analystTargetLow": row.get("market_analyst_target_low"),

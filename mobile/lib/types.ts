@@ -53,8 +53,15 @@ export interface PortfolioSymbol {
   symbol: string;
   currentPrice?: number | null;
   dayChangePct?: number | null;
+  companyName?: string | null;
   targetPrice?: number | null;
   analystTarget1y?: number | null;
+  analystTargetLow?: number | null;
+  analystTargetHigh?: number | null;
+  tradeBelowPrice?: number | null;
+  tradeBelowShares?: number | null;
+  tradeAbovePrice?: number | null;
+  tradeAboveShares?: number | null;
   buyBelow?: number | null;
   sellAbove?: number | null;
   annualDividend?: number | null;
@@ -96,11 +103,17 @@ export interface PortfolioRow {
   unrealizedGain?: number | null;
   gainPct?: number | null;
   analystTarget1y?: number | null;
+  analystTargetLow?: number | null;
+  analystTargetHigh?: number | null;
   analystUpsidePct?: number | null;
   analystTargetValue?: number | null;
   personalTarget?: number | null;
   personalUpsidePct?: number | null;
   personalTargetValue?: number | null;
+  tradeBelowPrice?: number | null;
+  tradeBelowShares?: number | null;
+  tradeAbovePrice?: number | null;
+  tradeAboveShares?: number | null;
 }
 
 export interface Alert {

@@ -22,6 +22,7 @@ import {
   recoChangesCounts,
   type RecoChangesDirFilter,
 } from "@/lib/newsFilters";
+import { formatShortDateTime } from "@/lib/format";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { NewsFeed, NewsItem } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
@@ -148,7 +149,7 @@ export default function NewsScreen() {
   }
 
   const subtitle = data?.newsCheckedAt
-    ? `Checked ${data.newsCheckedAt}${split ? " · tap ⤢ to expand a column" : " · tap Split to show both"}`
+    ? `Checked ${formatShortDateTime(data.newsCheckedAt)}${split ? " · tap ⤢ to expand a column" : " · tap Split to show both"}`
     : split
       ? "Tap ⤢ on a column header to expand"
       : "Tap Split to show both columns";

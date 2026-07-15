@@ -111,20 +111,19 @@ function StickyCell({
     );
   }
 
-  if (col.kind === "range52") {
-    return (
-      <View style={[styles.rangeCell, { width }]}>
-        <RangeBar row={row} width={width - spacing.sm} />
-      </View>
-    );
-  }
-
   return null;
 }
 
 function ScrollCell({ row, col, width }: { row: FundamentalsRow; col: FundamentalsColumn; width: number }) {
   const rendered = renderFundamentalsCell(row, col);
   if ("custom" in rendered) {
+    if (rendered.custom === "range52") {
+      return (
+        <View style={[styles.dataCell, { width }, styles.alignRightCell]}>
+          <RangeBar row={row} width={width - spacing.xs} />
+        </View>
+      );
+    }
     if (rendered.custom === "targetRange") {
       return (
         <View style={[styles.dataCell, { width }]}>

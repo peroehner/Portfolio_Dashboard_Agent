@@ -807,11 +807,28 @@ def list_fundamentals():
     for meta in symbols_meta:
         symbol = meta["symbol"]
         data = enrichment.get(symbol.upper(), {})
+        fundamentals = dict(data.get("fundamentals", {}) or {})
+        analyst = dict(fundamentals.get("analyst", {}) or {})
+        for fund_key, meta_key in (
+            ("targetMean", "analystTarget1y"),
+            ("targetLow", "analystTargetLow"),
+            ("targetHigh", "analystTargetHigh"),
+        ):
+            if analyst.get(fund_key) is None and meta.get(meta_key) is not None:
+                analyst[fund_key] = meta.get(meta_key)
+        if analyst:
+            fundamentals["analyst"] = analyst
+        profile = dict(fundamentals.get("profile", {}) or {})
+        if not profile.get("name") and meta.get("companyName"):
+            profile["name"] = meta.get("companyName")
+        if profile:
+            fundamentals["profile"] = profile
         row = {
             "symbol": symbol,
             "currentPrice": meta.get("currentPrice"),
             "dayChangePct": meta.get("dayChangePct"),
-            "fundamentals": data.get("fundamentals", {}),
+            "companyName": meta.get("companyName"),
+            "fundamentals": fundamentals,
         }
         if include_news:
             row["recentNews"] = data.get("recentNews", [])

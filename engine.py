@@ -79,15 +79,17 @@ class PortfolioEngine:
 
         quotes = {}
         for ticker in tickers:
+            info = self._fetch_ticker_info(ticker)
             analyst_targets = (
-                self._fetch_analyst_targets(ticker)
+                self._analyst_targets_from_info(info)
                 if include_analyst_targets
                 else {"mean": None, "low": None, "high": None}
             )
             price = prices[ticker]
             day_pct = day_changes.get(ticker)
             if day_pct is None:
-                day_pct = self._fetch_day_change_pct(ticker, price)
+                day_pct = self._day_change_pct_from_info(info, price)
+            company_name = info.get("longName") or info.get("shortName")
             quotes[ticker] = {
                 "currentPrice": (
                     round(float(price), 2)
@@ -98,16 +100,22 @@ class PortfolioEngine:
                 "analystTarget1y": analyst_targets["mean"],
                 "analystTargetLow": analyst_targets["low"],
                 "analystTargetHigh": analyst_targets["high"],
+                "companyName": company_name,
                 "priceAsOf": price_as_of.get(ticker),
             }
         return quotes
 
-    def _fetch_day_change_pct(self, ticker: str, price: float | None) -> float | None:
-        """Session day change from yfinance info (works on non-trading days via last close)."""
+    def _fetch_ticker_info(self, ticker: str) -> dict:
         from services.market_cache import make_ticker, ticker_info_cache
 
         try:
-            info = ticker_info_cache.get(ticker.upper(), lambda: make_ticker(ticker).info)
+            return ticker_info_cache.get(ticker.upper(), lambda: make_ticker(ticker).info) or {}
+        except Exception as e:
+            logging.warning(f"Failed to fetch ticker info for {ticker}: {e}")
+            return {}
+
+    def _day_change_pct_from_info(self, info: dict, price: float | None) -> float | None:
+        try:
             pct = info.get("regularMarketChangePercent")
             if pct is not None:
                 return round(float(pct), 2)
@@ -124,19 +132,12 @@ class PortfolioEngine:
             if change is not None and previous_close:
                 return round(float(change) / float(previous_close) * 100, 2)
         except Exception as e:
-            logging.warning(f"Failed to fetch day change for {ticker}: {e}")
+            logging.warning(f"Failed to parse day change from info: {e}")
         return None
 
-    def _fetch_analyst_target(self, ticker: str) -> float | None:
-        return self._fetch_analyst_targets(ticker)["mean"]
-
-    def _fetch_analyst_targets(self, ticker: str) -> dict[str, float | None]:
-        """Analyst 1Y target mean/low/high from the cached yfinance info."""
-        from services.market_cache import make_ticker, ticker_info_cache
-
+    def _analyst_targets_from_info(self, info: dict) -> dict[str, float | None]:
         result: dict[str, float | None] = {"mean": None, "low": None, "high": None}
         try:
-            info = ticker_info_cache.get(ticker.upper(), lambda: make_ticker(ticker).info)
             for key, field in (
                 ("mean", "targetMeanPrice"),
                 ("low", "targetLowPrice"),
@@ -146,8 +147,19 @@ class PortfolioEngine:
                 if value is not None:
                     result[key] = round(float(value), 2)
         except Exception as e:
-            logging.warning(f"Failed to fetch analyst targets for {ticker}: {e}")
+            logging.warning(f"Failed to parse analyst targets from info: {e}")
         return result
+
+    def _fetch_day_change_pct(self, ticker: str, price: float | None) -> float | None:
+        """Session day change from yfinance info (works on non-trading days via last close)."""
+        return self._day_change_pct_from_info(self._fetch_ticker_info(ticker), price)
+
+    def _fetch_analyst_target(self, ticker: str) -> float | None:
+        return self._fetch_analyst_targets(ticker)["mean"]
+
+    def _fetch_analyst_targets(self, ticker: str) -> dict[str, float | None]:
+        """Analyst 1Y target mean/low/high from the cached yfinance info."""
+        return self._analyst_targets_from_info(self._fetch_ticker_info(ticker))
 
     def analyze_asset_sentiment(self, texts):
         """AI analysis of stock news or fundamental text."""

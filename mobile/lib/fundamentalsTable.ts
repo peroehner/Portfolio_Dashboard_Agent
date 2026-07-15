@@ -61,7 +61,31 @@ export function fundRangePosition(row: FundamentalsRow): number | null {
   const high = fundNum(fundVal(row, "priceRange", "high52w"));
   const low = fundNum(fundVal(row, "priceRange", "low52w"));
   if (price == null || high == null || low == null || high <= low) return null;
-  return ((price - low) / (high - low)) * 100;
+  const raw = ((price - low) / (high - low)) * 100;
+  return Math.max(0, Math.min(100, raw));
+}
+
+export function recommendationRank(key: unknown): number | null {
+  const normalized = String(key || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_");
+  switch (normalized) {
+    case "strong_buy":
+      return 5;
+    case "buy":
+      return 4;
+    case "hold":
+      return 3;
+    case "underperform":
+      return 2;
+    case "sell":
+      return 2;
+    case "strong_sell":
+      return 1;
+    default:
+      return null;
+  }
 }
 
 export function targetMeanDeviation(row: FundamentalsRow): number | null {
@@ -74,10 +98,10 @@ export function targetMeanDeviation(row: FundamentalsRow): number | null {
 const VAL_STICKY: FundamentalsColumn[] = [
   { key: "symbol", label: "Symbol", width: 68, kind: "symbol" },
   { key: "price", label: "Price", width: 76, align: "right", kind: "price" },
-  { key: "range52", label: "52W Range %", width: 112, align: "right", kind: "range52" },
 ];
 
 const VAL_SCROLL: FundamentalsColumn[] = [
+  { key: "range52", label: "52W Range %", width: 112, align: "right", kind: "range52" },
   { key: "sector", label: "Sector", width: 88, kind: "text" },
   { key: "mktCap", label: "Mkt Cap", width: 72, align: "right", kind: "largeMoney" },
   { key: "ttmPe", label: "P/E", width: 56, align: "right", kind: "ratio" },
@@ -190,7 +214,7 @@ function sortValue(row: FundamentalsRow, key: FundamentalsSortKey): string | num
     case "debt":
       return fundNum(fundVal(row, "financialHealth", "totalDebt"));
     case "rec":
-      return String(fundVal(row, "analyst", "recommendationKey") || "");
+      return recommendationRank(fundVal(row, "analyst", "recommendationKey"));
     case "tgtRange":
       return targetMeanDeviation(row);
     case "analysts":

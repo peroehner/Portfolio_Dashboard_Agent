@@ -200,6 +200,7 @@ class MarketDataService:
                         analyst_low,
                         analyst_high,
                         as_of,
+                        company_name,
                     )
                 ):
                     continue

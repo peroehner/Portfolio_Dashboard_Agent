@@ -9,6 +9,7 @@ import type { FundamentalsRow } from "@/lib/types";
 
 const TRACK_HEIGHT = 5;
 const KNOB_R = 5;
+const ROW_HEIGHT = 44;
 
 interface RangeBarProps {
   row: FundamentalsRow;
@@ -35,7 +36,7 @@ export function RangeBar({ row, width = 100 }: RangeBarProps) {
     return <Text style={styles.empty}>—</Text>;
   }
 
-  const pos = Math.max(0, Math.min(100, position));
+  const pos = position;
   const label = `${position.toFixed(0)}%`;
   const knobX = (pos / 100) * width;
   const trackY = 18;
@@ -123,19 +124,29 @@ export function TargetRangeBar({ row, width = 110 }: { row: FundamentalsRow; wid
   const low = fundNum(fundVal(row, "analyst", "targetLow"));
   const mean = fundNum(fundVal(row, "analyst", "targetMean"));
   const high = fundNum(fundVal(row, "analyst", "targetHigh"));
-  if (price == null || low == null || mean == null || high == null || high <= low) {
+  if (price == null || mean == null || mean === 0) {
     return <Text style={styles.empty}>—</Text>;
   }
 
-  const dev = mean !== 0 ? ((price - mean) / mean) * 100 : null;
-  if (dev == null) return <Text style={styles.empty}>—</Text>;
+  const dev = ((price - mean) / mean) * 100;
+  const sign = dev < 0 ? "▼" : "▲";
+  const color = dev >= 0 ? colors.buy : colors.sell;
+
+  if (low == null || high == null || high <= low) {
+    return (
+      <View style={[styles.wrap, styles.wrapCompact, { width }]}>
+        <Text style={[styles.targetPctOnly, { color }]} numberOfLines={1}>
+          {sign}
+          {Math.abs(dev).toFixed(1)}%
+        </Text>
+      </View>
+    );
+  }
 
   const span = high - low;
   const clamp = (v: number) => Math.max(0, Math.min(100, v));
   const pricePos = clamp(((price - low) / span) * 100);
   const meanPos = clamp(((mean - low) / span) * 100);
-  const sign = dev < 0 ? "▼" : "▲";
-  const color = dev >= 0 ? colors.buy : colors.sell;
   const gradId = `target-${row.symbol}`;
 
   return (
@@ -206,6 +217,11 @@ const styles = StyleSheet.create({
     position: "relative",
     zIndex: 1,
   },
+  wrapCompact: {
+    height: ROW_HEIGHT,
+    alignItems: "flex-end",
+    paddingRight: 2,
+  },
   tooltip: {
     position: "absolute",
     top: -2,
@@ -251,6 +267,10 @@ const styles = StyleSheet.create({
     right: 0,
     top: 8,
     fontSize: 10,
+    fontWeight: "700",
+  },
+  targetPctOnly: {
+    fontSize: 11,
     fontWeight: "700",
   },
   empty: {

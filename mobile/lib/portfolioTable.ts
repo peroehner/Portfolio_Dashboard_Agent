@@ -5,6 +5,7 @@ export type PortfolioSortKey =
   | "sai"
   | "currentPrice"
   | "dayChangePct"
+  | "tradeBand"
   | "quantity"
   | "marketValue"
   | "weightPct"
@@ -34,6 +35,7 @@ export interface PortfolioColumn {
   money?: boolean;
   price?: boolean;
   sticky?: boolean;
+  tradeBand?: boolean;
 }
 
 export const STICKY_COLUMNS: PortfolioColumn[] = [
@@ -44,6 +46,7 @@ export const STICKY_COLUMNS: PortfolioColumn[] = [
 export const PORTFOLIO_SCROLL_COLUMNS: PortfolioColumn[] = [
   { key: "currentPrice", label: "Price", width: 78, align: "right", price: true },
   { key: "dayChangePct", label: "Day %", width: 64, align: "right", pct: true },
+  { key: "tradeBand", label: "Trade", width: 150, tradeBand: true },
   { key: "quantity", label: "Qty", width: 56, align: "right" },
   { key: "marketValue", label: "Value", width: 72, align: "right", money: true },
   { key: "weightPct", label: "Wt %", width: 58, align: "right" },
@@ -118,6 +121,19 @@ function upsidePct(target: number | null | undefined, price: number | null | und
   return Math.round(((target - price) / price) * 10000) / 100;
 }
 
+export function tradeBandClosestDist(row: PortfolioRow): number {
+  const price = row.currentPrice;
+  if (price == null || price === 0) return Infinity;
+  const dists: number[] = [];
+  if (row.tradeBelowPrice != null) {
+    dists.push((Math.abs(price - row.tradeBelowPrice) / price) * 100);
+  }
+  if (row.tradeAbovePrice != null) {
+    dists.push((Math.abs(row.tradeAbovePrice - price) / price) * 100);
+  }
+  return dists.length ? Math.min(...dists) : Infinity;
+}
+
 function buildRow(
   symbol: PortfolioSymbol,
   holding: Holding | undefined,
@@ -141,11 +157,17 @@ function buildRow(
     unrealizedGain: holding?.unrealizedGain ?? null,
     gainPct: holding?.gainPct ?? null,
     analystTarget1y,
+    analystTargetLow: symbol.analystTargetLow ?? null,
+    analystTargetHigh: symbol.analystTargetHigh ?? null,
     analystUpsidePct: holding?.analystUpsidePct ?? upsidePct(analystTarget1y, currentPrice),
     analystTargetValue: holding?.analystTargetValue ?? null,
     personalTarget,
     personalUpsidePct: holding?.personalUpsidePct ?? upsidePct(personalTarget, currentPrice),
     personalTargetValue: holding?.personalTargetValue ?? null,
+    tradeBelowPrice: symbol.tradeBelowPrice ?? symbol.buyBelow ?? null,
+    tradeBelowShares: symbol.tradeBelowShares ?? null,
+    tradeAbovePrice: symbol.tradeAbovePrice ?? symbol.sellAbove ?? null,
+    tradeAboveShares: symbol.tradeAboveShares ?? null,
   };
 }
 
@@ -173,6 +195,10 @@ export function buildPortfolioRows(
 function sortValue(row: PortfolioRow, key: PortfolioSortKey): string | number | null {
   if (key === "symbol") return row.symbol;
   if (key === "sai") return actionRank(row.saiAction);
+  if (key === "tradeBand") {
+    const dist = tradeBandClosestDist(row);
+    return dist === Infinity ? null : dist;
+  }
   return row[key as keyof PortfolioRow] as number | null;
 }
 

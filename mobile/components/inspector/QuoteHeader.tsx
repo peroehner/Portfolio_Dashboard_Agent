@@ -13,16 +13,16 @@ interface QuoteHeaderProps {
 export function QuoteHeader({ companyName, price, dayChangePct }: QuoteHeaderProps) {
   return (
     <View style={styles.wrap}>
-      {companyName ? (
-        <Text style={styles.company} numberOfLines={2}>
-          {companyName}
-        </Text>
-      ) : null}
       <View style={styles.priceRow}>
         <Text style={styles.price}>{formatPrice(price)}</Text>
         <Text style={[styles.change, { color: pctColor(dayChangePct) }]}>
           {formatPct(dayChangePct)}
         </Text>
+        {companyName ? (
+          <Text style={styles.company} numberOfLines={2}>
+            {companyName}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -104,17 +104,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xs,
     paddingBottom: spacing.sm,
-    gap: 4,
-  },
-  company: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: "700",
-    lineHeight: 20,
   },
   priceRow: {
     flexDirection: "row",
     alignItems: "baseline",
+    flexWrap: "wrap",
     gap: spacing.sm,
   },
   price: {
@@ -125,6 +119,14 @@ const styles = StyleSheet.create({
   change: {
     fontSize: 16,
     fontWeight: "700",
+  },
+  company: {
+    flex: 1,
+    minWidth: 120,
+    color: colors.textMuted,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 18,
   },
   card: {
     backgroundColor: colors.surface,

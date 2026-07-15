@@ -12,6 +12,7 @@ import {
 } from "react-native";
 
 import { SaiBadge } from "@/components/SaiBadge";
+import { TradeBandBar } from "@/components/TradeBandBar";
 import {
   formatMoney,
   formatPct,
@@ -193,18 +194,23 @@ export function PortfolioTable({
                           styles.dataCell,
                           { width: col.width },
                           col.align === "right" && styles.alignRightCell,
+                          col.tradeBand && styles.tradeBandCell,
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.cellText,
-                            col.align === "right" && styles.alignRight,
-                            { color: cellColor(row, col) },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {renderCell(row, col)}
-                        </Text>
+                        {col.tradeBand ? (
+                          <TradeBandBar row={row} width={col.width - spacing.xs} />
+                        ) : (
+                          <Text
+                            style={[
+                              styles.cellText,
+                              col.align === "right" && styles.alignRight,
+                              { color: cellColor(row, col) },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {renderCell(row, col)}
+                          </Text>
+                        )}
                       </View>
                     ))}
                   </Pressable>
@@ -334,6 +340,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.xs,
     height: ROW_HEIGHT,
+  },
+  tradeBandCell: {
+    overflow: "visible",
+    zIndex: 1,
   },
   cellText: {
     color: colors.text,

@@ -16,7 +16,7 @@ import { KpiCard } from "@/components/KpiCard";
 import { Screen } from "@/components/Screen";
 import type { AllocationMode } from "@/lib/allocationChart";
 import { api, getApiHostLabel, showApiHostInDev } from "@/lib/api";
-import { formatMoney, formatPct, pctColor } from "@/lib/format";
+import { formatMoney, formatPct, formatShortDateTime, pctColor } from "@/lib/format";
 import { colors, spacing } from "@/lib/theme";
 import { useApiQuery } from "@/lib/useApiQuery";
 
@@ -27,7 +27,7 @@ export default function OverviewScreen() {
 
   const subtitle = useMemo(() => {
     const parts: string[] = [];
-    if (data?.pricesAsOf) parts.push(`Prices ${data.pricesAsOf}`);
+    if (data?.pricesAsOf) parts.push(`Prices ${formatShortDateTime(data.pricesAsOf)}`);
     if (showApiHostInDev()) parts.push(getApiHostLabel());
     return parts.join(" · ");
   }, [data?.pricesAsOf]);
