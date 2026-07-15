@@ -60,6 +60,14 @@
       z-index: 10;
       background: var(--panel);
     }
+    /* Phones / narrow viewports: sticky header+tabs consume most of the screen.
+       Let chrome scroll away with the page; desktop keeps sticky for table work. */
+    @media (max-width: 900px) {
+      .app-chrome {
+        position: static;
+        z-index: auto;
+      }
+    }
     h1 { margin: 0; font-size: 1.15rem; }
     .brand {
       display: flex;
@@ -8255,9 +8263,18 @@
       return null;
     }
 
+    // Dollar day move for the position: market value × day % (respects quantity).
+    function holdingsDayChange(row) {
+      const pct = Number(row.dayChangePct);
+      const value = Number(row.marketValue);
+      if (!Number.isFinite(pct) || !Number.isFinite(value) || value === 0) return null;
+      return (value * pct) / 100;
+    }
+
     const holdingsColumns = [
       { key: "symbol", label: "Symbol", sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="openHoldingsInspector('${row.symbol}'); return false;">${row.symbol}</a>` },
       { key: "currentPrice", label: "Price", sortValue: (row) => row.currentPrice, render: (row) => formatMoney(row.currentPrice) },
+      { key: "dayChange", label: "Day", sortValue: (row) => holdingsDayChange(row), render: (row) => renderHoldingsCompactMoneyCell(holdingsDayChange(row)) },
       { key: "dayChangePct", label: "Day %", coloredPercent: true, sortValue: (row) => row.dayChangePct, render: (row) => renderColoredPercentCell(row.dayChangePct) },
       { key: "quantity", label: "Qty", sortValue: (row) => row.quantity, render: (row) => row.quantity },
       { key: "marketValue", label: "Value", sortValue: (row) => row.marketValue, render: (row) => formatHoldingsCompactMoney(row.marketValue) },
@@ -8343,9 +8360,12 @@
       const label = useSelection ? `TOTAL · ${rows.length} selected` : "TOTAL";
       const cellByKey = {
         symbol: `<strong>${label}</strong>`,
+        dayChange: dayWeightBase
+          ? `<strong>${renderHoldingsCompactMoneyCell(dayChangeAmt)}</strong>`
+          : "—",
         dayChangePct: dayPct == null
           ? "—"
-          : `<strong>${renderColoredPercentCell(dayPct)}</strong> ${renderColoredMoneyInParens(dayChangeAmt)}`,
+          : `<strong>${renderColoredPercentCell(dayPct)}</strong>`,
         marketValue: `<strong>${formatSummaryMoney(totalValue)}</strong>`,
         weightPct: weightPct == null ? "—" : `${weightPct.toFixed(2)}%`,
         unrealizedGain: `<strong>${renderHoldingsCompactMoneyCell(totalGain)}</strong>`,
@@ -8831,6 +8851,12 @@
         label: "Pattern",
         sortValue: (row) => symbolPatterns[row.symbol]?.name || "",
         render: (row) => renderScreeningPatternCell(row),
+      },
+      {
+        key: "currentPrice",
+        label: "Price",
+        sortValue: (row) => row.currentPrice,
+        render: (row) => formatMoney(row.currentPrice),
       },
       {
         key: "tradeBand",
@@ -9925,6 +9951,7 @@
     const simulationColumns = [
       { key: "symbol", label: "Symbol", rowKey: true, help: SIM_SYMBOL_HELP, sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
       { key: "cashInvested", label: "Invested", sortValue: (row) => row.cashInvested, render: (row) => (row.cashInvested ? formatMoney(row.cashInvested) : "—") },
+      { key: "currentPrice", label: "Price", sortValue: (row) => row.currentPrice, render: (row) => formatMoney(row.currentPrice) },
       { key: "buy", label: "Buy @ ×Sh", sortValue: (row) => row.cashInvested, render: (row) => simLegCell(row.buyLegList) },
       { key: "sell", label: "Sell @ ×Sh", sortValue: (row) => row.cashGenerated, render: (row) => simLegCell(row.sellLegList) },
       { key: "closePct", label: "Close %", help: SIM_CLOSE_PCT_HELP, sortValue: (row) => { const m = simClosestMeta(row); return m ? m.dist : Infinity; }, render: (row) => {
