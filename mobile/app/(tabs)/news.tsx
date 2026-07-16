@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
   Pressable,
@@ -12,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { NewsCard, SaiChangeCard } from "@/components/NewsCards";
+import { NewsArticleModal } from "@/components/NewsArticleModal";
 import { NoteModal, type NoteDraft } from "@/components/NoteModal";
 import { Screen } from "@/components/Screen";
 import { api } from "@/lib/api";
@@ -113,6 +115,7 @@ export default function NewsScreen() {
   const [dirFilter, setDirFilter] = useState<RecoChangesDirFilter>("");
   const [expanded, setExpanded] = useState<Pane | null>(null);
   const [noteDraft, setNoteDraft] = useState<NoteDraft | null>(null);
+  const [newsArticle, setNewsArticle] = useState<NewsItem | null>(null);
   const { data, loading, error, refresh } = useApiQuery<NewsFeed>(
     () => api.newsFeed(),
     [],
@@ -146,6 +149,10 @@ export default function NewsScreen() {
 
   function toggleDirFilter(dir: "up" | "down") {
     setDirFilter((prev) => (prev === dir ? "" : dir));
+  }
+
+  function openPortfolioSymbol(symbol: string) {
+    router.push({ pathname: "/portfolio", params: { symbol: symbol.toUpperCase() } });
   }
 
   const subtitle = data?.newsCheckedAt
@@ -241,6 +248,7 @@ export default function NewsScreen() {
                       key={`${change.symbol}-${changeTimestamp(change) ?? idx}-${idx}`}
                       change={change}
                       compact={split}
+                      onOpenPortfolio={openPortfolioSymbol}
                     />
                   ))
                 )}
@@ -280,6 +288,7 @@ export default function NewsScreen() {
                       item={item}
                       compact={split}
                       onAddNote={(newsItem) => setNoteDraft(buildNoteDraftFromNews(newsItem))}
+                      onOpenNews={setNewsArticle}
                     />
                   ))
                 )}
@@ -292,6 +301,11 @@ export default function NewsScreen() {
           visible={!!noteDraft}
           draft={noteDraft}
           onClose={() => setNoteDraft(null)}
+        />
+        <NewsArticleModal
+          visible={!!newsArticle}
+          item={newsArticle}
+          onClose={() => setNewsArticle(null)}
         />
       </Screen>
     </SafeAreaView>

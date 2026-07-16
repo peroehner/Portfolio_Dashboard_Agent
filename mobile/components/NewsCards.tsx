@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
+import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { SaiBadge } from "@/components/SaiBadge";
-import { formatRelativeDate } from "@/lib/format";
+import { formatRelativeDate, formatShortDateTime } from "@/lib/format";
 import { headlineForAction } from "@/lib/inspectorHelpers";
 import { changeTimestamp } from "@/lib/newsFilters";
 import { colors, radii, spacing } from "@/lib/theme";
@@ -16,26 +16,53 @@ interface CompactProps {
 interface NewsCardProps extends CompactProps {
   item: NewsItem;
   onAddNote?: (item: NewsItem) => void;
+  onOpenNews?: (item: NewsItem) => void;
 }
 
-export function NewsCard({ item, compact, onAddNote }: NewsCardProps) {
+interface SaiChangeCardProps extends CompactProps {
+  change: RecommendationChange;
+  onOpenPortfolio?: (symbol: string) => void;
+}
+
+function SymbolLink({
+  symbol,
+  compact,
+}: {
+  symbol: string;
+  compact?: boolean;
+}) {
   return (
-    <View style={[styles.card, compact && styles.cardCompact]}>
+    <Pressable
+      style={styles.symbolPress}
+      onPress={() => router.push(`/symbol/${symbol}`)}
+      hitSlop={4}
+    >
+      <Text style={[styles.symbol, compact && styles.symbolCompact]} numberOfLines={1}>
+        {symbol}
+      </Text>
+    </Pressable>
+  );
+}
+
+export function NewsCard({ item, compact, onAddNote, onOpenNews }: NewsCardProps) {
+  return (
+    <Pressable
+      style={[styles.card, compact && styles.cardCompact]}
+      onPress={() => onOpenNews?.(item)}
+      disabled={!onOpenNews}
+    >
       <View style={styles.metaRow}>
-        <Link href={`/symbol/${item.symbol}`} asChild>
-          <Pressable style={styles.symbolPress}>
-            <Text style={[styles.symbol, compact && styles.symbolCompact]} numberOfLines={1}>
-              {item.symbol}
-            </Text>
-          </Pressable>
-        </Link>
+        <SymbolLink symbol={item.symbol} compact={compact} />
         <View style={styles.metaRight}>
           {item.published ? (
             <Text style={styles.date}>{formatRelativeDate(item.published)}</Text>
           ) : null}
           {onAddNote ? (
             <Pressable
-              onPress={() => onAddNote(item)}
+              onPress={(e) => {
+                e.stopPropagation();
+                onAddNote(item);
+              }}
               hitSlop={8}
               accessibilityLabel="Add note from news"
             >
@@ -53,29 +80,27 @@ export function NewsCard({ item, compact, onAddNote }: NewsCardProps) {
           {item.summary}
         </Text>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
-export function SaiChangeCard({ change, compact }: { change: RecommendationChange } & CompactProps) {
+export function SaiChangeCard({ change, compact, onOpenPortfolio }: SaiChangeCardProps) {
   const ts = changeTimestamp(change);
   const metaParts = [
-    ts ? formatRelativeDate(ts) : "",
+    ts ? formatShortDateTime(ts) : "",
     change.newConfidence ? `${change.newConfidence} confidence` : "",
   ].filter(Boolean);
   const meta = metaParts.join(" · ");
 
   if (compact) {
     return (
-      <View style={[styles.card, styles.cardCompact]}>
+      <Pressable
+        style={[styles.card, styles.cardCompact]}
+        onPress={() => onOpenPortfolio?.(change.symbol)}
+        disabled={!onOpenPortfolio}
+      >
         <View style={styles.metaRow}>
-          <Link href={`/symbol/${change.symbol}`} asChild>
-            <Pressable style={styles.symbolPress}>
-              <Text style={[styles.symbol, styles.symbolCompact]} numberOfLines={1}>
-                {change.symbol}
-              </Text>
-            </Pressable>
-          </Link>
+          <SymbolLink symbol={change.symbol} compact />
           {meta ? <Text style={styles.date}>{meta}</Text> : null}
         </View>
         <View style={styles.changeRow}>
@@ -83,29 +108,31 @@ export function SaiChangeCard({ change, compact }: { change: RecommendationChang
           <Text style={styles.arrow}>→</Text>
           <SaiBadge action={change.newAction} compact />
         </View>
-      </View>
+      </Pressable>
     );
   }
 
   return (
-    <Link href={`/symbol/${change.symbol}`} asChild>
-      <Pressable style={styles.card}>
-        <View style={styles.recoRow}>
-          <View style={styles.recoLeft}>
-            <View style={styles.recoLine}>
-              <Text style={styles.symbol}>{change.symbol}</Text>
-              <SaiBadge action={change.oldAction} compact />
-              <Text style={styles.arrow}>→</Text>
-              <SaiBadge action={change.newAction} compact />
-            </View>
-            {meta ? <Text style={styles.recoMeta}>{meta}</Text> : null}
+    <Pressable
+      style={styles.card}
+      onPress={() => onOpenPortfolio?.(change.symbol)}
+      disabled={!onOpenPortfolio}
+    >
+      <View style={styles.recoRow}>
+        <View style={styles.recoLeft}>
+          <View style={styles.recoLine}>
+            <SymbolLink symbol={change.symbol} />
+            <SaiBadge action={change.oldAction} compact />
+            <Text style={styles.arrow}>→</Text>
+            <SaiBadge action={change.newAction} compact />
           </View>
-          <Text style={styles.recoHeadline} numberOfLines={3} ellipsizeMode="tail">
-            {headlineForAction(change.newAction)}
-          </Text>
+          {meta ? <Text style={styles.recoMeta}>{meta}</Text> : null}
         </View>
-      </Pressable>
-    </Link>
+        <Text style={styles.recoHeadline} numberOfLines={3} ellipsizeMode="tail">
+          {headlineForAction(change.newAction)}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 

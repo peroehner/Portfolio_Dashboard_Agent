@@ -2675,6 +2675,12 @@
       border-color: var(--accent);
       background: rgba(139, 92, 246, 0.08);
     }
+    .reco-change.reco-stale {
+      opacity: 0.52;
+    }
+    .reco-change.reco-stale:hover {
+      opacity: 0.72;
+    }
     .reco-change .reco-line {
       display: flex;
       align-items: center;
@@ -7575,12 +7581,15 @@
       return `<span class="chip ${value}">${value}</span>`;
     }
 
-    function renderRecoChange(change) {
-      const meta = [formatLocalTs(change.createdAt), change.newConfidence ? `${change.newConfidence} confidence` : ""]
+    function renderRecoChange(change, isLatest = true) {
+      const ts = change.createdAt || change.changedAt;
+      const meta = [formatPanelDateTime(ts), change.newConfidence ? `${change.newConfidence} confidence` : ""]
         .filter(Boolean)
         .join(" · ");
+      const staleClass = isLatest ? "" : " reco-stale";
+      const safeSymbol = String(change.symbol || "").replace(/'/g, "\\'");
       return `
-        <div class="reco-change" onclick="openInspectorSymbol('${change.symbol}', 'recommendation')" title="Open ${change.symbol} in Inspector">
+        <div class="reco-change${staleClass}" onclick="openScreeningSymbol('${safeSymbol}')" title="Open ${change.symbol} in Screening">
           <div class="reco-line">
             <strong>${change.symbol}</strong>
             ${actionChip(change.oldAction)}
@@ -7607,7 +7616,7 @@
     }
 
     function renderTopNewsItem(item) {
-      const meta = [item.publisher, formatLocalTs(item.published)].filter(Boolean).join(" · ");
+      const meta = [item.publisher, formatPanelDate(item.published)].filter(Boolean).join(" · ");
       const badge = renderNewsReactBadge(item);
       const addNoteBtn = renderNewsAddNoteButton(item);
       return `
@@ -7884,8 +7893,14 @@
       if (recoMeta) {
         recoMeta.textContent = changes.length ? `${changes.length} · ▲${upN} · ▼${downN}` : "";
       }
+      const seenSymbols = new Set();
       recoEl.innerHTML = changes.length
-        ? `<div class="topnews-feed">${changes.map(renderRecoChange).join("")}</div>`
+        ? `<div class="topnews-feed">${changes.map((change) => {
+          const symbol = String(change.symbol || "").toUpperCase();
+          const isLatest = symbol ? !seenSymbols.has(symbol) : true;
+          if (symbol) seenSymbols.add(symbol);
+          return renderRecoChange(change, isLatest);
+        }).join("")}</div>`
         : `<div class="empty">${recoChangesAll.length && recoChangesFiltersActive() ? "No SAI changes match the current filter." : "No Synthesized Agent Insight (SAI) changes yet. Run Assess Portfolio to start tracking."}</div>`;
     }
 
@@ -8040,11 +8055,36 @@
         </div>`;
     }
 
-    // The assessment run completed at the newest assessedAt (overview is sorted
-    // newest-first), shown in the Latest Agent Reads header as "YYYY-MM-DD HH:MM:SS".
-    // Server timestamps are UTC wall-clock with no tz designator. Parse them as
-    // UTC and render "YYYY-MM-DD HH:MM:SS" in the viewer's LOCAL timezone.
-    // Date-only values (no time) are returned unchanged so they never shift days.
+    // Panel timestamps: "Jul 8 15:49" in local time. Date-only inputs stay "Jul 8".
+    function parsePanelDate(ts) {
+      if (!ts) return null;
+      const raw = String(ts).trim();
+      if (!raw) return null;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        const d = new Date(`${raw}T12:00:00`);
+        return Number.isNaN(d.getTime()) ? null : d;
+      }
+      const hasTz = /[zZ]$/.test(raw) || /[+-]\d{2}:?\d{2}$/.test(raw);
+      const iso = hasTz ? raw : raw.replace(" ", "T") + "Z";
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    function formatPanelDate(ts) {
+      const d = parsePanelDate(ts);
+      if (!d) return String(ts || "").trim().slice(0, 10);
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    }
+
+    function formatPanelDateTime(ts) {
+      const d = parsePanelDate(ts);
+      if (!d) return String(ts || "").trim().slice(0, 16).replace("T", " ");
+      const datePart = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${datePart} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    // Legacy full timestamp for places that still need seconds.
     function formatLocalTs(ts) {
       if (!ts) return "";
       const raw = String(ts).trim();
@@ -8059,7 +8099,7 @@
     }
 
     function formatAssessmentRunTs(ts) {
-      return formatLocalTs(ts);
+      return formatPanelDateTime(ts);
     }
 
     function renderLatestAssessments() {
@@ -12732,6 +12772,59 @@
     async function openInspectorSymbol(symbol, section = null) {
       showView("inspector");
       await loadInspector(symbol, "inspectorPanel", section);
+    }
+
+    function screeningSymbolVisible(symbol, rows) {
+      return applyScreeningFilter(rows || []).some((row) => row.symbol === symbol);
+    }
+
+    function clearScreeningFilters() {
+      screeningFilter = "all";
+      screeningSentimentFilter = "all";
+      virtualPortfolioSymbols.screening = null;
+      updateScreeningFilterButtons();
+    }
+
+    function focusScreeningRow(symbol) {
+      tableSelection.screening = symbol;
+      selectedSymbol = symbol;
+      renderScreeningView(viewDataCache.screening.data);
+      requestAnimationFrame(() => {
+        const table = document.querySelector("#screeningTable table.data");
+        const row = document.querySelector(`#screeningTable tr[data-row-key="${symbol}"]`);
+        if (!row) return;
+        table?.querySelectorAll("tbody tr.row-selected").forEach((tr) => tr.classList.remove("row-selected"));
+        row.classList.add("row-selected");
+        row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    }
+
+    async function openScreeningSymbol(symbol) {
+      symbol = String(symbol || "").toUpperCase();
+      if (!symbol) return;
+      if (!viewDataCache.screening.data) {
+        await loadScreening("", true);
+      }
+      const rows = viewDataCache.screening.data || [];
+      if (!rows.some((row) => row.symbol === symbol)) {
+        setStatus(`${symbol} is not in the screening list.`, "error");
+        return;
+      }
+      if (!screeningSymbolVisible(symbol, rows)) {
+        const filterLabel = tabFilterLabel("screening");
+        const ok = window.confirm(
+          `${symbol} is hidden by the active Screening filter (${filterLabel}). Clear filters and show ${symbol}?`
+        );
+        if (!ok) return;
+        clearScreeningFilters();
+        if (!screeningSymbolVisible(symbol, rows)) {
+          setStatus(`${symbol} still cannot be shown in Screening.`, "error");
+          return;
+        }
+      }
+      showView("screening");
+      focusScreeningRow(symbol);
+      setStatus(`Screening · ${symbol}`, "info");
     }
 
     function formatRatio(value, suffix = "") {
