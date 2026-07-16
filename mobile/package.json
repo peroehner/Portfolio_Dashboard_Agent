@@ -9,7 +9,12 @@
     "ios:local": "EXPO_PUBLIC_API_BASE_URL=http://localhost:5001/api/v1 expo start --ios --clear",
     "start:render": "EXPO_PUBLIC_API_BASE_URL=https://portfolio-dashboard-agent.onrender.com/api/v1 expo start --clear",
     "android": "expo start --android",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "eas:login": "eas login",
+    "eas:init": "eas init",
+    "eas:build:ios": "eas build --platform ios --profile production",
+    "eas:submit:ios": "eas submit --platform ios --profile production --latest",
+    "eas:testflight": "eas build --platform ios --profile production --auto-submit"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -32,6 +37,7 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~19.1.10",
+    "eas-cli": "^16.32.0",
     "typescript": "~5.9.2"
   }
 }

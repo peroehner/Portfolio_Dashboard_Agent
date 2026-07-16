@@ -1,0 +1,42 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://portfolio-dashboard-agent.onrender.com/api/v1",
+        "EXPO_PUBLIC_SHOW_API_HOST": "1"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://portfolio-dashboard-agent.onrender.com/api/v1",
+        "EXPO_PUBLIC_MOBILE_DEV_TOKEN": "pda-local-mobile-dev",
+        "EXPO_PUBLIC_SHOW_API_HOST": "1"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://portfolio-dashboard-agent.onrender.com/api/v1",
+        "EXPO_PUBLIC_MOBILE_DEV_TOKEN": "pda-local-mobile-dev",
+        "EXPO_PUBLIC_SHOW_API_HOST": "0"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6791649779"
+      }
+    }
+  }
+}
