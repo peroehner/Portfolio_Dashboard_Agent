@@ -8832,7 +8832,7 @@
     const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT — 1-year target gap, e.g. 1YT ↓86.1% (click → Inspector)\n• (0) — no active alerts";
     const SIM_SYMBOL_HELP = "Ticker with at least one priced planned-trade threshold. Click to open in Target.";
-    const SIM_CLOSE_PCT_HELP = "Distance to the nearest in-scope planned-trade threshold:\n• Uses the active Buys / Sells / Both leg filter\n• Smaller % = closer to triggering\n• ▼ buy leg · ▲ sell leg\n• Sort ascending to surface trades about to fire";
+    const SIM_CLOSE_PCT_HELP = "Distance to the nearest in-scope planned-trade threshold:\n• Uses the active Buys / Sells / Both leg filter\n• Smaller % = closer to triggering\n• ▼ price above threshold · ▲ price below threshold\n• Sort ascending to surface trades about to fire";
     const SIM_NET_GAINS_HELP = "Realized gain on in-scope SELL legs:\n• (avg sell price − cost/share) × shares sold\n• Cost/share — holding average cost when on file, otherwise share-weighted planned BUY threshold\n• — when no in-scope sells, or no derivable cost (UNKNOWN-WINS)";
     const SIM_WARN_HELP = "Warnings on planned-trade rows:\n• ⚠ — planned sell exceeds shares held (a paired buy leg may cover it)\n• $0 — priced leg has no share quantity set";
     const FUND_LEVEL_SORT_HELP = "Deviation sort by |price − level| / level:\n• Click cycles closest first → furthest first → unsorted\n• Applies to the reference level in this column";
@@ -9997,9 +9997,12 @@
       { key: "closePct", label: "Close %", help: SIM_CLOSE_PCT_HELP, sortValue: (row) => { const m = simClosestMeta(row); return m ? m.dist : Infinity; }, render: (row) => {
         const m = simClosestMeta(row);
         if (!m) return "—";
-        const color = m.isBuy ? "var(--accent-2)" : "#fb923c";
-        const title = `Nearest: ${m.isBuy ? "Buy" : "Sell"} @ ${formatMoney(m.threshold)} (${m.threshold < row.currentPrice ? "below" : "above"} price)`;
-        return `<span title="${title}"><span style="color:${color};font-weight:700;">${m.isBuy ? "▼" : "▲"}</span> ${m.dist.toFixed(1)}%</span>`;
+        const priceAbove = row.currentPrice > m.threshold;
+        // Match Trade Band: ▼ when price is above the threshold, ▲ when below.
+        const arrow = priceAbove ? "▼" : "▲";
+        const color = priceAbove ? "var(--accent-2)" : "#fb923c";
+        const title = `Nearest: ${m.isBuy ? "Buy" : "Sell"} @ ${formatMoney(m.threshold)} · price ${priceAbove ? "above" : "below"} threshold`;
+        return `<span title="${title}"><span style="color:${color};font-weight:700;">${arrow}</span> ${m.dist.toFixed(1)}%</span>`;
       } },
       { key: "cashGenerated", label: "Generated", sortValue: (row) => row.cashGenerated, render: (row) => (row.cashGenerated ? formatMoney(row.cashGenerated) : "—") },
       { key: "netCash", label: "Net Cash", sortValue: (row) => row.netCash, render: (row) => renderColoredMoneyCell(row.netCash) },
@@ -12907,22 +12910,36 @@
       return Number.isFinite(amount) ? amount : null;
     }
 
-    function fundRangePosition(row) {
+    function fundRangeLevels(row) {
       const price = fundNum(row.currentPrice);
-      const high = fundNum(fundVal(row, "priceRange", "high52w"));
-      const low = fundNum(fundVal(row, "priceRange", "low52w"));
+      const storedHigh = fundNum(fundVal(row, "priceRange", "high52w"));
+      const storedLow = fundNum(fundVal(row, "priceRange", "low52w"));
+      if (price == null || storedHigh == null || storedLow == null) {
+        return { price, storedHigh, storedLow, high: storedHigh, low: storedLow };
+      }
+      // Vendor 52W snapshots can lag live quotes (e.g. ASML trading through the
+      // published high). Expand the range so High/Low and position stay coherent.
+      return {
+        price,
+        storedHigh,
+        storedLow,
+        high: Math.max(storedHigh, price),
+        low: Math.min(storedLow, price),
+      };
+    }
+
+    function fundRangePosition(row) {
+      const { price, high, low } = fundRangeLevels(row);
       if (price == null || high == null || low == null || high <= low) return null;
       return ((price - low) / (high - low)) * 100;
     }
 
     function renderRangeBar(row) {
+      const { price, high: highNum, low: lowNum } = fundRangeLevels(row);
       const p = fundRangePosition(row);
-      if (p == null) return "—";
+      if (p == null || price == null || highNum == null || lowNum == null) return "—";
       const pos = Math.max(0, Math.min(100, p));
-      const pct = `${p.toFixed(0)}%`;
-      const lowNum = fundNum(fundVal(row, "priceRange", "low52w"));
-      const highNum = fundNum(fundVal(row, "priceRange", "high52w"));
-      const price = fundNum(row.currentPrice);
+      const pct = `${pos.toFixed(0)}%`;
       const low = formatMoney(lowNum);
       const high = formatMoney(highNum);
       const mid = (lowNum + highNum) / 2;
@@ -12979,11 +12996,17 @@
     ];
 
     function fundLevelDeviations(row) {
-      const price = fundNum(row.currentPrice);
+      const { price, high, low } = fundRangeLevels(row);
       if (price == null) return [];
+      const effective = {
+        high52w: high,
+        low52w: low,
+        ma50: fundNum(fundVal(row, "priceRange", "ma50")),
+        ma200: fundNum(fundVal(row, "priceRange", "ma200")),
+      };
       const out = [];
       for (const lvl of FUND_LEVELS) {
-        const level = fundNum(fundVal(row, "priceRange", lvl.field));
+        const level = effective[lvl.field];
         if (level == null || level === 0) continue;
         const deviation = ((price - level) / level) * 100;
         out.push({ ...lvl, level, deviation, absDev: Math.abs(deviation) });
@@ -12999,10 +13022,15 @@
 
     // Absolute %-deviation of the current price from a price-range level
     // (52W high/low, 50/200-day avg): abs(price - level) / level * 100.
+    // 52W high/low use the live-expanded range when the quote has broken out.
     // null when price or the level is missing/zero so it can sink to the bottom.
     function fundLevelAbsDev(row, field) {
       const price = fundNum(row.currentPrice);
-      const level = fundNum(fundVal(row, "priceRange", field));
+      let level = fundNum(fundVal(row, "priceRange", field));
+      if (field === "high52w" || field === "low52w") {
+        const range = fundRangeLevels(row);
+        level = field === "high52w" ? range.high : range.low;
+      }
       if (price == null || level == null || level === 0) return null;
       return Math.abs(((price - level) / level) * 100);
     }
@@ -13085,8 +13113,8 @@
             },
           },
           fundPriceColumn(),
-          { key: "high52", label: "52W High", ascFirst: true, help: FUND_LEVEL_SORT_HELP, sortValue: (r) => fundLevelAbsDev(r, "high52w"), compare: fundDeviationCompare("high52w"), render: (r) => fundLevelCell(r, "high52", fundVal(r, "priceRange", "high52w")) },
-          { key: "low52", label: "52W Low", ascFirst: true, help: FUND_LEVEL_SORT_HELP, sortValue: (r) => fundLevelAbsDev(r, "low52w"), compare: fundDeviationCompare("low52w"), render: (r) => fundLevelCell(r, "low52", fundVal(r, "priceRange", "low52w")) },
+          { key: "high52", label: "52W High", ascFirst: true, help: FUND_LEVEL_SORT_HELP, sortValue: (r) => fundLevelAbsDev(r, "high52w"), compare: fundDeviationCompare("high52w"), render: (r) => fundLevelCell(r, "high52", fundRangeLevels(r).high) },
+          { key: "low52", label: "52W Low", ascFirst: true, help: FUND_LEVEL_SORT_HELP, sortValue: (r) => fundLevelAbsDev(r, "low52w"), compare: fundDeviationCompare("low52w"), render: (r) => fundLevelCell(r, "low52", fundRangeLevels(r).low) },
           { key: "ma50", label: "50-Day Avg", ascFirst: true, help: FUND_LEVEL_SORT_HELP, sortValue: (r) => fundLevelAbsDev(r, "ma50"), compare: fundDeviationCompare("ma50"), render: (r) => fundLevelCell(r, "ma50", fundVal(r, "priceRange", "ma50")) },
           { key: "ma200", label: "200-Day Avg", ascFirst: true, help: FUND_LEVEL_SORT_HELP, sortValue: (r) => fundLevelAbsDev(r, "ma200"), compare: fundDeviationCompare("ma200"), render: (r) => fundLevelCell(r, "ma200", fundVal(r, "priceRange", "ma200")) },
           {

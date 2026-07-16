@@ -218,6 +218,7 @@ def _footprint_rows(conn) -> list[dict[str, Any]]:
 def _in_process_caches() -> list[dict[str, Any]]:
     from services.fib_service import fib_levels_cache_footprint
     from services.fundamentals_service import (
+        _52w_range_cache,
         analyst_targets_cache,
         finnhub_fundamentals_cache,
         news_cache,
@@ -234,6 +235,7 @@ def _in_process_caches() -> list[dict[str, Any]]:
         ("technical_history_fail", _history_fail_cache),
         ("news", news_cache),
         ("finnhub_fundamentals", finnhub_fundamentals_cache),
+        ("fundamentals_52w_history", _52w_range_cache),
         ("analyst_targets", analyst_targets_cache),
         ("yf_failure", yf_failure_cache),
         ("news_relevance_prices", _PRICE_CACHE),

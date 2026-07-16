@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 import { formatPrice } from "@/lib/format";
-import { fundNum, fundRangePosition, fundVal } from "@/lib/fundamentalsTable";
+import { fundNum, fundRangeLevels, fundRangePosition, fundVal } from "@/lib/fundamentalsTable";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { FundamentalsRow } from "@/lib/types";
 
@@ -17,9 +17,7 @@ interface RangeBarProps {
 }
 
 function rangeBarMeta(row: FundamentalsRow) {
-  const lowNum = fundNum(fundVal(row, "priceRange", "low52w"));
-  const highNum = fundNum(fundVal(row, "priceRange", "high52w"));
-  const price = fundNum(row.currentPrice);
+  const { price, high: highNum, low: lowNum } = fundRangeLevels(row);
   if (lowNum == null || highNum == null || price == null) return null;
   const mid = (lowNum + highNum) / 2;
   const dev = mid !== 0 ? ((price - mid) / mid) * 100 : null;

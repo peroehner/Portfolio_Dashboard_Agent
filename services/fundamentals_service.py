@@ -85,6 +85,12 @@ _fund_ttl = float(os.environ.get("FUNDAMENTALS_CACHE_TTL_SECONDS", "21600"))  # 
 _fund_max = int(os.environ.get("FUNDAMENTALS_CACHE_MAX_ENTRIES", "128"))
 finnhub_fundamentals_cache: TtlCache = TtlCache(_fund_ttl, _fund_max)
 
+# 52W high/low derived from daily history (matches Seeking Alpha / Yahoo charts).
+# Kept separate from the 6h fundamentals blob so a stale info snapshot cannot
+# freeze an outdated range for half a day.
+_52w_hist_ttl = float(os.environ.get("FUNDAMENTALS_52W_HISTORY_TTL_SECONDS", "900"))
+_52w_range_cache: TtlCache = TtlCache(max(1.0, _52w_hist_ttl), _fund_max)
+
 # Analyst price targets are cached on their own so a transient fetch failure is
 # retried on the next request instead of being frozen inside the fundamentals
 # blob for the full TTL (only successful, non-empty results are stored).
@@ -234,16 +240,61 @@ class FundamentalsService:
         When ``SYMBOL_MARKET_FUNDAMENTALS`` is enabled, a fresh row in
         ``symbol_market.fundamentals_json`` is returned without hitting Yahoo.
         Successful live fetches are written back for other users/processes.
+
+        52-week high/low are always overlaid from ~1y daily history when
+        available — Yahoo/Finnhub snapshot fields lag after breakouts and can
+        disagree with Seeking Alpha by a wide margin while still looking "fresh"
+        inside the 6h fundamentals cache.
         """
         symbol = symbol.upper()
         cached = self.market_data_service.get_fundamentals(symbol)
         if cached is not None:
-            return cached
+            return self._with_history_52w(symbol, cached)
 
         data = self._fetch_live_fundamentals(symbol)
+        data = self._with_history_52w(symbol, data)
         if not self._is_empty_fundamentals(data):
             self.market_data_service.save_fundamentals(symbol, data)
         return data
+
+    def _with_history_52w(self, symbol: str, data: dict[str, Any]) -> dict[str, Any]:
+        """Replace priceRange high52w/low52w with history-derived values when possible."""
+        if not isinstance(data, dict):
+            return data
+        rng = self._52w_range_from_history(symbol)
+        if not rng:
+            return data
+        out = dict(data)
+        price_range = dict(out.get("priceRange") or {})
+        price_range["high52w"] = rng["high"]
+        price_range["low52w"] = rng["low"]
+        out["priceRange"] = price_range
+        return out
+
+    def _52w_range_from_history(self, symbol: str) -> dict[str, float] | None:
+        """Last ~252 trading days high/low from Yahoo daily bars."""
+        cached = _52w_range_cache.peek(symbol)
+        if cached is not CACHE_MISS:
+            return cached
+        try:
+            hist = make_ticker(symbol).history(period="1y", auto_adjust=True)
+        except Exception as exc:  # noqa: BLE001 - network/3rd-party failures are non-fatal
+            logger.warning("52W history failed for %s: %s", symbol, exc)
+            return None
+        if hist is None or getattr(hist, "empty", True):
+            return None
+        if "High" not in hist.columns or "Low" not in hist.columns:
+            return None
+        try:
+            high = float(hist["High"].max())
+            low = float(hist["Low"].min())
+        except (TypeError, ValueError):
+            return None
+        if not (high > low > 0):
+            return None
+        result = {"high": round(high, 4), "low": round(low, 4)}
+        _52w_range_cache.put(symbol, result)
+        return result
 
     def _fetch_live_fundamentals(self, symbol: str) -> dict[str, Any]:
         """Network fetch path (yfinance + optional Finnhub merge)."""

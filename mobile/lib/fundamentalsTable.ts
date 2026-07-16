@@ -56,10 +56,30 @@ export function fundNum(value: unknown): number | null {
   return Number.isFinite(amount) ? amount : null;
 }
 
-export function fundRangePosition(row: FundamentalsRow): number | null {
+export function fundRangeLevels(row: FundamentalsRow): {
+  price: number | null;
+  storedHigh: number | null;
+  storedLow: number | null;
+  high: number | null;
+  low: number | null;
+} {
   const price = fundNum(row.currentPrice);
-  const high = fundNum(fundVal(row, "priceRange", "high52w"));
-  const low = fundNum(fundVal(row, "priceRange", "low52w"));
+  const storedHigh = fundNum(fundVal(row, "priceRange", "high52w"));
+  const storedLow = fundNum(fundVal(row, "priceRange", "low52w"));
+  if (price == null || storedHigh == null || storedLow == null) {
+    return { price, storedHigh, storedLow, high: storedHigh, low: storedLow };
+  }
+  return {
+    price,
+    storedHigh,
+    storedLow,
+    high: Math.max(storedHigh, price),
+    low: Math.min(storedLow, price),
+  };
+}
+
+export function fundRangePosition(row: FundamentalsRow): number | null {
+  const { price, high, low } = fundRangeLevels(row);
   if (price == null || high == null || low == null || high <= low) return null;
   const raw = ((price - low) / (high - low)) * 100;
   return Math.max(0, Math.min(100, raw));

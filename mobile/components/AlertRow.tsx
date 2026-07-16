@@ -10,9 +10,19 @@ interface AlertRowProps {
   dismissing?: boolean;
 }
 
+const ALERT_TYPE_LABELS: Record<string, string> = {
+  screener_upside: "Screener Upside",
+  fib_proximity: "Fib",
+  trade_above: "Trade Above",
+  trade_above_near: "Trade Above Near",
+  trade_below: "Trade Below",
+  trade_below_near: "Trade Below Near",
+};
+
 function alertTypeLabel(alert: Alert): string {
-  const raw = alert.type || alert.alert_type || "alert";
-  return raw.replace(/_/g, " ");
+  const raw = String(alert.type || alert.alert_type || "alert").trim().toLowerCase();
+  if (ALERT_TYPE_LABELS[raw]) return ALERT_TYPE_LABELS[raw];
+  return raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export function AlertRow({ alert, onDismiss, dismissing }: AlertRowProps) {
@@ -65,7 +75,7 @@ const styles = StyleSheet.create({
   type: {
     color: colors.warning,
     fontSize: 11,
-    textTransform: "capitalize",
+    textTransform: "none",
     flexShrink: 1,
     textAlign: "right",
   },

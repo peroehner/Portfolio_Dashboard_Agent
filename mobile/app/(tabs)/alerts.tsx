@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import {
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -16,18 +17,53 @@ import { colors, radii, spacing } from "@/lib/theme";
 import type { Alert } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
 
+/** Canonical alert_type → short filter chip label. */
+const ALERT_TYPE_LABELS: Record<string, string> = {
+  screener_upside: "Screener Upside",
+  fib_proximity: "Fib",
+  trade_above: "Trade Above",
+  trade_above_near: "Trade Above Near",
+  trade_below: "Trade Below",
+  trade_below_near: "Trade Below Near",
+};
+
+function alertTypeKey(alert: Alert): string {
+  return String(alert.type || alert.alert_type || "alert").trim().toLowerCase();
+}
+
+function alertTypeLabel(key: string): string {
+  if (ALERT_TYPE_LABELS[key]) return ALERT_TYPE_LABELS[key];
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export default function AlertsScreen() {
   const [filter, setFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("");
   const [dismissingId, setDismissingId] = useState<number | null>(null);
   const { data, loading, error, refresh } = useApiQuery<{ alerts: Alert[] }>(
     () => api.alerts("active"),
     [],
   );
 
+  const typeOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const alert of data?.alerts ?? []) {
+      const key = alertTypeKey(alert);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([key, count]) => ({ key, count, label: alertTypeLabel(key) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [data?.alerts]);
+
   const alerts = useMemo(
     () =>
-      (data?.alerts ?? []).filter((alert) => symbolMatchesFilter(alert.symbol, filter)),
-    [data?.alerts, filter],
+      (data?.alerts ?? []).filter((alert) => {
+        if (!symbolMatchesFilter(alert.symbol, filter)) return false;
+        if (typeFilter && alertTypeKey(alert) !== typeFilter) return false;
+        return true;
+      }),
+    [data?.alerts, filter, typeFilter],
   );
 
   const handleDismiss = useCallback(
@@ -43,11 +79,15 @@ export default function AlertsScreen() {
     [refresh],
   );
 
+  function toggleType(key: string) {
+    setTypeFilter((prev) => (prev === key ? "" : key));
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <Screen
         title="Alerts"
-        subtitle={`${data?.alerts?.length ?? 0} active`}
+        subtitle={`${alerts.length} shown${data?.alerts?.length != null && alerts.length !== data.alerts.length ? ` · ${data.alerts.length} active` : " active"}`}
         loading={loading && !data}
         error={error}
         onRetry={() => void refresh()}
@@ -61,6 +101,29 @@ export default function AlertsScreen() {
           autoCapitalize="characters"
           autoCorrect={false}
         />
+        {typeOptions.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.typeRow}
+            style={styles.typeScroll}
+          >
+            {typeOptions.map(({ key, count, label }) => {
+              const active = typeFilter === key;
+              return (
+                <Pressable
+                  key={key}
+                  style={[styles.typeChip, active && styles.typeChipActive]}
+                  onPress={() => toggleType(key)}
+                >
+                  <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>
+                    {label} · {count}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
         <ScrollView
           refreshControl={
             <RefreshControl
@@ -102,6 +165,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     fontSize: 15,
+  },
+  typeScroll: {
+    flexGrow: 0,
+    marginBottom: spacing.sm,
+  },
+  typeRow: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.xs,
+  },
+  typeChip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  typeChipActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentMuted,
+  },
+  typeChipText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  typeChipTextActive: {
+    color: colors.accent,
   },
   scroll: { paddingBottom: spacing.xl },
   empty: {
