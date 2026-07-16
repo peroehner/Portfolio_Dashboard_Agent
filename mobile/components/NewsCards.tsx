@@ -84,6 +84,73 @@ export function NewsCard({ item, compact, onAddNote, onOpenNews }: NewsCardProps
   );
 }
 
+interface NewsSymbolGroupCardProps extends CompactProps {
+  symbol: string;
+  items: NewsItem[];
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onAddNote?: (item: NewsItem) => void;
+  onOpenNews?: (item: NewsItem) => void;
+}
+
+/** One symbol’s news: latest on top; Group expands the rest. */
+export function NewsSymbolGroupCard({
+  symbol,
+  items,
+  expanded,
+  onToggleExpand,
+  onAddNote,
+  onOpenNews,
+  compact,
+}: NewsSymbolGroupCardProps) {
+  if (!items.length) return null;
+  const latest = items[0];
+  const rest = items.slice(1);
+  const showRest = expanded && rest.length > 0;
+
+  return (
+    <View style={[styles.group, compact && styles.groupCompact]}>
+      <NewsCard
+        item={latest}
+        compact={compact}
+        onAddNote={onAddNote}
+        onOpenNews={onOpenNews}
+      />
+      {rest.length > 0 ? (
+        <Pressable
+          style={[styles.groupBtn, compact && styles.groupBtnCompact]}
+          onPress={onToggleExpand}
+          accessibilityLabel={
+            expanded
+              ? `Hide ${rest.length} more ${symbol} articles`
+              : `Show all ${items.length} ${symbol} articles`
+          }
+        >
+          <Ionicons
+            name={expanded ? "chevron-up" : "layers-outline"}
+            size={compact ? 14 : 16}
+            color={colors.link}
+          />
+          <Text style={[styles.groupBtnText, compact && styles.groupBtnTextCompact]}>
+            {symbol} · {items.length}
+          </Text>
+        </Pressable>
+      ) : null}
+      {showRest
+        ? rest.map((item, idx) => (
+            <NewsCard
+              key={`${symbol}-${item.title}-${idx}`}
+              item={item}
+              compact={compact}
+              onAddNote={onAddNote}
+              onOpenNews={onOpenNews}
+            />
+          ))
+        : null}
+    </View>
+  );
+}
+
 export function SaiChangeCard({ change, compact, onOpenPortfolio }: SaiChangeCardProps) {
   const ts = changeTimestamp(change);
   const metaParts = [
@@ -239,5 +306,40 @@ const styles = StyleSheet.create({
   arrow: {
     color: colors.textMuted,
     fontSize: 12,
+  },
+  group: {
+    marginBottom: spacing.xs,
+  },
+  groupCompact: {
+    marginBottom: 2,
+  },
+  groupBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    marginTop: -2,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  groupBtnCompact: {
+    marginHorizontal: spacing.xs,
+    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 3,
+  },
+  groupBtnText: {
+    color: colors.link,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  groupBtnTextCompact: {
+    fontSize: 11,
   },
 });

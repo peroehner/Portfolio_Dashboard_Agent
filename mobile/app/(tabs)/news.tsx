@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { NewsCard, SaiChangeCard } from "@/components/NewsCards";
+import { NewsSymbolGroupCard, SaiChangeCard } from "@/components/NewsCards";
 import { NewsArticleModal } from "@/components/NewsArticleModal";
 import { NoteModal, type NoteDraft } from "@/components/NoteModal";
 import { Screen } from "@/components/Screen";
@@ -21,6 +21,7 @@ import { symbolMatchesFilter } from "@/lib/filters";
 import {
   changeTimestamp,
   filterRecoChanges,
+  groupNewsBySymbol,
   recoChangesCounts,
   type RecoChangesDirFilter,
 } from "@/lib/newsFilters";
@@ -116,6 +117,9 @@ export default function NewsScreen() {
   const [expanded, setExpanded] = useState<Pane | null>(null);
   const [noteDraft, setNoteDraft] = useState<NoteDraft | null>(null);
   const [newsArticle, setNewsArticle] = useState<NewsItem | null>(null);
+  const [expandedNewsSymbols, setExpandedNewsSymbols] = useState<Set<string>>(
+    () => new Set(),
+  );
   const { data, loading, error, refresh } = useApiQuery<NewsFeed>(
     () => api.newsFeed(),
     [],
@@ -142,6 +146,8 @@ export default function NewsScreen() {
     [data?.topNews, filter],
   );
 
+  const newsGroups = useMemo(() => groupNewsBySymbol(news), [news]);
+
   const showChanges = expanded !== "news";
   const showNews = expanded !== "changes";
   const split = expanded === null;
@@ -149,6 +155,15 @@ export default function NewsScreen() {
 
   function toggleDirFilter(dir: "up" | "down") {
     setDirFilter((prev) => (prev === dir ? "" : dir));
+  }
+
+  function toggleNewsGroup(symbol: string) {
+    setExpandedNewsSymbols((prev) => {
+      const next = new Set(prev);
+      if (next.has(symbol)) next.delete(symbol);
+      else next.add(symbol);
+      return next;
+    });
   }
 
   function openPortfolioSymbol(symbol: string) {
@@ -260,7 +275,13 @@ export default function NewsScreen() {
             <View style={[styles.pane, split && styles.paneColumn, split && styles.paneColumnRight]}>
               <PaneHeader
                 title="News"
-                count={split ? String(news.length) : undefined}
+                count={
+                  split
+                    ? `${newsGroups.length}${news.length !== newsGroups.length ? ` · ${news.length}` : ""}`
+                    : expanded === "news"
+                      ? `${newsGroups.length} symbols · ${news.length} news`
+                      : undefined
+                }
                 expanded={expanded === "news"}
                 onExpand={() => setExpanded("news")}
                 onSplit={() => setExpanded(null)}
@@ -279,14 +300,17 @@ export default function NewsScreen() {
                 }
                 contentContainerStyle={styles.paneScroll}
               >
-                {news.length === 0 ? (
+                {newsGroups.length === 0 ? (
                   <Text style={styles.empty}>No news</Text>
                 ) : (
-                  news.map((item, idx) => (
-                    <NewsCard
-                      key={`${item.symbol}-${item.title}-${idx}`}
-                      item={item}
+                  newsGroups.map((group) => (
+                    <NewsSymbolGroupCard
+                      key={group.symbol}
+                      symbol={group.symbol}
+                      items={group.items}
                       compact={split}
+                      expanded={expandedNewsSymbols.has(group.symbol)}
+                      onToggleExpand={() => toggleNewsGroup(group.symbol)}
                       onAddNote={(newsItem) => setNoteDraft(buildNoteDraftFromNews(newsItem))}
                       onOpenNews={setNewsArticle}
                     />
