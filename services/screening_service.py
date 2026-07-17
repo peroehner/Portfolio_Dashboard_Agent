@@ -353,6 +353,8 @@ class ScreeningService:
             trade_below_shares,
             trade_above_price,
             trade_above_shares,
+            cost_basis=holding.get("costBasis") if holding else None,
+            held_shares=holding.get("quantity") if holding else 0,
         )
 
         return {
@@ -403,6 +405,8 @@ class ScreeningService:
         trade_below_shares: float | None,
         trade_above_price: float | None,
         trade_above_shares: float | None,
+        cost_basis: float | None = None,
+        held_shares: float | None = None,
     ) -> list[dict[str, Any]]:
         """Compact, frontend-ready summary of which planned-trade thresholds the
         current price is reaching/approaching — mirrors AlertsService._check_thresholds
@@ -414,6 +418,7 @@ class ScreeningService:
             return []
         near = self.trade_near_pct / 100.0
         alerts: list[dict[str, Any]] = []
+        held = float(held_shares or 0)
 
         def action_for(side: str, shares: float | None) -> str:
             if shares:
@@ -429,6 +434,9 @@ class ScreeningService:
                 clause = AlertsService._plan_clause(
                     trade_below_shares,
                     stop_loss=bool(trade_below_shares and trade_below_shares < 0),
+                    exec_price=price,
+                    cost_basis=cost_basis,
+                    held_shares=held,
                 )
                 alerts.append({
                     "side": "below",
@@ -443,7 +451,12 @@ class ScreeningService:
                 })
             elif price <= trade_below_price * (1 + near):
                 away_pct = (price - trade_below_price) / trade_below_price * 100
-                clause = AlertsService._plan_clause(trade_below_shares)
+                clause = AlertsService._plan_clause(
+                    trade_below_shares,
+                    exec_price=price,
+                    cost_basis=cost_basis,
+                    held_shares=held,
+                )
                 alerts.append({
                     "side": "below",
                     "action": action,
@@ -459,7 +472,12 @@ class ScreeningService:
         if trade_above_price is not None:
             action = action_for("above", trade_above_shares)
             if price >= trade_above_price:
-                clause = AlertsService._plan_clause(trade_above_shares)
+                clause = AlertsService._plan_clause(
+                    trade_above_shares,
+                    exec_price=price,
+                    cost_basis=cost_basis,
+                    held_shares=held,
+                )
                 alerts.append({
                     "side": "above",
                     "action": action,
@@ -473,7 +491,12 @@ class ScreeningService:
                 })
             elif price >= trade_above_price * (1 - near):
                 away_pct = (trade_above_price - price) / trade_above_price * 100
-                clause = AlertsService._plan_clause(trade_above_shares)
+                clause = AlertsService._plan_clause(
+                    trade_above_shares,
+                    exec_price=price,
+                    cost_basis=cost_basis,
+                    held_shares=held,
+                )
                 alerts.append({
                     "side": "above",
                     "action": action,

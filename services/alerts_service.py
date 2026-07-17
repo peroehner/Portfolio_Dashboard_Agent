@@ -3,12 +3,14 @@ from typing import Any
 
 from db.database import get_connection, get_current_user_id
 from services.fib_service import FibService
+from services.holdings_service import HoldingsService
 from services.portfolio_service import PortfolioService
 
 
 class AlertsService:
     def __init__(self):
         self.portfolio_service = PortfolioService()
+        self.holdings_service = HoldingsService()
         self.fib_service = FibService()
         self.fib_proximity_pct = float(os.environ.get("FIB_PROXIMITY_PCT", "1.0"))
         # How close (in %) the price must be to a planned-trade threshold before
@@ -167,18 +169,135 @@ class AlertsService:
             return cursor.rowcount
 
     @staticmethod
-    def _plan_clause(shares: float | None, *, stop_loss: bool = False) -> str:
-        """The ' — plan: ...' fragment describing the planned action + quantity.
+    def _format_plan_money(amount: float) -> str:
+        """Whole-dollar money with sign: $52,300 or -$12,400."""
+        rounded = int(round(float(amount)))
+        sign = "-" if rounded < 0 else ""
+        return f"{sign}${abs(rounded):,}"
+
+    @staticmethod
+    def _format_plan_gain(amount: float) -> str:
+        """Signed gain fragment: (+$31,234) or (-$1,200)."""
+        rounded = int(round(float(amount)))
+        sign = "+" if rounded >= 0 else "-"
+        return f"({sign}${abs(rounded):,})"
+
+    @staticmethod
+    def _format_exec_price(price: float) -> str:
+        """Compact execution price: $261.5, $261.25, or $260."""
+        value = float(price)
+        if abs(value - round(value)) < 1e-9:
+            return f"${int(round(value))}"
+        text = f"{value:.4f}".rstrip("0").rstrip(".")
+        return f"${text}"
+
+    @staticmethod
+    def _format_plan_qty(qty: float) -> str:
+        value = float(qty)
+        if abs(value - round(value)) < 1e-9:
+            return f"{int(round(value))}"
+        return f"{value:g}"
+
+    @staticmethod
+    def _plan_action_label(
+        shares: float,
+        held: float,
+        *,
+        stop_loss: bool = False,
+    ) -> str:
+        """Buy/Add/Sell/Trim label from planned qty vs shares currently held.
+
+        - Buy 100                 — buy with no shares held
+        - Add +100 (->300)        — buy while already holding
+        - Sell 100                — sell exactly the held amount
+        - Sell 100 ⚠              — sell with nothing held (oversell)
+        - Trim -100 (->50)        — partial sell, position remains
+        - Trim -100 ⚠             — sell exceeds held while some are owned
+        """
+        qty = abs(float(shares))
+        held = max(0.0, float(held or 0))
+        qty_txt = AlertsService._format_plan_qty(qty)
+        stop = " (stop-loss)" if stop_loss and shares < 0 else ""
+
+        if shares > 0:
+            if held <= 0:
+                return f"Buy {qty_txt}{stop}"
+            after = held + qty
+            return f"Add +{qty_txt} (-> {AlertsService._format_plan_qty(after)}){stop}"
+
+        # Sell / trim
+        if held <= 0:
+            return f"Sell {qty_txt} ⚠{stop}"
+        if qty > held + 1e-9:
+            return f"Trim -{qty_txt} ⚠{stop}"
+        if abs(qty - held) <= 1e-9:
+            return f"Sell {qty_txt}{stop}"
+        after = held - qty
+        return f"Trim -{qty_txt} (-> {AlertsService._format_plan_qty(after)}){stop}"
+
+    @staticmethod
+    def _plan_clause(
+        shares: float | None,
+        *,
+        stop_loss: bool = False,
+        exec_price: float | None = None,
+        cost_basis: float | None = None,
+        held_shares: float | None = None,
+    ) -> str:
+        """The ' — Plan: ...' fragment describing the planned action + economics.
 
         Sign of ``shares`` encodes direction: >0 add/buy, <0 sell/trim. Returns
         an empty string when there is no quantity (None or 0) so the caller emits
-        the generic "...trade level." message."""
+        the generic "...trade level." message.
+
+        Action wording depends on ``held_shares`` (Buy/Add/Sell/Trim). When
+        ``exec_price`` is set, appends ``@price for Net Cash $…``. Sells also
+        append ``(+$gain)`` when ``cost_basis`` is available.
+        """
         if not shares:
             return ""
-        if shares > 0:
-            return f" — plan: add {shares:g} shares."
-        tag = " (stop-loss)" if stop_loss else ""
-        return f" — plan: sell {abs(shares):g} shares{tag}."
+        qty = abs(float(shares))
+        is_buy = shares > 0
+        held = float(held_shares or 0)
+        action = AlertsService._plan_action_label(
+            float(shares), held, stop_loss=stop_loss
+        )
+
+        if exec_price is None or not isinstance(exec_price, (int, float)):
+            return f" — Plan: {action}."
+
+        exec_price = float(exec_price)
+        if not (exec_price > 0):
+            return f" — Plan: {action}."
+
+        net_cash = qty * exec_price
+        if is_buy:
+            net_cash = -net_cash
+        clause = (
+            f" — Plan: {action} @"
+            f"{AlertsService._format_exec_price(exec_price)} for Net Cash "
+            f"{AlertsService._format_plan_money(net_cash)}"
+        )
+        if (
+            not is_buy
+            and cost_basis is not None
+            and isinstance(cost_basis, (int, float))
+        ):
+            gain = (exec_price - float(cost_basis)) * qty
+            clause += f" {AlertsService._format_plan_gain(gain)}"
+        return clause + "."
+
+    def _holding_context(self, symbol: str) -> tuple[float, float | None]:
+        """Return (held_shares, cost_basis) for plan wording / gain calc."""
+        holding = self.holdings_service.get_holding(symbol)
+        if not holding:
+            return 0.0, None
+        qty = holding.get("quantity")
+        held = float(qty) if isinstance(qty, (int, float)) else 0.0
+        cost = holding.get("costBasis")
+        if cost is None or not isinstance(cost, (int, float)):
+            return held, None
+        return held, float(cost)
 
     def _check_thresholds(
         self,
@@ -197,6 +316,7 @@ class AlertsService:
             return created
 
         near = self.trade_near_pct / 100.0
+        held_shares, cost_basis = self._holding_context(symbol)
 
         # Trade@Below: a price floor. Default direction Buy (add on the dip), but
         # a negative quantity makes it a stop-loss (sell on the way down).
@@ -204,7 +324,11 @@ class AlertsService:
             if price <= trade_below_price:
                 # REACHED — urgent.
                 clause = self._plan_clause(
-                    trade_below_shares, stop_loss=bool(trade_below_shares and trade_below_shares < 0)
+                    trade_below_shares,
+                    stop_loss=bool(trade_below_shares and trade_below_shares < 0),
+                    exec_price=price,
+                    cost_basis=cost_basis,
+                    held_shares=held_shares,
                 )
                 msg = (
                     f"{symbol} reached your lower ${trade_below_price:.2f} trade level"
@@ -223,7 +347,12 @@ class AlertsService:
             elif price <= trade_below_price * (1 + near):
                 # APPROACHING — near.
                 away_pct = (price - trade_below_price) / trade_below_price * 100
-                clause = self._plan_clause(trade_below_shares)
+                clause = self._plan_clause(
+                    trade_below_shares,
+                    exec_price=price,
+                    cost_basis=cost_basis,
+                    held_shares=held_shares,
+                )
                 msg = (
                     f"{symbol} is {away_pct:.1f}% above your ${trade_below_price:.2f} buy level"
                     + (clause if clause else ".")
@@ -244,7 +373,12 @@ class AlertsService:
         if trade_above_price is not None:
             if price >= trade_above_price:
                 # REACHED — urgent.
-                clause = self._plan_clause(trade_above_shares)
+                clause = self._plan_clause(
+                    trade_above_shares,
+                    exec_price=price,
+                    cost_basis=cost_basis,
+                    held_shares=held_shares,
+                )
                 msg = (
                     f"{symbol} reached your upper ${trade_above_price:.2f} trade level"
                     + (clause if clause else ".")
@@ -262,7 +396,12 @@ class AlertsService:
             elif price >= trade_above_price * (1 - near):
                 # APPROACHING — near.
                 away_pct = (trade_above_price - price) / trade_above_price * 100
-                clause = self._plan_clause(trade_above_shares)
+                clause = self._plan_clause(
+                    trade_above_shares,
+                    exec_price=price,
+                    cost_basis=cost_basis,
+                    held_shares=held_shares,
+                )
                 msg = (
                     f"{symbol} is {away_pct:.1f}% below your ${trade_above_price:.2f} sell level"
                     + (clause if clause else ".")
@@ -355,6 +494,11 @@ class AlertsService:
                 self._signature(symbol, alert_type, reference_value, fib_level)
             )
         if self._active_alert_exists(symbol, alert_type, reference_value, fib_level):
+            # Refresh stored text/price so plan economics stay current without
+            # waiting for the condition to clear and re-fire.
+            self._refresh_active_alert_message(
+                symbol, alert_type, reference_value, fib_level, message, price
+            )
             return None
 
         user_id = get_current_user_id()
@@ -389,6 +533,40 @@ class AlertsService:
             ).fetchone()
 
         return self._row_to_alert(row) if row is not None else None
+
+    def _refresh_active_alert_message(
+        self,
+        symbol: str,
+        alert_type: str,
+        reference_value: float | None,
+        fib_level: str | None,
+        message: str,
+        price: float | None,
+    ) -> None:
+        user_id = get_current_user_id()
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE alerts
+                SET message = %s, price = %s
+                WHERE user_id = %s AND symbol = %s AND alert_type = %s AND status = 'active'
+                  AND COALESCE(reference_value, -1) = COALESCE(%s, -1)
+                  AND COALESCE(fib_level, '') = COALESCE(%s, '')
+                  AND (message IS DISTINCT FROM %s OR price IS DISTINCT FROM %s)
+                """,
+                (
+                    message,
+                    price,
+                    user_id,
+                    symbol,
+                    alert_type,
+                    reference_value,
+                    fib_level or "",
+                    message,
+                    price,
+                ),
+            )
+            conn.commit()
 
     def _active_alert_exists(
         self,
