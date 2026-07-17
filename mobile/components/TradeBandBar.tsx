@@ -29,13 +29,39 @@ function sharesText(shares: number | null | undefined): string {
   return Math.round(Math.abs(Number(shares))).toLocaleString("en-US");
 }
 
+/** Tooltip text for Trade column (also used by Day % / Qty long-press). */
+export function tradeBandTooltipText(row: PortfolioRow): string | null {
+  const price = row.currentPrice;
+  if (price == null) return null;
+  const lines: string[] = [];
+  lines.push(`Price ${formatPrice(price)}`);
+  if (row.tradeBelowPrice != null) {
+    const sh = sharesText(row.tradeBelowShares);
+    lines.push(
+      `Below ${formatPrice(row.tradeBelowPrice)} (${deltaText(price, row.tradeBelowPrice)})${sh ? ` · Buy ${sh}` : ""}`,
+    );
+  }
+  if (row.tradeAbovePrice != null) {
+    const sh = sharesText(row.tradeAboveShares);
+    lines.push(
+      `Above ${formatPrice(row.tradeAbovePrice)} (${deltaText(price, row.tradeAbovePrice)})${sh ? ` · Sell ${sh}` : ""}`,
+    );
+  }
+  return lines.length > 1 ? lines.join("\n") : null;
+}
+
 interface TradeBandBarProps {
   row: PortfolioRow;
   width?: number;
+  /** When set, parent owns tooltip visibility (Portfolio long-press). */
+  active?: boolean;
 }
 
-export function TradeBandBar({ row, width = 150 }: TradeBandBarProps) {
-  const [active, setActive] = useState(false);
+export function TradeBandBar({ row, width = 150, active: activeProp }: TradeBandBarProps) {
+  const [internalActive, setInternalActive] = useState(false);
+  const controlled = activeProp !== undefined;
+  const active = controlled ? Boolean(activeProp) : internalActive;
+
   const layout = useMemo(() => {
     const price = row.currentPrice;
     if (price == null) return null;
@@ -93,19 +119,7 @@ export function TradeBandBar({ row, width = 150 }: TradeBandBarProps) {
     }
 
     const dist = closest === "below" ? belowDist : aboveDist;
-    const titleLines: string[] = [];
-    if (hasBelow) {
-      const sh = sharesText(row.tradeBelowShares);
-      titleLines.push(
-        `Below ${formatMoney(below)} (${deltaText(price, below)})${sh ? ` · Buy ${sh}` : ""}`,
-      );
-    }
-    if (hasAbove) {
-      const sh = sharesText(row.tradeAboveShares);
-      titleLines.push(
-        `Above ${formatMoney(above)} (${deltaText(price, above)})${sh ? ` · Sell ${sh}` : ""}`,
-      );
-    }
+    const title = tradeBandTooltipText(row) ?? "";
 
     return {
       price,
@@ -118,7 +132,7 @@ export function TradeBandBar({ row, width = 150 }: TradeBandBarProps) {
       pClose,
       closest,
       dist,
-      title: titleLines.join("\n"),
+      title,
     };
   }, [row]);
 
@@ -132,20 +146,16 @@ export function TradeBandBar({ row, width = 150 }: TradeBandBarProps) {
   const heatWidth =
     layout.pClose != null ? Math.abs(layout.pClose - layout.pPrice) : null;
 
-  return (
-    <Pressable
-      style={[styles.wrap, { width }]}
-      onPressIn={() => setActive(true)}
-      onPressOut={() => setActive(false)}
-      accessibilityLabel="Trade range"
-    >
-      {active && layout.title ? (
-        <View style={styles.tooltip}>
+  const body = (
+    <>
+      {!controlled && active && layout.title ? (
+        <View style={styles.tooltip} pointerEvents="none">
           <Text style={styles.tooltipText}>{layout.title}</Text>
         </View>
       ) : null}
 
-      {active ? (
+      {/* Edge/price overlays only for uncontrolled hover — controlled tips use the table banner. */}
+      {!controlled && active ? (
         <>
           <Text style={[styles.edge, styles.edgeLow]} numberOfLines={1}>
             {formatMoney(layout.low)}
@@ -217,11 +227,27 @@ export function TradeBandBar({ row, width = 150 }: TradeBandBarProps) {
         </Text>
       ) : null}
 
-      {active ? (
+      {!controlled && active ? (
         <Text style={[styles.priceLabel, { left: px(layout.pPrice) }]} numberOfLines={1}>
           {formatPrice(layout.price)}
         </Text>
       ) : null}
+    </>
+  );
+
+  if (controlled) {
+    return <View style={[styles.wrap, { width }]}>{body}</View>;
+  }
+
+  return (
+    <Pressable
+      style={[styles.wrap, { width }]}
+      onLongPress={() => setInternalActive(true)}
+      onPressOut={() => setInternalActive(false)}
+      delayLongPress={280}
+      accessibilityLabel="Trade range"
+    >
+      {body}
     </Pressable>
   );
 }
@@ -231,13 +257,15 @@ const styles = StyleSheet.create({
     height: BAR_HEIGHT,
     justifyContent: "center",
     position: "relative",
+    overflow: "visible",
   },
   tooltip: {
     position: "absolute",
     top: -2,
     left: 0,
     right: 0,
-    zIndex: 5,
+    zIndex: 20,
+    elevation: 20,
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
     borderColor: colors.border,

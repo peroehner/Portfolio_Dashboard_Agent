@@ -1,9 +1,8 @@
-import { Link } from "expo-router";
-import { useRef } from "react";
+import { Link, router } from "expo-router";
+import { useRef, useState } from "react";
 import {
   Animated,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,7 +11,7 @@ import {
 } from "react-native";
 
 import { SaiBadge } from "@/components/SaiBadge";
-import { TradeBandBar } from "@/components/TradeBandBar";
+import { TradeBandBar, tradeBandTooltipText } from "@/components/TradeBandBar";
 import {
   formatMoney,
   formatPct,
@@ -34,6 +33,7 @@ import type { PortfolioRow } from "@/lib/types";
 
 const ROW_HEIGHT = 44;
 const HEADER_HEIGHT = 36;
+const TRADE_TIP_KEYS: PortfolioSortKey[] = ["dayChangePct", "tradeBand", "quantity"];
 
 interface PortfolioTableProps {
   rows: PortfolioRow[];
@@ -108,9 +108,17 @@ export function PortfolioTable({
   const saiWidth = stickyColumns[1].width;
   const tableWidth = scrollColumns.reduce((sum, col) => sum + col.width, 0);
   const scrollX = useRef(new Animated.Value(0)).current;
+  const [tipSymbol, setTipSymbol] = useState<string | null>(null);
+  const longPressedRef = useRef(false);
 
   function handleHeaderSort(key: PortfolioSortKey) {
     onSortChange(cyclePortfolioSort(sort, key));
+  }
+
+  function openDetails(symbol: string) {
+    if (longPressedRef.current) return;
+    setTipSymbol(null);
+    router.push(`/symbol/${symbol}`);
   }
 
   return (
@@ -147,12 +155,23 @@ export function PortfolioTable({
         </View>
       </View>
 
-      <ScrollView
-        style={styles.bodyScroll}
-        nestedScrollEnabled
-        showsVerticalScrollIndicator
-        refreshControl={refreshControl}
-      >
+      <View style={styles.bodyWrap}>
+        {tipSymbol ? (
+          <View style={styles.tipBanner} pointerEvents="none">
+            <Text style={styles.tipBannerSymbol}>{tipSymbol}</Text>
+            <Text style={styles.tipBannerText}>
+              {tradeBandTooltipText(rows.find((r) => r.symbol === tipSymbol) ?? { symbol: tipSymbol }) ??
+                ""}
+            </Text>
+          </View>
+        ) : null}
+
+        <ScrollView
+          style={styles.bodyScroll}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+          refreshControl={refreshControl}
+        >
         <View style={styles.bodyRow}>
           <View style={[styles.stickyBody, { width: stickyWidth }]}>
             {rows.map((row) => (
@@ -184,42 +203,70 @@ export function PortfolioTable({
             contentContainerStyle={{ width: tableWidth }}
           >
             <View style={{ width: tableWidth }}>
-              {rows.map((row) => (
-                <Link key={row.symbol} href={`/symbol/${row.symbol}`} asChild>
-                  <Pressable style={styles.scrollDataRow}>
-                    {scrollColumns.map((col) => (
-                      <View
-                        key={col.key}
-                        style={[
-                          styles.dataCell,
-                          { width: col.width },
-                          col.align === "right" && styles.alignRightCell,
-                          col.tradeBand && styles.tradeBandCell,
-                        ]}
-                      >
-                        {col.tradeBand ? (
-                          <TradeBandBar row={row} width={col.width - spacing.xs} />
-                        ) : (
-                          <Text
-                            style={[
-                              styles.cellText,
-                              col.align === "right" && styles.alignRight,
-                              { color: cellColor(row, col) },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {renderCell(row, col)}
-                          </Text>
-                        )}
-                      </View>
-                    ))}
-                  </Pressable>
-                </Link>
-              ))}
+              {rows.map((row) => {
+                const tipActive = tipSymbol === row.symbol;
+                return (
+                  <View key={row.symbol} style={styles.scrollDataRow}>
+                    {scrollColumns.map((col) => {
+                      const supportsTradeTip = TRADE_TIP_KEYS.includes(col.key);
+                      const content = col.tradeBand ? (
+                        <TradeBandBar
+                          row={row}
+                          width={col.width - spacing.xs}
+                          active={tipActive}
+                        />
+                      ) : (
+                        <Text
+                          style={[
+                            styles.cellText,
+                            col.align === "right" && styles.alignRight,
+                            { color: cellColor(row, col) },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {renderCell(row, col)}
+                        </Text>
+                      );
+
+                      return (
+                        <Pressable
+                          key={col.key}
+                          style={[
+                            styles.dataCell,
+                            { width: col.width },
+                            col.align === "right" && styles.alignRightCell,
+                            col.tradeBand && styles.tradeBandCell,
+                            tipActive && supportsTradeTip && styles.dataCellTipActive,
+                          ]}
+                          onPress={() => openDetails(row.symbol)}
+                          onLongPress={
+                            supportsTradeTip
+                              ? () => {
+                                  longPressedRef.current = true;
+                                  if (tradeBandTooltipText(row)) setTipSymbol(row.symbol);
+                                }
+                              : undefined
+                          }
+                          onPressOut={() => {
+                            if (tipSymbol === row.symbol) setTipSymbol(null);
+                            requestAnimationFrame(() => {
+                              longPressedRef.current = false;
+                            });
+                          }}
+                          delayLongPress={320}
+                        >
+                          {content}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                );
+              })}
             </View>
           </Animated.ScrollView>
         </View>
       </ScrollView>
+      </View>
     </View>
   );
 }
@@ -270,6 +317,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     height: HEADER_HEIGHT,
     alignItems: "center",
+  },
+  bodyWrap: {
+    flex: 1,
+    position: "relative",
   },
   bodyScroll: {
     flex: 1,
@@ -335,11 +386,39 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  tipBanner: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    elevation: 20,
+    backgroundColor: "rgba(11, 18, 32, 0.82)",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(71, 85, 105, 0.7)",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: 2,
+  },
+  tipBannerSymbol: {
+    color: colors.link,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  tipBannerText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 16,
+  },
   dataCell: {
     flexShrink: 0,
     justifyContent: "center",
     paddingHorizontal: spacing.xs,
     height: ROW_HEIGHT,
+  },
+  dataCellTipActive: {
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
   },
   tradeBandCell: {
     overflow: "visible",

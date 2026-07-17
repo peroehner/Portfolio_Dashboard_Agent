@@ -1,8 +1,14 @@
 import type { ChartPatternPayload, ImportedFibLevel, InspectorPayload, TrendWavePayload } from "@/lib/types";
+import { formatMoney, formatPrice } from "@/lib/format";
 
 export interface ChartPoint {
   x: number;
   y: number;
+  /** Absolute price for hover labels. */
+  price?: number;
+  /** Absolute date ms for hover labels. */
+  dateMs?: number;
+  volume?: number | null;
 }
 
 export interface ChartFibLine {
@@ -28,22 +34,44 @@ export interface ChartPatternOverlay {
   targetLine?: { y: number; x1: number; x2: number };
 }
 
+export interface ChartTradeLevel {
+  side: "below" | "above";
+  label: string;
+  price: number;
+  /** Normalized y in [0,1] when in scale; null when outside. */
+  y: number | null;
+  edge: "none" | "top" | "bottom";
+  color: string;
+}
+
+export interface ChartVolumeBar {
+  x: number;
+  /** 0–1 bar height relative to max volume. */
+  h: number;
+  up: boolean;
+}
+
 export interface InspectorChartModel {
   priceLine: ChartPoint[];
+  volumeBars: ChartVolumeBar[];
   trendSegments: ChartTrendSegment[];
   fibLines: ChartFibLine[];
+  tradeLevels: ChartTradeLevel[];
   pattern?: ChartPatternOverlay;
   minPrice: number;
   maxPrice: number;
   minX: number;
   maxX: number;
   priceColor: string;
+  hasVolume: boolean;
 }
 
 const TREND_UP = ["#22c55e", "#4ade80", "#86efac"];
 const TREND_DOWN = ["#f87171", "#ef4444", "#fca5a5"];
 const PRICE_COLOR = "#c4b5fd";
 const DEFAULT_FIB_COLORS = ["#f59e0b", "#eab308", "#84cc16", "#22c55e", "#14b8a6", "#38bdf8", "#a78bfa"];
+export const TRADE_BELOW = "#fb7185";
+export const TRADE_ABOVE = "#34d399";
 
 function parseDate(value?: string): number | null {
   if (!value) return null;
@@ -63,6 +91,22 @@ function patternColor(pattern: ChartPatternPayload): string {
   return "#f59e0b";
 }
 
+function emptyModel(): InspectorChartModel {
+  return {
+    priceLine: [],
+    volumeBars: [],
+    trendSegments: [],
+    fibLines: [],
+    tradeLevels: [],
+    minPrice: 0,
+    maxPrice: 1,
+    minX: 0,
+    maxX: 1,
+    priceColor: PRICE_COLOR,
+    hasVolume: false,
+  };
+}
+
 export function buildInspectorChartModel(data?: InspectorPayload | null): InspectorChartModel {
   const timeline = data?.chartTimeline?.points ?? [];
   const waves = data?.trendWaves ?? [];
@@ -75,6 +119,10 @@ export function buildInspectorChartModel(data?: InspectorPayload | null): Inspec
       price: level.price,
       color: level.color,
     }));
+
+  const quote = data?.quote;
+  const tradeBelow = quote?.tradeBelowPrice ?? quote?.buyBelow;
+  const tradeAbove = quote?.tradeAbovePrice ?? quote?.sellAbove;
 
   const dates: number[] = [];
   for (const point of timeline) {
@@ -95,24 +143,13 @@ export function buildInspectorChartModel(data?: InspectorPayload | null): Inspec
   }
 
   dates.sort((a, b) => a - b);
-
-  if (!dates.length) {
-    return {
-      priceLine: [],
-      trendSegments: [],
-      fibLines: [],
-      minPrice: 0,
-      maxPrice: 1,
-      minX: 0,
-      maxX: 1,
-      priceColor: PRICE_COLOR,
-    };
-  }
+  if (!dates.length) return emptyModel();
 
   const minX = dates[0];
   const maxX = dates[dates.length - 1] || minX + 1;
   const xSpan = Math.max(maxX - minX, 1);
 
+  // Scale from price action + fib/pattern — not trade thresholds (edge markers instead).
   const prices: number[] = [];
   for (const point of timeline) {
     if (point.price != null) prices.push(point.price);
@@ -130,11 +167,11 @@ export function buildInspectorChartModel(data?: InspectorPayload | null): Inspec
   if (pattern?.keyLevel?.price != null) prices.push(pattern.keyLevel.price);
   if (pattern?.target != null) prices.push(pattern.target);
 
-  const minPrice = prices.length ? Math.min(...prices) : 0;
-  const maxPrice = prices.length ? Math.max(...prices) : 1;
-  const pricePad = (maxPrice - minPrice) * 0.06 || maxPrice * 0.02 || 1;
-  const yMin = minPrice - pricePad;
-  const yMax = maxPrice + pricePad;
+  const minPriceRaw = prices.length ? Math.min(...prices) : 0;
+  const maxPriceRaw = prices.length ? Math.max(...prices) : 1;
+  const pricePad = (maxPriceRaw - minPriceRaw) * 0.06 || maxPriceRaw * 0.02 || 1;
+  const yMin = minPriceRaw - pricePad;
+  const yMax = maxPriceRaw + pricePad;
 
   const toX = (date?: string) => {
     const ts = parseDate(date);
@@ -148,7 +185,36 @@ export function buildInspectorChartModel(data?: InspectorPayload | null): Inspec
 
   const priceLine: ChartPoint[] = timeline
     .filter((p) => p.price != null && parseDate(p.date) != null)
-    .map((p) => ({ x: toX(p.date), y: toY(p.price) }));
+    .map((p) => {
+      const dateMs = parseDate(p.date)!;
+      return {
+        x: toX(p.date),
+        y: toY(p.price),
+        price: p.price ?? undefined,
+        dateMs,
+        volume: p.volume ?? null,
+      };
+    });
+
+  let maxVol = 0;
+  for (const p of timeline) {
+    if (p.volume != null && p.volume > maxVol) maxVol = p.volume;
+  }
+  const hasVolume = maxVol > 0 && timeline.filter((p) => p.volume != null).length > 1;
+  const volumeBars: ChartVolumeBar[] = hasVolume
+    ? timeline
+        .map((p, i) => {
+          const ts = parseDate(p.date);
+          if (ts == null || p.volume == null) return null;
+          const prev = i > 0 ? timeline[i - 1].price : p.price;
+          return {
+            x: toX(p.date),
+            h: p.volume / maxVol,
+            up: (p.price ?? 0) >= (prev ?? 0),
+          };
+        })
+        .filter((b): b is ChartVolumeBar => b != null)
+    : [];
 
   const trendSegments: ChartTrendSegment[] = waves
     .filter((w) => w.startDate && w.endDate && w.priceStart != null && w.priceEnd != null)
@@ -168,6 +234,24 @@ export function buildInspectorChartModel(data?: InspectorPayload | null): Inspec
       price: Number(level.price),
       color: level.color ?? DEFAULT_FIB_COLORS[index % DEFAULT_FIB_COLORS.length],
     }));
+
+  const tradeLevels: ChartTradeLevel[] = [];
+  const pushTrade = (side: "below" | "above", price: unknown, label: string, color: string) => {
+    if (price == null || !Number.isFinite(Number(price))) return;
+    const p = Number(price);
+    let edge: ChartTradeLevel["edge"] = "none";
+    let y: number | null = toY(p);
+    if (p > yMax) {
+      edge = "top";
+      y = null;
+    } else if (p < yMin) {
+      edge = "bottom";
+      y = null;
+    }
+    tradeLevels.push({ side, label, price: p, y, edge, color });
+  };
+  pushTrade("below", tradeBelow, "Trade Below", TRADE_BELOW);
+  pushTrade("above", tradeAbove, "Trade Above", TRADE_ABOVE);
 
   let patternOverlay: ChartPatternOverlay | undefined;
   if (pattern && (pattern.points?.length ?? 0) >= 2) {
@@ -191,22 +275,34 @@ export function buildInspectorChartModel(data?: InspectorPayload | null): Inspec
 
   return {
     priceLine,
+    volumeBars,
     trendSegments,
     fibLines,
+    tradeLevels,
     pattern: patternOverlay,
     minPrice: yMin,
     maxPrice: yMax,
     minX,
     maxX,
     priceColor: PRICE_COLOR,
+    hasVolume,
   };
 }
 
-export function pointsToPolyline(points: ChartPoint[], width: number, height: number, pad: number): string {
+/** padLeft = left gutter (Y labels); pad = top/right/bottom gutter. */
+export function pointsToPolyline(
+  points: ChartPoint[],
+  width: number,
+  height: number,
+  padLeft: number,
+  pad = padLeft,
+): string {
+  const plotW = Math.max(1, width - padLeft - pad);
+  const plotH = Math.max(1, height - pad * 2);
   return points
     .map((p) => {
-      const x = pad + p.x * (width - pad * 2);
-      const y = pad + p.y * (height - pad * 2);
+      const x = padLeft + p.x * plotW;
+      const y = pad + p.y * plotH;
       return `${x},${y}`;
     })
     .join(" ");
@@ -216,10 +312,71 @@ export function chartCoord(
   point: ChartPoint,
   width: number,
   height: number,
-  pad: number,
+  padLeft: number,
+  pad = padLeft,
 ): { x: number; y: number } {
+  const plotW = Math.max(1, width - padLeft - pad);
+  const plotH = Math.max(1, height - pad * 2);
   return {
-    x: pad + point.x * (width - pad * 2),
-    y: pad + point.y * (height - pad * 2),
+    x: padLeft + point.x * plotW,
+    y: pad + point.y * plotH,
   };
+}
+
+export function plotMetrics(width: number, height: number, padLeft: number, pad: number) {
+  return {
+    plotW: Math.max(1, width - padLeft - pad),
+    plotH: Math.max(1, height - pad * 2),
+    padLeft,
+    pad,
+  };
+}
+
+/** Fullscreen chart content width so ~60 calendar days fill the viewport. */
+export function fullscreenChartWidth(model: InspectorChartModel, viewportWidth: number): number {
+  const daysPerView = 60;
+  const totalDays = modelSpanDays(model);
+  const pxPerDay = viewportWidth / daysPerView;
+  return Math.max(viewportWidth, Math.round(totalDays * pxPerDay));
+}
+
+export function yTicks(minPrice: number, maxPrice: number, count = 5): number[] {
+  if (!(maxPrice > minPrice)) return [minPrice];
+  const ticks: number[] = [];
+  for (let i = 0; i < count; i++) {
+    ticks.push(minPrice + ((maxPrice - minPrice) * i) / (count - 1));
+  }
+  return ticks;
+}
+
+export function nearestPricePoint(model: InspectorChartModel, normX: number): ChartPoint | null {
+  if (!model.priceLine.length) return null;
+  let best = model.priceLine[0];
+  let bestDist = Math.abs(best.x - normX);
+  for (const pt of model.priceLine) {
+    const d = Math.abs(pt.x - normX);
+    if (d < bestDist) {
+      best = pt;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
+export function formatChartHover(point: ChartPoint): string {
+  const date =
+    point.dateMs != null
+      ? new Date(point.dateMs).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      : "";
+  const price = point.price != null ? formatPrice(point.price) : "—";
+  return [date, price ? `Price ${price}` : ""].filter(Boolean).join(" · ");
+}
+
+export function formatTradeLevelHover(level: ChartTradeLevel): string {
+  return `${level.label}: ${formatMoney(level.price)}`;
+}
+
+/** Days spanned by the model (for fullscreen px-per-day sizing). */
+export function modelSpanDays(model: InspectorChartModel): number {
+  return Math.max(1, (model.maxX - model.minX) / 86400000);
 }

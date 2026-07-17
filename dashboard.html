@@ -1727,6 +1727,38 @@
       overflow-y: hidden;
       position: relative;
     }
+    .chart-fs-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .chart-fs-yaxis {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      z-index: 6;
+      pointer-events: none;
+      background: linear-gradient(
+        90deg,
+        var(--panel, #0f1626) 0%,
+        var(--panel, #0f1626) 78%,
+        rgba(15, 22, 38, 0) 100%
+      );
+    }
+    .chart-fs-yaxis[hidden] { display: none; }
+    .chart-fs-yaxis .fs-y-tick {
+      position: absolute;
+      right: 8px;
+      transform: translateY(-50%);
+      color: #9aa8bc;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      text-shadow: 0 0 4px var(--panel, #0f1626);
+    }
     .chart-fs-canvas-wrap {
       height: 100%;
       min-width: 100%;
@@ -1734,6 +1766,95 @@
     }
     .chart-fs-canvas-wrap canvas {
       height: 100% !important;
+    }
+    .trade-th-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 3;
+      overflow: hidden;
+    }
+    .trade-th-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 0;
+      border-top: 3px dashed;
+      pointer-events: auto;
+      cursor: help;
+      transform: translateY(-50%);
+      filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.55));
+    }
+    .trade-th-line::before,
+    .trade-th-line::after {
+      content: "";
+      position: absolute;
+      top: -5px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: currentColor;
+      border: 2px solid #0b1220;
+      box-sizing: border-box;
+    }
+    .trade-th-line::before { left: -1px; }
+    .trade-th-line::after { right: -1px; }
+    .trade-th-line.trade-th-below {
+      border-color: #fb7185;
+      color: #fb7185;
+    }
+    .trade-th-line.trade-th-above {
+      border-color: #34d399;
+      color: #34d399;
+    }
+    .trade-th-line-label {
+      position: absolute;
+      left: 8px;
+      top: -11px;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      padding: 0 0.3rem;
+      border-radius: 4px;
+      line-height: 1.3;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .trade-th-below .trade-th-line-label {
+      color: #fff1f2;
+      background: rgba(225, 29, 72, 0.92);
+    }
+    .trade-th-above .trade-th-line-label {
+      color: #ecfdf5;
+      background: rgba(5, 150, 105, 0.92);
+    }
+    .trade-th-edge {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      pointer-events: auto;
+      cursor: help;
+      font-size: 0.74rem;
+      font-weight: 800;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      white-space: nowrap;
+      z-index: 4;
+      letter-spacing: 0.01em;
+    }
+    .trade-th-edge-top { top: 4px; }
+    .trade-th-edge-bottom { bottom: 4px; }
+    .trade-th-edge.trade-th-below {
+      color: #fff1f2;
+      background: rgba(225, 29, 72, 0.92);
+      border: 1px solid rgba(251, 113, 133, 0.75);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+    }
+    .trade-th-edge.trade-th-above {
+      color: #ecfdf5;
+      background: rgba(5, 150, 105, 0.92);
+      border: 1px solid rgba(52, 211, 153, 0.75);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
     }
     .trend-waves-row {
       margin-top: 0.85rem;
@@ -3950,9 +4071,12 @@
         <span class="chart-fs-hint">Scroll horizontally · ~2-month view</span>
         <button type="button" class="chart-fs-close" onclick="closeInspectorChartFullscreen()" aria-label="Close">&times; Close</button>
       </div>
-      <div class="chart-fs-scroll" id="inspectorFsScroll">
-        <div class="chart-fs-canvas-wrap" id="inspectorFsCanvasWrap">
-          <canvas id="inspectorChart-inspectorFullscreen" aria-label="Full-screen timeline chart"></canvas>
+      <div class="chart-fs-body">
+        <div class="chart-fs-yaxis" id="inspectorFsYaxis" hidden aria-hidden="true"></div>
+        <div class="chart-fs-scroll" id="inspectorFsScroll">
+          <div class="chart-fs-canvas-wrap" id="inspectorFsCanvasWrap">
+            <canvas id="inspectorChart-inspectorFullscreen" aria-label="Full-screen timeline chart"></canvas>
+          </div>
         </div>
       </div>
     </div>
@@ -12000,7 +12124,104 @@
       return palette[index % palette.length];
     }
 
-    function renderInspectorTrendLegend(panelId, waves, pattern = null) {
+    function inspectorTradeThresholdLevels(data) {
+      const quote = data?.quote || {};
+      const below = quote.tradeBelowPrice ?? quote.buyBelow;
+      const above = quote.tradeAbovePrice ?? quote.sellAbove;
+      const levels = [];
+      if (below != null && Number.isFinite(Number(below))) {
+        levels.push({ side: "below", price: Number(below), label: "Trade Below" });
+      }
+      if (above != null && Number.isFinite(Number(above))) {
+        levels.push({ side: "above", price: Number(above), label: "Trade Above" });
+      }
+      return levels;
+    }
+
+    function syncInspectorFsYaxis(chart) {
+      const yAxisEl = document.getElementById("inspectorFsYaxis");
+      if (!yAxisEl || !chart) return;
+      const yScale = chart.scales?.y;
+      const area = chart.chartArea;
+      if (!yScale || !area) {
+        yAxisEl.hidden = true;
+        return;
+      }
+      const width = Math.max(48, Math.ceil(area.left));
+      yAxisEl.style.width = `${width}px`;
+      yAxisEl.hidden = false;
+      const ticks = (yScale.ticks || [])
+        .map((tick) => {
+          const value = typeof tick === "object" ? tick.value : tick;
+          if (value == null || !Number.isFinite(Number(value))) return "";
+          const y = yScale.getPixelForValue(value);
+          if (!Number.isFinite(y)) return "";
+          return `<div class="fs-y-tick" style="top:${y}px">${escapeHtml(formatMoney(value))}</div>`;
+        })
+        .filter(Boolean)
+        .join("");
+      yAxisEl.innerHTML = ticks;
+    }
+
+    function clearTradeThresholdOverlay(canvas) {
+      const wrap = canvas?.parentElement;
+      const layer = wrap?.querySelector(".trade-th-overlay");
+      if (layer) layer.remove();
+    }
+
+    function updateTradeThresholdOverlay(chart, levels) {
+      const canvas = chart?.canvas;
+      const wrap = canvas?.parentElement;
+      if (!wrap || !chart?.chartArea || !chart.scales?.y) {
+        clearTradeThresholdOverlay(canvas);
+        return;
+      }
+      let layer = wrap.querySelector(".trade-th-overlay");
+      if (!layer) {
+        layer = document.createElement("div");
+        layer.className = "trade-th-overlay";
+        wrap.appendChild(layer);
+      }
+      const area = chart.chartArea;
+      const yScale = chart.scales.y;
+      layer.style.left = `${area.left}px`;
+      layer.style.top = `${area.top}px`;
+      layer.style.width = `${area.right - area.left}px`;
+      layer.style.height = `${area.bottom - area.top}px`;
+
+      if (!levels?.length) {
+        layer.innerHTML = "";
+        return;
+      }
+
+      const yMin = yScale.min;
+      const yMax = yScale.max;
+      let topIdx = 0;
+      let bottomIdx = 0;
+      layer.innerHTML = levels.map((level) => {
+        const priceTxt = formatMoney(level.price);
+        const title = `${level.label}: ${priceTxt}`;
+        const sideCls = `trade-th-${level.side}`;
+        if (level.price >= yMin && level.price <= yMax) {
+          const top = yScale.getPixelForValue(level.price) - area.top;
+          const short = level.side === "below" ? "Below" : "Above";
+          return `<div class="trade-th-line ${sideCls}" style="top:${top}px" title="${escapeHtml(title)}"><span class="trade-th-line-label">${escapeHtml(short)}</span></div>`;
+        }
+        if (level.price > yMax) {
+          const offset = topIdx++ * 22;
+          return `<div class="trade-th-edge trade-th-edge-top ${sideCls}" style="top:${4 + offset}px" title="${escapeHtml(title)}">▲ ${escapeHtml(level.label)} ${escapeHtml(priceTxt)}</div>`;
+        }
+        const offset = bottomIdx++ * 22;
+        return `<div class="trade-th-edge trade-th-edge-bottom ${sideCls}" style="bottom:${4 + offset}px" title="${escapeHtml(title)}">▼ ${escapeHtml(level.label)} ${escapeHtml(priceTxt)}</div>`;
+      }).join("");
+    }
+
+    function inspectorChartAfterDraw(chart) {
+      if (chart.$inspectorFsYaxis) syncInspectorFsYaxis(chart);
+      if (chart.$tradeThresholds) updateTradeThresholdOverlay(chart, chart.$tradeThresholds);
+    }
+
+    function renderInspectorTrendLegend(panelId, waves, pattern = null, tradeLevels = []) {
       const legend = document.getElementById(`inspectorTrendLegend-${panelId}`);
       if (!legend) return;
       const items = [
@@ -12014,6 +12235,12 @@
       if (pattern && (pattern.points || []).length >= 2) {
         items.push(`<span><span class="legend-line" style="color:#f59e0b;"></span>◆ ${escapeHtml(pattern.name)} (${escapeHtml(pattern.status || "")})</span>`);
       }
+      tradeLevels.forEach((level) => {
+        const color = level.side === "below" ? "#fb7185" : "#34d399";
+        items.push(
+          `<span><span class="legend-line" style="color:${color};border-top-width:3px;border-top-style:dashed;"></span>${escapeHtml(level.label)} ${escapeHtml(formatMoney(level.price))}</span>`
+        );
+      });
       legend.innerHTML = items.join("");
     }
 
@@ -12021,6 +12248,8 @@
       const extents = inspectorChartExtents(timeline, waves);
       if (!extents.min || !extents.max) return false;
 
+      const isFullscreen = panelId === INSPECTOR_FS_PANEL;
+      const tradeLevels = inspectorTradeThresholdLevels(data);
       const datasets = [];
 
       // Volume bars pinned to the bottom of the chart (under the price), green on
@@ -12186,7 +12415,9 @@
         y: {
           grid: { color: "rgba(45, 58, 79, 0.55)" },
           ticks: {
-            color: "#9aa8bc",
+            // Fullscreen: sticky overlay paints the price legend so ticks stay
+            // visible while the canvas scrolls horizontally.
+            color: isFullscreen ? "transparent" : "#9aa8bc",
             callback: (value) => formatMoney(value),
           },
         },
@@ -12202,6 +12433,8 @@
           grid: { display: false },
         };
       }
+
+      clearTradeThresholdOverlay(canvas);
 
       inspectorCharts[panelId] = new Chart(canvas, {
         type: "line",
@@ -12235,8 +12468,18 @@
           },
           scales: timelineScales,
         },
+        plugins: [{
+          id: `inspectorOverlay-${panelId}`,
+          afterDraw(chart) {
+            inspectorChartAfterDraw(chart);
+          },
+        }],
       });
-      renderInspectorTrendLegend(panelId, waves, pattern);
+      const chart = inspectorCharts[panelId];
+      chart.$inspectorFsYaxis = isFullscreen;
+      chart.$tradeThresholds = tradeLevels;
+      inspectorChartAfterDraw(chart);
+      renderInspectorTrendLegend(panelId, waves, pattern, tradeLevels);
       return true;
     }
 
@@ -12343,6 +12586,7 @@
       if (!canvas || typeof Chart === "undefined") return;
 
       if (inspectorCharts[panelId]) {
+        clearTradeThresholdOverlay(inspectorCharts[panelId].canvas);
         inspectorCharts[panelId].destroy();
         inspectorCharts[panelId] = null;
       }
@@ -12408,6 +12652,7 @@
         wrap.style.width = `${width}px`;
 
         if (inspectorCharts[INSPECTOR_FS_PANEL]) {
+          clearTradeThresholdOverlay(inspectorCharts[INSPECTOR_FS_PANEL].canvas);
           inspectorCharts[INSPECTOR_FS_PANEL].destroy();
           inspectorCharts[INSPECTOR_FS_PANEL] = null;
         }
@@ -12422,11 +12667,18 @@
       const overlay = document.getElementById("inspectorChartFullscreen");
       if (overlay) overlay.hidden = true;
       if (inspectorCharts[INSPECTOR_FS_PANEL]) {
+        clearTradeThresholdOverlay(inspectorCharts[INSPECTOR_FS_PANEL].canvas);
         inspectorCharts[INSPECTOR_FS_PANEL].destroy();
         inspectorCharts[INSPECTOR_FS_PANEL] = null;
       }
       const wrap = document.getElementById("inspectorFsCanvasWrap");
       if (wrap) wrap.style.width = "";
+      const yAxisEl = document.getElementById("inspectorFsYaxis");
+      if (yAxisEl) {
+        yAxisEl.hidden = true;
+        yAxisEl.innerHTML = "";
+        yAxisEl.style.width = "";
+      }
     }
 
     function onInspectorFsBackdrop(event) {
