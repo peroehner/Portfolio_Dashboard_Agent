@@ -1,5 +1,5 @@
-import { useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -55,6 +55,13 @@ export default function PortfolioScreen() {
     const sym = typeof symbolParam === "string" ? symbolParam.trim().toUpperCase() : "";
     if (sym) setFilter(sym);
   }, [symbolParam]);
+
+  // Returning from Symbol details should reflect freshly saved thresholds.
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
 
   const assessmentBySymbol = useMemo(() => {
     const map = new Map<string, Assessment>();

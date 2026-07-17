@@ -33,7 +33,7 @@ function toInput(value: number | null | undefined): string {
 }
 
 function parseNullableNumber(text: string): number | null {
-  const raw = text.trim();
+  const raw = text.trim().replace(",", ".");
   if (!raw) return null;
   const val = Number(raw);
   return Number.isFinite(val) ? val : null;
@@ -89,6 +89,8 @@ export default function SymbolDetailScreen() {
     return { ...base, recommendation: rec };
   }, [liteData, fullData, newsSentiment]);
   const quote = data?.quote;
+  const effectiveBuyBelow = quote?.tradeBelowPrice ?? quote?.buyBelow;
+  const effectiveSellAbove = quote?.tradeAbovePrice ?? quote?.sellAbove;
   const drivers = useMemo(() => getRecommendationDrivers(data), [data]);
 
   const loadFull = useCallback(async () => {
@@ -158,8 +160,8 @@ export default function SymbolDetailScreen() {
         <Pressable
           onPress={() => {
             setSaveError(null);
-            setBuyBelow(toInput(quote?.buyBelow));
-            setSellAbove(toInput(quote?.sellAbove));
+            setBuyBelow(toInput(effectiveBuyBelow));
+            setSellAbove(toInput(effectiveSellAbove));
             setTargetPrice(toInput(quote?.targetPrice));
             setEditOpen(true);
           }}
@@ -169,7 +171,7 @@ export default function SymbolDetailScreen() {
         </Pressable>
       ),
     });
-  }, [navigation, sym, quote?.buyBelow, quote?.sellAbove, quote?.targetPrice]);
+  }, [navigation, sym, effectiveBuyBelow, effectiveSellAbove, quote?.targetPrice]);
 
   async function refreshAll() {
     setFullData(null);
@@ -199,9 +201,14 @@ export default function SymbolDetailScreen() {
     setSaving(true);
     setSaveError(null);
     try {
+      const buyBelowValue = parseNullableNumber(buyBelow);
+      const sellAboveValue = parseNullableNumber(sellAbove);
       const payload: Partial<PortfolioSymbol> = {
-        buyBelow: parseNullableNumber(buyBelow),
-        sellAbove: parseNullableNumber(sellAbove),
+        // Keep legacy and planned-trade threshold fields in sync.
+        buyBelow: buyBelowValue,
+        tradeBelowPrice: buyBelowValue,
+        sellAbove: sellAboveValue,
+        tradeAbovePrice: sellAboveValue,
         targetPrice: parseNullableNumber(targetPrice),
       };
       await api.updateSymbol(sym, payload);
@@ -328,11 +335,11 @@ export default function SymbolDetailScreen() {
               <View style={styles.thresholdGrid}>
                 <View style={styles.thresholdCell}>
                   <Text style={styles.statLabel}>Buy below</Text>
-                  <Text style={styles.statValue}>{formatPrice(quote?.buyBelow)}</Text>
+                  <Text style={styles.statValue}>{formatPrice(effectiveBuyBelow)}</Text>
                 </View>
                 <View style={styles.thresholdCell}>
                   <Text style={styles.statLabel}>Sell above</Text>
-                  <Text style={styles.statValue}>{formatPrice(quote?.sellAbove)}</Text>
+                  <Text style={styles.statValue}>{formatPrice(effectiveSellAbove)}</Text>
                 </View>
                 <View style={styles.thresholdCell}>
                   <Text style={styles.statLabel}>Personal target</Text>
