@@ -1,7 +1,9 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors, radii, spacing } from "@/lib/theme";
+import { alertTypeKey, alertTypeLabel } from "@/lib/alertTypes";
 import type { Alert } from "@/lib/types";
 
 interface AlertRowProps {
@@ -10,42 +12,37 @@ interface AlertRowProps {
   dismissing?: boolean;
 }
 
-const ALERT_TYPE_LABELS: Record<string, string> = {
-  screener_upside: "Screener Upside",
-  fib_proximity: "Fib",
-  trade_above: "Trade Above",
-  trade_above_near: "Trade Above Near",
-  trade_below: "Trade Below",
-  trade_below_near: "Trade Below Near",
-};
-
-function alertTypeLabel(alert: Alert): string {
-  const raw = String(alert.type || alert.alert_type || "alert").trim().toLowerCase();
-  if (ALERT_TYPE_LABELS[raw]) return ALERT_TYPE_LABELS[raw];
-  return raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 export function AlertRow({ alert, onDismiss, dismissing }: AlertRowProps) {
+  const type = alertTypeLabel(alertTypeKey(alert.type || alert.alert_type));
+
   return (
     <View style={styles.card}>
       <View style={styles.top}>
         <Link href={`/symbol/${alert.symbol}`} asChild>
-          <Pressable>
+          <Pressable style={styles.symbolPress}>
             <Text style={styles.symbol}>{alert.symbol}</Text>
           </Pressable>
         </Link>
-        <Text style={styles.type}>{alertTypeLabel(alert)}</Text>
+        <View style={styles.typeRow}>
+          <Text style={styles.type}>{type}</Text>
+          {onDismiss ? (
+            <Pressable
+              style={[styles.dismissBtn, dismissing && styles.dismissDisabled]}
+              onPress={() => onDismiss(alert.id)}
+              disabled={dismissing}
+              hitSlop={8}
+              accessibilityLabel="Dismiss alert"
+            >
+              <Ionicons
+                name="trash-outline"
+                size={16}
+                color={dismissing ? colors.textMuted : colors.textMuted}
+              />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
       {alert.message ? <Text style={styles.message}>{alert.message}</Text> : null}
-      {onDismiss ? (
-        <Pressable
-          style={[styles.dismiss, dismissing && styles.dismissDisabled]}
-          onPress={() => onDismiss(alert.id)}
-          disabled={dismissing}
-        >
-          <Text style={styles.dismissText}>{dismissing ? "Dismissing…" : "Dismiss"}</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -67,36 +64,39 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
   },
+  symbolPress: {
+    flexShrink: 0,
+  },
   symbol: {
     color: colors.link,
     fontSize: 16,
     fontWeight: "700",
   },
+  typeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    flexShrink: 1,
+    justifyContent: "flex-end",
+  },
   type: {
     color: colors.warning,
     fontSize: 11,
+    fontWeight: "600",
     textTransform: "none",
-    flexShrink: 1,
     textAlign: "right",
+    flexShrink: 1,
   },
   message: {
-    color: colors.text,
-    fontSize: 14,
-    lineHeight: 20,
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
   },
-  dismiss: {
-    alignSelf: "flex-start",
-    paddingVertical: 4,
-    paddingHorizontal: spacing.sm,
+  dismissBtn: {
+    padding: 2,
     borderRadius: radii.sm,
-    backgroundColor: colors.surfaceAlt,
   },
   dismissDisabled: {
-    opacity: 0.6,
-  },
-  dismissText: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: "600",
+    opacity: 0.5,
   },
 });

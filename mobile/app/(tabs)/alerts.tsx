@@ -12,29 +12,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AlertRow } from "@/components/AlertRow";
 import { Screen } from "@/components/Screen";
 import { api } from "@/lib/api";
+import { alertTypeChipLabel, alertTypeKey, compareAlertTypeChipOrder, sortAlertTypeChipEntries } from "@/lib/alertTypes";
 import { symbolMatchesFilter } from "@/lib/filters";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { Alert } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
-
-/** Canonical alert_type → short filter chip label. */
-const ALERT_TYPE_LABELS: Record<string, string> = {
-  screener_upside: "Screener Upside",
-  fib_proximity: "Fib",
-  trade_above: "Trade Above",
-  trade_above_near: "Trade Above Near",
-  trade_below: "Trade Below",
-  trade_below_near: "Trade Below Near",
-};
-
-function alertTypeKey(alert: Alert): string {
-  return String(alert.type || alert.alert_type || "alert").trim().toLowerCase();
-}
-
-function alertTypeLabel(key: string): string {
-  if (ALERT_TYPE_LABELS[key]) return ALERT_TYPE_LABELS[key];
-  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 export default function AlertsScreen() {
   const [filter, setFilter] = useState("");
@@ -48,23 +30,32 @@ export default function AlertsScreen() {
   const typeOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const alert of data?.alerts ?? []) {
-      const key = alertTypeKey(alert);
+      const key = alertTypeKey(alert.type || alert.alert_type);
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
-    return [...counts.entries()]
-      .map(([key, count]) => ({ key, count, label: alertTypeLabel(key) }))
-      .sort((a, b) => a.label.localeCompare(b.label));
+    return sortAlertTypeChipEntries(
+      [...counts.entries()].map(([key, count]) => ({ key, count, label: alertTypeChipLabel(key) })),
+    );
   }, [data?.alerts]);
 
-  const alerts = useMemo(
-    () =>
-      (data?.alerts ?? []).filter((alert) => {
-        if (!symbolMatchesFilter(alert.symbol, filter)) return false;
-        if (typeFilter && alertTypeKey(alert) !== typeFilter) return false;
-        return true;
-      }),
-    [data?.alerts, filter, typeFilter],
-  );
+  const alerts = useMemo(() => {
+    const filtered = (data?.alerts ?? []).filter((alert) => {
+      if (!symbolMatchesFilter(alert.symbol, filter)) return false;
+      if (typeFilter && alertTypeKey(alert.type || alert.alert_type) !== typeFilter) return false;
+      return true;
+    });
+    if (!typeFilter) {
+      return [...filtered].sort((a, b) => {
+        const byType = compareAlertTypeChipOrder(
+          alertTypeKey(a.type || a.alert_type),
+          alertTypeKey(b.type || b.alert_type),
+        );
+        if (byType !== 0) return byType;
+        return a.symbol.localeCompare(b.symbol);
+      });
+    }
+    return filtered;
+  }, [data?.alerts, filter, typeFilter]);
 
   const handleDismiss = useCallback(
     async (id: number) => {

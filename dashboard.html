@@ -2602,7 +2602,10 @@
     .nc-scroll { overflow-y: auto; padding-right: 0.25rem; }
     .nc-scroll-assess { max-height: 13rem; }
     .nc-scroll-reco { max-height: 17rem; }
+    .nc-scroll-alerts { max-height: 13rem; }
+    .nc-scroll-insights { max-height: 30rem; }
     .nc-scroll-news { max-height: 32rem; }
+    .nc-insights-panel[hidden] { display: none !important; }
     .nc-item {
       padding: 0.5rem 0.6rem;
       border-radius: 8px;
@@ -2641,6 +2644,20 @@
       flex-wrap: wrap;
     }
     .nc-head h3 { margin: 0 0 0.6rem 0; }
+    .nc-head-title {
+      display: flex;
+      align-items: baseline;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+    .nc-head-title h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: baseline;
+      gap: 0.4rem;
+    }
     .news-controls {
       display: flex;
       align-items: center;
@@ -2662,6 +2679,15 @@
       text-transform: uppercase;
       color: var(--text);
       white-space: nowrap;
+    }
+    .left-insights-filters {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.9rem;
+    }
+    .left-insights-filters[hidden],
+    #summaryAlertTypeFilter[hidden] {
+      display: none !important;
     }
     .reco-change, .topnews-item {
       background: var(--bg);
@@ -2694,6 +2720,39 @@
       color: var(--muted);
       margin-top: 0.3rem;
     }
+    .reco-change .nc-thesis { margin-top: 0.35rem; }
+    .reco-line .alert-row-end {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex-shrink: 0;
+    }
+    .alert-type-label {
+      color: #f59e0b;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-align: right;
+    }
+    .alert-dismiss-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.35rem;
+      height: 1.35rem;
+      padding: 0;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .alert-dismiss-btn:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.12);
+    }
+    .alert-dismiss-btn svg { display: block; }
     .topnews-item .news-title {
       font-size: 0.86rem;
       font-weight: 600;
@@ -4120,20 +4179,29 @@
         <div class="news-changes-col">
           <section class="nc-area">
             <div class="nc-head">
-              <h3>Synthesized Agent Insights (SAI) Changes <span class="nc-count" id="recoChangesMeta"></span></h3>
-              <div class="news-controls">
-                <span class="news-controls-label">Direction</span>
-                <div class="fund-news-sort" id="recoDirToggle" role="group" aria-label="Filter SAI changes by direction">
-                  <button type="button" id="recoDirUpBtn" data-dir="up" onclick="setRecoChangesDirFilter('up')" title="Show upgrades only (e.g. sell → hold → buy)">▲ Up</button>
-                  <button type="button" id="recoDirDownBtn" data-dir="down" onclick="setRecoChangesDirFilter('down')" title="Show downgrades only (e.g. buy → hold → sell)">▼ Down</button>
+              <div class="nc-head-title">
+                <div class="fund-news-sort" id="leftInsightsToggle" role="group" aria-label="Show SAI changes or alerts">
+                  <button type="button" id="leftInsightsSaiBtn" data-panel="sai" class="active" onclick="setLeftInsightsPanel('sai')" title="Show SAI changes">SAI</button>
+                  <button type="button" id="leftInsightsAlertsBtn" data-panel="alerts" onclick="setLeftInsightsPanel('alerts')" title="Show active alerts">Alerts</button>
                 </div>
+                <h3>
+                  <span id="leftInsightsHeadingSai">Synthesized Agent Insights (SAI) Changes <span class="nc-count" id="recoChangesMeta"></span></span>
+                  <span id="leftInsightsHeadingAlerts" hidden>Alerts <span class="nc-count" id="summaryAlertsMeta"></span></span>
+                </h3>
+              </div>
+              <div class="news-controls">
+                <span class="left-insights-filters" id="saiInsightsFilters">
+                  <span class="news-controls-label" id="recoDirLabel">Direction</span>
+                  <div class="fund-news-sort" id="recoDirToggle" role="group" aria-label="Filter SAI changes by direction">
+                    <button type="button" id="recoDirUpBtn" data-dir="up" onclick="setRecoChangesDirFilter('up')" title="Show upgrades only (e.g. sell → hold → buy)">▲ Up</button>
+                    <button type="button" id="recoDirDownBtn" data-dir="down" onclick="setRecoChangesDirFilter('down')" title="Show downgrades only (e.g. buy → hold → sell)">▼ Down</button>
+                  </div>
+                </span>
+                <div class="fund-news-sort" id="summaryAlertTypeFilter" role="group" aria-label="Filter alerts by type" hidden></div>
               </div>
             </div>
-            <div class="nc-scroll nc-scroll-reco" id="recoChangesList"><div class="empty">Loading…</div></div>
-          </section>
-          <section class="nc-area">
-            <h3>Latest Agent Reads <span class="nc-count" id="latestAssessmentsMeta"></span></h3>
-            <div class="nc-scroll nc-scroll-assess" id="latestAssessmentsBody"><div class="empty">Loading…</div></div>
+            <div class="nc-scroll nc-scroll-insights nc-insights-panel" id="recoChangesList"><div class="empty">Loading…</div></div>
+            <div class="nc-scroll nc-scroll-insights nc-insights-panel" id="summaryAlertsBody" hidden><div class="empty">Loading…</div></div>
           </section>
         </div>
         <div class="news-changes-col">
@@ -5471,6 +5539,126 @@
       fundamentals: null,
     };
 
+    const FILTER_STATE_KEY = "pda.filterState";
+    const FILTER_STATE_VERSION = 1;
+
+    function filterStateSnapshot() {
+      return {
+        v: FILTER_STATE_VERSION,
+        holdingsFilter,
+        screeningFilter,
+        screeningSentimentFilter,
+        simulationFilter,
+        simulationLegs,
+        simulationPricingMode,
+        fibMapBand,
+        fibMapTicker,
+        fibConfirmedOnly,
+        newsChangesTickerFilter,
+        recoChangesDirFilter,
+        topNewsSort,
+        topNewsGroup,
+        leftInsightsPanel,
+        fundamentalsTab,
+        selectionClipboard,
+        virtualPortfolioSymbols: Object.fromEntries(
+          Object.entries(virtualPortfolioSymbols).map(([tabId, set]) => [tabId, set ? [...set] : null])
+        ),
+      };
+    }
+
+    function saveFilterState() {
+      try {
+        localStorage.setItem(FILTER_STATE_KEY, JSON.stringify(filterStateSnapshot()));
+      } catch (_) { /* quota / private mode */ }
+    }
+
+    function restoreFilterState() {
+      try {
+        const raw = localStorage.getItem(FILTER_STATE_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        if (!saved || saved.v !== FILTER_STATE_VERSION) return;
+
+        const holdingsFilters = new Set(["all", "large", "medium", "small", "watch"]);
+        if (holdingsFilters.has(saved.holdingsFilter)) holdingsFilter = saved.holdingsFilter;
+
+        const screenFilters = new Set(["all", "upside", "close", "far"]);
+        if (screenFilters.has(saved.screeningFilter)) screeningFilter = saved.screeningFilter;
+
+        const sentiments = new Set(["all", "bullish", "neutral", "bearish"]);
+        if (sentiments.has(saved.screeningSentimentFilter)) {
+          screeningSentimentFilter = saved.screeningSentimentFilter;
+        }
+
+        if (screenFilters.has(saved.simulationFilter)) simulationFilter = saved.simulationFilter;
+        if (new Set(["both", "buys", "sells"]).has(saved.simulationLegs)) {
+          simulationLegs = saved.simulationLegs;
+        }
+        if (new Set(["threshold", "current"]).has(saved.simulationPricingMode)) {
+          simulationPricingMode = saved.simulationPricingMode;
+        }
+
+        const fibBands = new Set(["all", "critical", "warning", "neutral"]);
+        if (fibBands.has(saved.fibMapBand)) fibMapBand = saved.fibMapBand;
+        if (typeof saved.fibMapTicker === "string") fibMapTicker = saved.fibMapTicker;
+        if (typeof saved.fibConfirmedOnly === "boolean") fibConfirmedOnly = saved.fibConfirmedOnly;
+
+        if (typeof saved.newsChangesTickerFilter === "string") {
+          newsChangesTickerFilter = saved.newsChangesTickerFilter;
+        }
+        if (typeof saved.recoChangesDirFilter === "string") {
+          recoChangesDirFilter = saved.recoChangesDirFilter;
+        }
+        if (new Set(["relevance", "time"]).has(saved.topNewsSort)) topNewsSort = saved.topNewsSort;
+        if (typeof saved.topNewsGroup === "boolean") topNewsGroup = saved.topNewsGroup;
+        if (new Set(["sai", "alerts"]).has(saved.leftInsightsPanel)) {
+          leftInsightsPanel = saved.leftInsightsPanel;
+        }
+
+        const fundTabs = new Set(["val", "health", "range"]);
+        if (fundTabs.has(saved.fundamentalsTab)) fundamentalsTab = saved.fundamentalsTab;
+
+        if (Array.isArray(saved.selectionClipboard)) {
+          selectionClipboard = saved.selectionClipboard
+            .map((s) => String(s).toUpperCase())
+            .filter(Boolean);
+        }
+
+        if (saved.virtualPortfolioSymbols && typeof saved.virtualPortfolioSymbols === "object") {
+          for (const tabId of Object.keys(virtualPortfolioSymbols)) {
+            const symbols = saved.virtualPortfolioSymbols[tabId];
+            if (Array.isArray(symbols) && symbols.length) {
+              virtualPortfolioSymbols[tabId] = new Set(
+                symbols.map((s) => String(s).toUpperCase()).filter(Boolean)
+              );
+            } else {
+              virtualPortfolioSymbols[tabId] = null;
+            }
+          }
+        }
+      } catch (_) { /* corrupt storage */ }
+    }
+
+    function applyPersistedFilterUi() {
+      updateHoldingsFilterButtons();
+      updateScreeningFilterButtons();
+      updateSimulationFilterButtons();
+      updateSimulationCaption();
+      updateFibFilterButtons();
+      updateNewsControlStates();
+      updateRecoChangesControlStates();
+      updateLeftInsightsPanelUi();
+      const fibInput = document.getElementById("fibTickerFilter");
+      if (fibInput) fibInput.value = fibMapTicker;
+      const newsInput = document.getElementById("newsChangesTickerFilter");
+      if (newsInput) newsInput.value = newsChangesTickerFilter;
+      document.querySelectorAll(".fund-tab").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.fundTab === fundamentalsTab);
+      });
+      updateClipButtons();
+    }
+
     const PORTFOLIO_CLIP_TABS = new Set(["holdings", "simulation"]);
     const PASTE_FILTER_TABS = new Set(["holdings", "simulation", "screening", "fib", "fundamentals"]);
 
@@ -5690,6 +5878,7 @@
         const addedCount = incoming.filter((s) => !previous.has(s)).length;
         selectionClipboard = [...merged].sort();
         updateClipButtons();
+        saveFilterState();
         setStatus(
           addedCount
             ? `Added ${addedCount} symbol${addedCount === 1 ? "" : "s"} to filter (${selectionClipboard.length} total): ${selectionClipboard.join(", ")}.`
@@ -5700,6 +5889,7 @@
       }
       selectionClipboard = incoming;
       updateClipButtons();
+      saveFilterState();
       setStatus(`Filter set: ${incoming.length} symbol${incoming.length === 1 ? "" : "s"} — ${incoming.join(", ")}.`, "success");
     }
 
@@ -5713,6 +5903,7 @@
       const nextSet = new Set(symbols);
       if (virtualSymbolSetsEqual(getVirtualSymbols(tabId), nextSet)) {
         virtualPortfolioSymbols[tabId] = null;
+        saveFilterState();
         rerenderAfterVirtualFilter(tabId);
         setStatus("Filter cleared.", "info");
         return;
@@ -5724,6 +5915,7 @@
         );
       }
       rerenderAfterVirtualFilter(tabId);
+      saveFilterState();
       const shown = tableDataCache[tabId]?.length ?? 0;
       setStatus(
         filterStatusMessage(tabId, symbols.length, shown),
@@ -6970,6 +7162,7 @@
       try {
         await api(`/alerts/${id}/dismiss`, { method: "POST" });
         await loadAlerts();
+        await loadSummaryAlerts();
         setStatus("Alert dismissed.");
       } catch (error) {
         setStatus(error.message);
@@ -7571,6 +7764,7 @@
         loadTopNews();
       }
       loadLatestAssessments();
+      loadSummaryAlerts();
       loadTrackRecord();
       updateOnboardingPanel(data.symbolCount ?? 0);
       markRefreshed("Summary totals & metrics");
@@ -7581,6 +7775,12 @@
       return `<span class="chip ${value}">${value}</span>`;
     }
 
+    function rationaleForSymbol(symbol) {
+      const sym = String(symbol || "").toUpperCase();
+      const item = latestAssessmentsAll.find((a) => String(a.symbol || "").toUpperCase() === sym);
+      return item?.rationale || "";
+    }
+
     function renderRecoChange(change, isLatest = true) {
       const ts = change.createdAt || change.changedAt;
       const meta = [formatPanelDateTime(ts), change.newConfidence ? `${change.newConfidence} confidence` : ""]
@@ -7588,6 +7788,8 @@
         .join(" · ");
       const staleClass = isLatest ? "" : " reco-stale";
       const safeSymbol = String(change.symbol || "").replace(/'/g, "\\'");
+      const rationale = rationaleForSymbol(change.symbol);
+      const thesis = shortenThesis(rationale);
       return `
         <div class="reco-change${staleClass}" onclick="openScreeningSymbol('${safeSymbol}')" title="Open ${change.symbol} in Screening">
           <div class="reco-line">
@@ -7597,6 +7799,7 @@
             ${actionChip(change.newAction)}
           </div>
           <div class="reco-meta">${escapeHtml(meta)}</div>
+          ${thesis ? `<div class="nc-thesis" title="${escapeHtml(rationale)}">${escapeHtml(thesis)}</div>` : ""}
         </div>`;
     }
 
@@ -7764,6 +7967,9 @@
     let topNewsGroup = false;
     let recoChangesAll = [];
     let latestAssessmentsAll = [];
+    let summaryAlertsAll = [];
+    let summaryAlertsTypeFilter = "";
+    let leftInsightsPanel = "sai";
     let newsChangesTickerFilter = "";
     let recoChangesDirFilter = "";
 
@@ -7783,8 +7989,10 @@
 
     function setNewsChangesTickerFilter(value) {
       newsChangesTickerFilter = value || "";
+      saveFilterState();
       renderRecoChanges();
       renderLatestAssessments();
+      renderSummaryAlerts();
       renderTopNews();
     }
 
@@ -7798,6 +8006,7 @@
 
     function setRecoChangesDirFilter(dir) {
       recoChangesDirFilter = recoChangesDirFilter === dir ? "" : dir;
+      saveFilterState();
       updateRecoChangesControlStates();
       renderRecoChanges();
     }
@@ -7823,12 +8032,14 @@
 
     function setNewsSort(mode) {
       topNewsSort = mode;
+      saveFilterState();
       updateNewsControlStates();
       renderTopNews();
     }
 
     function toggleNewsGroup() {
       topNewsGroup = !topNewsGroup;
+      saveFilterState();
       updateNewsControlStates();
       renderTopNews();
     }
@@ -8102,32 +8313,196 @@
       return formatPanelDateTime(ts);
     }
 
-    function renderLatestAssessments() {
-      const body = document.getElementById("latestAssessmentsBody");
-      const meta = document.getElementById("latestAssessmentsMeta");
+    const SUMMARY_ALERT_CHIP_ORDER = [
+      "trade_above",
+      "trade_above_near",
+      "trade_below",
+      "trade_below_near",
+      "fib_proximity",
+      "screener_upside",
+    ];
+
+    function compareSummaryAlertChipOrder(a, b) {
+      const ia = SUMMARY_ALERT_CHIP_ORDER.indexOf(a);
+      const ib = SUMMARY_ALERT_CHIP_ORDER.indexOf(b);
+      const ra = ia === -1 ? SUMMARY_ALERT_CHIP_ORDER.length : ia;
+      const rb = ib === -1 ? SUMMARY_ALERT_CHIP_ORDER.length : ib;
+      if (ra !== rb) return ra - rb;
+      return summaryAlertChipLabel(a).localeCompare(summaryAlertChipLabel(b));
+    }
+
+    function setLeftInsightsPanel(panel) {
+      leftInsightsPanel = panel === "alerts" ? "alerts" : "sai";
+      saveFilterState();
+      updateLeftInsightsPanelUi();
+    }
+
+    function updateLeftInsightsPanelUi() {
+      const showAlerts = leftInsightsPanel === "alerts";
+      const saiHeading = document.getElementById("leftInsightsHeadingSai");
+      const alertsHeading = document.getElementById("leftInsightsHeadingAlerts");
+      const saiList = document.getElementById("recoChangesList");
+      const alertsList = document.getElementById("summaryAlertsBody");
+      const saiBtn = document.getElementById("leftInsightsSaiBtn");
+      const alertsBtn = document.getElementById("leftInsightsAlertsBtn");
+      const saiFilters = document.getElementById("saiInsightsFilters");
+      const alertFilters = document.getElementById("summaryAlertTypeFilter");
+      if (saiHeading) saiHeading.hidden = showAlerts;
+      if (alertsHeading) alertsHeading.hidden = !showAlerts;
+      if (saiList) saiList.hidden = showAlerts;
+      if (alertsList) alertsList.hidden = !showAlerts;
+      if (saiBtn) saiBtn.classList.toggle("active", !showAlerts);
+      if (alertsBtn) alertsBtn.classList.toggle("active", showAlerts);
+      if (saiFilters) saiFilters.hidden = showAlerts;
+      if (alertFilters) {
+        alertFilters.hidden = !showAlerts || summaryAlertsAll.length === 0;
+      }
+    }
+
+    const SUMMARY_ALERT_TYPE_LABELS = {
+      screener_upside: "Screener Upside",
+      fib_proximity: "Fib",
+      trade_above: "Trade Above",
+      trade_above_near: "Trade Above Near",
+      trade_below: "Trade Below",
+      trade_below_near: "Trade Below Near",
+    };
+
+    const SUMMARY_ALERT_CHIP_LABELS = {
+      screener_upside: "Upside",
+      fib_proximity: "Fib",
+      trade_above: "Above",
+      trade_above_near: "Above Near",
+      trade_below: "Below",
+      trade_below_near: "Below Near",
+    };
+
+    function summaryAlertTypeKey(alert) {
+      return String(alert.type || alert.alert_type || "alert").trim().toLowerCase();
+    }
+
+    function summaryAlertTypeLabel(key) {
+      if (SUMMARY_ALERT_TYPE_LABELS[key]) return SUMMARY_ALERT_TYPE_LABELS[key];
+      return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    function summaryAlertChipLabel(key) {
+      if (SUMMARY_ALERT_CHIP_LABELS[key]) return SUMMARY_ALERT_CHIP_LABELS[key];
+      return summaryAlertTypeLabel(key);
+    }
+
+    function filterSummaryAlertsList() {
+      const list = summaryAlertsAll.filter((alert) => {
+        if (!newsChangesSymbolMatches(alert.symbol)) return false;
+        if (summaryAlertsTypeFilter && summaryAlertTypeKey(alert) !== summaryAlertsTypeFilter) return false;
+        return true;
+      });
+      if (!summaryAlertsTypeFilter) {
+        list.sort((a, b) => {
+          const byType = compareSummaryAlertChipOrder(
+            summaryAlertTypeKey(a),
+            summaryAlertTypeKey(b),
+          );
+          if (byType !== 0) return byType;
+          return String(a.symbol || "").localeCompare(String(b.symbol || ""));
+        });
+      }
+      return list;
+    }
+
+    function updateSummaryAlertTypeControls() {
+      const bar = document.getElementById("summaryAlertTypeFilter");
+      if (!bar) return;
+      const counts = new Map();
+      for (const alert of summaryAlertsAll) {
+        const key = summaryAlertTypeKey(alert);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      const options = [...counts.entries()]
+        .map(([key, count]) => ({ key, count, label: summaryAlertChipLabel(key) }))
+        .sort((a, b) => compareSummaryAlertChipOrder(a.key, b.key));
+      bar.innerHTML = options.map(({ key, count, label }) => {
+        const active = summaryAlertsTypeFilter === key;
+        return `<button type="button" class="${active ? "active" : ""}" data-alert-type="${key}" onclick="setSummaryAlertsTypeFilter('${key}')" title="${escapeHtml(summaryAlertTypeLabel(key))}">${escapeHtml(label)} · ${count}</button>`;
+      }).join("");
+      updateLeftInsightsPanelUi();
+    }
+
+    function setSummaryAlertsTypeFilter(key) {
+      summaryAlertsTypeFilter = summaryAlertsTypeFilter === key ? "" : key;
+      updateSummaryAlertTypeControls();
+      renderSummaryAlerts();
+    }
+
+    function renderSummaryAlertItem(alert) {
+      const safeSymbol = String(alert.symbol || "").replace(/'/g, "\\'");
+      const type = summaryAlertTypeLabel(summaryAlertTypeKey(alert));
+      const message = alert.message || "";
+      const trashIcon = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>`;
+      return `
+        <div class="reco-change" onclick="openScreeningSymbol('${safeSymbol}')" title="Open ${alert.symbol} in Screening">
+          <div class="reco-line">
+            <strong>${escapeHtml(alert.symbol)}</strong>
+            <span class="alert-row-end">
+              <span class="alert-type-label">${escapeHtml(type)}</span>
+              <button type="button" class="alert-dismiss-btn" onclick="event.stopPropagation(); dismissSummaryAlert(${alert.id})" title="Dismiss alert" aria-label="Dismiss alert">${trashIcon}</button>
+            </span>
+          </div>
+          ${message ? `<div class="reco-meta">${escapeHtml(message)}</div>` : ""}
+        </div>`;
+    }
+
+    function renderSummaryAlerts() {
+      const body = document.getElementById("summaryAlertsBody");
+      const meta = document.getElementById("summaryAlertsMeta");
       if (!body) return;
-      const list = latestAssessmentsAll.filter((item) => newsChangesSymbolMatches(item.symbol));
+      const list = filterSummaryAlertsList();
+      updateSummaryAlertTypeControls();
       if (meta) {
-        const runTs = list.length ? formatAssessmentRunTs(list[0].assessedAt) : "";
         meta.textContent = list.length
-          ? `${list.length} symbols${runTs ? ` · ${runTs}` : ""}`
+          ? `${list.length} active${summaryAlertsAll.length !== list.length ? ` · ${summaryAlertsAll.length} total` : ""}`
           : "";
       }
       body.innerHTML = list.length
-        ? `<div class="topnews-feed">${list.map(renderLatestAssessmentItem).join("")}</div>`
-        : `<div class="empty">${latestAssessmentsAll.length && newsChangesTickerFilter.trim() ? "No agent reads match the current filter." : "No agent reads yet. Run Assess Portfolio to populate this overview."}</div>`;
+        ? `<div class="topnews-feed">${list.map(renderSummaryAlertItem).join("")}</div>`
+        : `<div class="empty">${summaryAlertsAll.length && (newsChangesTickerFilter.trim() || summaryAlertsTypeFilter) ? "No alerts match the current filter." : "No active alerts."}</div>`;
+    }
+
+    async function loadSummaryAlerts() {
+      const body = document.getElementById("summaryAlertsBody");
+      if (!body) return;
+      try {
+        const data = await api("/alerts?status=active");
+        summaryAlertsAll = data.alerts || [];
+        renderSummaryAlerts();
+      } catch (err) {
+        summaryAlertsAll = [];
+        body.innerHTML = `<div class="empty">Could not load alerts: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    async function dismissSummaryAlert(id) {
+      try {
+        await api(`/alerts/${id}/dismiss`, { method: "POST" });
+        await loadSummaryAlerts();
+        setStatus("Alert dismissed.", "success");
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    function renderLatestAssessments() {
+      renderRecoChanges();
     }
 
     async function loadLatestAssessments() {
-      const body = document.getElementById("latestAssessmentsBody");
-      if (!body) return;
       try {
         const [data] = await Promise.all([api("/assessments/overview"), loadSymbolPatterns()]);
         latestAssessmentsAll = data.assessments || [];
         renderLatestAssessments();
       } catch (err) {
         latestAssessmentsAll = [];
-        body.innerHTML = `<div class="empty">Could not load assessments: ${escapeHtml(err.message)}</div>`;
+        renderLatestAssessments();
       }
     }
 
@@ -8252,6 +8627,7 @@
 
     function setHoldingsFilter(filter) {
       holdingsFilter = filter;
+      saveFilterState();
       renderHoldingsView();
     }
 
@@ -9234,18 +9610,21 @@
 
     function setFibMapBand(band) {
       fibMapBand = band;
+      saveFilterState();
       updateFibFilterButtons();
       renderFibMapView();
     }
 
     function toggleFibConfirmed() {
       fibConfirmedOnly = !fibConfirmedOnly;
+      saveFilterState();
       updateFibFilterButtons();
       renderFibMapView();
     }
 
     function setFibTickerFilter(value) {
       fibMapTicker = value || "";
+      saveFilterState();
       renderFibMapView();
     }
 
@@ -9672,12 +10051,14 @@
 
     function setScreeningSentimentFilter(value) {
       screeningSentimentFilter = value || "all";
+      saveFilterState();
       updateScreeningFilterButtons();
       loadScreening("", false);
     }
 
     function setScreeningFilter(filter) {
       screeningFilter = filter || "all";
+      saveFilterState();
       updateScreeningFilterButtons();
       loadScreening("", false);
     }
@@ -10579,11 +10960,13 @@
 
     function setSimulationFilter(filter) {
       simulationFilter = filter || "all";
+      saveFilterState();
       renderSimulationView();
     }
 
     function setSimulationLegs(legs) {
       simulationLegs = legs || "both";
+      saveFilterState();
       if (simulationLegs !== "buys" && simulationPricingMode === "current") {
         ensureFundamentalsCache().then(() => renderSimulationView());
         return;
@@ -10593,6 +10976,7 @@
 
     function setSimulationPricingMode(mode) {
       simulationPricingMode = mode === "current" ? "current" : "threshold";
+      saveFilterState();
       if (simulationPricingMode === "current" && simulationLegs !== "buys") {
         ensureFundamentalsCache().then(() => renderSimulationView());
         return;
@@ -13352,6 +13736,7 @@
 
     function setFundamentalsTab(tab) {
       fundamentalsTab = tab;
+      saveFilterState();
       document.querySelectorAll(".fund-tab").forEach((btn) => {
         btn.classList.toggle("active", btn.dataset.fundTab === tab);
       });
@@ -13457,6 +13842,8 @@
     resetNoteForm();
     renderSelClipControls();
     initVpSetFilterHints();
+    restoreFilterState();
+    applyPersistedFilterUi();
     document.addEventListener("keydown", handleAuthorShortcut);
     showView("overview");
     startAutoRefresh();
