@@ -26,6 +26,11 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from services.fib_roles import (
+    FIB_ROLE_WEIGHT,
+    build_fib_context,
+    enrich_fib_level,
+)
 from services.volume_service import OBV_FLAT_BAND
 
 # Per-agent base weights (how much each lens counts before magnitude scaling).
@@ -35,6 +40,11 @@ W_STRUCTURE = float(os.environ.get("CONFLUENCE_WEIGHT_STRUCTURE", "0.8"))
 W_MOMENTUM = float(os.environ.get("CONFLUENCE_WEIGHT_MOMENTUM", "0.5"))
 W_PATTERN = float(os.environ.get("CONFLUENCE_WEIGHT_PATTERN", "1.0"))
 W_VOLUME = float(os.environ.get("CONFLUENCE_WEIGHT_VOLUME", "0.6"))
+W_FIB = float(os.environ.get("CONFLUENCE_WEIGHT_FIB", "0.55"))
+
+# Only cast a Fib vote when price is this close to the nearest level (matches
+# the Technical Stance "Alert" band in PATTERNS.md §8 by default).
+FIB_VOTE_PROXIMITY_PCT = float(os.environ.get("CONFLUENCE_FIB_PROXIMITY_PCT", "2.0"))
 
 # Score band edges (on the -1..+1 net axis) for the bias label.
 _LEAN_AT = float(os.environ.get("CONFLUENCE_LEAN_SCORE", "0.15"))
@@ -227,6 +237,75 @@ def _volume_vote(
     return _vote("volume", direction, weight, f"Volume: {rvol_txt}, {flow}", detail)
 
 
+def _fib_vote(
+    swing: dict[str, Any] | None,
+    price: float | None = None,
+    trend: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Weighted Fib-ladder vote from nearest level role + side (PATTERNS §7).
+
+    Shallow (23.6%) is noise in a strong trend (docs: strong trends often hold
+    above it) — only vote when the MA stack is mixed/unknown so Confluence can
+    still use it as a soft signal in range-bound tape.
+    """
+    if not swing:
+        return None
+    nearest = swing.get("nearestLevel") or {}
+    distance = nearest.get("distancePct")
+    if not isinstance(distance, (int, float)) or distance > FIB_VOTE_PROXIMITY_PCT:
+        return None
+
+    if not isinstance(price, (int, float)):
+        return None
+
+    level = {
+        "label": nearest.get("label"),
+        "ratio": nearest.get("ratio"),
+        "price": nearest.get("price"),
+        "role": nearest.get("role"),
+        "roleName": nearest.get("roleName"),
+        "cue": nearest.get("cue"),
+    }
+    if level.get("role") is None:
+        level = enrich_fib_level(level) or level
+
+    ctx = build_fib_context(
+        level=level,
+        price=float(price),
+        distance_pct=float(distance),
+        alert_proximity_pct=FIB_VOTE_PROXIMITY_PCT,
+    )
+    role = ctx.get("role")
+    side = ctx.get("side")
+    if not role or not side:
+        return None
+
+    if role == "shallow":
+        ma = str((trend or {}).get("maStack") or "").lower()
+        if ma in ("bullish", "bearish"):
+            return None
+
+    # Direction: holding above support-ish roles is bullish; below is bearish.
+    # High (resistance) inverts — reclaiming above is bullish.
+    if role == "high":
+        direction = 1 if side == "above" else -1
+    elif role == "center":
+        direction = 1 if side == "above" else -1
+    else:
+        # shallow / retrace / golden / deep / base — support ladder
+        direction = 1 if side == "above" else -1
+
+    role_w = FIB_ROLE_WEIGHT.get(str(role), 0.5)
+    # Closer proximity → stronger vote (full weight inside 0.5%, fades to ~0.55 at band edge).
+    prox_mag = max(0.55, 1.0 - (float(distance) / max(FIB_VOTE_PROXIMITY_PCT, _EPS)) * 0.45)
+    weight = W_FIB * role_w * prox_mag
+
+    role_name = ctx.get("roleName") or ctx.get("label") or "Fib"
+    label = f"Fib: {ctx.get('label') or ''} {role_name}".replace("  ", " ").strip()
+    detail = f"{side} level · {distance:.2f}% away"
+    return _vote("fib", direction, weight, label, detail)
+
+
 def _bias_from_score(score: float) -> str:
     if score >= _STRONG_AT:
         return "Bullish"
@@ -262,6 +341,7 @@ _BASE_WEIGHT = {
     "momentum": W_MOMENTUM,
     "pattern": W_PATTERN,
     "volume": W_VOLUME,
+    "fib": W_FIB,
 }
 
 
@@ -408,6 +488,25 @@ def _latent(agent: str, signals: dict[str, Any]) -> tuple[int, float, list[str]]
                 conf = 0.5
         weight = _BASE_WEIGHT["pattern"] * min(1.0, max(0.0, float(conf)))
         return direction, weight, _pattern_preconditions(lead)
+    if agent == "fib":
+        swing = signals.get("swing") or {}
+        nearest = swing.get("nearestLevel") or {}
+        role = nearest.get("role") or (enrich_fib_level(nearest) or {}).get("role")
+        role_name = nearest.get("roleName") or nearest.get("label") or "Fib level"
+        level_price = nearest.get("price")
+        if role == "high":
+            return (
+                1,
+                _BASE_WEIGHT["fib"] * FIB_ROLE_WEIGHT.get("high", 0.8),
+                [f"reclaiming the {role_name} at {_money(level_price)}"],
+            )
+        if role in ("golden", "deep", "base", "retrace", "shallow", "center"):
+            return (
+                1,
+                _BASE_WEIGHT["fib"] * FIB_ROLE_WEIGHT.get(str(role), 0.5),
+                [f"holding above the {role_name} at {_money(level_price)}"],
+            )
+        return None
     return None
 
 
@@ -417,6 +516,7 @@ _LENS_LABEL = {
     "momentum": "Momentum",
     "pattern": "Pattern",
     "volume": "Volume",
+    "fib": "Fib",
 }
 
 
@@ -508,6 +608,7 @@ def compute_confluence(signals: dict[str, Any] | None) -> dict[str, Any] | None:
             _momentum_vote(signals.get("momentum")),
             _pattern_vote(signals.get("patterns")),
             _volume_vote(signals.get("volume"), signals.get("volumeProfile")),
+            _fib_vote(signals.get("swing"), signals.get("price"), signals.get("trend")),
         )
         if v is not None and v["weight"] > _EPS
     ]

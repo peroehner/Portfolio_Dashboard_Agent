@@ -6806,13 +6806,15 @@
         .replace(/"/g, "&quot;");
     }
 
-    /** Bold "Net Cash $…" (and signed variants) inside alert plan text. */
+    /** Bold Net Cash and ``**level titles**`` inside alert messages. */
     function formatAlertMessageHtml(message) {
       const safe = escapeHtml(message);
-      return safe.replace(
-        /(Net Cash\s+-?\$[\d,]+(?:\.\d+)?)/gi,
-        '<strong class="alert-net-cash">$1</strong>',
-      );
+      return safe
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(
+          /(Net Cash\s+-?\$[\d,]+(?:\.\d+)?)/gi,
+          '<strong class="alert-net-cash">$1</strong>',
+        );
     }
 
     function noteHasSynthesis(note) {
@@ -9497,14 +9499,23 @@
 
     function fibLevelKind(level) {
       if (!level) return null;
+      if (level.roleName) return level.roleName;
       const ratio = level.ratio;
       if (ratio === 0.618) return "Golden Pocket";
       if (ratio === 0.5) return "Center Line";
-      if (ratio === 0.382 || ratio === 0.236 || ratio === 0.786) return "Retracement";
+      if (ratio === 0.236) return "Shallow";
+      if (ratio === 0.382) return "Retracement";
+      if (ratio === 0.786) return "Deep";
+      if (ratio === 0 || ratio === 0.0) return "High";
+      if (ratio === 1 || ratio === 1.0) return "Base";
       const label = String(level.label || "").toLowerCase();
       if (label.includes("golden")) return "Golden Pocket";
       if (label.includes("center")) return "Center Line";
+      if (label.includes("shallow")) return "Shallow";
+      if (label.includes("deep")) return "Deep";
       if (label.includes("retracement")) return "Retracement";
+      if (label.includes("high")) return "High";
+      if (label.includes("base")) return "Base";
       return null;
     }
 

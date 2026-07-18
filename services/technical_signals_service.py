@@ -27,6 +27,7 @@ import numpy as np
 import pandas as pd
 
 from services.confluence_service import compute_confluence
+from services.fib_roles import enrich_fib_level
 from services.market_cache import CACHE_MISS, TtlCache, make_ticker
 from services.risk_service import validate_patterns
 from services.volume_service import volume_block, volume_profile
@@ -597,16 +598,33 @@ def _swing_block(
     structure = _structure(highs, lows, prices)
 
     span = swing_high - swing_low
-    levels = [
-        {"label": f"{ratio * 100:.1f}%", "ratio": ratio, "price": round(swing_high - span * ratio, 2)}
-        for ratio in FIB_RATIOS
-    ]
+    levels = []
+    for ratio in FIB_RATIOS:
+        level = enrich_fib_level(
+            {
+                "label": f"{ratio * 100:.1f}%",
+                "ratio": ratio,
+                "price": round(swing_high - span * ratio, 2),
+            }
+        )
+        levels.append(
+            level
+            or {
+                "label": f"{ratio * 100:.1f}%",
+                "ratio": ratio,
+                "price": round(swing_high - span * ratio, 2),
+            }
+        )
     nearest = min(
         levels, key=lambda lvl: abs(price - lvl["price"]) if lvl["price"] else float("inf")
     )
     nearest_level = {
         "label": nearest["label"],
+        "ratio": nearest.get("ratio"),
         "price": nearest["price"],
+        "role": nearest.get("role"),
+        "roleName": nearest.get("roleName"),
+        "cue": nearest.get("cue"),
         "distancePct": round(abs(price - nearest["price"]) / price * 100, 2),
     }
 

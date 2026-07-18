@@ -2,9 +2,19 @@ import os
 from typing import Any
 
 from db.database import get_connection, get_current_user_id
+from services.fib_roles import (
+    build_fib_context,
+    fib_context_from_alert,
+    format_fib_proximity_message,
+)
 from services.fib_service import FibService
 from services.holdings_service import HoldingsService
 from services.portfolio_service import PortfolioService
+
+
+_TRADE_ALERT_TYPES = frozenset(
+    {"trade_above", "trade_above_near", "trade_below", "trade_below_near"}
+)
 
 
 class AlertsService:
@@ -16,6 +26,11 @@ class AlertsService:
         # How close (in %) the price must be to a planned-trade threshold before
         # an "approaching" (near) alert fires ahead of the "reached" alert.
         self.trade_near_pct = float(os.environ.get("TRADE_NEAR_PCT", "5"))
+        # Lonely 23.6% (shallow) Fib alerts are suppressed unless a trade gate
+        # or pattern key-level is also live for the same symbol.
+        self.suppress_lonely_shallow = os.environ.get(
+            "FIB_ALERT_SUPPRESS_SHALLOW", "1"
+        ).strip().lower() not in {"0", "false", "no"}
 
     def list_alerts(
         self,
@@ -434,19 +449,76 @@ class AlertsService:
             return []
 
         level = nearest["level"]
+        fib_ctx = build_fib_context(
+            level=level,
+            price=price,
+            distance_pct=nearest["distancePct"],
+            alert_proximity_pct=self.fib_proximity_pct,
+        )
+        if not self._should_emit_fib_alert(
+            fib_ctx, symbol, price, true_signatures
+        ):
+            return []
+
         alert = self._create_alert(
             symbol=symbol,
             alert_type="fib_proximity",
-            message=(
-                f"{symbol} at ${price:.2f} is within {nearest['distancePct']:.2f}% of "
-                f"the {level['label']} Fibonacci level at ${level['price']:.2f}."
-            ),
+            message=format_fib_proximity_message(symbol, price, fib_ctx),
             price=price,
             reference_value=level["price"],
             fib_level=level["label"],
             true_signatures=true_signatures,
         )
         return [alert] if alert is not None else []
+
+    def _should_emit_fib_alert(
+        self,
+        fib_ctx: dict[str, Any],
+        symbol: str,
+        price: float,
+        true_signatures: set | None,
+    ) -> bool:
+        """Gate lonely shallow (23.6%) alerts unless co-triggered."""
+        if not self.suppress_lonely_shallow:
+            return True
+        if fib_ctx.get("role") != "shallow":
+            return True
+        if self._has_trade_co_trigger(symbol, true_signatures):
+            return True
+        if self._has_pattern_key_level_near(symbol, price):
+            return True
+        return False
+
+    @staticmethod
+    def _has_trade_co_trigger(symbol: str, true_signatures: set | None) -> bool:
+        if not true_signatures:
+            return False
+        sym = str(symbol).upper()
+        return any(
+            sig_sym == sym and alert_type in _TRADE_ALERT_TYPES
+            for sig_sym, alert_type, _ref, _fib in true_signatures
+        )
+
+    def _has_pattern_key_level_near(self, symbol: str, price: float) -> bool:
+        """True when a detected pattern's key level sits within Fib proximity."""
+        try:
+            from services.technical_signals_service import TechnicalSignalsService
+
+            signals = TechnicalSignalsService().get_signals(symbol)
+        except Exception:  # noqa: BLE001
+            return False
+        if not signals:
+            return False
+        band = max(self.fib_proximity_pct, 1.0)
+        for pattern in signals.get("patterns") or []:
+            key = pattern.get("keyLevel") or {}
+            key_price = key.get("price")
+            if not isinstance(key_price, (int, float)) or not price:
+                continue
+            dist = abs(float(price) - float(key_price)) / float(price) * 100
+            if dist <= band:
+                return True
+        return False
 
     def _check_screener(
         self, engine, true_signatures: set | None = None
@@ -589,7 +661,7 @@ class AlertsService:
         return row is not None
 
     def _row_to_alert(self, row) -> dict[str, Any]:
-        return {
+        alert = {
             "id": row["id"],
             "symbol": row["symbol"],
             "type": row["alert_type"],
@@ -600,3 +672,8 @@ class AlertsService:
             "status": row["status"],
             "createdAt": row["created_at"],
         }
+        if alert["type"] == "fib_proximity":
+            fib_ctx = fib_context_from_alert(alert)
+            if fib_ctx:
+                alert["fib"] = fib_ctx
+        return alert

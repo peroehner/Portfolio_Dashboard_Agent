@@ -4,6 +4,7 @@ import time
 from collections import OrderedDict
 from typing import Any
 
+from services.fib_roles import enrich_fib_level
 from services.market_cache import make_ticker
 
 FIB_RATIOS = (0.236, 0.382, 0.5, 0.618, 0.786)
@@ -62,7 +63,7 @@ class FibService:
 
         return {
             "fib": fib,
-            "level": closest,
+            "level": enrich_fib_level(closest) or closest,
             "distancePct": round(closest_distance, 2),
         }
 
@@ -95,13 +96,14 @@ class FibService:
             levels = []
             for ratio in FIB_RATIOS:
                 price = round(swing_high - span * ratio, 2)
-                levels.append(
+                level = enrich_fib_level(
                     {
                         "label": f"{ratio * 100:.1f}%",
                         "ratio": ratio,
                         "price": price,
                     }
                 )
+                levels.append(level or {"label": f"{ratio * 100:.1f}%", "ratio": ratio, "price": price})
 
             return {
                 "symbol": symbol,

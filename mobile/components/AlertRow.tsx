@@ -14,7 +14,7 @@ interface AlertRowProps {
   browseSymbols?: string[];
 }
 
-/** Split alert message so "Net Cash $…" renders bold. */
+/** Split alert message so Net Cash and ``**…**`` segments render bold. */
 export function AlertMessageText({
   message,
   style,
@@ -24,21 +24,30 @@ export function AlertMessageText({
   style?: object;
   boldStyle?: object;
 }) {
-  const parts = message.split(/(Net Cash\s+-?\$[\d,]+(?:\.\d+)?)/gi);
+  const parts = message.split(/(\*\*[^*]+\*\*|Net Cash\s+-?\$[\d,]+(?:\.\d+)?)/gi);
   if (parts.length === 1) {
     return <Text style={style}>{message}</Text>;
   }
   return (
     <Text style={style}>
-      {parts.map((part, idx) =>
-        /^Net Cash\s+-?\$/i.test(part) ? (
-          <Text key={idx} style={[style, styles.netCash, boldStyle]}>
-            {part}
-          </Text>
-        ) : (
-          <Text key={idx}>{part}</Text>
-        ),
-      )}
+      {parts.map((part, idx) => {
+        const boldMatch = /^\*\*([^*]+)\*\*$/.exec(part);
+        if (boldMatch) {
+          return (
+            <Text key={idx} style={[style, styles.netCash, boldStyle]}>
+              {boldMatch[1]}
+            </Text>
+          );
+        }
+        if (/^Net Cash\s+-?\$/i.test(part)) {
+          return (
+            <Text key={idx} style={[style, styles.netCash, boldStyle]}>
+              {part}
+            </Text>
+          );
+        }
+        return <Text key={idx}>{part}</Text>;
+      })}
     </Text>
   );
 }

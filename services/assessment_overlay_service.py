@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from services.fib_roles import fib_context_from_alert
 from services.llm_client import LLMClient
 
 
@@ -98,7 +99,7 @@ class AssessmentOverlayService:
         alert_types = {alert.get("type") for alert in alerts}
         if action == "hold" and "fib_proximity" in alert_types:
             action = "watch"
-            factors.append("Price is near a key Fibonacci level (your alert).")
+            factors.append(self._fib_alert_factor(alerts))
         elif action == "hold" and "screener_upside" in alert_types:
             action = "watch"
             factors.append("Stock screens with substantial upside to your target.")
@@ -150,3 +151,31 @@ class AssessmentOverlayService:
                 rationale = f"{rationale} Personal overlay: {' '.join(personal_bits)}"
 
         return action, confidence, factors, rationale
+
+    @staticmethod
+    def _fib_alert_factor(alerts: list[dict[str, Any]]) -> str:
+        """Role-aware SAI factor for the nearest fib_proximity alert."""
+        fib_alerts = [a for a in alerts if a.get("type") == "fib_proximity"]
+        if not fib_alerts:
+            return "Price is near a key Fibonacci level (your alert)."
+
+        def _dist(alert: dict[str, Any]) -> float:
+            ctx = alert.get("fib") or fib_context_from_alert(alert) or {}
+            dist = ctx.get("distancePct")
+            return float(dist) if isinstance(dist, (int, float)) else 999.0
+
+        best = min(fib_alerts, key=_dist)
+        ctx = best.get("fib") or fib_context_from_alert(best) or {}
+        role_name = ctx.get("roleName") or best.get("fibLevel") or "Fibonacci"
+        label = ctx.get("label")
+        title = (
+            f"{label} {role_name}"
+            if label and str(label) not in str(role_name)
+            else str(role_name)
+        )
+        side = ctx.get("side")
+        side_txt = f", currently {side} the level" if side in ("above", "below") else ""
+        cue = ctx.get("cue")
+        if cue:
+            return f"Price is near the {title}{side_txt} (your Fib alert) — {cue}."
+        return f"Price is near the {title}{side_txt} (your Fib alert)."
