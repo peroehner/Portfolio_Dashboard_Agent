@@ -379,6 +379,7 @@ class ScreeningService:
                     "fibLevel": a.get("fibLevel"),
                     "referenceValue": a.get("referenceValue"),
                     "price": a.get("price"),
+                    "oneYt": a.get("oneYt"),
                 }
                 for a in alerts
                 if not str(a.get("type", "")).startswith("trade_")

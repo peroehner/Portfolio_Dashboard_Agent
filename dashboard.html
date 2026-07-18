@@ -8475,6 +8475,10 @@
       "trade_below",
       "trade_below_near",
       "fib_proximity",
+      "one_yt_chance",
+      "one_yt_lean",
+      "one_yt_watch",
+      "one_yt_stretch",
       "screener_upside",
     ];
 
@@ -8516,7 +8520,11 @@
     }
 
     const SUMMARY_ALERT_TYPE_LABELS = {
-      screener_upside: "Screener Upside",
+      one_yt_chance: "1YT Chance",
+      one_yt_lean: "1YT Lean",
+      one_yt_stretch: "1YT Stretch",
+      one_yt_watch: "1YT Watch",
+      screener_upside: "1YT",
       fib_proximity: "Fib",
       trade_above: "Trade Above",
       trade_above_near: "Trade Above Near",
@@ -8525,7 +8533,11 @@
     };
 
     const SUMMARY_ALERT_CHIP_LABELS = {
-      screener_upside: "Upside",
+      one_yt_chance: "Chance",
+      one_yt_lean: "Lean",
+      one_yt_stretch: "Stretch",
+      one_yt_watch: "Watch",
+      screener_upside: "1YT",
       fib_proximity: "Fib",
       trade_above: "Above",
       trade_above_near: "Above Near",
@@ -9122,6 +9134,10 @@
       trade_above: "T@A",
       trade_above_near: "T@A",
       fib_proximity: "Fib",
+      one_yt_chance: "1YT ✓",
+      one_yt_lean: "1YT ~",
+      one_yt_stretch: "1YT !!",
+      one_yt_watch: "1YT",
       screener_upside: "1YT",
     };
     function alertKindAbbr(type) {
@@ -9131,6 +9147,10 @@
         .map((s) => (s ? s[0].toUpperCase() : ""))
         .join("")
         .slice(0, 3) || "?";
+    }
+
+    function isOneYtAlertType(type) {
+      return String(type || "").startsWith("one_yt_") || type === "screener_upside";
     }
 
     function formatTradeAlertLabel(ta, row) {
@@ -9160,27 +9180,41 @@
     }
 
     function formatOneYtAlertLabel(alert, row) {
-      // Prefer the % baked into the alert message — same source as the tooltip.
-      const match = alert.message?.match(/([\d.]+)%\s*discount/i);
-      if (match) return `1YT ↓${parseFloat(match[1]).toFixed(1)}%`;
+      const type = alert.type || "";
+      const cat = alert.oneYt?.category
+        || ({
+          one_yt_chance: "chance",
+          one_yt_lean: "lean",
+          one_yt_stretch: "stretch",
+          one_yt_watch: "watch",
+          screener_upside: "watch",
+        })[type];
+      const abbr = ({
+        chance: "1YT ✓",
+        lean: "1YT ~",
+        stretch: "1YT !!",
+        watch: "1YT",
+      })[cat] || alertKindAbbr(type);
+
+      const match = alert.message?.match(/\*?\*?\s*([\d.]+)%\s+below 1YT/i)
+        || alert.message?.match(/([\d.]+)%\s*discount/i);
+      if (match) return `${abbr} ↓${parseFloat(match[1]).toFixed(1)}%`;
 
       const price = alert.price ?? row?.currentPrice;
-      // Mirror engine.run_screener: analyst 1YT first, then personal target;
-      // upside is measured from current price, not from the target level.
       const target = row?.analystTarget1y ?? row?.targetPrice ?? alert.referenceValue;
       if (price != null && target != null && price > 0) {
         const pct = (target - price) / price * 100;
-        if (!Number.isFinite(pct)) return "1YT";
+        if (!Number.isFinite(pct)) return abbr;
         const arrow = pct >= 0 ? "↓" : "↑";
-        return `1YT ${arrow}${Math.abs(pct).toFixed(1)}%`;
+        return `${abbr} ${arrow}${Math.abs(pct).toFixed(1)}%`;
       }
-      return "1YT";
+      return abbr;
     }
 
     function formatOtherAlertLabel(alert, row) {
       const type = alert.type || "";
       if (type === "fib_proximity") return formatFibAlertLabel(alert);
-      if (type === "screener_upside") return formatOneYtAlertLabel(alert, row);
+      if (isOneYtAlertType(type)) return formatOneYtAlertLabel(alert, row);
       return alertKindAbbr(type);
     }
 
@@ -9362,7 +9396,7 @@
     const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell\n• CONFIDENCE — High / Medium / Low\n• SENTIMENT — relevance-weighted news reaction; falls back to your notes\n• Sort — click Action, Confidence, or Sentiment below (strongest first → weakest → off)";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
     const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
-    const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT — 1-year target gap, e.g. 1YT ↓86.1% (click → Inspector)\n• (0) — no active alerts";
+    const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — 1-year target Chance / Lean / Stretch / Watch (click → Inspector)\n• (0) — no active alerts";
     const SIM_SYMBOL_HELP = "Ticker with at least one priced planned-trade threshold. Click to open in Target.";
     const SIM_CLOSE_PCT_HELP = "Distance to the nearest in-scope planned-trade threshold:\n• Uses the active Buys / Sells / Both leg filter\n• Smaller % = closer to triggering\n• ▼ price above threshold · ▲ price below threshold\n• Sort ascending to surface trades about to fire";
     const SIM_NET_GAINS_HELP = "Realized gain on in-scope SELL legs:\n• (avg sell price − cost/share) × shares sold\n• Cost/share — holding average cost when on file, otherwise share-weighted planned BUY threshold\n• — when no in-scope sells, or no derivable cost (UNKNOWN-WINS)";

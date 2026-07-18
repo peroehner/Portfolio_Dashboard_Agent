@@ -12,7 +12,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AlertRow } from "@/components/AlertRow";
 import { Screen } from "@/components/Screen";
 import { api } from "@/lib/api";
-import { alertTypeChipLabel, alertTypeKey, compareAlertTypeChipOrder, sortAlertTypeChipEntries } from "@/lib/alertTypes";
+import {
+  alertFilterGroupKey,
+  alertFilterGroupLabel,
+  alertMatchesFilterGroup,
+  alertTypeKey,
+  compareAlertTypeChipOrder,
+  sortAlertFilterGroupEntries,
+} from "@/lib/alertTypes";
 import { symbolMatchesFilter } from "@/lib/filters";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { Alert } from "@/lib/types";
@@ -30,18 +37,25 @@ export default function AlertsScreen() {
   const typeOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const alert of data?.alerts ?? []) {
-      const key = alertTypeKey(alert.type || alert.alert_type);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
+      const group = alertFilterGroupKey(alert.type || alert.alert_type);
+      if (!group) continue;
+      counts.set(group, (counts.get(group) ?? 0) + 1);
     }
-    return sortAlertTypeChipEntries(
-      [...counts.entries()].map(([key, count]) => ({ key, count, label: alertTypeChipLabel(key) })),
+    return sortAlertFilterGroupEntries(
+      [...counts.entries()].map(([key, count]) => ({
+        key,
+        count,
+        label: alertFilterGroupLabel(key),
+      })),
     );
   }, [data?.alerts]);
 
   const alerts = useMemo(() => {
     const filtered = (data?.alerts ?? []).filter((alert) => {
       if (!symbolMatchesFilter(alert.symbol, filter)) return false;
-      if (typeFilter && alertTypeKey(alert.type || alert.alert_type) !== typeFilter) return false;
+      if (typeFilter && !alertMatchesFilterGroup(alert.type || alert.alert_type, typeFilter)) {
+        return false;
+      }
       return true;
     });
     if (!typeFilter) {

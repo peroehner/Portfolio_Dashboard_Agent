@@ -9,6 +9,16 @@ from services.fib_roles import (
 )
 from services.fib_service import FibService
 from services.holdings_service import HoldingsService
+from services.one_yt_context import (
+    ONE_YT_ALERT_FAMILY,
+    build_one_yt_context,
+    format_one_yt_message,
+    is_one_yt_alert_type,
+    lead_pattern,
+    one_yt_context_from_alert,
+    portfolio_median_upside,
+    upside_pct,
+)
 from services.portfolio_service import PortfolioService
 
 
@@ -31,6 +41,8 @@ class AlertsService:
         self.suppress_lonely_shallow = os.environ.get(
             "FIB_ALERT_SUPPRESS_SHALLOW", "1"
         ).strip().lower() not in {"0", "false", "no"}
+        # Screener upside gate (fraction): same default as engine.run_screener (30%).
+        self.screener_upside_pct = float(os.environ.get("SCREENER_UPSIDE_PCT", "30"))
 
     def list_alerts(
         self,
@@ -528,24 +540,56 @@ class AlertsService:
         if not screener_input:
             return created
 
-        for message in engine.run_screener(screener_input):
-            symbol = message.split(" ", 1)[0]
-            symbol_row = self.portfolio_service.get_symbol(symbol)
-            reference = None
-            if symbol_row:
-                reference = symbol_row.get("analystTarget1y") or symbol_row.get("targetPrice")
-            price = symbol_row.get("currentPrice") if symbol_row else None
+        median = portfolio_median_upside(screener_input)
+        threshold = self.screener_upside_pct  # percent points, e.g. 30
+        for symbol, details in screener_input.items():
+            price = details.get("currentPrice")
+            target = details.get("analystTarget1y") or details.get("targetPrice")
+            pct = upside_pct(price, target)
+            if pct is None or pct <= threshold:
+                continue
+            if not isinstance(price, (int, float)) or not isinstance(target, (int, float)):
+                continue
+
+            atr_pct, pattern = self._one_yt_tape_context(symbol)
+            ctx = build_one_yt_context(
+                price=float(price),
+                target=float(target),
+                upside=float(pct),
+                portfolio_median=median,
+                atr_pct=atr_pct,
+                pattern=pattern,
+            )
             alert = self._create_alert(
                 symbol=symbol,
-                alert_type="screener_upside",
-                message=message,
-                price=price,
-                reference_value=reference,
+                alert_type=str(ctx.get("alertType") or "one_yt_watch"),
+                message=format_one_yt_message(symbol, float(price), ctx),
+                price=float(price),
+                reference_value=float(target),
                 true_signatures=true_signatures,
             )
             if alert is not None:
+                alert["oneYt"] = ctx
                 created.append(alert)
         return created
+
+    def _one_yt_tape_context(
+        self, symbol: str
+    ) -> tuple[float | None, dict[str, Any] | None]:
+        """ATR% + lead pattern from cached technical signals (best-effort)."""
+        try:
+            from services.technical_signals_service import TechnicalSignalsService
+
+            signals = TechnicalSignalsService().get_signals(symbol)
+        except Exception:  # noqa: BLE001
+            return None, None
+        if not signals:
+            return None, None
+        atr_pct = (signals.get("volatility") or {}).get("atrPct")
+        if not isinstance(atr_pct, (int, float)):
+            atr_pct = None
+        pattern = lead_pattern(signals.get("patterns"))
+        return atr_pct, pattern
 
     def _create_alert(
         self,
@@ -577,13 +621,25 @@ class AlertsService:
         with get_connection() as conn:
             # Keep only the latest alert per kind: supersede any prior active
             # alerts of the same symbol + type before inserting the new one.
-            conn.execute(
-                """
-                UPDATE alerts SET status = 'superseded'
-                WHERE user_id = %s AND symbol = %s AND alert_type = %s AND status = 'active'
-                """,
-                (user_id, symbol, alert_type),
-            )
+            # 1YT categories are one family — Chance→Stretch swaps must retire
+            # siblings (and legacy screener_upside) so chips stay exclusive.
+            if alert_type in ONE_YT_ALERT_FAMILY:
+                conn.execute(
+                    """
+                    UPDATE alerts SET status = 'superseded'
+                    WHERE user_id = %s AND symbol = %s AND status = 'active'
+                      AND alert_type = ANY(%s)
+                    """,
+                    (user_id, symbol, list(ONE_YT_ALERT_FAMILY)),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE alerts SET status = 'superseded'
+                    WHERE user_id = %s AND symbol = %s AND alert_type = %s AND status = 'active'
+                    """,
+                    (user_id, symbol, alert_type),
+                )
             cursor = conn.execute(
                 """
                 INSERT INTO alerts (
@@ -676,4 +732,8 @@ class AlertsService:
             fib_ctx = fib_context_from_alert(alert)
             if fib_ctx:
                 alert["fib"] = fib_ctx
+        elif is_one_yt_alert_type(alert["type"]):
+            one_yt = one_yt_context_from_alert(alert)
+            if one_yt:
+                alert["oneYt"] = one_yt
         return alert

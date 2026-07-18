@@ -10,6 +10,7 @@ from typing import Any
 
 from services.fib_roles import fib_context_from_alert
 from services.llm_client import LLMClient
+from services.one_yt_context import is_one_yt_alert_type, one_yt_context_from_alert
 
 
 class AssessmentOverlayService:
@@ -100,9 +101,9 @@ class AssessmentOverlayService:
         if action == "hold" and "fib_proximity" in alert_types:
             action = "watch"
             factors.append(self._fib_alert_factor(alerts))
-        elif action == "hold" and "screener_upside" in alert_types:
+        elif action == "hold" and any(is_one_yt_alert_type(t) for t in alert_types):
             action = "watch"
-            factors.append("Stock screens with substantial upside to your target.")
+            factors.append(self._one_yt_alert_factor(alerts))
 
         if combined.get("growthTrajectory"):
             note_line = f"Your notes: {combined['summary']}"
@@ -179,3 +180,43 @@ class AssessmentOverlayService:
         if cue:
             return f"Price is near the {title}{side_txt} (your Fib alert) — {cue}."
         return f"Price is near the {title}{side_txt} (your Fib alert)."
+
+    @staticmethod
+    def _one_yt_alert_factor(alerts: list[dict[str, Any]]) -> str:
+        """Context-aware SAI factor for 1YT category alerts."""
+        yt_alerts = [a for a in alerts if is_one_yt_alert_type(a.get("type"))]
+        if not yt_alerts:
+            return "Stock screens with substantial upside to 1YT (your alert)."
+
+        def _upside(alert: dict[str, Any]) -> float:
+            ctx = alert.get("oneYt") or one_yt_context_from_alert(alert) or {}
+            pct = ctx.get("upsidePct")
+            if isinstance(pct, (int, float)):
+                return float(pct)
+            return -1.0
+
+        best = max(yt_alerts, key=_upside)
+        msg = str(best.get("message") or "").replace("**", "").strip().rstrip(".")
+        if "below 1YT" in msg or "portfolio median" in msg or "× ATR" in msg:
+            return f"{msg} (your 1YT alert)."
+
+        ctx = best.get("oneYt") or one_yt_context_from_alert(best) or {}
+        upside = ctx.get("upsidePct")
+        upside_txt = f"{float(upside):.1f}%" if isinstance(upside, (int, float)) else "large"
+        bits = [f"1YT gap {upside_txt}"]
+        mult = ctx.get("vsMedianMultiple")
+        median = ctx.get("portfolioMedianPct")
+        if isinstance(mult, (int, float)) and isinstance(median, (int, float)):
+            bits.append(f"{mult:.1f}× portfolio median ({median:.0f}%)")
+        pattern = ctx.get("pattern") or {}
+        if pattern.get("name"):
+            verdict = pattern.get("verdict")
+            bits.append(f"{pattern['name']}" + (f" ({verdict})" if verdict else ""))
+        units = ctx.get("atrUnits")
+        if isinstance(units, (int, float)):
+            bits.append(f"≈{units:.0f}× ATR")
+        cue = ctx.get("cue")
+        head = "; ".join(bits)
+        if cue:
+            return f"{head} (your 1YT alert) — {cue}."
+        return f"{head} (your 1YT alert)."

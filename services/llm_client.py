@@ -657,10 +657,19 @@ class LLMClient:
             action = "watch"
             confidence = "medium"
             factors.append("Price is near a key Fibonacci level.")
-        elif "screener_upside" in alert_types:
+        elif any(
+            t in alert_types
+            for t in (
+                "one_yt_chance",
+                "one_yt_lean",
+                "one_yt_stretch",
+                "one_yt_watch",
+                "screener_upside",
+            )
+        ):
             action = "watch"
             confidence = "medium"
-            factors.append("Stock screens with substantial upside to target.")
+            factors.append("Stock screens with substantial upside to 1YT.")
 
         if combined.get("growthTrajectory"):
             factors.append(f"Note synthesis: {combined['summary']}")
