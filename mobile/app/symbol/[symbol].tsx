@@ -25,8 +25,12 @@ import { api } from "@/lib/api";
 import { getRecommendationDrivers, headlineForAction } from "@/lib/inspectorHelpers";
 import { formatPrice } from "@/lib/format";
 import {
+  getBrowseScrollY,
+  getBrowseUi,
   getSymbolBrowseNeighbors,
   replaceBrowseSymbol,
+  setBrowseScrollY,
+  setBrowseTab,
 } from "@/lib/symbolBrowseSession";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { InspectorPayload, Note, PortfolioSymbol } from "@/lib/types";
@@ -66,7 +70,9 @@ export default function SymbolDetailScreen() {
   const navigation = useNavigation();
   const { symbol } = useLocalSearchParams<{ symbol: string }>();
   const sym = String(symbol || "").toUpperCase();
-  const [tab, setTab] = useState<SymbolTab>("summary");
+  const [tab, setTab] = useState<SymbolTab>(() => getBrowseUi().tab);
+  const scrollRef = useRef<ScrollView>(null);
+  const restoredScrollSym = useRef<string | null>(null);
   const [fullData, setFullData] = useState<InspectorPayload | null>(null);
   const [fullLoading, setFullLoading] = useState(false);
   const [fullError, setFullError] = useState<string | null>(null);
@@ -131,7 +137,9 @@ export default function SymbolDetailScreen() {
     setComposingNote(false);
     setExpandedNoteKey(null);
     setEditOpen(false);
-    // Keep Summary/Technical tab across swipe so thumb-browse stays in context.
+    restoredScrollSym.current = null;
+    // Restore persisted tab after replace remounts this screen.
+    setTab(getBrowseUi().tab);
   }, [sym]);
 
   const neighbors = useMemo(() => getSymbolBrowseNeighbors(sym), [sym]);
@@ -142,6 +150,16 @@ export default function SymbolDetailScreen() {
     if (!target) return;
     replaceBrowseSymbol(target);
   }, []);
+
+  function handleTabChange(next: SymbolTab) {
+    setTab(next);
+    setBrowseTab(next);
+    restoredScrollSym.current = null;
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: getBrowseScrollY(next), animated: false });
+      restoredScrollSym.current = `${sym}:${next}`;
+    });
+  }
 
   const panResponder = useMemo(
     () =>
@@ -156,6 +174,26 @@ export default function SymbolDetailScreen() {
       }),
     [goBrowse],
   );
+
+  // After content for the new symbol is ready, restore scroll for the active tab.
+  useEffect(() => {
+    if (!data) return;
+    if (tab === "technical" && fullLoading && !fullData) return;
+    const key = `${sym}:${tab}`;
+    if (restoredScrollSym.current === key) return;
+    const y = getBrowseScrollY(tab);
+    const apply = () => scrollRef.current?.scrollTo({ y, animated: false });
+    apply();
+    const t1 = setTimeout(apply, 50);
+    const t2 = setTimeout(() => {
+      apply();
+      restoredScrollSym.current = key;
+    }, 180);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [sym, tab, data, fullLoading, fullData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -282,7 +320,7 @@ export default function SymbolDetailScreen() {
   return (
     <Screen loading={loading && !data} error={error} onRetry={() => void refreshAll()}>
       <View style={styles.browseRoot} {...panResponder.panHandlers}>
-      <SymbolTabBar active={tab} onChange={setTab} />
+      <SymbolTabBar active={tab} onChange={handleTabChange} />
 
       {neighbors.total > 1 ? (
         <View style={styles.browseBar}>
@@ -376,6 +414,7 @@ export default function SymbolDetailScreen() {
       ) : null}
 
       <ScrollView
+        ref={scrollRef}
         refreshControl={
           <RefreshControl
             refreshing={(loading && !!data) || fullLoading}
@@ -384,6 +423,10 @@ export default function SymbolDetailScreen() {
           />
         }
         contentContainerStyle={styles.scroll}
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          setBrowseScrollY(tab, event.nativeEvent.contentOffset.y);
+        }}
       >
         {tab === "summary" ? (
           <>

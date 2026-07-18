@@ -1,11 +1,22 @@
 import { router } from "expo-router";
 
+export type SymbolBrowseTab = "summary" | "technical";
+
 export type SymbolBrowseSession = {
   symbols: string[];
   source?: string;
 };
 
+type BrowseUi = {
+  tab: SymbolBrowseTab;
+  scrollY: Record<SymbolBrowseTab, number>;
+};
+
 let session: SymbolBrowseSession | null = null;
+let browseUi: BrowseUi = {
+  tab: "summary",
+  scrollY: { summary: 0, technical: 0 },
+};
 
 function normalizeList(symbols: string[]): string[] {
   const out: string[] = [];
@@ -19,14 +30,39 @@ function normalizeList(symbols: string[]): string[] {
   return out;
 }
 
+function resetBrowseUi() {
+  browseUi = {
+    tab: "summary",
+    scrollY: { summary: 0, technical: 0 },
+  };
+}
+
 /** Remember the ordered list the user opened a symbol from (Portfolio, Alerts, …). */
 export function setSymbolBrowseSession(symbols: string[], source?: string) {
   const list = normalizeList(symbols);
   session = list.length ? { symbols: list, source } : null;
+  // Fresh entry from a list starts at Summary / top.
+  resetBrowseUi();
 }
 
 export function getSymbolBrowseSession(): SymbolBrowseSession | null {
   return session;
+}
+
+export function getBrowseUi(): BrowseUi {
+  return browseUi;
+}
+
+export function setBrowseTab(tab: SymbolBrowseTab) {
+  browseUi.tab = tab;
+}
+
+export function setBrowseScrollY(tab: SymbolBrowseTab, y: number) {
+  browseUi.scrollY[tab] = Math.max(0, y);
+}
+
+export function getBrowseScrollY(tab: SymbolBrowseTab): number {
+  return browseUi.scrollY[tab] ?? 0;
 }
 
 export function getSymbolBrowseNeighbors(current: string): {
