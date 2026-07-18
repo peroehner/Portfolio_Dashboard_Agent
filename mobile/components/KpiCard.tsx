@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, Pressable, View } from "react-native";
 
 import { colors, radii, spacing } from "@/lib/theme";
 
@@ -7,16 +7,31 @@ interface KpiCardProps {
   value: string;
   hint?: string;
   valueColor?: string;
+  onPress?: () => void;
 }
 
-export function KpiCard({ label, value, hint, valueColor }: KpiCardProps) {
-  return (
-    <View style={styles.card}>
+export function KpiCard({ label, value, hint, valueColor, onPress }: KpiCardProps) {
+  const body = (
+    <>
       <Text style={styles.label}>{label}</Text>
       <Text style={[styles.value, valueColor ? { color: valueColor } : null]}>{value}</Text>
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
-    </View>
+    </>
   );
+
+  if (onPress) {
+    return (
+      <Pressable
+        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+        onPress={onPress}
+        accessibilityRole="button"
+      >
+        {body}
+      </Pressable>
+    );
+  }
+
+  return <View style={styles.card}>{body}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -26,6 +41,10 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  cardPressed: {
+    opacity: 0.85,
+    borderColor: colors.link,
   },
   label: {
     color: colors.textMuted,

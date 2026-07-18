@@ -12,6 +12,35 @@ interface AlertRowProps {
   dismissing?: boolean;
 }
 
+/** Split alert message so "Net Cash $…" renders bold. */
+export function AlertMessageText({
+  message,
+  style,
+  boldStyle,
+}: {
+  message: string;
+  style?: object;
+  boldStyle?: object;
+}) {
+  const parts = message.split(/(Net Cash\s+-?\$[\d,]+(?:\.\d+)?)/gi);
+  if (parts.length === 1) {
+    return <Text style={style}>{message}</Text>;
+  }
+  return (
+    <Text style={style}>
+      {parts.map((part, idx) =>
+        /^Net Cash\s+-?\$/i.test(part) ? (
+          <Text key={idx} style={[style, styles.netCash, boldStyle]}>
+            {part}
+          </Text>
+        ) : (
+          <Text key={idx}>{part}</Text>
+        ),
+      )}
+    </Text>
+  );
+}
+
 export function AlertRow({ alert, onDismiss, dismissing }: AlertRowProps) {
   const type = alertTypeLabel(alertTypeKey(alert.type || alert.alert_type));
 
@@ -42,7 +71,7 @@ export function AlertRow({ alert, onDismiss, dismissing }: AlertRowProps) {
           ) : null}
         </View>
       </View>
-      {alert.message ? <Text style={styles.message}>{alert.message}</Text> : null}
+      {alert.message ? <AlertMessageText message={alert.message} style={styles.message} /> : null}
     </View>
   );
 }
@@ -91,6 +120,10 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     lineHeight: 18,
+  },
+  netCash: {
+    color: colors.text,
+    fontWeight: "800",
   },
   dismissBtn: {
     padding: 2,

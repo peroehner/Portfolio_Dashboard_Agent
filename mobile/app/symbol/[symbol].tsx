@@ -144,6 +144,8 @@ export default function SymbolDetailScreen() {
   const [noteDate, setNoteDate] = useState(todayIso());
   const [noteTitle, setNoteTitle] = useState("");
   const [noteText, setNoteText] = useState("");
+  const [composingNote, setComposingNote] = useState(false);
+  const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
 
   const notes = useMemo(() => {
     const list = (quote?.notes ?? []).slice();
@@ -233,6 +235,9 @@ export default function SymbolDetailScreen() {
       };
       await api.addNote(sym, payload);
       setNoteText("");
+      setNoteTitle("");
+      setNoteDate(todayIso());
+      setComposingNote(false);
       await refreshAll();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to add note");
@@ -353,61 +358,102 @@ export default function SymbolDetailScreen() {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Notes</Text>
-              <View style={styles.noteForm}>
-                <View style={styles.noteRow}>
-                  <TextInput
-                    style={[styles.input, styles.noteDateInput]}
-                    value={noteDate}
-                    onChangeText={setNoteDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor={colors.textMuted}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <TextInput
-                    style={[styles.input, styles.noteTitleInput]}
-                    value={noteTitle}
-                    onChangeText={setNoteTitle}
-                    placeholder="Title"
-                    placeholderTextColor={colors.textMuted}
-                  />
-                </View>
-                <TextInput
-                  style={[styles.input, styles.noteText]}
-                  value={noteText}
-                  onChangeText={setNoteText}
-                  placeholder="Add a note…"
-                  placeholderTextColor={colors.textMuted}
-                  multiline
-                />
-                <Pressable
-                  style={[styles.primaryBtn, (!noteText.trim() || saving) && styles.primaryBtnDisabled]}
-                  onPress={() => void addNote()}
-                  disabled={!noteText.trim() || saving}
-                >
-                  <Text style={styles.primaryBtnText}>{saving ? "Saving…" : "Add note"}</Text>
-                </Pressable>
-                {saveError ? <Text style={styles.modalError}>{saveError}</Text> : null}
+              <View style={styles.notesHead}>
+                <Text style={styles.cardTitle}>Notes</Text>
+                {!composingNote ? (
+                  <Pressable
+                    style={styles.newNoteBtn}
+                    onPress={() => {
+                      setSaveError(null);
+                      setComposingNote(true);
+                    }}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.newNoteBtnText}>＋ New note</Text>
+                  </Pressable>
+                ) : null}
               </View>
+
+              {composingNote ? (
+                <View style={styles.noteForm}>
+                  <View style={styles.noteRow}>
+                    <TextInput
+                      style={[styles.input, styles.noteDateInput]}
+                      value={noteDate}
+                      onChangeText={setNoteDate}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={colors.textMuted}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <TextInput
+                      style={[styles.input, styles.noteTitleInput]}
+                      value={noteTitle}
+                      onChangeText={setNoteTitle}
+                      placeholder="Title"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+                  <TextInput
+                    style={[styles.input, styles.noteText]}
+                    value={noteText}
+                    onChangeText={setNoteText}
+                    placeholder="Add a note…"
+                    placeholderTextColor={colors.textMuted}
+                    multiline
+                    autoFocus
+                  />
+                  <View style={styles.noteFormActions}>
+                    <Pressable
+                      style={styles.secondaryBtn}
+                      onPress={() => {
+                        setComposingNote(false);
+                        setSaveError(null);
+                      }}
+                    >
+                      <Text style={styles.secondaryBtnText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        styles.primaryBtn,
+                        styles.primaryBtnFlex,
+                        (!noteText.trim() || saving) && styles.primaryBtnDisabled,
+                      ]}
+                      onPress={() => void addNote()}
+                      disabled={!noteText.trim() || saving}
+                    >
+                      <Text style={styles.primaryBtnText}>{saving ? "Saving…" : "Add note"}</Text>
+                    </Pressable>
+                  </View>
+                  {saveError ? <Text style={styles.modalError}>{saveError}</Text> : null}
+                </View>
+              ) : null}
 
               {notes.length ? (
                 <View style={styles.notesList}>
-                  {notes.slice(0, 10).map((note) => (
-                    <View
-                      key={note.id ?? `${note.date}-${note.source}-${note.text}`}
-                      style={styles.noteItem}
-                    >
-                      <Text style={styles.noteMeta}>
-                        {(note.date || "—") + (note.source ? ` · ${note.source}` : "")}
-                      </Text>
-                      {note.text ? (
-                        <Text style={styles.noteBody} numberOfLines={5}>
-                          {note.text}
-                        </Text>
-                      ) : null}
-                    </View>
-                  ))}
+                  {notes.slice(0, 10).map((note) => {
+                    const noteKey = String(note.id ?? `${note.date}-${note.source}-${note.text}`);
+                    const expanded = expandedNoteKey === noteKey;
+                    return (
+                      <Pressable
+                        key={noteKey}
+                        style={styles.noteItem}
+                        onPress={() => setExpandedNoteKey(expanded ? null : noteKey)}
+                      >
+                        <View style={styles.noteMetaRow}>
+                          <Text style={styles.noteMeta} numberOfLines={1}>
+                            {(note.date || "—") + (note.source ? ` · ${note.source}` : "")}
+                          </Text>
+                          <Text style={styles.noteExpandHint}>{expanded ? "Less" : "More"}</Text>
+                        </View>
+                        {note.text ? (
+                          <Text style={styles.noteBody} numberOfLines={expanded ? undefined : 4}>
+                            {note.text}
+                          </Text>
+                        ) : null}
+                      </Pressable>
+                    );
+                  })}
                 </View>
               ) : (
                 <Text style={styles.emptyInline}>No notes yet.</Text>
@@ -500,6 +546,48 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: spacing.xs,
   },
+  notesHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  newNoteBtn: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentMuted,
+    marginBottom: spacing.xs,
+  },
+  newNoteBtnText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  noteFormActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  secondaryBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryBtnText: {
+    color: colors.textMuted,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  primaryBtnFlex: {
+    flex: 1,
+  },
   statLabel: {
     color: colors.textMuted,
     fontSize: 12,
@@ -591,15 +679,29 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   noteItem: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-    paddingTop: spacing.sm,
-    gap: 4,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    padding: spacing.sm,
+    gap: 6,
+  },
+  noteMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
   },
   noteMeta: {
     color: colors.textMuted,
     fontSize: 12,
     fontWeight: "600",
+    flex: 1,
+  },
+  noteExpandHint: {
+    color: colors.link,
+    fontSize: 11,
+    fontWeight: "700",
   },
   noteBody: {
     color: colors.text,

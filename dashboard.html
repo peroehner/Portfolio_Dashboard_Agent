@@ -3640,7 +3640,28 @@
       text-decoration: underline;
     }
     .sim-tax-proposal tr.sim-tax-pick-row {
-      background: rgba(59, 130, 246, 0.1);
+      background: rgba(34, 197, 94, 0.14);
+      box-shadow: inset 3px 0 0 #22c55e;
+    }
+    .sim-tax-proposal tr.sim-tax-pick-row td:first-child {
+      font-weight: 700;
+    }
+    .sim-tax-pick-badge {
+      display: inline-block;
+      margin-left: 0.35rem;
+      padding: 0.05rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: #ecfdf5;
+      background: rgba(5, 150, 105, 0.92);
+      vertical-align: middle;
+    }
+    .alert-net-cash {
+      color: var(--text, #e6edf6);
+      font-weight: 800;
     }
     .sim-tax-criteria {
       display: flex;
@@ -6747,7 +6768,7 @@
         ? data.alerts.map((alert) => `
             <div class="alert">
               <strong>${alert.symbol}</strong> · ${alert.type}
-              <div>${alert.message}</div>
+              <div>${formatAlertMessageHtml(alert.message)}</div>
               <button class="secondary" style="margin-top:0.5rem;" onclick="dismissAlert(${alert.id})">Dismiss</button>
             </div>`).join("")
         : `<div class="empty">No active alerts.</div>`;
@@ -6783,6 +6804,15 @@
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
+    }
+
+    /** Bold "Net Cash $…" (and signed variants) inside alert plan text. */
+    function formatAlertMessageHtml(message) {
+      const safe = escapeHtml(message);
+      return safe.replace(
+        /(Net Cash\s+-?\$[\d,]+(?:\.\d+)?)/gi,
+        '<strong class="alert-net-cash">$1</strong>',
+      );
     }
 
     function noteHasSynthesis(note) {
@@ -8572,7 +8602,7 @@
               <button type="button" class="alert-dismiss-btn" onclick="event.stopPropagation(); dismissSummaryAlert(${alert.id})" title="Dismiss alert" aria-label="Dismiss alert">${trashIcon}</button>
             </span>
           </div>
-          ${message ? `<div class="reco-meta">${escapeHtml(message)}</div>` : ""}
+          ${message ? `<div class="reco-meta">${formatAlertMessageHtml(message)}</div>` : ""}
         </div>`;
     }
 
@@ -10913,7 +10943,7 @@
         const pick = pickBySymbol.get(cand.symbol);
         return `
           <tr class="${pick ? "sim-tax-pick-row" : ""}">
-            <td><a class="sim-tax-symbol-link" href="#" onclick="selectSymbol('${cand.symbol}'); showView('portfolio'); return false;">${escapeHtml(cand.symbol)}</a></td>
+            <td><a class="sim-tax-symbol-link" href="#" onclick="selectSymbol('${cand.symbol}'); showView('portfolio'); return false;">${escapeHtml(cand.symbol)}</a>${pick ? `<span class="sim-tax-pick-badge">Proposed</span>` : ""}</td>
             <td>${pick ? `${simQty(pick.suggestShares)} of ${simQty(cand.held)}` : "—"}</td>
             <td>${renderTaxProposalTrimCell(cand)}</td>
             <td style="text-align:right;">${pick ? renderColoredMoneyCell(pick.suggestGain) : "—"}</td>
@@ -12708,7 +12738,7 @@
         .map((a) => {
           const stale = a.status === "stale";
           const glyph = `<span class="alert-kind ${stale ? "stale" : "info"}">${escapeHtml(alertKindAbbr(a.type))}</span>`;
-          return `<div class="alert${stale ? " alert-stale" : ""}">${glyph}<span class="alert-msg">${escapeHtml(a.message)}</span></div>`;
+          return `<div class="alert${stale ? " alert-stale" : ""}">${glyph}<span class="alert-msg">${formatAlertMessageHtml(a.message)}</span></div>`;
         })
         .join("");
     }

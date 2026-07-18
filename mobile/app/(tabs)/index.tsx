@@ -75,6 +75,7 @@ export default function OverviewScreen() {
                 label="Positions"
                 value={String(data?.holdingCount ?? "—")}
                 hint={`${data?.symbolCount ?? 0} tracked · ${data?.watchlistOnlyCount ?? 0} watch`}
+                onPress={() => router.push("/portfolio")}
               />
               <KpiCard
                 label="Active alerts"
@@ -84,6 +85,7 @@ export default function OverviewScreen() {
                     ? `YTD ${data.bestYtdPerformer.symbol} ${formatPct(data.bestYtdPerformer.gainPct)}`
                     : undefined
                 }
+                onPress={() => router.push("/alerts")}
               />
             </View>
           </View>
