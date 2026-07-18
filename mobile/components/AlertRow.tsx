@@ -1,15 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { colors, radii, spacing } from "@/lib/theme";
 import { alertTypeKey, alertTypeLabel } from "@/lib/alertTypes";
+import { openSymbol } from "@/lib/symbolBrowseSession";
 import type { Alert } from "@/lib/types";
 
 interface AlertRowProps {
   alert: Alert;
   onDismiss?: (id: number) => void;
   dismissing?: boolean;
+  /** Ordered symbols for swipe browse; omit inside symbol detail. */
+  browseSymbols?: string[];
 }
 
 /** Split alert message so "Net Cash $…" renders bold. */
@@ -41,17 +43,18 @@ export function AlertMessageText({
   );
 }
 
-export function AlertRow({ alert, onDismiss, dismissing }: AlertRowProps) {
+export function AlertRow({ alert, onDismiss, dismissing, browseSymbols }: AlertRowProps) {
   const type = alertTypeLabel(alertTypeKey(alert.type || alert.alert_type));
 
   return (
     <View style={styles.card}>
       <View style={styles.top}>
-        <Link href={`/symbol/${alert.symbol}`} asChild>
-          <Pressable style={styles.symbolPress}>
-            <Text style={styles.symbol}>{alert.symbol}</Text>
-          </Pressable>
-        </Link>
+        <Pressable
+          style={styles.symbolPress}
+          onPress={() => openSymbol(alert.symbol, browseSymbols, "alerts")}
+        >
+          <Text style={styles.symbol}>{alert.symbol}</Text>
+        </Pressable>
         <View style={styles.typeRow}>
           <Text style={styles.type}>{type}</Text>
           {onDismiss ? (

@@ -57,6 +57,8 @@ export default function AlertsScreen() {
     return filtered;
   }, [data?.alerts, filter, typeFilter]);
 
+  const browseSymbols = useMemo(() => alerts.map((a) => a.symbol), [alerts]);
+
   const handleDismiss = useCallback(
     async (id: number) => {
       setDismissingId(id);
@@ -134,6 +136,7 @@ export default function AlertsScreen() {
                 alert={alert}
                 onDismiss={handleDismiss}
                 dismissing={dismissingId === alert.id}
+                browseSymbols={browseSymbols}
               />
             ))
           )}

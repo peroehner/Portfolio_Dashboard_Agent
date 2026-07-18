@@ -1,11 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { SaiBadge } from "@/components/SaiBadge";
 import { formatRelativeDate, formatShortDateTime } from "@/lib/format";
 import { headlineForAction } from "@/lib/inspectorHelpers";
 import { changeTimestamp } from "@/lib/newsFilters";
+import { openSymbol } from "@/lib/symbolBrowseSession";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { NewsItem, RecommendationChange } from "@/lib/types";
 
@@ -17,24 +17,28 @@ interface NewsCardProps extends CompactProps {
   item: NewsItem;
   onAddNote?: (item: NewsItem) => void;
   onOpenNews?: (item: NewsItem) => void;
+  browseSymbols?: string[];
 }
 
 interface SaiChangeCardProps extends CompactProps {
   change: RecommendationChange;
   onOpenPortfolio?: (symbol: string) => void;
+  browseSymbols?: string[];
 }
 
 function SymbolLink({
   symbol,
   compact,
+  browseSymbols,
 }: {
   symbol: string;
   compact?: boolean;
+  browseSymbols?: string[];
 }) {
   return (
     <Pressable
       style={styles.symbolPress}
-      onPress={() => router.push(`/symbol/${symbol}`)}
+      onPress={() => openSymbol(symbol, browseSymbols, "news")}
       hitSlop={4}
     >
       <Text style={[styles.symbol, compact && styles.symbolCompact]} numberOfLines={1}>
@@ -44,7 +48,7 @@ function SymbolLink({
   );
 }
 
-export function NewsCard({ item, compact, onAddNote, onOpenNews }: NewsCardProps) {
+export function NewsCard({ item, compact, onAddNote, onOpenNews, browseSymbols }: NewsCardProps) {
   return (
     <Pressable
       style={[styles.card, compact && styles.cardCompact]}
@@ -52,7 +56,7 @@ export function NewsCard({ item, compact, onAddNote, onOpenNews }: NewsCardProps
       disabled={!onOpenNews}
     >
       <View style={styles.metaRow}>
-        <SymbolLink symbol={item.symbol} compact={compact} />
+        <SymbolLink symbol={item.symbol} compact={compact} browseSymbols={browseSymbols} />
         <View style={styles.metaRight}>
           {item.published ? (
             <Text style={styles.date}>{formatRelativeDate(item.published)}</Text>
@@ -91,6 +95,7 @@ interface NewsSymbolGroupCardProps extends CompactProps {
   onToggleExpand: () => void;
   onAddNote?: (item: NewsItem) => void;
   onOpenNews?: (item: NewsItem) => void;
+  browseSymbols?: string[];
 }
 
 /** One symbol’s news: latest on top; Group expands the rest. */
@@ -102,6 +107,7 @@ export function NewsSymbolGroupCard({
   onAddNote,
   onOpenNews,
   compact,
+  browseSymbols,
 }: NewsSymbolGroupCardProps) {
   if (!items.length) return null;
   const latest = items[0];
@@ -115,6 +121,7 @@ export function NewsSymbolGroupCard({
         compact={compact}
         onAddNote={onAddNote}
         onOpenNews={onOpenNews}
+        browseSymbols={browseSymbols}
       />
       {rest.length > 0 ? (
         <Pressable
@@ -144,6 +151,7 @@ export function NewsSymbolGroupCard({
               compact={compact}
               onAddNote={onAddNote}
               onOpenNews={onOpenNews}
+              browseSymbols={browseSymbols}
             />
           ))
         : null}
@@ -151,7 +159,7 @@ export function NewsSymbolGroupCard({
   );
 }
 
-export function SaiChangeCard({ change, compact, onOpenPortfolio }: SaiChangeCardProps) {
+export function SaiChangeCard({ change, compact, onOpenPortfolio, browseSymbols }: SaiChangeCardProps) {
   const ts = changeTimestamp(change);
   const metaParts = [
     ts ? formatShortDateTime(ts) : "",
@@ -167,7 +175,7 @@ export function SaiChangeCard({ change, compact, onOpenPortfolio }: SaiChangeCar
         disabled={!onOpenPortfolio}
       >
         <View style={styles.metaRow}>
-          <SymbolLink symbol={change.symbol} compact />
+          <SymbolLink symbol={change.symbol} compact browseSymbols={browseSymbols} />
           {meta ? <Text style={styles.date}>{meta}</Text> : null}
         </View>
         <View style={styles.changeRow}>
@@ -188,7 +196,7 @@ export function SaiChangeCard({ change, compact, onOpenPortfolio }: SaiChangeCar
       <View style={styles.recoRow}>
         <View style={styles.recoLeft}>
           <View style={styles.recoLine}>
-            <SymbolLink symbol={change.symbol} />
+            <SymbolLink symbol={change.symbol} browseSymbols={browseSymbols} />
             <SaiBadge action={change.oldAction} compact />
             <Text style={styles.arrow}>→</Text>
             <SaiBadge action={change.newAction} compact />

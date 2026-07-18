@@ -1,9 +1,7 @@
-import { Link } from "expo-router";
 import { useMemo, useRef } from "react";
 import {
   Animated,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,6 +21,7 @@ import {
   type FundamentalsSortState,
   type FundamentalsTab,
 } from "@/lib/fundamentalsTable";
+import { openSymbol } from "@/lib/symbolBrowseSession";
 import { colors, spacing } from "@/lib/theme";
 import type { FundamentalsRow } from "@/lib/types";
 
@@ -80,21 +79,24 @@ function StickyCell({
   row,
   col,
   width,
+  browseSymbols,
 }: {
   row: FundamentalsRow;
   col: FundamentalsColumn;
   width: number;
+  browseSymbols: string[];
 }) {
   if (col.kind === "symbol") {
     return (
       <View style={[styles.symbolCell, { width }]}>
-        <Link href={`/symbol/${row.symbol}`} asChild>
-          <Pressable style={styles.symbolPress}>
-            <Text style={styles.symbol} numberOfLines={1}>
-              {row.symbol}
-            </Text>
-          </Pressable>
-        </Link>
+        <Pressable
+          style={styles.symbolPress}
+          onPress={() => openSymbol(row.symbol, browseSymbols, "fundamentals")}
+        >
+          <Text style={styles.symbol} numberOfLines={1}>
+            {row.symbol}
+          </Text>
+        </Pressable>
       </View>
     );
   }
@@ -162,6 +164,7 @@ export function FundamentalsTable({
     [tab],
   );
   const sortedRows = useMemo(() => sortFundamentalsRows(rows, sort), [rows, sort]);
+  const browseSymbols = useMemo(() => sortedRows.map((row) => row.symbol), [sortedRows]);
   const stickyWidth = stickyColumns.reduce((sum, col) => sum + col.width, 0);
   const tableWidth = scrollColumns.reduce((sum, col) => sum + col.width, 0);
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -215,7 +218,13 @@ export function FundamentalsTable({
             {sortedRows.map((row) => (
               <View key={row.symbol} style={[styles.stickyDataRow, { width: stickyWidth }]}>
                 {stickyColumns.map((col) => (
-                  <StickyCell key={col.key} row={row} col={col} width={col.width} />
+                  <StickyCell
+                    key={col.key}
+                    row={row}
+                    col={col}
+                    width={col.width}
+                    browseSymbols={browseSymbols}
+                  />
                 ))}
               </View>
             ))}
@@ -233,13 +242,15 @@ export function FundamentalsTable({
           >
             <View style={{ width: tableWidth }}>
               {sortedRows.map((row) => (
-                <Link key={row.symbol} href={`/symbol/${row.symbol}`} asChild>
-                  <Pressable style={styles.scrollDataRow}>
-                    {scrollColumns.map((col) => (
-                      <ScrollCell key={col.key} row={row} col={col} width={col.width} />
-                    ))}
-                  </Pressable>
-                </Link>
+                <Pressable
+                  key={row.symbol}
+                  style={styles.scrollDataRow}
+                  onPress={() => openSymbol(row.symbol, browseSymbols, "fundamentals")}
+                >
+                  {scrollColumns.map((col) => (
+                    <ScrollCell key={col.key} row={row} col={col} width={col.width} />
+                  ))}
+                </Pressable>
               ))}
             </View>
           </Animated.ScrollView>

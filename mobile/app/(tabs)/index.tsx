@@ -99,7 +99,11 @@ export default function OverviewScreen() {
                 </Pressable>
               </View>
               {(data?.alerts ?? []).slice(0, 3).map((alert) => (
-                <AlertRow key={alert.id} alert={alert} />
+                <AlertRow
+                  key={alert.id}
+                  alert={alert}
+                  browseSymbols={(data?.alerts ?? []).slice(0, 3).map((a) => a.symbol)}
+                />
               ))}
             </View>
           ) : null}

@@ -1,8 +1,9 @@
 import { useLocalSearchParams, useNavigation } from "expo-router";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
+  PanResponder,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -23,6 +24,10 @@ import { Screen } from "@/components/Screen";
 import { api } from "@/lib/api";
 import { getRecommendationDrivers, headlineForAction } from "@/lib/inspectorHelpers";
 import { formatPrice } from "@/lib/format";
+import {
+  getSymbolBrowseNeighbors,
+  replaceBrowseSymbol,
+} from "@/lib/symbolBrowseSession";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { InspectorPayload, Note, PortfolioSymbol } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
@@ -107,12 +112,50 @@ export default function SymbolDetailScreen() {
     }
   }, [sym, fullData, fullLoading]);
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [buyBelow, setBuyBelow] = useState("");
+  const [sellAbove, setSellAbove] = useState("");
+  const [targetPrice, setTargetPrice] = useState("");
+  const [noteDate, setNoteDate] = useState(todayIso());
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteText, setNoteText] = useState("");
+  const [composingNote, setComposingNote] = useState(false);
+  const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
+
   useEffect(() => {
     setFullData(null);
     setFullError(null);
     setNewsSentiment(null);
-    setTab("summary");
+    setComposingNote(false);
+    setExpandedNoteKey(null);
+    setEditOpen(false);
+    // Keep Summary/Technical tab across swipe so thumb-browse stays in context.
   }, [sym]);
+
+  const neighbors = useMemo(() => getSymbolBrowseNeighbors(sym), [sym]);
+  const symRef = useRef(sym);
+  symRef.current = sym;
+
+  const goBrowse = useCallback((target: string | null) => {
+    if (!target) return;
+    replaceBrowseSymbol(target);
+  }, []);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          Math.abs(gesture.dx) > 24 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.6,
+        onPanResponderRelease: (_, gesture) => {
+          const { prev, next } = getSymbolBrowseNeighbors(symRef.current);
+          if (gesture.dx <= -56) goBrowse(next);
+          else if (gesture.dx >= 56) goBrowse(prev);
+        },
+      }),
+    [goBrowse],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -134,18 +177,6 @@ export default function SymbolDetailScreen() {
       void loadFull();
     }
   }, [tab, loadFull]);
-
-  const [editOpen, setEditOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [buyBelow, setBuyBelow] = useState("");
-  const [sellAbove, setSellAbove] = useState("");
-  const [targetPrice, setTargetPrice] = useState("");
-  const [noteDate, setNoteDate] = useState(todayIso());
-  const [noteTitle, setNoteTitle] = useState("");
-  const [noteText, setNoteText] = useState("");
-  const [composingNote, setComposingNote] = useState(false);
-  const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
 
   const notes = useMemo(() => {
     const list = (quote?.notes ?? []).slice();
@@ -250,7 +281,36 @@ export default function SymbolDetailScreen() {
 
   return (
     <Screen loading={loading && !data} error={error} onRetry={() => void refreshAll()}>
+      <View style={styles.browseRoot} {...panResponder.panHandlers}>
       <SymbolTabBar active={tab} onChange={setTab} />
+
+      {neighbors.total > 1 ? (
+        <View style={styles.browseBar}>
+          <Pressable
+            style={[styles.browseSide, !neighbors.prev && styles.browseSideDisabled]}
+            onPress={() => goBrowse(neighbors.prev)}
+            disabled={!neighbors.prev}
+            hitSlop={8}
+          >
+            <Text style={styles.browseSideText} numberOfLines={1}>
+              {neighbors.prev ? `‹ ${neighbors.prev}` : " "}
+            </Text>
+          </Pressable>
+          <Text style={styles.browseCount}>
+            {neighbors.index >= 0 ? `${neighbors.index + 1} / ${neighbors.total}` : ""}
+          </Text>
+          <Pressable
+            style={[styles.browseSide, styles.browseSideRight, !neighbors.next && styles.browseSideDisabled]}
+            onPress={() => goBrowse(neighbors.next)}
+            disabled={!neighbors.next}
+            hitSlop={8}
+          >
+            <Text style={styles.browseSideText} numberOfLines={1}>
+              {neighbors.next ? `${neighbors.next} ›` : " "}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <Modal
         visible={editOpen}
@@ -503,11 +563,43 @@ export default function SymbolDetailScreen() {
 
         {tab === "technical" && !technicalLoading ? <TechnicalPanel data={data} /> : null}
       </ScrollView>
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  browseRoot: {
+    flex: 1,
+  },
+  browseBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xs,
+    gap: spacing.sm,
+  },
+  browseSide: {
+    flex: 1,
+    minWidth: 0,
+  },
+  browseSideRight: {
+    alignItems: "flex-end",
+  },
+  browseSideDisabled: {
+    opacity: 0.35,
+  },
+  browseSideText: {
+    color: colors.link,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  browseCount: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+  },
   scroll: { paddingBottom: spacing.xl },
   headerBtn: {
     color: colors.link,

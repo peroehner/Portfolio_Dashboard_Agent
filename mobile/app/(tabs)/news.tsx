@@ -264,6 +264,7 @@ export default function NewsScreen() {
                       change={change}
                       compact={split}
                       onOpenPortfolio={openPortfolioSymbol}
+                      browseSymbols={changes.map((c) => c.symbol)}
                     />
                   ))
                 )}
@@ -313,6 +314,7 @@ export default function NewsScreen() {
                       onToggleExpand={() => toggleNewsGroup(group.symbol)}
                       onAddNote={(newsItem) => setNoteDraft(buildNoteDraftFromNews(newsItem))}
                       onOpenNews={setNewsArticle}
+                      browseSymbols={newsGroups.map((g) => g.symbol)}
                     />
                   ))
                 )}

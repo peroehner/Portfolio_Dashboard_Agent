@@ -1,4 +1,3 @@
-import { Link, router } from "expo-router";
 import { useRef, useState } from "react";
 import {
   Animated,
@@ -28,6 +27,7 @@ import {
   type PortfolioSortKey,
   type PortfolioSortState,
 } from "@/lib/portfolioTable";
+import { openSymbol } from "@/lib/symbolBrowseSession";
 import { colors, spacing } from "@/lib/theme";
 import type { PortfolioRow } from "@/lib/types";
 
@@ -111,6 +111,8 @@ export function PortfolioTable({
   const [tipSymbol, setTipSymbol] = useState<string | null>(null);
   const longPressedRef = useRef(false);
 
+  const browseSymbols = rows.map((row) => row.symbol);
+
   function handleHeaderSort(key: PortfolioSortKey) {
     onSortChange(cyclePortfolioSort(sort, key));
   }
@@ -118,7 +120,7 @@ export function PortfolioTable({
   function openDetails(symbol: string) {
     if (longPressedRef.current) return;
     setTipSymbol(null);
-    router.push(`/symbol/${symbol}`);
+    openSymbol(symbol, browseSymbols, "portfolio");
   }
 
   return (
@@ -177,13 +179,11 @@ export function PortfolioTable({
             {rows.map((row) => (
               <View key={row.symbol} style={[styles.stickyDataRow, { width: stickyWidth }]}>
                 <View style={[styles.symbolCell, { width: symbolWidth }]}>
-                  <Link href={`/symbol/${row.symbol}`} asChild>
-                    <Pressable style={styles.symbolPress}>
-                      <Text style={styles.symbol} numberOfLines={1}>
-                        {row.symbol}
-                      </Text>
-                    </Pressable>
-                  </Link>
+                  <Pressable style={styles.symbolPress} onPress={() => openDetails(row.symbol)}>
+                    <Text style={styles.symbol} numberOfLines={1}>
+                      {row.symbol}
+                    </Text>
+                  </Pressable>
                 </View>
                 <View style={[styles.saiCell, { width: saiWidth }]}>
                   <SaiBadge action={row.saiAction} mini />
