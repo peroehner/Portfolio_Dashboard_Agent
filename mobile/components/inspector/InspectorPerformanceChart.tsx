@@ -26,6 +26,7 @@ import {
   type InspectorChartModel,
 } from "@/lib/chartHelpers";
 import { formatMoney } from "@/lib/format";
+import { setChartFullscreenActive } from "@/lib/chartFullscreenGate";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { InspectorPayload } from "@/lib/types";
 
@@ -50,6 +51,11 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
   useEffect(() => {
     setFullscreen(isLandscape);
   }, [isLandscape]);
+
+  useEffect(() => {
+    setChartFullscreenActive(fullscreen);
+    return () => setChartFullscreenActive(false);
+  }, [fullscreen]);
 
   useEffect(() => {
     if (!fullscreen) return;

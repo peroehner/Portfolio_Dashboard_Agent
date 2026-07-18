@@ -96,6 +96,9 @@ export function openSymbol(symbol: string, list?: string[], source?: string) {
 }
 
 /** Switch symbol in-place so Back still returns to the originating list. */
+export type BrowseDirection = "next" | "prev";
+
 export function replaceBrowseSymbol(symbol: string) {
-  router.replace(`/symbol/${String(symbol).toUpperCase()}`);
+  // Keep the same stack entry; directional slide is handled by the detail screen.
+  router.setParams({ symbol: String(symbol).toUpperCase() });
 }

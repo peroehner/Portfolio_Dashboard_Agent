@@ -2,6 +2,8 @@ import { useLocalSearchParams, useNavigation } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Dimensions,
   Modal,
   PanResponder,
   Pressable,
@@ -31,7 +33,9 @@ import {
   replaceBrowseSymbol,
   setBrowseScrollY,
   setBrowseTab,
+  type BrowseDirection,
 } from "@/lib/symbolBrowseSession";
+import { isChartFullscreenActive } from "@/lib/chartFullscreenGate";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { InspectorPayload, Note, PortfolioSymbol } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
@@ -145,11 +149,37 @@ export default function SymbolDetailScreen() {
   const neighbors = useMemo(() => getSymbolBrowseNeighbors(sym), [sym]);
   const symRef = useRef(sym);
   symRef.current = sym;
+  const slideX = useRef(new Animated.Value(0)).current;
+  const browsingRef = useRef(false);
 
-  const goBrowse = useCallback((target: string | null) => {
-    if (!target) return;
-    replaceBrowseSymbol(target);
-  }, []);
+  const goBrowse = useCallback(
+    (target: string | null, direction: BrowseDirection) => {
+      if (!target || browsingRef.current) return;
+      browsingRef.current = true;
+      const width = Dimensions.get("window").width;
+      // Next: current exits left, new enters from right.
+      // Prev: current exits right, new enters from left.
+      const exitTo = direction === "next" ? -width : width;
+      const enterFrom = direction === "next" ? width : -width;
+
+      Animated.timing(slideX, {
+        toValue: exitTo,
+        duration: 170,
+        useNativeDriver: true,
+      }).start(() => {
+        replaceBrowseSymbol(target);
+        slideX.setValue(enterFrom);
+        Animated.timing(slideX, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => {
+          browsingRef.current = false;
+        });
+      });
+    },
+    [slideX],
+  );
 
   function handleTabChange(next: SymbolTab) {
     setTab(next);
@@ -164,12 +194,15 @@ export default function SymbolDetailScreen() {
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
-          Math.abs(gesture.dx) > 24 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.6,
+        onMoveShouldSetPanResponder: (_, gesture) => {
+          if (isChartFullscreenActive() || browsingRef.current) return false;
+          return Math.abs(gesture.dx) > 24 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.6;
+        },
         onPanResponderRelease: (_, gesture) => {
+          if (isChartFullscreenActive() || browsingRef.current) return;
           const { prev, next } = getSymbolBrowseNeighbors(symRef.current);
-          if (gesture.dx <= -56) goBrowse(next);
-          else if (gesture.dx >= 56) goBrowse(prev);
+          if (gesture.dx <= -56) goBrowse(next, "next");
+          else if (gesture.dx >= 56) goBrowse(prev, "prev");
         },
       }),
     [goBrowse],
@@ -319,14 +352,17 @@ export default function SymbolDetailScreen() {
 
   return (
     <Screen loading={loading && !data} error={error} onRetry={() => void refreshAll()}>
-      <View style={styles.browseRoot} {...panResponder.panHandlers}>
+      <Animated.View
+        style={[styles.browseRoot, { transform: [{ translateX: slideX }] }]}
+        {...panResponder.panHandlers}
+      >
       <SymbolTabBar active={tab} onChange={handleTabChange} />
 
       {neighbors.total > 1 ? (
         <View style={styles.browseBar}>
           <Pressable
             style={[styles.browseSide, !neighbors.prev && styles.browseSideDisabled]}
-            onPress={() => goBrowse(neighbors.prev)}
+            onPress={() => goBrowse(neighbors.prev, "prev")}
             disabled={!neighbors.prev}
             hitSlop={8}
           >
@@ -339,7 +375,7 @@ export default function SymbolDetailScreen() {
           </Text>
           <Pressable
             style={[styles.browseSide, styles.browseSideRight, !neighbors.next && styles.browseSideDisabled]}
-            onPress={() => goBrowse(neighbors.next)}
+            onPress={() => goBrowse(neighbors.next, "next")}
             disabled={!neighbors.next}
             hitSlop={8}
           >
@@ -606,7 +642,7 @@ export default function SymbolDetailScreen() {
 
         {tab === "technical" && !technicalLoading ? <TechnicalPanel data={data} /> : null}
       </ScrollView>
-      </View>
+      </Animated.View>
     </Screen>
   );
 }
