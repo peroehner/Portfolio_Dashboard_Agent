@@ -31,7 +31,7 @@ interface NoteModalProps {
   visible: boolean;
   draft: NoteDraft | null;
   onClose: () => void;
-  onSaved?: () => void;
+  onSaved?: (note: Note, symbol: string) => void;
 }
 
 export function NoteModal({ visible, draft, onClose, onSaved }: NoteModalProps) {
@@ -60,7 +60,7 @@ export function NoteModal({ visible, draft, onClose, onSaved }: NoteModalProps) 
         text: text.trim(),
       };
       await api.addNote(draft.symbol, payload);
-      onSaved?.();
+      onSaved?.(payload, draft.symbol);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add note");

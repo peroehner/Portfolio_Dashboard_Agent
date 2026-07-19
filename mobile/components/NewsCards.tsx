@@ -15,6 +15,7 @@ interface CompactProps {
 
 interface NewsCardProps extends CompactProps {
   item: NewsItem;
+  noted?: boolean;
   onAddNote?: (item: NewsItem) => void;
   onOpenNews?: (item: NewsItem) => void;
   browseSymbols?: string[];
@@ -48,7 +49,14 @@ function SymbolLink({
   );
 }
 
-export function NewsCard({ item, compact, onAddNote, onOpenNews, browseSymbols }: NewsCardProps) {
+export function NewsCard({
+  item,
+  compact,
+  noted,
+  onAddNote,
+  onOpenNews,
+  browseSymbols,
+}: NewsCardProps) {
   return (
     <Pressable
       style={[styles.card, compact && styles.cardCompact]}
@@ -68,9 +76,13 @@ export function NewsCard({ item, compact, onAddNote, onOpenNews, browseSymbols }
                 onAddNote(item);
               }}
               hitSlop={8}
-              accessibilityLabel="Add note from news"
+              accessibilityLabel={noted ? "Already in Notes — add another" : "Add note from news"}
             >
-              <Ionicons name="create-outline" size={compact ? 16 : 18} color={colors.link} />
+              <Ionicons
+                name={noted ? "checkmark-circle" : "create-outline"}
+                size={compact ? 16 : 18}
+                color={noted ? colors.accent : colors.link}
+              />
             </Pressable>
           ) : null}
         </View>
@@ -93,6 +105,7 @@ interface NewsSymbolGroupCardProps extends CompactProps {
   items: NewsItem[];
   expanded: boolean;
   onToggleExpand: () => void;
+  isNewsNoted?: (item: NewsItem) => boolean;
   onAddNote?: (item: NewsItem) => void;
   onOpenNews?: (item: NewsItem) => void;
   browseSymbols?: string[];
@@ -104,6 +117,7 @@ export function NewsSymbolGroupCard({
   items,
   expanded,
   onToggleExpand,
+  isNewsNoted,
   onAddNote,
   onOpenNews,
   compact,
@@ -119,6 +133,7 @@ export function NewsSymbolGroupCard({
       <NewsCard
         item={latest}
         compact={compact}
+        noted={isNewsNoted?.(latest)}
         onAddNote={onAddNote}
         onOpenNews={onOpenNews}
         browseSymbols={browseSymbols}
@@ -149,6 +164,7 @@ export function NewsSymbolGroupCard({
               key={`${symbol}-${item.title}-${idx}`}
               item={item}
               compact={compact}
+              noted={isNewsNoted?.(item)}
               onAddNote={onAddNote}
               onOpenNews={onOpenNews}
               browseSymbols={browseSymbols}

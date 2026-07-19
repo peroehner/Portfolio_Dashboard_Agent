@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -26,6 +26,11 @@ import {
   type RecoChangesDirFilter,
 } from "@/lib/newsFilters";
 import { formatShortDateTime } from "@/lib/format";
+import {
+  buildNotedNewsKeySet,
+  newsArticleIsNoted,
+  notedKeysAfterSave,
+} from "@/lib/newsNoteMatch";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { NewsFeed, NewsItem } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
@@ -123,6 +128,24 @@ export default function NewsScreen() {
   const { data, loading, error, refresh } = useApiQuery<NewsFeed>(
     () => api.newsFeed(),
     [],
+  );
+  const { data: portfolio, refresh: refreshPortfolio } = useApiQuery(
+    () => api.portfolio(),
+    [],
+  );
+  const [extraNotedKeys, setExtraNotedKeys] = useState<Set<string>>(() => new Set());
+
+  const notedNewsKeys = useMemo(() => {
+    const fromPortfolio = buildNotedNewsKeySet(portfolio?.symbols);
+    if (!extraNotedKeys.size) return fromPortfolio;
+    const merged = new Set(fromPortfolio);
+    for (const k of extraNotedKeys) merged.add(k);
+    return merged;
+  }, [portfolio?.symbols, extraNotedKeys]);
+
+  const isNewsNoted = useCallback(
+    (item: NewsItem) => newsArticleIsNoted(item, notedNewsKeys),
+    [notedNewsKeys],
   );
 
   const tickerFilteredChanges = useMemo(
@@ -312,6 +335,7 @@ export default function NewsScreen() {
                       compact={split}
                       expanded={expandedNewsSymbols.has(group.symbol)}
                       onToggleExpand={() => toggleNewsGroup(group.symbol)}
+                      isNewsNoted={isNewsNoted}
                       onAddNote={(newsItem) => setNoteDraft(buildNoteDraftFromNews(newsItem))}
                       onOpenNews={setNewsArticle}
                       browseSymbols={newsGroups.map((g) => g.symbol)}
@@ -327,6 +351,10 @@ export default function NewsScreen() {
           visible={!!noteDraft}
           draft={noteDraft}
           onClose={() => setNoteDraft(null)}
+          onSaved={(note, symbol) => {
+            setExtraNotedKeys((prev) => notedKeysAfterSave(prev, note, symbol));
+            void refreshPortfolio();
+          }}
         />
         <NewsArticleModal
           visible={!!newsArticle}

@@ -2925,22 +2925,39 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .news-add-note-btn {
+    .news-note-icon-btn {
       flex: 0 0 auto;
-      font-size: 0.68rem;
-      font-weight: 600;
-      padding: 0.15rem 0.45rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.65rem;
+      height: 1.65rem;
+      padding: 0;
       border-radius: 6px;
       border: 1px solid var(--border);
       background: var(--panel-2);
       color: var(--muted);
       cursor: pointer;
-      white-space: nowrap;
+      line-height: 0;
     }
-    .news-add-note-btn:hover {
-      color: var(--text);
+    .news-note-icon-btn:hover {
+      color: var(--accent-2);
       border-color: var(--accent-2);
       background: rgba(34, 197, 94, 0.08);
+    }
+    .news-note-icon-btn.is-noted {
+      color: #16a34a;
+      border-color: rgba(22, 163, 74, 0.45);
+      background: rgba(22, 163, 74, 0.1);
+    }
+    .news-note-icon-btn.is-noted:hover {
+      color: #15803d;
+      border-color: rgba(22, 163, 74, 0.65);
+    }
+    .news-note-icon-btn .news-note-icon {
+      width: 15px;
+      height: 15px;
+      display: block;
     }
     .news-item .news-meta-row {
       display: flex;
@@ -2961,7 +2978,6 @@
       border-radius: 999px;
       border: 1px solid transparent;
       white-space: nowrap;
-      cursor: help;
     }
     .news-react b { font-weight: 800; }
     .news-react.react-up {
@@ -6528,6 +6544,7 @@
     async function loadPortfolio() {
       const data = await api("/portfolio");
       const symbols = data.symbols;
+      rebuildNotedNewsKeysFromPortfolio(symbols);
       const stillSelected = selectedSymbol && symbols.some((item) => item.symbol === selectedSymbol);
 
       if (!stillSelected) {
@@ -7281,14 +7298,17 @@
       if (!selectedSymbol) return;
       const form = event.target;
       try {
+        const notePayload = {
+          date: form.date.value,
+          source: form.source.value,
+          text: form.text.value,
+        };
         await api(`/symbols/${selectedSymbol}/notes`, {
           method: "POST",
-          body: JSON.stringify({
-            date: form.date.value,
-            source: form.source.value,
-            text: form.text.value,
-          }),
+          body: JSON.stringify(notePayload),
         });
+        ingestNotedKeysFromNote(notePayload, selectedSymbol);
+        refreshNewsNoteIndicators();
         resetNoteForm();
         setComposingNote(false);
         await selectSymbol(selectedSymbol);
@@ -8042,9 +8062,9 @@
 
     function renderNewsReactBadge(item) {
       const score = item.relevanceScore;
-      if (score == null) {
-        return `<span class="news-react react-na" title="No price-reaction data for this article's date">—</span>`;
-      }
+      // Omit empty "—" placeholders — they sat next to the note control and
+      // looked like an unclear "?" (help cursor) before Add Note.
+      if (score == null) return "";
       const dir = item.direction;
       const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "•";
       const cls = dir === "up" ? "react-up" : dir === "down" ? "react-down" : "react-flat";
@@ -8068,6 +8088,67 @@
 
     let newsDraftSeq = 0;
     const newsDraftById = new Map();
+    const notedNewsKeys = new Set();
+
+    function normalizeNewsUrl(url) {
+      return String(url || "").trim().toLowerCase().replace(/\/+$/, "");
+    }
+
+    function stripNoteDatePrefix(line) {
+      return String(line || "").replace(/^\[\d{4}-\d{2}-\d{2}\]\s*/, "").trim().toLowerCase();
+    }
+
+    function newsArticleKey(item) {
+      const url = normalizeNewsUrl(item?.link);
+      if (url) return `u:${url}`;
+      const sym = String(item?.symbol || "").toUpperCase();
+      const title = stripNoteDatePrefix(item?.title || "");
+      return title ? `t:${sym}:${title}` : "";
+    }
+
+    function keysFromNoteText(text, symbol, source) {
+      const keys = [];
+      const raw = String(text || "");
+      NOTE_URL_RE.lastIndex = 0;
+      let match;
+      while ((match = NOTE_URL_RE.exec(raw)) !== null) {
+        const cleaned = normalizeNewsUrl(match[0].replace(/[.,;:!?)]+$/, ""));
+        if (cleaned) keys.push(`u:${cleaned}`);
+      }
+      const firstLine = stripNoteDatePrefix(raw.split(/\r?\n/)[0] || "");
+      const sym = String(symbol || "").toUpperCase();
+      if (firstLine && sym) keys.push(`t:${sym}:${firstLine}`);
+      const src = stripNoteDatePrefix(source || "");
+      if (src && sym) keys.push(`t:${sym}:${src}`);
+      return keys;
+    }
+
+    function rebuildNotedNewsKeysFromPortfolio(symbols) {
+      notedNewsKeys.clear();
+      for (const s of symbols || []) {
+        for (const note of s.notes || []) {
+          for (const k of keysFromNoteText(note.text, s.symbol, note.source)) {
+            notedNewsKeys.add(k);
+          }
+        }
+      }
+    }
+
+    function ingestNotedKeysFromNote(note, symbol) {
+      for (const k of keysFromNoteText(note?.text, symbol, note?.source)) {
+        notedNewsKeys.add(k);
+      }
+    }
+
+    function isNewsAlreadyNoted(item) {
+      const key = newsArticleKey(item);
+      return Boolean(key && notedNewsKeys.has(key));
+    }
+
+    function refreshNewsNoteIndicators() {
+      if (topNewsAll.length) renderTopNews();
+      if (fundamentalsNewsSymbol) renderFundamentalsNewsPanel();
+    }
 
     function normalizeNewsArticle(item) {
       const raw = item && typeof item.content === "object" && item.content ? item.content : item;
@@ -8188,7 +8269,14 @@
 
     function renderNewsAddNoteButton(item) {
       const id = registerNewsDraft(item);
-      return `<button type="button" class="news-add-note-btn" onclick="event.stopPropagation(); draftNoteFromNews('${id}')" title="Draft a note in Target from this article">Add Note</button>`;
+      const noted = isNewsAlreadyNoted(item);
+      const label = noted
+        ? "Already in Notes — tap to add another"
+        : "Add note from this article";
+      const icon = noted
+        ? `<svg class="news-note-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`
+        : `<svg class="news-note-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+      return `<button type="button" class="news-note-icon-btn${noted ? " is-noted" : ""}" onclick="event.stopPropagation(); draftNoteFromNews('${id}')" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${icon}</button>`;
     }
 
     async function draftNoteFromNews(draftId) {
@@ -8371,7 +8459,11 @@
       const newsEl = document.getElementById("topNewsList");
       if (!newsEl) return;
       try {
-        const data = await api("/news-feed?newsLimit=0&skipChanges=1");
+        const [data, portfolio] = await Promise.all([
+          api("/news-feed?newsLimit=0&skipChanges=1"),
+          api("/portfolio").catch(() => null),
+        ]);
+        if (portfolio?.symbols) rebuildNotedNewsKeysFromPortfolio(portfolio.symbols);
         topNewsAll = data.topNews || [];
         topNewsCheckedAt = data.newsCheckedAt || "";
         updateNewsControlStates();
@@ -14204,7 +14296,11 @@
       const container = document.getElementById("fundamentalsTable");
       container.innerHTML = `<div class="empty">Loading fundamentals for all symbols… (first load may take a few seconds)</div>`;
       try {
-        const data = await api("/fundamentals");
+        const [data, portfolio] = await Promise.all([
+          api("/fundamentals"),
+          notedNewsKeys.size ? Promise.resolve(null) : api("/portfolio").catch(() => null),
+        ]);
+        if (portfolio?.symbols) rebuildNotedNewsKeysFromPortfolio(portfolio.symbols);
         fundamentalsRows = data.symbols || [];
         pruneVirtualSymbols("fundamentals", fundamentalsRows.map((row) => row.symbol));
         if (!fundamentalsNewsSymbol && fundamentalsRows.length) {
