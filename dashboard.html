@@ -1010,6 +1010,11 @@
       top: 1rem;
       align-self: start;
     }
+    /* Shorter than generic portfolio panels (~4 fewer rows) so the sticky
+       thead stays clear of the viewport edge / tab chrome while scrolling. */
+    .holdings-table-panel.portfolio-table-panel {
+      max-height: calc(100vh - 12rem);
+    }
     .holdings-table-panel table.data th,
     .holdings-table-panel table.data td {
       padding-left: 0.45rem;
@@ -12294,6 +12299,32 @@
     function inspectorChartAfterDraw(chart) {
       if (chart.$inspectorFsYaxis) syncInspectorFsYaxis(chart);
       if (chart.$tradeThresholds) updateTradeThresholdOverlay(chart, chart.$tradeThresholds);
+      drawInspectorFibLineLabels(chart);
+    }
+
+    /** Paint short labels on Fib / Center / Base horizontals (parity with mobile). */
+    function drawInspectorFibLineLabels(chart) {
+      const area = chart?.chartArea;
+      const yScale = chart?.scales?.y;
+      if (!area || !yScale || !chart.ctx) return;
+      const ctx = chart.ctx;
+      const datasets = chart.data?.datasets || [];
+      ctx.save();
+      ctx.font = "600 10px Inter, system-ui, sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "bottom";
+      datasets.forEach((ds) => {
+        if (!ds || !ds._fibKey || ds.hidden) return;
+        const price = ds.data?.[0]?.y;
+        if (price == null || !Number.isFinite(price)) return;
+        const y = yScale.getPixelForValue(price);
+        if (y < area.top - 2 || y > area.bottom + 2) return;
+        const label = String(ds.label || ds._fibKey);
+        ctx.fillStyle = ds.borderColor || "#94a3b8";
+        ctx.globalAlpha = 0.95;
+        ctx.fillText(`${label} ${formatMoney(price)}`, area.right - 4, y - 2);
+      });
+      ctx.restore();
     }
 
     function renderInspectorTrendLegend(panelId, waves, pattern = null, tradeLevels = []) {
@@ -12362,11 +12393,11 @@
           backgroundColor(context) {
             const chart = context.chart;
             const { ctx, chartArea } = chart;
-            if (!chartArea) return "rgba(139, 92, 246, 0.22)";
+            if (!chartArea) return "rgba(147, 197, 253, 0.12)";
             const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-            gradient.addColorStop(0, "rgba(196, 181, 253, 0.45)");
-            gradient.addColorStop(0.55, "rgba(139, 92, 246, 0.2)");
-            gradient.addColorStop(1, "rgba(88, 28, 135, 0.05)");
+            gradient.addColorStop(0, "rgba(147, 197, 253, 0.16)");
+            gradient.addColorStop(0.55, "rgba(96, 165, 250, 0.07)");
+            gradient.addColorStop(1, "rgba(59, 130, 246, 0.015)");
             return gradient;
           },
           fill: true,
@@ -12498,13 +12529,12 @@
         },
       };
       if (hasVolumeBars) {
-        // Cap the volume axis well above the peak so bars only fill the bottom
-        // ~25% of the plot and never crowd the price action.
+        // Cap volume so bars fill roughly the bottom ~45% of the plot (parity with mobile).
         timelineScales.yVolume = {
           display: false,
           position: "right",
           beginAtZero: true,
-          max: maxVol * 4,
+          max: maxVol * 2.2,
           grid: { display: false },
         };
       }

@@ -1,16 +1,33 @@
-import Svg, { Circle, G, Line, Polyline, Rect, Text as SvgText } from "react-native-svg";
+import Svg, {
+  Circle,
+  Defs,
+  G,
+  Line,
+  LinearGradient,
+  Polygon,
+  Polyline,
+  Rect,
+  Stop,
+  Text as SvgText,
+} from "react-native-svg";
+import { useId } from "react";
 
 import {
   chartCoord,
   pointsToPolyline,
+  shortFibAxisLabel,
+  xDateTicks,
   yTicks,
   type ChartPoint,
   type InspectorChartModel,
 } from "@/lib/chartHelpers";
-import { formatMoney, formatPrice } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 
 export const CHART_PAD = 10;
-export const CHART_PAD_LEFT = 44;
+/** Wider left gutter: price ticks + sticky Fib labels. */
+export const CHART_PAD_LEFT = 72;
+/** Extra bottom room for the date timeline. */
+export const CHART_PAD_BOTTOM = 22;
 
 interface InspectorChartSvgProps {
   model: InspectorChartModel;
@@ -20,6 +37,8 @@ interface InspectorChartSvgProps {
   padLeft?: number;
   /** Draw Y-axis labels inside the SVG. */
   showYLabels?: boolean;
+  /** Draw bottom date timeline. */
+  showXLabels?: boolean;
   /** Highlight nearest price point (normalized x 0–1). */
   hoverNormX?: number | null;
   hoverPoint?: ChartPoint | null;
@@ -31,15 +50,19 @@ export function InspectorChartSvg({
   height,
   padLeft = CHART_PAD_LEFT,
   showYLabels = true,
+  showXLabels = true,
   hoverNormX = null,
   hoverPoint = null,
 }: InspectorChartSvgProps) {
+  const gradId = `priceFill${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const pad = CHART_PAD;
+  const padBottom = showXLabels ? CHART_PAD_BOTTOM : pad;
   const plotW = Math.max(1, width - padLeft - pad);
-  const plotH = Math.max(1, height - pad * 2);
-  const volBand = Math.min(48, plotH * 0.22);
+  const plotH = Math.max(1, height - pad - padBottom);
+  // Double prior ~22% band → ~44% of plot height for volume.
+  const volBand = Math.min(plotH * 0.44, plotH * 0.5);
 
-  const pricePoints = pointsToPolyline(model.priceLine, width, height, padLeft, pad);
+  const pricePoints = pointsToPolyline(model.priceLine, width, height, padLeft, pad, padBottom);
   const yForNorm = (yNorm: number) => pad + yNorm * plotH;
   const yForPrice = (price: number) => {
     const yNorm = 1 - (price - model.minPrice) / Math.max(model.maxPrice - model.minPrice, 1);
@@ -48,11 +71,63 @@ export function InspectorChartSvg({
   const xForNorm = (xNorm: number) => padLeft + xNorm * plotW;
 
   const ticks = yTicks(model.minPrice, model.maxPrice, 5);
+  const dateTicks = xDateTicks(model, Math.min(10, Math.max(4, Math.floor(plotW / 72))));
   const pattern = model.pattern;
   const barW = Math.max(1.5, (plotW / Math.max(model.volumeBars.length, 1)) * 0.7);
 
+  let areaPoints = "";
+  if (model.priceLine.length >= 2) {
+    const first = model.priceLine[0];
+    const last = model.priceLine[model.priceLine.length - 1];
+    const baseY = pad + plotH;
+    areaPoints = [
+      `${xForNorm(first.x)},${baseY}`,
+      ...model.priceLine.map((p) => `${xForNorm(p.x)},${yForNorm(p.y)}`),
+      `${xForNorm(last.x)},${baseY}`,
+    ].join(" ");
+  }
+
   return (
     <Svg width={width} height={height}>
+      <Defs>
+        {/* stopOpacity required — rgba in stopColor renders opaque on many RN SVG builds. */}
+        <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="#c4b5fd" stopOpacity={0.12} />
+          <Stop offset="0.55" stopColor="#93c5fd" stopOpacity={0.05} />
+          <Stop offset="1" stopColor="#60a5fa" stopOpacity={0.01} />
+        </LinearGradient>
+      </Defs>
+
+      {/* Grid */}
+      {ticks.map((price) => {
+        const y = yForPrice(price);
+        return (
+          <Line
+            key={`grid-y-${price}`}
+            x1={padLeft}
+            y1={y}
+            x2={width - pad}
+            y2={y}
+            stroke="rgba(45, 58, 79, 0.55)"
+            strokeWidth={1}
+          />
+        );
+      })}
+      {dateTicks.map((tick) => (
+        <Line
+          key={`grid-x-${tick.x}`}
+          x1={xForNorm(tick.x)}
+          y1={pad}
+          x2={xForNorm(tick.x)}
+          y2={pad + plotH}
+          stroke="rgba(45, 58, 79, 0.45)"
+          strokeWidth={1}
+        />
+      ))}
+
+      {/* Price fill sits behind volume, Fib, trends, and pattern overlays. */}
+      {areaPoints ? <Polygon points={areaPoints} fill={`url(#${gradId})`} stroke="none" /> : null}
+
       {showYLabels
         ? ticks.map((price) => {
             const y = yForPrice(price);
@@ -61,12 +136,31 @@ export function InspectorChartSvg({
                 key={`yt-${price}`}
                 x={padLeft - 4}
                 y={y + 3}
-                fill="#64748b"
+                fill="#94a3b8"
                 fontSize="9"
                 fontWeight="600"
                 textAnchor="end"
               >
                 {formatMoney(price)}
+              </SvgText>
+            );
+          })
+        : null}
+
+      {showYLabels
+        ? model.fibLines.slice(0, 8).map((fib) => {
+            const y = yForPrice(fib.price);
+            return (
+              <SvgText
+                key={`fib-axis-${fib.label}-${fib.price}`}
+                x={2}
+                y={y + 3}
+                fill={fib.color}
+                fontSize="8"
+                fontWeight="700"
+                textAnchor="start"
+              >
+                {shortFibAxisLabel(fib.label)}
               </SvgText>
             );
           })
@@ -100,36 +194,12 @@ export function InspectorChartSvg({
             x2={width - pad}
             y2={y}
             stroke={fib.color}
-            strokeWidth={1}
-            strokeDasharray="4,3"
-            opacity={0.75}
+            strokeWidth={1.5}
+            strokeDasharray="6 4"
+            opacity={0.9}
           />
         );
       })}
-
-      {pattern?.keyLevelLine ? (
-        <Line
-          x1={xForNorm(pattern.keyLevelLine.x1)}
-          y1={yForNorm(pattern.keyLevelLine.y)}
-          x2={xForNorm(pattern.keyLevelLine.x2)}
-          y2={yForNorm(pattern.keyLevelLine.y)}
-          stroke={pattern.color}
-          strokeWidth={1.5}
-          strokeDasharray="8,4"
-        />
-      ) : null}
-
-      {pattern?.targetLine ? (
-        <Line
-          x1={xForNorm(pattern.targetLine.x1)}
-          y1={yForNorm(pattern.targetLine.y)}
-          x2={xForNorm(pattern.targetLine.x2)}
-          y2={yForNorm(pattern.targetLine.y)}
-          stroke={pattern.color}
-          strokeWidth={1.5}
-          strokeDasharray="2,5"
-        />
-      ) : null}
 
       {model.tradeLevels.map((level) => {
         if (level.edge !== "none" || level.y == null) return null;
@@ -192,12 +262,36 @@ export function InspectorChartSvg({
         <Polyline points={pricePoints} fill="none" stroke={model.priceColor} strokeWidth={2.5} />
       ) : null}
 
+      {pattern?.keyLevelLine ? (
+        <Line
+          x1={xForNorm(pattern.keyLevelLine.x1)}
+          y1={yForNorm(pattern.keyLevelLine.y)}
+          x2={xForNorm(pattern.keyLevelLine.x2)}
+          y2={yForNorm(pattern.keyLevelLine.y)}
+          stroke={pattern.color}
+          strokeWidth={2}
+          strokeDasharray="8 4"
+        />
+      ) : null}
+
+      {pattern?.targetLine ? (
+        <Line
+          x1={xForNorm(pattern.targetLine.x1)}
+          y1={yForNorm(pattern.targetLine.y)}
+          x2={xForNorm(pattern.targetLine.x2)}
+          y2={yForNorm(pattern.targetLine.y)}
+          stroke={pattern.color}
+          strokeWidth={2}
+          strokeDasharray="2 5"
+        />
+      ) : null}
+
       {pattern?.points && pattern.points.length >= 2 ? (
         <Polyline
-          points={pointsToPolyline(pattern.points, width, height, padLeft, pad)}
+          points={pointsToPolyline(pattern.points, width, height, padLeft, pad, padBottom)}
           fill="none"
           stroke={pattern.color}
-          strokeWidth={3}
+          strokeWidth={3.5}
         />
       ) : null}
 
@@ -208,13 +302,13 @@ export function InspectorChartSvg({
       })}
 
       {pattern?.points.map((pt, idx) => {
-        const { x, y } = chartCoord(pt, width, height, padLeft, pad);
+        const { x, y } = chartCoord(pt, width, height, padLeft, pad, padBottom);
+        const r = 7;
+        const diamond = `${x},${y - r} ${x + r},${y} ${x},${y + r} ${x - r},${y}`;
         return (
-          <Circle
+          <Polygon
             key={`pattern-pt-${idx}`}
-            cx={x}
-            cy={y}
-            r={6}
+            points={diamond}
             fill={pattern.color}
             stroke="#0b1220"
             strokeWidth={2}
@@ -222,22 +316,21 @@ export function InspectorChartSvg({
         );
       })}
 
-      {model.fibLines.slice(0, 6).map((fib) => {
-        const y = yForPrice(fib.price);
-        return (
-          <SvgText
-            key={`${fib.label}-lbl`}
-            x={width - pad - 2}
-            y={y - 3}
-            fill={fib.color}
-            fontSize="9"
-            fontWeight="600"
-            textAnchor="end"
-          >
-            {fib.label} {formatPrice(fib.price)}
-          </SvgText>
-        );
-      })}
+      {showXLabels
+        ? dateTicks.map((tick) => (
+            <SvgText
+              key={`xt-${tick.x}`}
+              x={xForNorm(tick.x)}
+              y={height - 6}
+              fill="#9aa8bc"
+              fontSize="9"
+              fontWeight="600"
+              textAnchor="middle"
+            >
+              {tick.label}
+            </SvgText>
+          ))
+        : null}
 
       {hoverNormX != null ? (
         <Line

@@ -61,21 +61,21 @@ export const PORTFOLIO_SCROLL_COLUMNS: PortfolioColumn[] = [
   { key: "personalTargetValue", label: "PT Val", width: 76, align: "right", money: true },
 ];
 
-const LANDSCAPE_WIDTH_SCALE = 0.78;
+const LANDSCAPE_WIDTH_SCALE = 1;
 
 /** Keep header labels on one line when columns are scaled for landscape. */
 const LANDSCAPE_MIN_WIDTHS: Partial<Record<PortfolioSortKey, number>> = {
-  symbol: 62,
-  gainPct: 58,
-  analystTarget1y: 54,
-  analystUpsidePct: 56,
-  personalTarget: 52,
-  personalUpsidePct: 54,
+  symbol: 68,
+  gainPct: 64,
+  analystTarget1y: 60,
+  analystUpsidePct: 60,
+  personalTarget: 56,
+  personalUpsidePct: 58,
 };
 
 function landscapeColumnWidth(col: PortfolioColumn): number {
   const scaled = Math.round(col.width * LANDSCAPE_WIDTH_SCALE);
-  const floor = LANDSCAPE_MIN_WIDTHS[col.key] ?? (col.sticky ? 48 : 50);
+  const floor = LANDSCAPE_MIN_WIDTHS[col.key] ?? (col.sticky ? 52 : 54);
   return Math.max(floor, scaled);
 }
 

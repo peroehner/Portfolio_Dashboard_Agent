@@ -67,7 +67,20 @@ function mergeInspector(
   if (!lite && !full) return null;
   if (!full) return lite ?? null;
   if (!lite) return full;
-  return { ...lite, ...full, quote: full.quote ?? lite.quote, holding: full.holding ?? lite.holding };
+  return {
+    ...lite,
+    ...full,
+    quote: full.quote ?? lite.quote,
+    holding: full.holding ?? lite.holding,
+    // Chart fields: never keep lite empties over a populated full payload.
+    chartTimeline: full.chartTimeline ?? lite.chartTimeline,
+    chartPatterns: full.chartPatterns?.length ? full.chartPatterns : lite.chartPatterns,
+    trendWaves: full.trendWaves?.length ? full.trendWaves : lite.trendWaves,
+    importedFibLevels:
+      full.importedFibLevels != null ? full.importedFibLevels : lite.importedFibLevels,
+    fibBlueprint: full.fibBlueprint !== undefined ? full.fibBlueprint : lite.fibBlueprint,
+    fib: full.fib !== undefined ? full.fib : lite.fib,
+  };
 }
 
 export default function SymbolDetailScreen() {

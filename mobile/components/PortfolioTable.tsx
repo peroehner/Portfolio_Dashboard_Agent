@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Animated,
   Pressable,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type LayoutChangeEvent,
   type RefreshControlProps,
 } from "react-native";
 
@@ -28,6 +29,7 @@ import {
   type PortfolioSortState,
 } from "@/lib/portfolioTable";
 import { openSymbol } from "@/lib/symbolBrowseSession";
+import { fitStickyScrollColumns } from "@/lib/tableLayout";
 import { colors, spacing } from "@/lib/theme";
 import type { PortfolioRow } from "@/lib/types";
 
@@ -102,7 +104,12 @@ export function PortfolioTable({
   landscape = false,
   refreshControl,
 }: PortfolioTableProps) {
-  const { sticky: stickyColumns, scroll: scrollColumns } = portfolioTableColumns(landscape);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const { sticky: stickyColumns, scroll: scrollColumns } = useMemo(() => {
+    const base = portfolioTableColumns(landscape);
+    if (viewportWidth <= 0) return base;
+    return fitStickyScrollColumns(base.sticky, base.scroll, viewportWidth);
+  }, [landscape, viewportWidth]);
   const stickyWidth = stickyColumns.reduce((sum, col) => sum + col.width, 0);
   const symbolWidth = stickyColumns[0].width;
   const saiWidth = stickyColumns[1].width;
@@ -123,8 +130,13 @@ export function PortfolioTable({
     openSymbol(symbol, browseSymbols, "portfolio");
   }
 
+  function onWrapLayout(event: LayoutChangeEvent) {
+    const next = Math.floor(event.nativeEvent.layout.width);
+    if (next > 0 && next !== viewportWidth) setViewportWidth(next);
+  }
+
   return (
-    <View style={styles.wrap}>
+    <View style={styles.wrap} onLayout={onWrapLayout}>
       <View style={styles.headerRow}>
         <View style={[styles.stickyHeader, { width: stickyWidth }]}>
           {stickyColumns.map((col) => (

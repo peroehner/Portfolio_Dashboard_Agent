@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Animated,
   Pressable,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type LayoutChangeEvent,
   type RefreshControlProps,
 } from "react-native";
 
@@ -22,6 +23,7 @@ import {
   type FundamentalsTab,
 } from "@/lib/fundamentalsTable";
 import { openSymbol } from "@/lib/symbolBrowseSession";
+import { fitStickyScrollColumns } from "@/lib/tableLayout";
 import { colors, spacing } from "@/lib/theme";
 import type { FundamentalsRow } from "@/lib/types";
 
@@ -159,10 +161,12 @@ export function FundamentalsTable({
   onSortChange,
   refreshControl,
 }: FundamentalsTableProps) {
-  const { sticky: stickyColumns, scroll: scrollColumns } = useMemo(
-    () => fundamentalsColumns(tab),
-    [tab],
-  );
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const { sticky: stickyColumns, scroll: scrollColumns } = useMemo(() => {
+    const base = fundamentalsColumns(tab);
+    if (viewportWidth <= 0) return base;
+    return fitStickyScrollColumns(base.sticky, base.scroll, viewportWidth);
+  }, [tab, viewportWidth]);
   const sortedRows = useMemo(() => sortFundamentalsRows(rows, sort), [rows, sort]);
   const browseSymbols = useMemo(() => sortedRows.map((row) => row.symbol), [sortedRows]);
   const stickyWidth = stickyColumns.reduce((sum, col) => sum + col.width, 0);
@@ -173,8 +177,13 @@ export function FundamentalsTable({
     onSortChange(cycleFundamentalsSort(sort, key));
   }
 
+  function onWrapLayout(event: LayoutChangeEvent) {
+    const next = Math.floor(event.nativeEvent.layout.width);
+    if (next > 0 && next !== viewportWidth) setViewportWidth(next);
+  }
+
   return (
-    <View style={styles.wrap}>
+    <View style={styles.wrap} onLayout={onWrapLayout}>
       <View style={styles.headerRow}>
         <View style={[styles.stickyHeader, { width: stickyWidth }]}>
           {stickyColumns.map((col) => (
