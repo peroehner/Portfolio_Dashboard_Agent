@@ -597,10 +597,31 @@
       padding-top: 1.1rem;
       border-top: 1px solid var(--border);
     }
+    .target-notes-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .target-notes-head h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+    .target-notes-head-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      align-items: center;
+    }
     .target-notes-section > h3 {
       margin: 0 0 0.75rem;
       font-size: 0.95rem;
       color: var(--text);
+    }
+    #noteForm[hidden] {
+      display: none !important;
     }
     .note-text-preview,
     .note-text-edit {
@@ -4563,9 +4584,14 @@
         </section>
 
         <section class="target-notes-section">
-          <h3>Personal Notes</h3>
-          <div id="notesList"></div>
-          <form id="noteForm" style="margin-top:0.75rem;">
+          <div class="target-notes-head">
+            <h3>Personal Notes</h3>
+            <div class="target-notes-head-actions">
+              <button type="button" class="secondary" id="btnComposeNote" onclick="setComposingNote(true)" title="Write a new note">＋ Note</button>
+              <button type="button" class="secondary" id="btnSynthesizeAll" onclick="synthesizeAllNotes(event)">Synthesize All Notes</button>
+            </div>
+          </div>
+          <form id="noteForm" hidden style="margin-bottom:0.85rem;">
             <div class="grid-2">
               <div>
                 <label>Date</label>
@@ -4581,9 +4607,10 @@
             <div class="empty" style="margin-top:0.35rem;">Tip: start a note with <code>@prompt: …</code> or a <code>--- prompt: --- </code> block to steer synthesis for that note.</div>
             <div class="target-actions" style="margin-top:0.5rem;">
               <button type="submit">Add Note</button>
-              <button type="button" class="secondary" id="btnSynthesizeAll" onclick="synthesizeAllNotes(event)">Synthesize All Notes</button>
+              <button type="button" class="secondary" onclick="setComposingNote(false)">Cancel</button>
             </div>
           </form>
+          <div id="notesList"></div>
           <div id="noteSynthesisPreview"></div>
         </section>
       </div>
@@ -4601,6 +4628,7 @@
 
   <div id="view-screening" class="view" hidden>
     <div class="wide-panel portfolio-table-panel">
+      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs.</p>
       <div class="screening-filter-bar">
         <button type="button" class="secondary filter-btn active" data-screen-filter="all" onclick="setScreeningFilter('all')">All</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
@@ -4616,7 +4644,7 @@
             <option value="bearish">Bearish</option>
           </select>
         </label>
-        <span class="sel-clip-actions" data-clip-tab="screening" data-clip-paste-only="1"></span>
+        <span class="sel-clip-actions" data-clip-tab="screening"></span>
       </div>
       <div id="screeningTable" class="portfolio-table-scroll"><div class="empty">Loading screening…</div></div>
     </div>
@@ -4648,6 +4676,7 @@
 
   <div id="view-fib" class="view" hidden>
     <div class="wide-panel portfolio-table-panel">
+      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs.</p>
       <div class="fib-filter-bar">
         <button type="button" class="secondary filter-btn" data-fib-confirmed="1" onclick="toggleFibConfirmed()" title="Show only symbols whose chart pattern is confirmed — price has broken the key level in the pattern's direction (the measured-move target is active).">Confirmed Patterns</button>
         <input type="text" id="fibTickerFilter" class="fib-ticker-filter" placeholder="Filter by ticker..." oninput="setFibTickerFilter(this.value)">
@@ -4656,7 +4685,7 @@
         <button type="button" class="secondary filter-btn" data-fib-band="critical" onclick="setFibMapBand('critical')" title="Critical (&lt;2% from nearest Fib): immediate target retest or breakout setup. High alert required.">Critical</button>
         <button type="button" class="secondary filter-btn" data-fib-band="warning" onclick="setFibMapBand('warning')" title="Near (2%–5% from nearest Fib): localized consolidation building momentum. Primary watching zone.">Near</button>
         <button type="button" class="secondary filter-btn" data-fib-band="neutral" onclick="setFibMapBand('neutral')" title="Neutral (&gt;5% from nearest Fib): stable range operations. Healthy distance from technical boundaries.">Neutral</button>
-        <span class="sel-clip-actions" data-clip-tab="fib" data-clip-paste-only="1"></span>
+        <span class="sel-clip-actions" data-clip-tab="fib"></span>
         <button type="button" class="secondary fib-refresh-btn" id="fibRefreshBtn" onclick="loadFibMap(true)" title="Refresh pattern and Fib signals for all symbols">Refresh</button>
         <button type="button" class="help-btn fib-help-btn" onclick="openPatternsHelp()" title="How to read this view" aria-label="How to read this view">?</button>
       </div>
@@ -4698,11 +4727,12 @@
 
   <main id="view-fundamentals" class="view" hidden>
     <section class="panel portfolio-table-panel">
+      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs.</p>
       <div class="fundamentals-tabbar">
         <button class="fund-tab active" data-fund-tab="val" onclick="setFundamentalsTab('val')">Valuation · Growth · Profitability</button>
         <button class="fund-tab" data-fund-tab="health" onclick="setFundamentalsTab('health')">Health · Analyst</button>
         <button class="fund-tab" data-fund-tab="range" onclick="setFundamentalsTab('range')">52-Week · News</button>
-        <span class="sel-clip-actions" data-clip-tab="fundamentals" data-clip-paste-only="1"></span>
+        <span class="sel-clip-actions" data-clip-tab="fundamentals"></span>
       </div>
       <div id="fundamentalsTable"><div class="empty">Loading fundamentals…</div></div>
     </section>
@@ -4922,6 +4952,24 @@
     let editingNoteId = null;
     let currentNotes = [];
     let currentAssessments = [];
+    let composingNote = false;
+
+    function setComposingNote(open) {
+      composingNote = !!open;
+      const form = document.getElementById("noteForm");
+      const btn = document.getElementById("btnComposeNote");
+      if (form) form.hidden = !composingNote;
+      if (btn) btn.hidden = composingNote;
+      if (composingNote) {
+        resetNoteForm();
+        requestAnimationFrame(() => {
+          form?.querySelector('[name="text"]')?.focus();
+          form?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+      } else {
+        resetNoteForm();
+      }
+    }
 
     async function loadConfig() {
       try {
@@ -5632,7 +5680,7 @@
     // Per-table multi-select (range via shift, toggle via meta/ctrl), keyed by
     // tableId so each table keeps its own independent selection + anchor. Holdings
     // and Simulation both register here; behavior matches the original Holdings
-    // shift-range / toggle UX exactly.
+    // shift-range / toggle UX exactly. Fundamentals sub-tabs share one store.
     const multiSelection = {};
     const multiAnchor = {};
     const multiSelectConfig = {
@@ -5641,35 +5689,58 @@
       // Cmd/Ctrl-click is the toggle control that single-selects (or adds) rows so the
       // user can scope the sim down to exactly one symbol.
       simulation: { order: () => currentSimulationOrder(), rerender: () => renderSimulationView(), plainClickClears: true },
+      screening: { order: () => currentScreeningOrder(), rerender: () => renderScreeningView() },
+      fib: { order: () => currentFibOrder(), rerender: () => renderFibMapView() },
+      fundVal: {
+        order: () => currentFundamentalsOrder(),
+        rerender: () => renderFundamentalsTable(),
+        selectionKey: "fundamentals",
+      },
+      fundHealth: {
+        order: () => currentFundamentalsOrder(),
+        rerender: () => renderFundamentalsTable(),
+        selectionKey: "fundamentals",
+      },
+      fundRange: {
+        order: () => currentFundamentalsOrder(),
+        rerender: () => renderFundamentalsTable(),
+        selectionKey: "fundamentals",
+      },
     };
 
+    function multiSelectStoreKey(tableId) {
+      return multiSelectConfig[tableId]?.selectionKey || tableId;
+    }
+
     function getMultiSelection(tableId) {
-      return multiSelection[tableId] || (multiSelection[tableId] = new Set());
+      const key = multiSelectStoreKey(tableId);
+      return multiSelection[key] || (multiSelection[key] = new Set());
     }
 
     function handleMultiSelectClick(tableId, key, event) {
       const config = multiSelectConfig[tableId];
       if (!config) return;
+      const storeKey = multiSelectStoreKey(tableId);
       const ordered = config.order();
       const selection = getMultiSelection(tableId);
-      const anchor = multiAnchor[tableId];
+      const anchor = multiAnchor[storeKey];
       const before = [...selection].sort().join("\0");
       if (event.shiftKey && anchor && ordered.includes(anchor) && ordered.includes(key)) {
         const a = ordered.indexOf(anchor);
         const b = ordered.indexOf(key);
         const [lo, hi] = a <= b ? [a, b] : [b, a];
-        multiSelection[tableId] = new Set(ordered.slice(lo, hi + 1));
+        multiSelection[storeKey] = new Set(ordered.slice(lo, hi + 1));
       } else if (event.metaKey || event.ctrlKey) {
-        if (selection.size === 0) multiSelection[tableId] = new Set([key]);
+        if (selection.size === 0) multiSelection[storeKey] = new Set([key]);
         else if (selection.has(key)) selection.delete(key);
         else selection.add(key);
-        multiAnchor[tableId] = key;
+        multiAnchor[storeKey] = key;
       } else if (config.plainClickClears) {
-        multiSelection[tableId] = new Set();
-        multiAnchor[tableId] = null;
+        multiSelection[storeKey] = new Set();
+        multiAnchor[storeKey] = null;
       } else {
-        multiSelection[tableId] = new Set([key]);
-        multiAnchor[tableId] = key;
+        multiSelection[storeKey] = new Set([key]);
+        multiAnchor[storeKey] = key;
       }
       const after = [...getMultiSelection(tableId)].sort().join("\0");
       if (before !== after) {
@@ -5809,12 +5880,15 @@
       updateClipButtons();
     }
 
-    const PORTFOLIO_CLIP_TABS = new Set(["holdings", "simulation"]);
+    const PORTFOLIO_CLIP_TABS = new Set(["holdings", "simulation", "screening", "fib", "fundamentals"]);
     const PASTE_FILTER_TABS = new Set(["holdings", "simulation", "screening", "fib", "fundamentals"]);
 
     const PORTFOLIO_CLIP_LABELS = {
       holdings: "Holdings",
       simulation: "Simulation",
+      screening: "Screening",
+      fib: "Patterns",
+      fundamentals: "Fundamentals",
     };
 
     const HOLDINGS_FILTER_LABELS = {
@@ -5929,7 +6003,7 @@
         } else if (btn.closest(".sel-clip-actions")?.dataset.clipPasteOnly === "1") {
           btn.title = setCount
             ? `Apply filter (${setCount} symbol${setCount === 1 ? "" : "s"}, intersects with active filters)`
-            : "No filter set — use Set Filter on Holdings or Simulation first";
+            : "No filter set — use Set Filter on a Portfolio table first";
         } else {
           btn.title = setCount
             ? `Apply filter (${setCount} symbol${setCount === 1 ? "" : "s"}, intersects with active filters)`
@@ -6745,6 +6819,7 @@
       applyTradeShareToForm("Below", item.tradeBelowShares, "buy");
       applyTradeShareToForm("Above", item.tradeAboveShares, "sell");
       resetNoteForm();
+      setComposingNote(false);
       editingNoteId = null;
       currentNotes = item.notes || [];
       renderTargetNotesList(currentNotes);
@@ -7215,6 +7290,7 @@
           }),
         });
         resetNoteForm();
+        setComposingNote(false);
         await selectSymbol(selectedSymbol);
         setStatus("Note added.");
       } catch (error) {
@@ -8085,6 +8161,7 @@
     function applyNoteFormDraft(draft) {
       const form = document.getElementById("noteForm");
       if (!form || !draft) return;
+      setComposingNote(true);
       const dateInput = form.querySelector('[name="date"]');
       const sourceInput = form.querySelector('[name="source"]');
       const textInput = form.querySelector('[name="text"]');
@@ -9503,8 +9580,13 @@
         "screening",
         screeningColumns,
         rows,
-        screeningEmptyMessage(rows)
+        screeningEmptyMessage(rows),
+        { selectedKeys: getMultiSelection("screening") }
       );
+    }
+
+    function currentScreeningOrder() {
+      return sortRows("screening", tableDataCache.screening || [], screeningColumns).map((r) => r.symbol);
     }
 
     function screeningEmptyMessage(rows) {
@@ -9877,8 +9959,13 @@
         "fib",
         fibColumns,
         rows,
-        fibEmptyMessage(rows)
+        fibEmptyMessage(rows),
+        { selectedKeys: getMultiSelection("fib") }
       );
+    }
+
+    function currentFibOrder() {
+      return sortRows("fib", tableDataCache.fib || [], fibColumns).map((r) => r.symbol);
     }
 
     function fibEmptyMessage(rows) {
@@ -14061,6 +14148,13 @@
       return applyVirtualSymbolFilter(fundamentalsRows, "fundamentals");
     }
 
+    function currentFundamentalsOrder() {
+      const tableId = FUND_TABLE_IDS[fundamentalsTab];
+      const columns = fundamentalsColumns(fundamentalsTab);
+      const rows = tableDataCache[tableId] || tableDataCache.fundamentals || [];
+      return sortRows(tableId, rows, columns).map((r) => r.symbol);
+    }
+
     function fundamentalsEmptyMessage(rows) {
       if (getVirtualSymbols("fundamentals") && !rows.length) {
         return virtualFilterNoMatchMessage("fundamentals");
@@ -14074,7 +14168,13 @@
       const columns = fundamentalsColumns(fundamentalsTab);
       const rows = fundamentalsRowsForDisplay();
       tableDataCache.fundamentals = rows;
-      const table = renderSortableTable(tableId, columns, rows, fundamentalsEmptyMessage(rows));
+      const table = renderSortableTable(
+        tableId,
+        columns,
+        rows,
+        fundamentalsEmptyMessage(rows),
+        { selectedKeys: getMultiSelection("fundamentals") }
+      );
       if (fundamentalsTab === "range") {
         container.innerHTML = `
           <div class="fund-range-layout">
