@@ -123,32 +123,6 @@ export default function OverviewScreen() {
             <View style={[styles.kpiCell, { width: cellWidth }]}>
               <KpiCard
                 compact
-                label="Unrealized gain"
-                value={formatMoney(data?.unrealizedGain, true)}
-                hint={formatPct(data?.unrealizedGainPct)}
-                valueColor={pctColor(data?.unrealizedGainPct)}
-              />
-            </View>
-            <View style={[styles.kpiCell, { width: cellWidth }]}>
-              <KpiCard
-                compact
-                label="Positions"
-                value={String(data?.holdingCount ?? "—")}
-                hint={`${data?.symbolCount ?? 0} tracked · ${data?.watchlistOnlyCount ?? 0} watch`}
-                onPress={() => router.push("/portfolio")}
-              />
-            </View>
-            <View style={[styles.kpiCell, { width: cellWidth }]}>
-              <KpiCard
-                compact
-                label="Active alerts"
-                value={String(data?.activeAlerts ?? 0)}
-                onPress={() => router.push("/alerts")}
-              />
-            </View>
-            <View style={[styles.kpiCell, { width: cellWidth }]}>
-              <KpiCard
-                compact
                 label="Best Performer"
                 value={data?.bestPerformer?.symbol ?? "—"}
                 hint={performerHint(data?.bestPerformer?.gainPct, data?.bestPerformer?.gain)}
@@ -163,6 +137,24 @@ export default function OverviewScreen() {
             <View style={[styles.kpiCell, { width: cellWidth }]}>
               <KpiCard
                 compact
+                label="Positions"
+                value={String(data?.holdingCount ?? "—")}
+                hint={`${data?.symbolCount ?? 0} tracked · ${data?.watchlistOnlyCount ?? 0} watch`}
+                onPress={() => router.push("/portfolio")}
+              />
+            </View>
+            <View style={[styles.kpiCell, { width: cellWidth }]}>
+              <KpiCard
+                compact
+                label="Unrealized gain"
+                value={formatMoney(data?.unrealizedGain, true)}
+                hint={formatPct(data?.unrealizedGainPct)}
+                valueColor={pctColor(data?.unrealizedGainPct)}
+              />
+            </View>
+            <View style={[styles.kpiCell, { width: cellWidth }]}>
+              <KpiCard
+                compact
                 label="Best Performer YTD"
                 value={data?.bestYtdPerformer?.symbol ?? "—"}
                 hint={performerHint(data?.bestYtdPerformer?.gainPct, data?.bestYtdPerformer?.gain)}
@@ -172,6 +164,14 @@ export default function OverviewScreen() {
                     ? () => openSymbol(data.bestYtdPerformer!.symbol, undefined, "summary")
                     : undefined
                 }
+              />
+            </View>
+            <View style={[styles.kpiCell, { width: cellWidth }]}>
+              <KpiCard
+                compact
+                label="Active alerts"
+                value={String(data?.activeAlerts ?? 0)}
+                onPress={() => router.push("/alerts")}
               />
             </View>
           </View>

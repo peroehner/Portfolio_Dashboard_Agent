@@ -6,11 +6,13 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AlertRow } from "@/components/AlertRow";
 import { Screen } from "@/components/Screen";
+import { StarFilterButton } from "@/components/StarFilterButton";
 import { api } from "@/lib/api";
 import {
   alertFilterGroupKey,
@@ -102,15 +104,18 @@ export default function AlertsScreen() {
         error={error}
         onRetry={() => void refresh()}
       >
-        <TextInput
-          style={styles.filter}
-          placeholder={FILTER_PLACEHOLDER}
-          placeholderTextColor={colors.textMuted}
-          value={filter}
-          onChangeText={setFilter}
-          autoCapitalize="characters"
-          autoCorrect={false}
-        />
+        <View style={styles.filterRow}>
+          <TextInput
+            style={styles.filter}
+            placeholder={FILTER_PLACEHOLDER}
+            placeholderTextColor={colors.textMuted}
+            value={filter}
+            onChangeText={setFilter}
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+          <StarFilterButton filter={filter} onChangeFilter={setFilter} />
+        </View>
         {typeOptions.length > 0 ? (
           <ScrollView
             horizontal
@@ -165,9 +170,16 @@ export default function AlertsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  filter: {
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
+  },
+  filter: {
+    flex: 1,
+    minWidth: 72,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,

@@ -25,7 +25,7 @@ import { SaiBadge } from "@/components/SaiBadge";
 import { Screen } from "@/components/Screen";
 import { api } from "@/lib/api";
 import { getRecommendationDrivers, headlineForAction } from "@/lib/inspectorHelpers";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, formatQty } from "@/lib/format";
 import {
   getBrowseScrollY,
   getBrowseUi,
@@ -43,6 +43,35 @@ import { useApiQuery } from "@/lib/useApiQuery";
 function toInput(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return "";
   return String(value);
+}
+
+function toShareInput(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value) || value === 0) return "";
+  return String(Math.abs(value));
+}
+
+function parseNullableQuantity(text: string): number | null {
+  const raw = text.trim().replace(/[,\s]/g, "");
+  if (!raw) return null;
+  const val = Number(raw);
+  if (!Number.isFinite(val)) return null;
+  return Math.round(Math.abs(val) * 10000) / 10000;
+}
+
+function signedTradeShares(qtyText: string, side: "buy" | "sell"): number | null {
+  const qty = parseNullableQuantity(qtyText);
+  if (qty == null || qty === 0) return null;
+  return side === "sell" ? -qty : qty;
+}
+
+function thresholdValueText(
+  price: number | null | undefined,
+  shares: number | null | undefined,
+): string {
+  const priceText = formatPrice(price);
+  if (shares == null || shares === 0) return priceText;
+  const qty = formatQty(Math.abs(shares));
+  return qty === "—" ? priceText : `${priceText} · ${qty}`;
 }
 
 function parseNullableNumber(text: string): number | null {
@@ -139,7 +168,9 @@ export default function SymbolDetailScreen() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [buyBelow, setBuyBelow] = useState("");
+  const [buyBelowShares, setBuyBelowShares] = useState("");
   const [sellAbove, setSellAbove] = useState("");
+  const [sellAboveShares, setSellAboveShares] = useState("");
   const [targetPrice, setTargetPrice] = useState("");
   const [noteDate, setNoteDate] = useState(todayIso());
   const [noteTitle, setNoteTitle] = useState("");
@@ -278,7 +309,9 @@ export default function SymbolDetailScreen() {
           onPress={() => {
             setSaveError(null);
             setBuyBelow(toInput(effectiveBuyBelow));
+            setBuyBelowShares(toShareInput(quote?.tradeBelowShares));
             setSellAbove(toInput(effectiveSellAbove));
+            setSellAboveShares(toShareInput(quote?.tradeAboveShares));
             setTargetPrice(toInput(quote?.targetPrice));
             setEditOpen(true);
           }}
@@ -324,8 +357,10 @@ export default function SymbolDetailScreen() {
         // Keep legacy and planned-trade threshold fields in sync.
         buyBelow: buyBelowValue,
         tradeBelowPrice: buyBelowValue,
+        tradeBelowShares: signedTradeShares(buyBelowShares, "buy"),
         sellAbove: sellAboveValue,
         tradeAbovePrice: sellAboveValue,
+        tradeAboveShares: signedTradeShares(sellAboveShares, "sell"),
         targetPrice: parseNullableNumber(targetPrice),
       };
       await api.updateSymbol(sym, payload);
@@ -420,23 +455,43 @@ export default function SymbolDetailScreen() {
           <View style={styles.modalBody}>
             <Text style={styles.modalHint}>Leave blank to clear a threshold.</Text>
             <Text style={styles.inputLabel}>Buy below</Text>
-            <TextInput
-              style={styles.input}
-              value={buyBelow}
-              onChangeText={setBuyBelow}
-              keyboardType="decimal-pad"
-              placeholder="$"
-              placeholderTextColor={colors.textMuted}
-            />
+            <View style={styles.thresholdInputRow}>
+              <TextInput
+                style={[styles.input, styles.thresholdPriceInput]}
+                value={buyBelow}
+                onChangeText={setBuyBelow}
+                keyboardType="decimal-pad"
+                placeholder="Price"
+                placeholderTextColor={colors.textMuted}
+              />
+              <TextInput
+                style={[styles.input, styles.thresholdShareInput]}
+                value={buyBelowShares}
+                onChangeText={setBuyBelowShares}
+                keyboardType="decimal-pad"
+                placeholder="Shares"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
             <Text style={styles.inputLabel}>Sell above</Text>
-            <TextInput
-              style={styles.input}
-              value={sellAbove}
-              onChangeText={setSellAbove}
-              keyboardType="decimal-pad"
-              placeholder="$"
-              placeholderTextColor={colors.textMuted}
-            />
+            <View style={styles.thresholdInputRow}>
+              <TextInput
+                style={[styles.input, styles.thresholdPriceInput]}
+                value={sellAbove}
+                onChangeText={setSellAbove}
+                keyboardType="decimal-pad"
+                placeholder="Price"
+                placeholderTextColor={colors.textMuted}
+              />
+              <TextInput
+                style={[styles.input, styles.thresholdShareInput]}
+                value={sellAboveShares}
+                onChangeText={setSellAboveShares}
+                keyboardType="decimal-pad"
+                placeholder="Shares"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
             <Text style={styles.inputLabel}>Personal target</Text>
             <TextInput
               style={styles.input}
@@ -492,11 +547,15 @@ export default function SymbolDetailScreen() {
               <View style={styles.thresholdGrid}>
                 <View style={styles.thresholdCell}>
                   <Text style={styles.statLabel}>Buy below</Text>
-                  <Text style={styles.statValue}>{formatPrice(effectiveBuyBelow)}</Text>
+                  <Text style={styles.statValue}>
+                    {thresholdValueText(effectiveBuyBelow, quote?.tradeBelowShares)}
+                  </Text>
                 </View>
                 <View style={styles.thresholdCell}>
                   <Text style={styles.statLabel}>Sell above</Text>
-                  <Text style={styles.statValue}>{formatPrice(effectiveSellAbove)}</Text>
+                  <Text style={styles.statValue}>
+                    {thresholdValueText(effectiveSellAbove, quote?.tradeAboveShares)}
+                  </Text>
                 </View>
                 <View style={styles.thresholdCell}>
                   <Text style={styles.statLabel}>Personal target</Text>
@@ -833,6 +892,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 8,
     fontSize: 14,
+  },
+  thresholdInputRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  thresholdPriceInput: {
+    flex: 2,
+  },
+  thresholdShareInput: {
+    flex: 1,
+    minWidth: 72,
   },
   noteText: {
     minHeight: 72,

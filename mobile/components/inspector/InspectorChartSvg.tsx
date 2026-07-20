@@ -92,9 +92,9 @@ export function InspectorChartSvg({
       <Defs>
         {/* stopOpacity required — rgba in stopColor renders opaque on many RN SVG builds. */}
         <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#c4b5fd" stopOpacity={0.12} />
-          <Stop offset="0.55" stopColor="#93c5fd" stopOpacity={0.05} />
-          <Stop offset="1" stopColor="#60a5fa" stopOpacity={0.01} />
+          <Stop offset="0" stopColor="#93C5FD" stopOpacity={0.28} />
+          <Stop offset="0.55" stopColor="#BFDBFE" stopOpacity={0.12} />
+          <Stop offset="1" stopColor="#EFF6FF" stopOpacity={0.02} />
         </LinearGradient>
       </Defs>
 
@@ -136,7 +136,7 @@ export function InspectorChartSvg({
                 key={`yt-${price}`}
                 x={padLeft - 4}
                 y={y + 3}
-                fill="#94a3b8"
+                fill="#6B7280"
                 fontSize="9"
                 fontWeight="600"
                 textAnchor="end"
@@ -217,8 +217,8 @@ export function InspectorChartSvg({
               strokeDasharray="10,5"
               opacity={0.95}
             />
-            <Circle cx={padLeft + 2} cy={y} r={4} fill={level.color} stroke="#0b1220" strokeWidth={1.5} />
-            <Circle cx={width - pad - 2} cy={y} r={4} fill={level.color} stroke="#0b1220" strokeWidth={1.5} />
+            <Circle cx={padLeft + 2} cy={y} r={4} fill={level.color} stroke="#FFFFFF" strokeWidth={1.5} />
+            <Circle cx={width - pad - 2} cy={y} r={4} fill={level.color} stroke="#FFFFFF" strokeWidth={1.5} />
             <Rect
               x={padLeft + 6}
               y={y - 10}
@@ -310,7 +310,7 @@ export function InspectorChartSvg({
             key={`pattern-pt-${idx}`}
             points={diamond}
             fill={pattern.color}
-            stroke="#0b1220"
+            stroke="#FFFFFF"
             strokeWidth={2}
           />
         );
@@ -322,7 +322,7 @@ export function InspectorChartSvg({
               key={`xt-${tick.x}`}
               x={xForNorm(tick.x)}
               y={height - 6}
-              fill="#9aa8bc"
+              fill="#6B7280"
               fontSize="9"
               fontWeight="600"
               textAnchor="middle"
@@ -350,7 +350,7 @@ export function InspectorChartSvg({
           cy={yForNorm(hoverPoint.y)}
           r={5}
           fill={model.priceColor}
-          stroke="#0b1220"
+          stroke="#FFFFFF"
           strokeWidth={2}
         />
       ) : null}

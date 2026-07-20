@@ -44,4 +44,13 @@ export function symbolMatchesFilter(
   });
 }
 
+/** Append `*` (OR) or `+*` (AND) to a filter string. */
+export function appendStarFilterToken(filter: string, andMode: boolean): string {
+  const token = andMode ? "+*" : "*";
+  const trimmed = filter.trim();
+  if (!trimmed) return token;
+  if (trimmed.endsWith(",")) return `${trimmed}${token}`;
+  return `${trimmed},${token}`;
+}
+
 export const FILTER_PLACEHOLDER = "Filter… * starred, +* AND star";

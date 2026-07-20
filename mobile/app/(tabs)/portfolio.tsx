@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { PortfolioTable } from "@/components/PortfolioTable";
 import { Screen } from "@/components/Screen";
+import { StarFilterButton } from "@/components/StarFilterButton";
 import { api } from "@/lib/api";
 import { FILTER_PLACEHOLDER } from "@/lib/filters";
 import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
@@ -116,6 +117,7 @@ export default function PortfolioScreen() {
             autoCapitalize="characters"
             autoCorrect={false}
           />
+          <StarFilterButton filter={filter} onChangeFilter={setFilter} />
           <Pressable
             style={[styles.pill, pillActiveStyle(mode === "all")]}
             onPress={() => setMode("all")}

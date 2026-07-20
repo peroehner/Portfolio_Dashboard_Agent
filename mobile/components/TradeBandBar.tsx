@@ -192,7 +192,7 @@ export function TradeBandBar({ row, width = 150, active: activeProp }: TradeBand
             width={2}
             height={TRACK_HEIGHT + 8}
             rx={1}
-            fill="#ef4444"
+            fill={colors.sell}
           />
         ) : null}
         {layout.pAbove != null ? (
@@ -202,14 +202,14 @@ export function TradeBandBar({ row, width = 150, active: activeProp }: TradeBand
             width={2}
             height={TRACK_HEIGHT + 8}
             rx={1}
-            fill="#22c55e"
+            fill={colors.buy}
           />
         ) : null}
         <Circle
           cx={px(layout.pPrice)}
           cy={trackY + TRACK_HEIGHT / 2}
           r={KNOB_R}
-          fill="#60a5fa"
+          fill={colors.link}
           stroke={colors.bg}
           strokeWidth={2}
         />

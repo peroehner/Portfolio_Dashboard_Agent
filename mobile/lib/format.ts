@@ -1,3 +1,5 @@
+import { colors } from "@/lib/theme";
+
 export function formatMoney(value: number | null | undefined, compact = false): string {
   if (value == null || Number.isNaN(value)) return "—";
   const abs = Math.abs(value);
@@ -35,10 +37,10 @@ export function formatWeight(value: number | null | undefined): string {
 }
 
 export function pctColor(value: number | null | undefined): string {
-  if (value == null || Number.isNaN(value)) return "#94a3b8";
-  if (value > 0) return "#4ade80";
-  if (value < 0) return "#f87171";
-  return "#94a3b8";
+  if (value == null || Number.isNaN(value)) return colors.textMuted;
+  if (value > 0) return colors.buy;
+  if (value < 0) return colors.sell;
+  return colors.textMuted;
 }
 
 export function titleCaseAction(action?: string | null): string {
@@ -75,16 +77,16 @@ export function formatColoredRatioPercent(value: number | null | undefined, digi
   color: string;
 } {
   if (value == null || Number.isNaN(value)) {
-    return { text: "—", color: "#94a3b8" };
+    return { text: "—", color: colors.textMuted };
   }
   const amount = Number(value) * 100;
   if (!Number.isFinite(amount)) {
-    return { text: "—", color: "#94a3b8" };
+    return { text: "—", color: colors.textMuted };
   }
   const sign = amount > 0 ? "+" : "";
   return {
     text: `${sign}${amount.toFixed(digits)}%`,
-    color: amount >= 0 ? "#4ade80" : "#f87171",
+    color: amount >= 0 ? colors.buy : colors.sell,
   };
 }
 

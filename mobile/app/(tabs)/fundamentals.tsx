@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { FundamentalsTable } from "@/components/FundamentalsTable";
 import { Screen } from "@/components/Screen";
+import { StarFilterButton } from "@/components/StarFilterButton";
 import { api } from "@/lib/api";
 import { FILTER_PLACEHOLDER } from "@/lib/filters";
 import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
@@ -59,6 +60,7 @@ export default function FundamentalsScreen() {
             autoCapitalize="characters"
             autoCorrect={false}
           />
+          <StarFilterButton filter={filter} onChangeFilter={setFilter} />
         </View>
 
         <View style={styles.tabRow}>
@@ -108,10 +110,15 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   screenContent: { flex: 1 },
   toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
   },
   filter: {
+    flex: 1,
+    minWidth: 72,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,

@@ -5,6 +5,7 @@ import {
   formatRatio,
   formatRatioPercent,
 } from "@/lib/format";
+import { colors } from "@/lib/theme";
 import type { FundamentalsRow } from "@/lib/types";
 
 export type FundamentalsTab = "val" | "health";
@@ -335,7 +336,7 @@ export function renderFundamentalsCell(
         return { text: formatRatio(fundNum(fundVal(row, "financialHealth", "quickRatio"))) };
       case "fcf": {
         const n = fundNum(fundVal(row, "financialHealth", "freeCashflow"));
-        return { text: formatLargeMoney(n), color: n != null && n < 0 ? "#f87171" : undefined };
+        return { text: formatLargeMoney(n), color: n != null && n < 0 ? colors.sell : undefined };
       }
       case "cash":
         return { text: formatLargeMoney(fundNum(fundVal(row, "financialHealth", "totalCash"))) };

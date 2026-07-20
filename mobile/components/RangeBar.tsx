@@ -94,7 +94,7 @@ export function RangeBar({ row, width = 100 }: RangeBarProps) {
           cx={knobX}
           cy={trackY + TRACK_HEIGHT / 2}
           r={KNOB_R}
-          fill="#60a5fa"
+          fill={colors.link}
           stroke={colors.bg}
           strokeWidth={2}
         />
@@ -194,7 +194,7 @@ export function TargetRangeBar({ row, width = 110 }: { row: FundamentalsRow; wid
           cx={(pricePos / 100) * width}
           cy={18 + TRACK_HEIGHT / 2}
           r={KNOB_R}
-          fill="#60a5fa"
+          fill={colors.link}
           stroke={colors.bg}
           strokeWidth={2}
         />

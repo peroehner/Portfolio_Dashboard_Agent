@@ -16,6 +16,7 @@ import { NewsSymbolGroupCard, SaiChangeCard } from "@/components/NewsCards";
 import { NewsArticleModal } from "@/components/NewsArticleModal";
 import { NoteModal, type NoteDraft } from "@/components/NoteModal";
 import { Screen } from "@/components/Screen";
+import { StarFilterButton } from "@/components/StarFilterButton";
 import { api } from "@/lib/api";
 import { FILTER_PLACEHOLDER } from "@/lib/filters";
 import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
@@ -61,17 +62,17 @@ function buildNoteDraftFromNews(item: NewsItem): NoteDraft {
 function dirBtnStyle(active: boolean, kind: "up" | "down") {
   if (!active) {
     return kind === "up"
-      ? { borderColor: "#22c55e", backgroundColor: colors.surface }
-      : { borderColor: "#ef4444", backgroundColor: colors.surface };
+      ? { borderColor: colors.buy, backgroundColor: colors.surface }
+      : { borderColor: colors.sell, backgroundColor: colors.surface };
   }
   return kind === "up"
-    ? { borderColor: "#22c55e", backgroundColor: "#22c55e" }
-    : { borderColor: "#ef4444", backgroundColor: "#ef4444" };
+    ? { borderColor: colors.buy, backgroundColor: colors.buy }
+    : { borderColor: colors.sell, backgroundColor: colors.sell };
 }
 
 function dirBtnTextStyle(active: boolean, kind: "up" | "down") {
-  if (active) return { color: kind === "up" ? "#0a1a0f" : "#1a0a0a" };
-  return { color: kind === "up" ? "#22c55e" : "#ef4444" };
+  if (active) return { color: "#FFFFFF" };
+  return { color: kind === "up" ? colors.buy : colors.sell };
 }
 
 function PaneHeader({
@@ -209,15 +210,18 @@ export default function NewsScreen() {
         onRetry={() => void refresh()}
         contentStyle={styles.screenContent}
       >
-        <TextInput
-          style={styles.filter}
-          placeholder={FILTER_PLACEHOLDER}
-          placeholderTextColor={colors.textMuted}
-          value={filter}
-          onChangeText={setFilter}
-          autoCapitalize="characters"
-          autoCorrect={false}
-        />
+        <View style={styles.filterRow}>
+          <TextInput
+            style={styles.filter}
+            placeholder={FILTER_PLACEHOLDER}
+            placeholderTextColor={colors.textMuted}
+            value={filter}
+            onChangeText={setFilter}
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+          <StarFilterButton filter={filter} onChangeFilter={setFilter} />
+        </View>
 
         <View style={[styles.split, split && styles.splitColumns]}>
           {showChanges ? (
@@ -369,9 +373,16 @@ export default function NewsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   screenContent: { flex: 1 },
-  filter: {
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
+  },
+  filter: {
+    flex: 1,
+    minWidth: 72,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
