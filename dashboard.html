@@ -1588,22 +1588,32 @@
       font-size: 0.85rem;
     }
     .recommendation-card {
-      background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(167,139,250,0.1));
-      border: 1px solid rgba(96,165,250,0.35);
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.22), rgba(124, 58, 237, 0.16));
+      border: 1px solid rgba(147, 197, 253, 0.42);
       border-radius: 12px;
       padding: 1rem 1.1rem;
       margin-bottom: 1rem;
     }
     .recommendation-card .rec-headline {
       font-size: 1.05rem;
-      font-weight: 600;
+      font-weight: 700;
       margin: 0.5rem 0 0.65rem;
       line-height: 1.35;
+      color: #f8fafc;
     }
     .recommendation-card .rec-rationale {
-      font-size: 0.92rem;
-      line-height: 1.5;
-      color: #e2e8f0;
+      font-size: 0.94rem;
+      line-height: 1.55;
+      color: #f1f5f9;
+    }
+    .recommendation-card .watch-list {
+      color: #e7ecf3;
+    }
+    .recommendation-card .watch-list li {
+      color: #e7ecf3;
+    }
+    .recommendation-card .empty {
+      color: #b6c3d6;
     }
     .thesis-card {
       background: rgba(34,197,94,0.06);
@@ -2676,10 +2686,43 @@
       align-items: center;
       gap: 1.5rem;
       flex-wrap: wrap;
-      padding: 0.6rem 0 1rem 0;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 1rem;
+      padding: 0.35rem 0 0.55rem 0;
+      margin-bottom: 0.15rem;
     }
+    .tr-breakdown {
+      margin-top: 0.15rem;
+      border-top: 1px solid rgba(45, 58, 79, 0.45);
+      padding-top: 0.15rem;
+    }
+    .tr-breakdown > summary {
+      cursor: pointer;
+      list-style: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: #dbe7f5;
+      padding: 0.45rem 0.15rem;
+      user-select: none;
+    }
+    .tr-breakdown > summary::-webkit-details-marker { display: none; }
+    .tr-breakdown > summary::before {
+      content: "";
+      width: 0.4rem;
+      height: 0.4rem;
+      border-right: 2px solid #93c5fd;
+      border-bottom: 2px solid #93c5fd;
+      transform: rotate(-45deg);
+      transition: transform 0.15s ease;
+      flex: none;
+      margin-top: -0.1rem;
+    }
+    .tr-breakdown[open] > summary::before {
+      transform: rotate(45deg);
+      margin-top: 0.05rem;
+    }
+    .tr-breakdown-body { padding: 0.15rem 0 0.35rem; }
     .tr-overall-rate {
       display: flex;
       align-items: baseline;
@@ -2701,29 +2744,35 @@
       color: var(--muted);
       font-size: 0.9rem;
     }
-    .tr-section { margin-top: 1rem; }
-    .tr-section h3 { margin: 0 0 0.5rem 0; font-size: 0.95rem; }
+    .tr-section { margin-top: 0.85rem; }
+    .tr-section:first-child { margin-top: 0.35rem; }
+    .tr-section h3 { margin: 0 0 0.4rem 0; font-size: 0.92rem; color: #e7ecf3; }
     .tr-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     .tr-table th {
       text-align: left;
-      color: var(--muted);
-      font-weight: 500;
-      font-size: 0.78rem;
+      color: #b6c3d6;
+      font-weight: 600;
+      font-size: 0.76rem;
       text-transform: uppercase;
       letter-spacing: 0.03em;
-      padding: 0.3rem 0.6rem;
-      border-bottom: 1px solid var(--border);
+      padding: 0.28rem 0.55rem;
+      border-bottom: 1px solid rgba(45, 58, 79, 0.55);
     }
-    .tr-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+    .tr-table td {
+      padding: 0.38rem 0.55rem;
+      border-bottom: 1px solid rgba(45, 58, 79, 0.32);
+      color: #e7ecf3;
+    }
+    .tr-table tbody tr:last-child td { border-bottom: none; }
     .tr-table .tr-num { text-align: right; }
-    .tr-muted { color: var(--muted); }
+    .tr-muted { color: #9aa8bc; }
     .tr-rate { font-weight: 700; }
-    .tr-rate.tr-good { color: #22c55e; }
-    .tr-rate.tr-mid { color: #f59e0b; }
-    .tr-rate.tr-bad { color: #ef4444; }
-    .tr-rate.tr-rate-na { color: var(--muted); font-weight: 500; }
-    .tr-table td .pos { color: #22c55e; }
-    .tr-table td .neg { color: #ef4444; }
+    .tr-rate.tr-good { color: #4ade80; }
+    .tr-rate.tr-mid { color: #fbbf24; }
+    .tr-rate.tr-bad { color: #f87171; }
+    .tr-rate.tr-rate-na { color: #9aa8bc; font-weight: 500; }
+    .tr-table td .pos { color: #4ade80; }
+    .tr-table td .neg { color: #f87171; }
     .tr-table tr[onclick] { cursor: pointer; }
     .tr-table tbody tr[onclick]:hover { background: var(--panel-2); }
     .la-conf { color: var(--muted); font-size: 0.78rem; text-transform: capitalize; }
@@ -3086,9 +3135,11 @@
       padding: 0.75rem;
       margin-bottom: 0.6rem;
       border-left: 3px solid var(--accent);
+      color: #e7ecf3;
     }
     .alert { border-left-color: var(--warn); }
     .alert .alert-kind { margin-right: 0.45rem; vertical-align: baseline; }
+    .alert .alert-msg { color: #e7ecf3; }
     /* Stale alerts: condition no longer holds — keep but mute/grey them, with a
        dimmed (outline-style) glyph vs the full-color active one. */
     .alert.alert-stale {
@@ -3569,36 +3620,40 @@
     }
     .fib-proximity-cell {
       display: inline-block;
-      padding: 0.18rem 0.5rem;
+      padding: 0.2rem 0.55rem;
       border-radius: 6px;
-      font-weight: 600;
+      font-weight: 700;
       white-space: nowrap;
     }
     .fib-proximity-cell.fib-critical {
-      background: rgba(239, 68, 68, 0.18);
-      color: #fca5a5;
-      border: 1px solid rgba(239, 68, 68, 0.35);
+      background: rgba(239, 68, 68, 0.32);
+      color: #fecaca;
+      border: 1px solid rgba(252, 165, 165, 0.55);
     }
     .fib-proximity-cell.fib-warning {
-      background: rgba(245, 158, 11, 0.18);
-      color: #fcd34d;
-      border: 1px solid rgba(245, 158, 11, 0.35);
+      background: rgba(245, 158, 11, 0.3);
+      color: #fde68a;
+      border: 1px solid rgba(251, 191, 36, 0.55);
     }
     .fib-proximity-cell.fib-neutral {
-      background: rgba(154, 168, 188, 0.12);
-      color: var(--muted);
-      border: 1px solid var(--border);
+      background: rgba(148, 163, 184, 0.22);
+      color: #e2e8f0;
+      border: 1px solid rgba(203, 213, 225, 0.35);
     }
     .fib-proximity-cell.fib-unknown {
-      color: var(--muted);
+      color: #b6c3d6;
     }
     @media (max-width: 900px) {
       .fib-legend-grid { grid-template-columns: 1fr; }
       .fib-ticker-filter { margin-left: 0; width: 100%; }
     }
     table.data { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    table.data th, table.data td { text-align: left; padding: 0.55rem 0.4rem; border-bottom: 1px solid var(--border); }
-    table.data th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; }
+    table.data th, table.data td {
+      text-align: left;
+      padding: 0.55rem 0.4rem;
+      border-bottom: 1px solid rgba(45, 58, 79, 0.38);
+    }
+    table.data th { color: #b6c3d6; font-size: 0.8rem; text-transform: uppercase; }
     table.data tbody tr[data-row-key] { cursor: pointer; }
     table.data tbody tr[data-row-key]:hover td { background: rgba(148, 163, 184, 0.08); }
     table.data tbody tr.row-selected td {
@@ -6605,13 +6660,13 @@
       const fib = fibApi || inspector?.fib;
       if (!fib) return [];
       const levels = [
-        { label: "Swing Low", price: fib.swingLow, color: "#9aa8bc" },
+        { label: "Swing Low", price: fib.swingLow, color: "#cbd5e1" },
         ...(fib.levels || []).map((level) => ({
           label: level.label,
           price: level.price,
-          color: "#3b82f6",
+          color: "#60a5fa",
         })),
-        { label: "Swing High", price: fib.swingHigh, color: "#a78bfa" },
+        { label: "Swing High", price: fib.swingHigh, color: "#c4b5fd" },
       ];
       return levels.filter((level) => level.price != null);
     }
@@ -7916,8 +7971,10 @@
           datasets: [{
             data: payload.values,
             backgroundColor: colors,
-            borderWidth: 2,
-            borderColor: "#1a2332",
+            borderWidth: 1,
+            borderColor: "#243044",
+            hoverBorderWidth: 1,
+            hoverBorderColor: "#334155",
           }],
         },
         options: {
@@ -7928,11 +7985,12 @@
             legend: {
               position: "bottom",
               labels: {
-                color: "#9aa8bc",
+                color: "#b6c3d6",
                 usePointStyle: true,
-                pointStyle: "rect",
-                boxWidth: 12,
-                padding: 14,
+                pointStyle: "circle",
+                boxWidth: 9,
+                boxHeight: 9,
+                padding: 12,
               },
             },
             tooltip: {
@@ -8536,6 +8594,9 @@
               </table>
             </div>`
           : "";
+      const breakdown = [section("SAI actions", recos), section("Chart patterns", patterns), section("Confluence bias", confluence)]
+        .filter(Boolean)
+        .join("");
       body.innerHTML = `
         <div class="tr-overall">
           <div class="tr-overall-rate">${trackRecordRate(overall)}<span class="tr-overall-label">overall hit rate</span></div>
@@ -8545,9 +8606,12 @@
             <span>avg return ${trackRecordReturn(overall)}</span>
           </div>
         </div>
-        ${section("SAI actions", recos)}
-        ${section("Chart patterns", patterns)}
-        ${section("Confluence bias", confluence)}`;
+        ${breakdown
+          ? `<details class="tr-breakdown">
+              <summary>Signal breakdown</summary>
+              <div class="tr-breakdown-body">${breakdown}</div>
+            </details>`
+          : ""}`;
     }
 
     async function loadTrackRecord() {
@@ -11568,24 +11632,24 @@
     function resolveFibLevelMeta(label, fallbackColor) {
       const lowered = String(label || "").toLowerCase();
       if (lowered.startsWith("0%") || (lowered.includes("0%") && lowered.includes("high"))) {
-        return { key: "high", shortLabel: "0% High", color: "#a78bfa" };
+        return { key: "high", shortLabel: "0% High", color: "#c4b5fd" };
       }
       if (lowered.includes("38.2")) {
-        return { key: "fib-0.382", shortLabel: "38.2% Fib", color: "#3b82f6" };
+        return { key: "fib-0.382", shortLabel: "38.2% Fib", color: "#60a5fa" };
       }
       if (lowered.includes("50.0") || lowered.includes("center")) {
-        return { key: "fib-0.5", shortLabel: "50.0% Center", color: "#f59e0b" };
+        return { key: "fib-0.5", shortLabel: "50.0% Center", color: "#fbbf24" };
       }
       if (lowered.includes("61.8") || lowered.includes("golden")) {
-        return { key: "fib-0.618", shortLabel: "61.8% Golden", color: "#ef4444" };
+        return { key: "fib-0.618", shortLabel: "61.8% Golden", color: "#f87171" };
       }
       if (lowered.startsWith("100%") || (lowered.includes("low") && lowered.includes("base"))) {
-        return { key: "base", shortLabel: "100% Base", color: "#9aa8bc" };
+        return { key: "base", shortLabel: "100% Base", color: "#cbd5e1" };
       }
       return {
         key: "fib-other",
         shortLabel: label,
-        color: fallbackColor || "#9aa8bc",
+        color: fallbackColor || "#cbd5e1",
       };
     }
     const TREND_CHART_COLORS = {
@@ -11608,11 +11672,11 @@
     function buildClientFibBlueprint(fib) {
       if (!fib) return null;
       const palette = {
-        "0% High": "#a78bfa",
-        "38.2% Fib": "#3b82f6",
-        "50.0% Center": "#f59e0b",
-        "61.8% Golden": "#ef4444",
-        "100% Base": "#9aa8bc",
+        "0% High": "#c4b5fd",
+        "38.2% Fib": "#60a5fa",
+        "50.0% Center": "#fbbf24",
+        "61.8% Golden": "#f87171",
+        "100% Base": "#cbd5e1",
       };
       const blueprintRatios = {
         0.382: ["fib-0.382", "38.2% Fib"],
@@ -12682,7 +12746,7 @@
           borderColor: level.color,
           borderDash: [6, 4],
           pointRadius: 0,
-          borderWidth: 1.5,
+          borderWidth: 2.25,
           fill: false,
           order: 30,
           _fibKey: level.key,
@@ -12694,11 +12758,11 @@
         x: {
           type: "time",
           time: { unit: "day", tooltipFormat: "yyyy-MM-dd" },
-          grid: { color: "rgba(45, 58, 79, 0.55)" },
+          grid: { color: "rgba(45, 58, 79, 0.22)" },
           ticks: { color: "#9aa8bc", maxRotation: 0, autoSkip: true },
         },
         y: {
-          grid: { color: "rgba(45, 58, 79, 0.55)" },
+          grid: { color: "rgba(45, 58, 79, 0.22)" },
           ticks: {
             // Fullscreen: sticky overlay paints the price legend so ticks stay
             // visible while the canvas scrolls horizontally.
@@ -12795,7 +12859,7 @@
           borderColor: level.color,
           borderDash: [6, 4],
           pointRadius: 0,
-          borderWidth: 1.5,
+          borderWidth: 2.25,
           fill: false,
           _fibKey: level.key,
           hidden: inspectorFibToggles[level.key] === false,
@@ -12823,11 +12887,11 @@
           },
           scales: {
             x: {
-              grid: { color: "rgba(45, 58, 79, 0.55)" },
+              grid: { color: "rgba(45, 58, 79, 0.22)" },
               ticks: { color: "#9aa8bc" },
             },
             y: {
-              grid: { color: "rgba(45, 58, 79, 0.55)" },
+              grid: { color: "rgba(45, 58, 79, 0.22)" },
               ticks: {
                 color: "#9aa8bc",
                 callback: (value) => formatMoney(value),
@@ -13216,8 +13280,8 @@
       page-break-inside: avoid;
     }
     .recommendation-card.snap-sai-card {
-      background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(167,139,250,0.1));
-      border-color: rgba(96,165,250,0.35);
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.22), rgba(124, 58, 237, 0.16));
+      border-color: rgba(147, 197, 253, 0.42);
     }
     .card-headline-accent,
     h3.card-headline-accent,
@@ -13281,11 +13345,11 @@
     .confluence-col li { font-size: 0.62rem; margin-bottom: 0.05rem; line-height: 1.25; }
     .confluence-col li.empty { color: var(--muted); list-style: none; margin-left: -0.85rem; }
     .confluence-fib-note, .confluence-watch { margin: 0.15rem 0 0; font-size: 0.62rem; line-height: 1.3; }
-    .recommendation-card.snap-sai-card .rec-headline { font-size: 0.78rem; font-weight: 600; margin: 0.15rem 0 0.2rem; line-height: 1.25; }
+    .recommendation-card.snap-sai-card .rec-headline { font-size: 0.78rem; font-weight: 700; margin: 0.15rem 0 0.2rem; line-height: 1.25; color: #f8fafc; }
     .recommendation-card.snap-sai-card .rec-rationale {
       font-size: 0.68rem;
       line-height: 1.32;
-      color: #e2e8f0;
+      color: #f1f5f9;
     }
     .recommendation-card.snap-sai-card h3 { margin: 0 0 0.15rem; font-size: 0.58rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
     .snap-watch-label {

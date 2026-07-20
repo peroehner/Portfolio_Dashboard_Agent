@@ -327,11 +327,11 @@ class InspectorService:
         if not fib:
             return None
         palette = {
-            "0% High": "#a78bfa",
-            "38.2% Fib": "#3b82f6",
-            "50.0% Center": "#f59e0b",
-            "61.8% Golden": "#ef4444",
-            "100% Base": "#9aa8bc",
+            "0% High": "#c4b5fd",
+            "38.2% Fib": "#60a5fa",
+            "50.0% Center": "#fbbf24",
+            "61.8% Golden": "#f87171",
+            "100% Base": "#cbd5e1",
         }
         blueprint_ratios = {
             0.382: ("fib-0.382", "38.2% Fib"),
@@ -357,7 +357,7 @@ class InspectorService:
                     "key": key,
                     "label": label,
                     "price": level["price"],
-                    "color": palette.get(label, "#9aa8bc"),
+                    "color": palette.get(label, "#cbd5e1"),
                 }
             )
         levels.append(

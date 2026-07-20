@@ -98,7 +98,7 @@ export function AllocationChart({ holdings, mode, onModeChange }: AllocationChar
               d={arc.path}
               fill={arc.color}
               stroke={colors.bg}
-              strokeWidth={2}
+              strokeWidth={1}
             />
           ))}
         </Svg>

@@ -124,24 +124,24 @@ function resolveFibLevelMeta(label?: string, fallbackColor?: string): {
 } {
   const lowered = String(label || "").toLowerCase();
   if (lowered.startsWith("0%") || (lowered.includes("0%") && lowered.includes("high"))) {
-    return { key: "high", shortLabel: "0% High", color: "#a78bfa" };
+    return { key: "high", shortLabel: "0% High", color: "#c4b5fd" };
   }
   if (lowered.includes("38.2")) {
-    return { key: "fib-0.382", shortLabel: "38.2% Fib", color: "#3b82f6" };
+    return { key: "fib-0.382", shortLabel: "38.2% Fib", color: "#60a5fa" };
   }
   if (lowered.includes("50.0") || lowered.includes("center")) {
-    return { key: "fib-0.5", shortLabel: "50.0% Center", color: "#f59e0b" };
+    return { key: "fib-0.5", shortLabel: "50.0% Center", color: "#fbbf24" };
   }
   if (lowered.includes("61.8") || lowered.includes("golden")) {
-    return { key: "fib-0.618", shortLabel: "61.8% Golden", color: "#ef4444" };
+    return { key: "fib-0.618", shortLabel: "61.8% Golden", color: "#f87171" };
   }
   if (lowered.startsWith("100%") || (lowered.includes("low") && lowered.includes("base"))) {
-    return { key: "base", shortLabel: "100% Base", color: "#9aa8bc" };
+    return { key: "base", shortLabel: "100% Base", color: "#cbd5e1" };
   }
   return {
     key: "fib-other",
     shortLabel: label || "Fib",
-    color: fallbackColor || "#9aa8bc",
+    color: fallbackColor || "#cbd5e1",
   };
 }
 
@@ -182,11 +182,11 @@ function fibLevelsFromPayload(data?: InspectorPayload | null): ImportedFibLevel[
     return [];
   }
   const palette: Record<string, string> = {
-    "0% High": "#a78bfa",
-    "38.2% Fib": "#3b82f6",
-    "50.0% Center": "#f59e0b",
-    "61.8% Golden": "#ef4444",
-    "100% Base": "#9aa8bc",
+    "0% High": "#c4b5fd",
+    "38.2% Fib": "#60a5fa",
+    "50.0% Center": "#fbbf24",
+    "61.8% Golden": "#f87171",
+    "100% Base": "#cbd5e1",
   };
   const ratioMap: Record<number, [string, string]> = {
     0.382: ["fib-0.382", "38.2% Fib"],
