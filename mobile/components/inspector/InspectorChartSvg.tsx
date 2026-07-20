@@ -98,7 +98,7 @@ export function InspectorChartSvg({
         </LinearGradient>
       </Defs>
 
-      {/* Grid */}
+      {/* Horizontal price guides only — vertical day lines add noise. */}
       {ticks.map((price) => {
         const y = yForPrice(price);
         return (
@@ -113,17 +113,6 @@ export function InspectorChartSvg({
           />
         );
       })}
-      {dateTicks.map((tick) => (
-        <Line
-          key={`grid-x-${tick.x}`}
-          x1={xForNorm(tick.x)}
-          y1={pad}
-          x2={xForNorm(tick.x)}
-          y2={pad + plotH}
-          stroke="rgba(45, 58, 79, 0.45)"
-          strokeWidth={1}
-        />
-      ))}
 
       {/* Price fill sits behind volume, Fib, trends, and pattern overlays. */}
       {areaPoints ? <Polygon points={areaPoints} fill={`url(#${gradId})`} stroke="none" /> : null}
