@@ -71,7 +71,7 @@ function dirBtnStyle(active: boolean, kind: "up" | "down") {
 }
 
 function dirBtnTextStyle(active: boolean, kind: "up" | "down") {
-  if (active) return { color: "#FFFFFF" };
+  if (active) return { color: kind === "up" ? "#0a1a0f" : "#1a0a0a" };
   return { color: kind === "up" ? colors.buy : colors.sell };
 }
 

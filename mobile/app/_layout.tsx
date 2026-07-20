@@ -7,7 +7,7 @@ import { colors } from "@/lib/theme";
 export default function RootLayout() {
   return (
     <StarredSymbolsProvider>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: colors.bg },

@@ -5,13 +5,13 @@
     "version": "1.0.0",
     "orientation": "default",
     "scheme": "pda",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F4F6F8"
+      "backgroundColor": "#0f172a"
     },
     "ios": {
       "supportsTablet": true,
@@ -24,7 +24,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F4F6F8"
+        "backgroundColor": "#0f172a"
       },
       "package": "com.portfolio.dashboard"
     },

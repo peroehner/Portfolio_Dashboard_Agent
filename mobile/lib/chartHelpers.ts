@@ -75,12 +75,12 @@ export interface InspectorChartModel {
   hasVolume: boolean;
 }
 
-const TREND_UP = ["#16A34A", "#22C55E", "#4ADE80"];
-const TREND_DOWN = ["#DC2626", "#EF4444", "#F87171"];
-const PRICE_COLOR = "#2563EB";
-const DEFAULT_FIB_COLORS = ["#D97706", "#CA8A04", "#65A30D", "#16A34A", "#0D9488", "#0284C7", "#7C3AED"];
-export const TRADE_BELOW = "#E11D48";
-export const TRADE_ABOVE = "#059669";
+const TREND_UP = ["#22c55e", "#4ade80", "#86efac"];
+const TREND_DOWN = ["#f87171", "#ef4444", "#fca5a5"];
+const PRICE_COLOR = "#c4b5fd";
+const DEFAULT_FIB_COLORS = ["#f59e0b", "#eab308", "#84cc16", "#22c55e", "#14b8a6", "#38bdf8", "#a78bfa"];
+export const TRADE_BELOW = "#fb7185";
+export const TRADE_ABOVE = "#34d399";
 
 function parseDate(value?: string): number | null {
   if (!value) return null;
@@ -94,10 +94,10 @@ function trendColor(wave: TrendWavePayload, index: number): string {
 }
 
 function patternColor(pattern: ChartPatternPayload): string {
-  if (pattern.validation?.verdict === "stale") return "#6B7280";
-  if (pattern.type === "bullish") return "#16A34A";
-  if (pattern.type === "bearish") return "#D97706";
-  return "#D97706";
+  if (pattern.validation?.verdict === "stale") return "#94a3b8";
+  if (pattern.type === "bullish") return "#22c55e";
+  if (pattern.type === "bearish") return "#f59e0b";
+  return "#f59e0b";
 }
 
 function emptyModel(): InspectorChartModel {
