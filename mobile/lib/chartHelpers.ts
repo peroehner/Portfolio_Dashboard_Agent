@@ -77,7 +77,7 @@ export interface InspectorChartModel {
 
 const TREND_UP = ["#22c55e", "#4ade80", "#86efac"];
 const TREND_DOWN = ["#f87171", "#ef4444", "#fca5a5"];
-const PRICE_COLOR = "#c4b5fd";
+const PRICE_COLOR = "#e9d5ff";
 const DEFAULT_FIB_COLORS = ["#f59e0b", "#eab308", "#84cc16", "#22c55e", "#14b8a6", "#38bdf8", "#a78bfa"];
 export const TRADE_BELOW = "#fb7185";
 export const TRADE_ABOVE = "#34d399";
