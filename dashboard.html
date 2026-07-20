@@ -2057,14 +2057,22 @@
       color: var(--muted);
     }
     /* Shared accent treatment for Inspector card/eyebrow headlines (SAI flagship +
-       its peer section titles) so they stand out consistently. Defined after the
-       per-card headline rules so it wins on equal specificity; caveat/count spans
-       keep their own muted color. */
+       its peer section titles) so they stand out consistently. Higher specificity
+       beats the generic `.valuation-scoring h3` / `.inspector-chart-head h3` rules. */
     .card-headline-accent,
     h3.card-headline-accent,
-    h4.card-headline-accent {
-      color: #f8fafc;
+    h4.card-headline-accent,
+    .inspector-chart-head h3.card-headline-accent,
+    .valuation-scoring h3.card-headline-accent,
+    .valuation-scoring h4.card-headline-accent,
+    .inspector-side-card h3.card-headline-accent,
+    .inspector-section h3.card-headline-accent {
+      color: #93c5fd;
       font-weight: 700;
+    }
+    .card-headline-accent .pattern-caveat {
+      color: #9aa8bc;
+      font-weight: 500;
     }
     .pattern-list {
       display: grid;
@@ -12758,11 +12766,17 @@
         x: {
           type: "time",
           time: { unit: "day", tooltipFormat: "yyyy-MM-dd" },
-          grid: { color: "rgba(45, 58, 79, 0.22)" },
+          border: { display: false },
+          grid: { display: false },
           ticks: { color: "#9aa8bc", maxRotation: 0, autoSkip: true },
         },
         y: {
-          grid: { color: "rgba(45, 58, 79, 0.22)" },
+          border: { display: false },
+          grid: {
+            color: "rgba(148, 163, 184, 0.07)",
+            drawTicks: false,
+            lineWidth: 1,
+          },
           ticks: {
             // Fullscreen: sticky overlay paints the price legend so ticks stay
             // visible while the canvas scrolls horizontally.
@@ -12887,11 +12901,17 @@
           },
           scales: {
             x: {
-              grid: { color: "rgba(45, 58, 79, 0.22)" },
+              border: { display: false },
+              grid: { display: false },
               ticks: { color: "#9aa8bc" },
             },
             y: {
-              grid: { color: "rgba(45, 58, 79, 0.22)" },
+              border: { display: false },
+              grid: {
+                color: "rgba(148, 163, 184, 0.07)",
+                drawTicks: false,
+                lineWidth: 1,
+              },
               ticks: {
                 color: "#9aa8bc",
                 callback: (value) => formatMoney(value),
@@ -13286,7 +13306,7 @@
     .card-headline-accent,
     h3.card-headline-accent,
     h4.card-headline-accent {
-      color: #f8fafc;
+      color: #93c5fd;
       font-weight: 700;
     }
     .inspector-chart-head h3,
@@ -13294,9 +13314,10 @@
     .inspector-section h3 {
       margin: 0 0 0.25rem;
       font-size: 0.78rem;
-      color: var(--text);
+      color: #93c5fd;
       text-transform: none;
       letter-spacing: normal;
+      font-weight: 700;
     }
     .pattern-caveat { font-size: 0.58rem; font-weight: 500; color: var(--muted); text-transform: none; }
     .chip {

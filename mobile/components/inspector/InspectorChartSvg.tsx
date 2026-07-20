@@ -108,7 +108,7 @@ export function InspectorChartSvg({
             y1={y}
             x2={width - pad}
             y2={y}
-            stroke="rgba(45, 58, 79, 0.55)"
+            stroke="rgba(148, 163, 184, 0.08)"
             strokeWidth={1}
           />
         );
