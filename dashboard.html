@@ -189,19 +189,19 @@
     .panel-symbol-head .symbol-head-company {
       font-size: 1.1rem;
       font-weight: 600;
-      color: var(--muted);
+      color: #c5d0de;
     }
     .panel-symbol-head .symbol-head-company::before {
       content: "·";
       margin-right: 0.55rem;
-      color: var(--muted);
+      color: #9aa8bc;
     }
     .panel-symbol-head .symbol-head-ticker {
       font-size: 0.95rem;
       font-weight: 600;
       letter-spacing: 0.04em;
       text-transform: uppercase;
-      color: var(--muted);
+      color: #c5d0de;
       line-height: 1.1;
     }
     .panel-symbol-head .symbol-head-ticker.is-active {
@@ -209,8 +209,8 @@
       font-weight: 800;
       letter-spacing: 0.07em;
       text-transform: none;
-      color: #ddd6fe;
-      text-shadow: 0 0 28px rgba(139, 92, 246, 0.35);
+      color: #ffffff;
+      text-shadow: none;
     }
     .inspector-detail-toolbar {
       display: flex;
@@ -476,11 +476,12 @@
     }
     .target-field-meta {
       margin-top: 0.25rem;
-      font-size: 0.72rem;
-      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #c5d0de;
     }
-    .target-field-meta.positive { color: var(--accent-2); }
-    .target-field-meta.negative { color: var(--danger); }
+    .target-field-meta.positive { color: #4ade80; }
+    .target-field-meta.negative { color: #fca5a5; }
     /* In-flight button feedback: disabled look + inline spinner. */
     button.btn-pending { opacity: 0.8; cursor: progress; }
     .btn-spinner {
@@ -1904,9 +1905,9 @@
     }
     .trend-waves-details summary {
       cursor: pointer;
-      color: #c4b5fd;
+      color: #f5f3ff;
       font-size: 0.95rem;
-      font-weight: 700;
+      font-weight: 800;
       letter-spacing: 0.01em;
       user-select: none;
     }
@@ -2067,11 +2068,11 @@
     .valuation-scoring h4.card-headline-accent,
     .inspector-side-card h3.card-headline-accent,
     .inspector-section h3.card-headline-accent {
-      color: #93c5fd;
-      font-weight: 700;
+      color: #ffffff;
+      font-weight: 800;
     }
     .card-headline-accent .pattern-caveat {
-      color: #9aa8bc;
+      color: #b6c3d6;
       font-weight: 500;
     }
     .pattern-list {
@@ -2141,8 +2142,9 @@
       flex-wrap: wrap;
       gap: 0.55rem 0.85rem;
       margin-top: 0.55rem;
-      font-size: 0.72rem;
-      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #d5dee9;
     }
     .inspector-chart-legend span {
       display: inline-flex;
@@ -3131,10 +3133,11 @@
       margin-bottom: 0.35rem;
     }
     button.btn-danger {
-      background: rgba(239,68,68,0.15);
-      color: #fca5a5;
-      border: 1px solid rgba(239,68,68,0.35);
+      background: #b91c1c;
+      color: #fff;
+      border: 1px solid #f87171;
       font-size: 0.75rem;
+      font-weight: 700;
       padding: 0.2rem 0.55rem;
     }
     .alert, .note, .assessment, .fib {
@@ -3298,19 +3301,19 @@
       border: 1px solid rgba(154, 168, 188, 0.2);
     }
     .nav-group-portfolio .nav-group-label {
-      color: #f8fafc;
-      background: rgba(37, 99, 235, 0.42);
-      border-color: rgba(147, 197, 253, 0.65);
+      color: #fff;
+      background: #1d4ed8;
+      border-color: #60a5fa;
     }
     .nav-group-symbol .nav-group-label {
-      color: #f8fafc;
-      background: rgba(2, 132, 199, 0.42);
-      border-color: rgba(125, 211, 252, 0.65);
+      color: #fff;
+      background: #0369a1;
+      border-color: #7dd3fc;
     }
     .nav-group-agents .nav-group-label {
-      color: #f8fafc;
-      background: rgba(124, 58, 237, 0.42);
-      border-color: rgba(196, 181, 253, 0.65);
+      color: #fff;
+      background: #6d28d9;
+      border-color: #c4b5fd;
     }
     .nav-group-label svg {
       display: block;
@@ -3637,19 +3640,19 @@
       white-space: nowrap;
     }
     .fib-proximity-cell.fib-critical {
-      background: rgba(239, 68, 68, 0.32);
-      color: #fecaca;
-      border: 1px solid rgba(252, 165, 165, 0.55);
+      background: #b91c1c;
+      color: #fff;
+      border: 1px solid #f87171;
     }
     .fib-proximity-cell.fib-warning {
-      background: rgba(245, 158, 11, 0.3);
-      color: #fde68a;
-      border: 1px solid rgba(251, 191, 36, 0.55);
+      background: #b45309;
+      color: #fff;
+      border: 1px solid #fbbf24;
     }
     .fib-proximity-cell.fib-neutral {
-      background: rgba(148, 163, 184, 0.22);
-      color: #e2e8f0;
-      border: 1px solid rgba(203, 213, 225, 0.35);
+      background: #334155;
+      color: #f1f5f9;
+      border: 1px solid #64748b;
     }
     .fib-proximity-cell.fib-unknown {
       color: #b6c3d6;
@@ -12602,7 +12605,7 @@
       const legend = document.getElementById(`inspectorTrendLegend-${panelId}`);
       if (!legend) return;
       const items = [
-        `<span><span class="legend-line" style="color:#c4b5fd;"></span>Window price</span>`,
+        `<span><span class="legend-line" style="color:#e9d5ff;"></span>Window price</span>`,
         ...waves.map((wave, index) => {
           const color = trendChartColor(wave, index);
           const arrow = wave.direction === "down" ? "↓" : "↑";
@@ -12640,7 +12643,7 @@
         const pts = timeline.points;
         const barColors = pts.map((p, i) => {
           const prev = i > 0 ? pts[i - 1].price : p.price;
-          return (p.price >= prev) ? "rgba(34, 197, 94, 0.32)" : "rgba(248, 113, 113, 0.32)";
+          return (p.price >= prev) ? "rgba(34, 197, 94, 0.14)" : "rgba(248, 113, 113, 0.14)";
         });
         datasets.push({
           type: "bar",
@@ -12660,23 +12663,23 @@
         datasets.push({
           label: "Window price",
           data: timeline.points.map((point) => ({ x: point.date, y: point.price })),
-          borderColor: "#c4b5fd",
+          borderColor: "#e9d5ff",
           backgroundColor(context) {
             const chart = context.chart;
             const { ctx, chartArea } = chart;
-            if (!chartArea) return "rgba(147, 197, 253, 0.12)";
+            if (!chartArea) return "rgba(147, 197, 253, 0.05)";
             const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-            gradient.addColorStop(0, "rgba(147, 197, 253, 0.16)");
-            gradient.addColorStop(0.55, "rgba(96, 165, 250, 0.07)");
-            gradient.addColorStop(1, "rgba(59, 130, 246, 0.015)");
+            gradient.addColorStop(0, "rgba(147, 197, 253, 0.08)");
+            gradient.addColorStop(0.55, "rgba(96, 165, 250, 0.03)");
+            gradient.addColorStop(1, "rgba(59, 130, 246, 0.0)");
             return gradient;
           },
           fill: true,
           tension: 0.25,
           pointRadius: 0,
           pointHoverRadius: 4,
-          pointHoverBackgroundColor: "#e9d5ff",
-          borderWidth: 2.75,
+          pointHoverBackgroundColor: "#f5f3ff",
+          borderWidth: 3,
           order: 25,
         });
       }
@@ -12792,11 +12795,7 @@
         },
         y: {
           border: { display: false },
-          grid: {
-            color: "rgba(148, 163, 184, 0.07)",
-            drawTicks: false,
-            lineWidth: 1,
-          },
+          grid: { display: false },
           ticks: {
             // Fullscreen: sticky overlay paints the price legend so ticks stay
             // visible while the canvas scrolls horizontally.
@@ -12927,11 +12926,7 @@
             },
             y: {
               border: { display: false },
-              grid: {
-                color: "rgba(148, 163, 184, 0.07)",
-                drawTicks: false,
-                lineWidth: 1,
-              },
+              grid: { display: false },
               ticks: {
                 color: "#9aa8bc",
                 callback: (value) => formatMoney(value),
@@ -13326,18 +13321,18 @@
     .card-headline-accent,
     h3.card-headline-accent,
     h4.card-headline-accent {
-      color: #93c5fd;
-      font-weight: 700;
+      color: #ffffff;
+      font-weight: 800;
     }
     .inspector-chart-head h3,
     .valuation-scoring h3,
     .inspector-section h3 {
       margin: 0 0 0.25rem;
       font-size: 0.78rem;
-      color: #93c5fd;
+      color: #ffffff;
       text-transform: none;
       letter-spacing: normal;
-      font-weight: 700;
+      font-weight: 800;
     }
     .pattern-caveat { font-size: 0.58rem; font-weight: 500; color: var(--muted); text-transform: none; }
     .chip {
