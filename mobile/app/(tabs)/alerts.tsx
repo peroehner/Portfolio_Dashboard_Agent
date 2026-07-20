@@ -20,7 +20,8 @@ import {
   compareAlertTypeChipOrder,
   sortAlertFilterGroupEntries,
 } from "@/lib/alertTypes";
-import { symbolMatchesFilter } from "@/lib/filters";
+import { FILTER_PLACEHOLDER } from "@/lib/filters";
+import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { Alert } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
@@ -50,9 +51,11 @@ export default function AlertsScreen() {
     );
   }, [data?.alerts]);
 
+  const matchesSymbol = useSymbolFilterMatch(filter);
+
   const alerts = useMemo(() => {
     const filtered = (data?.alerts ?? []).filter((alert) => {
-      if (!symbolMatchesFilter(alert.symbol, filter)) return false;
+      if (!matchesSymbol(alert.symbol)) return false;
       if (typeFilter && !alertMatchesFilterGroup(alert.type || alert.alert_type, typeFilter)) {
         return false;
       }
@@ -69,7 +72,7 @@ export default function AlertsScreen() {
       });
     }
     return filtered;
-  }, [data?.alerts, filter, typeFilter]);
+  }, [data?.alerts, filter, typeFilter, matchesSymbol]);
 
   const browseSymbols = useMemo(() => alerts.map((a) => a.symbol), [alerts]);
 
@@ -101,7 +104,7 @@ export default function AlertsScreen() {
       >
         <TextInput
           style={styles.filter}
-          placeholder="Filter tickers (comma-separated)…"
+          placeholder={FILTER_PLACEHOLDER}
           placeholderTextColor={colors.textMuted}
           value={filter}
           onChangeText={setFilter}

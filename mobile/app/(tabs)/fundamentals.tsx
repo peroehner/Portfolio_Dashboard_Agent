@@ -12,7 +12,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { FundamentalsTable } from "@/components/FundamentalsTable";
 import { Screen } from "@/components/Screen";
 import { api } from "@/lib/api";
-import { symbolMatchesFilter } from "@/lib/filters";
+import { FILTER_PLACEHOLDER } from "@/lib/filters";
+import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 import type { FundamentalsSortState, FundamentalsTab } from "@/lib/fundamentalsTable";
 import { colors, radii, spacing } from "@/lib/theme";
 import { useApiQuery } from "@/lib/useApiQuery";
@@ -31,11 +32,11 @@ export default function FundamentalsScreen() {
     direction: "desc",
   });
   const { data, loading, error, refresh } = useApiQuery(() => api.fundamentals(), []);
+  const matchesSymbol = useSymbolFilterMatch(filter);
 
   const rows = useMemo(
-    () =>
-      (data?.symbols ?? []).filter((row) => symbolMatchesFilter(row.symbol, filter)),
-    [data?.symbols, filter],
+    () => (data?.symbols ?? []).filter((row) => matchesSymbol(row.symbol)),
+    [data?.symbols, matchesSymbol],
   );
 
   return (
@@ -51,7 +52,7 @@ export default function FundamentalsScreen() {
         <View style={styles.toolbar}>
           <TextInput
             style={styles.filter}
-            placeholder="Filter…"
+            placeholder={FILTER_PLACEHOLDER}
             placeholderTextColor={colors.textMuted}
             value={filter}
             onChangeText={setFilter}

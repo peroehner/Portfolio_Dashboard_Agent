@@ -14,7 +14,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { PortfolioTable } from "@/components/PortfolioTable";
 import { Screen } from "@/components/Screen";
 import { api } from "@/lib/api";
-import { symbolMatchesFilter } from "@/lib/filters";
+import { FILTER_PLACEHOLDER } from "@/lib/filters";
+import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 import {
   buildPortfolioRows,
   sortPortfolioRows,
@@ -79,9 +80,11 @@ export default function PortfolioScreen() {
     return map;
   }, [data?.holdings]);
 
+  const matchesSymbol = useSymbolFilterMatch(filter);
+
   const rows = useMemo(() => {
     const symbols = [...(data?.portfolio?.symbols ?? [])].filter((row) => {
-      if (!symbolMatchesFilter(row.symbol, filter)) return false;
+      if (!matchesSymbol(row.symbol)) return false;
       const holding = holdingBySymbol.get(row.symbol);
       const hasShares = (holding?.quantity || 0) > 0;
       if (mode === "holdings") return hasShares;
@@ -91,7 +94,7 @@ export default function PortfolioScreen() {
 
     const built = buildPortfolioRows(symbols, holdingBySymbol, assessmentBySymbol);
     return sortPortfolioRows(built, sort);
-  }, [data?.portfolio?.symbols, filter, mode, sort, holdingBySymbol, assessmentBySymbol]);
+  }, [data?.portfolio?.symbols, filter, mode, sort, holdingBySymbol, assessmentBySymbol, matchesSymbol]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -109,7 +112,7 @@ export default function PortfolioScreen() {
           <View style={styles.toolbar}>
             <TextInput
               style={styles.filter}
-              placeholder="Filter…"
+              placeholder={FILTER_PLACEHOLDER}
               placeholderTextColor={colors.textMuted}
               value={filter}
               onChangeText={setFilter}

@@ -17,7 +17,8 @@ import { NewsArticleModal } from "@/components/NewsArticleModal";
 import { NoteModal, type NoteDraft } from "@/components/NoteModal";
 import { Screen } from "@/components/Screen";
 import { api } from "@/lib/api";
-import { symbolMatchesFilter } from "@/lib/filters";
+import { FILTER_PLACEHOLDER } from "@/lib/filters";
+import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 import {
   changeTimestamp,
   filterRecoChanges,
@@ -148,12 +149,12 @@ export default function NewsScreen() {
     [notedNewsKeys],
   );
 
+  const matchesSymbol = useSymbolFilterMatch(filter);
+
   const tickerFilteredChanges = useMemo(
     () =>
-      (data?.recommendationChanges ?? []).filter((item) =>
-        symbolMatchesFilter(item.symbol, filter),
-      ),
-    [data?.recommendationChanges, filter],
+      (data?.recommendationChanges ?? []).filter((item) => matchesSymbol(item.symbol)),
+    [data?.recommendationChanges, matchesSymbol],
   );
 
   const changes = useMemo(
@@ -164,9 +165,8 @@ export default function NewsScreen() {
   const changeCounts = useMemo(() => recoChangesCounts(changes), [changes]);
 
   const news = useMemo(
-    () =>
-      (data?.topNews ?? []).filter((item) => symbolMatchesFilter(item.symbol, filter)),
-    [data?.topNews, filter],
+    () => (data?.topNews ?? []).filter((item) => matchesSymbol(item.symbol)),
+    [data?.topNews, matchesSymbol],
   );
 
   const newsGroups = useMemo(() => groupNewsBySymbol(news), [news]);
@@ -211,7 +211,7 @@ export default function NewsScreen() {
       >
         <TextInput
           style={styles.filter}
-          placeholder="Filter…"
+          placeholder={FILTER_PLACEHOLDER}
           placeholderTextColor={colors.textMuted}
           value={filter}
           onChangeText={setFilter}

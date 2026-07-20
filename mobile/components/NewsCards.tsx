@@ -2,10 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { SaiBadge } from "@/components/SaiBadge";
+import { SymbolStarPressable } from "@/components/SymbolStarPressable";
 import { formatRelativeDate, formatShortDateTime } from "@/lib/format";
 import { headlineForAction } from "@/lib/inspectorHelpers";
 import { changeTimestamp } from "@/lib/newsFilters";
 import { openSymbol } from "@/lib/symbolBrowseSession";
+import { useSymbolRowStar } from "@/lib/useSymbolRowStar";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { NewsItem, RecommendationChange } from "@/lib/types";
 
@@ -37,15 +39,12 @@ function SymbolLink({
   browseSymbols?: string[];
 }) {
   return (
-    <Pressable
+    <SymbolStarPressable
       style={styles.symbolPress}
+      symbol={symbol}
+      compact={compact}
       onPress={() => openSymbol(symbol, browseSymbols, "news")}
-      hitSlop={4}
-    >
-      <Text style={[styles.symbol, compact && styles.symbolCompact]} numberOfLines={1}>
-        {symbol}
-      </Text>
-    </Pressable>
+    />
   );
 }
 
@@ -57,11 +56,14 @@ export function NewsCard({
   onOpenNews,
   browseSymbols,
 }: NewsCardProps) {
+  const rowStar = useSymbolRowStar(item.symbol);
+
   return (
     <Pressable
       style={[styles.card, compact && styles.cardCompact]}
       onPress={() => onOpenNews?.(item)}
       disabled={!onOpenNews}
+      {...rowStar}
     >
       <View style={styles.metaRow}>
         <SymbolLink symbol={item.symbol} compact={compact} browseSymbols={browseSymbols} />
@@ -177,6 +179,7 @@ export function NewsSymbolGroupCard({
 
 export function SaiChangeCard({ change, compact, onOpenPortfolio, browseSymbols }: SaiChangeCardProps) {
   const ts = changeTimestamp(change);
+  const rowStar = useSymbolRowStar(change.symbol);
   const metaParts = [
     ts ? formatShortDateTime(ts) : "",
     change.newConfidence ? `${change.newConfidence} confidence` : "",
@@ -189,6 +192,7 @@ export function SaiChangeCard({ change, compact, onOpenPortfolio, browseSymbols 
         style={[styles.card, styles.cardCompact]}
         onPress={() => onOpenPortfolio?.(change.symbol)}
         disabled={!onOpenPortfolio}
+        {...rowStar}
       >
         <View style={styles.metaRow}>
           <SymbolLink symbol={change.symbol} compact browseSymbols={browseSymbols} />
@@ -208,6 +212,7 @@ export function SaiChangeCard({ change, compact, onOpenPortfolio, browseSymbols 
       style={styles.card}
       onPress={() => onOpenPortfolio?.(change.symbol)}
       disabled={!onOpenPortfolio}
+      {...rowStar}
     >
       <View style={styles.recoRow}>
         <View style={styles.recoLeft}>

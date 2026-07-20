@@ -1,11 +1,12 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 
+import { StarredSymbolsProvider } from "@/lib/StarredSymbolsContext";
 import { colors } from "@/lib/theme";
 
 export default function RootLayout() {
   return (
-    <>
+    <StarredSymbolsProvider>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -24,6 +25,6 @@ export default function RootLayout() {
           }}
         />
       </Stack>
-    </>
+    </StarredSymbolsProvider>
   );
 }

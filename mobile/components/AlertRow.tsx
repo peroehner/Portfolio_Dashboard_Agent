@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { SymbolStarPressable } from "@/components/SymbolStarPressable";
 import { colors, radii, spacing } from "@/lib/theme";
 import { alertTypeKey, alertTypeLabel } from "@/lib/alertTypes";
 import { openSymbol } from "@/lib/symbolBrowseSession";
+import { useSymbolRowStar } from "@/lib/useSymbolRowStar";
 import type { Alert } from "@/lib/types";
 
 interface AlertRowProps {
@@ -54,16 +56,16 @@ export function AlertMessageText({
 
 export function AlertRow({ alert, onDismiss, dismissing, browseSymbols }: AlertRowProps) {
   const type = alertTypeLabel(alertTypeKey(alert.type || alert.alert_type));
+  const rowStar = useSymbolRowStar(alert.symbol);
 
   return (
-    <View style={styles.card}>
+    <Pressable style={styles.card} {...rowStar}>
       <View style={styles.top}>
-        <Pressable
+        <SymbolStarPressable
           style={styles.symbolPress}
+          symbol={alert.symbol}
           onPress={() => openSymbol(alert.symbol, browseSymbols, "alerts")}
-        >
-          <Text style={styles.symbol}>{alert.symbol}</Text>
-        </Pressable>
+        />
         <View style={styles.typeRow}>
           <Text style={styles.type}>{type}</Text>
           {onDismiss ? (
@@ -84,7 +86,7 @@ export function AlertRow({ alert, onDismiss, dismissing, browseSymbols }: AlertR
         </View>
       </View>
       {alert.message ? <AlertMessageText message={alert.message} style={styles.message} /> : null}
-    </View>
+    </Pressable>
   );
 }
 

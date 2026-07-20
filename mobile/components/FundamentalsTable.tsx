@@ -11,6 +11,7 @@ import {
 } from "react-native";
 
 import { RangeBar, TargetRangeBar } from "@/components/RangeBar";
+import { SymbolStarPressable } from "@/components/SymbolStarPressable";
 import {
   cycleFundamentalsSort,
   fundamentalsColumns,
@@ -24,6 +25,7 @@ import {
 } from "@/lib/fundamentalsTable";
 import { openSymbol } from "@/lib/symbolBrowseSession";
 import { fitStickyScrollColumns } from "@/lib/tableLayout";
+import { useSymbolRowStar } from "@/lib/useSymbolRowStar";
 import { colors, spacing } from "@/lib/theme";
 import type { FundamentalsRow } from "@/lib/types";
 
@@ -91,14 +93,11 @@ function StickyCell({
   if (col.kind === "symbol") {
     return (
       <View style={[styles.symbolCell, { width }]}>
-        <Pressable
+        <SymbolStarPressable
           style={styles.symbolPress}
+          symbol={row.symbol}
           onPress={() => openSymbol(row.symbol, browseSymbols, "fundamentals")}
-        >
-          <Text style={styles.symbol} numberOfLines={1}>
-            {row.symbol}
-          </Text>
-        </Pressable>
+        />
       </View>
     );
   }
@@ -151,6 +150,29 @@ function ScrollCell({ row, col, width }: { row: FundamentalsRow; col: Fundamenta
         {rendered.text}
       </Text>
     </View>
+  );
+}
+
+function FundamentalsScrollRow({
+  row,
+  scrollColumns,
+  browseSymbols,
+}: {
+  row: FundamentalsRow;
+  scrollColumns: FundamentalsColumn[];
+  browseSymbols: string[];
+}) {
+  const rowStar = useSymbolRowStar(row.symbol);
+  return (
+    <Pressable
+      style={styles.scrollDataRow}
+      onPress={() => openSymbol(row.symbol, browseSymbols, "fundamentals")}
+      {...rowStar}
+    >
+      {scrollColumns.map((col) => (
+        <ScrollCell key={col.key} row={row} col={col} width={col.width} />
+      ))}
+    </Pressable>
   );
 }
 
@@ -251,15 +273,12 @@ export function FundamentalsTable({
           >
             <View style={{ width: tableWidth }}>
               {sortedRows.map((row) => (
-                <Pressable
+                <FundamentalsScrollRow
                   key={row.symbol}
-                  style={styles.scrollDataRow}
-                  onPress={() => openSymbol(row.symbol, browseSymbols, "fundamentals")}
-                >
-                  {scrollColumns.map((col) => (
-                    <ScrollCell key={col.key} row={row} col={col} width={col.width} />
-                  ))}
-                </Pressable>
+                  row={row}
+                  scrollColumns={scrollColumns}
+                  browseSymbols={browseSymbols}
+                />
               ))}
             </View>
           </Animated.ScrollView>

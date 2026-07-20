@@ -11,6 +11,7 @@ import {
 } from "react-native";
 
 import { SaiBadge } from "@/components/SaiBadge";
+import { SymbolStarPressable } from "@/components/SymbolStarPressable";
 import { TradeBandBar, tradeBandTooltipText } from "@/components/TradeBandBar";
 import {
   formatMoney,
@@ -191,11 +192,11 @@ export function PortfolioTable({
             {rows.map((row) => (
               <View key={row.symbol} style={[styles.stickyDataRow, { width: stickyWidth }]}>
                 <View style={[styles.symbolCell, { width: symbolWidth }]}>
-                  <Pressable style={styles.symbolPress} onPress={() => openDetails(row.symbol)}>
-                    <Text style={styles.symbol} numberOfLines={1}>
-                      {row.symbol}
-                    </Text>
-                  </Pressable>
+                  <SymbolStarPressable
+                    style={styles.symbolPress}
+                    symbol={row.symbol}
+                    onPress={() => openDetails(row.symbol)}
+                  />
                 </View>
                 <View style={[styles.saiCell, { width: saiWidth }]}>
                   <SaiBadge action={row.saiAction} mini />
