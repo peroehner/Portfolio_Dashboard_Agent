@@ -100,45 +100,41 @@ export default function PortfolioScreen() {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <Screen
         title="Portfolio"
-        subtitle={
-          isLandscape ? undefined : `${rows.length} shown · tap headers to sort · swipe columns →`
-        }
+        subtitle={`${rows.length} shown · tap headers to sort · swipe columns →`}
         loading={loading && !data}
         error={error}
         onRetry={() => void refresh()}
         contentStyle={styles.screenContent}
       >
-        {!isLandscape ? (
-          <View style={styles.toolbar}>
-            <TextInput
-              style={styles.filter}
-              placeholder={FILTER_PLACEHOLDER}
-              placeholderTextColor={colors.textMuted}
-              value={filter}
-              onChangeText={setFilter}
-              autoCapitalize="characters"
-              autoCorrect={false}
-            />
-            <Pressable
-              style={[styles.pill, pillActiveStyle(mode === "all")]}
-              onPress={() => setMode("all")}
-            >
-              <Text style={styles.pillText}>All</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.pill, pillActiveStyle(mode === "holdings")]}
-              onPress={() => setMode("holdings")}
-            >
-              <Text style={styles.pillText}>Holdings</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.pill, pillActiveStyle(mode === "watch")]}
-              onPress={() => setMode("watch")}
-            >
-              <Text style={styles.pillText}>Watch</Text>
-            </Pressable>
-          </View>
-        ) : null}
+        <View style={styles.toolbar}>
+          <TextInput
+            style={styles.filter}
+            placeholder={FILTER_PLACEHOLDER}
+            placeholderTextColor={colors.textMuted}
+            value={filter}
+            onChangeText={setFilter}
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+          <Pressable
+            style={[styles.pill, pillActiveStyle(mode === "all")]}
+            onPress={() => setMode("all")}
+          >
+            <Text style={styles.pillText}>All</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.pill, pillActiveStyle(mode === "holdings")]}
+            onPress={() => setMode("holdings")}
+          >
+            <Text style={styles.pillText}>Holdings</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.pill, pillActiveStyle(mode === "watch")]}
+            onPress={() => setMode("watch")}
+          >
+            <Text style={styles.pillText}>Watch</Text>
+          </Pressable>
+        </View>
 
         {rows.length === 0 && data ? (
           <Text style={styles.empty}>No symbols match the filter.</Text>
