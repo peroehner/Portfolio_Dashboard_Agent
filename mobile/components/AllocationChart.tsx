@@ -97,8 +97,6 @@ export function AllocationChart({ holdings, mode, onModeChange }: AllocationChar
               key={arc.label}
               d={arc.path}
               fill={arc.color}
-              stroke={colors.bg}
-              strokeWidth={1}
             />
           ))}
         </Svg>
@@ -152,8 +150,9 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   subtitle: {
-    color: colors.textMuted,
+    color: colors.text,
     fontSize: 12,
+    opacity: 0.85,
     marginBottom: spacing.sm,
   },
   chartRow: {
@@ -174,7 +173,7 @@ const styles = StyleSheet.create({
   swatch: {
     width: 10,
     height: 10,
-    borderRadius: 2,
+    borderRadius: 5,
   },
   legendTextWrap: {
     flex: 1,
@@ -183,10 +182,10 @@ const styles = StyleSheet.create({
   legendLabel: {
     color: colors.text,
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   legendValue: {
-    color: colors.textMuted,
+    color: "#cbd5e1",
     fontSize: 10,
   },
   empty: {

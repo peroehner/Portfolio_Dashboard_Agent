@@ -827,7 +827,7 @@
     }
     .visual-card .visual-subtitle {
       margin: 0 0 1rem;
-      color: var(--muted);
+      color: #d0dae8;
       font-size: 0.85rem;
       line-height: 1.45;
     }
@@ -7982,10 +7982,10 @@
           datasets: [{
             data: payload.values,
             backgroundColor: colors,
-            borderWidth: 1,
-            borderColor: "#243044",
-            hoverBorderWidth: 1,
-            hoverBorderColor: "#334155",
+            borderWidth: 0,
+            borderColor: "transparent",
+            hoverBorderWidth: 0,
+            hoverBorderColor: "transparent",
           }],
         },
         options: {
@@ -7996,12 +7996,29 @@
             legend: {
               position: "bottom",
               labels: {
-                color: "#b6c3d6",
+                color: "#e7ecf3",
+                font: { size: 12, weight: "600" },
                 usePointStyle: true,
                 pointStyle: "circle",
-                boxWidth: 9,
-                boxHeight: 9,
+                boxWidth: 10,
+                boxHeight: 10,
                 padding: 12,
+                generateLabels(chart) {
+                  const data = chart.data;
+                  const ds = data.datasets?.[0];
+                  if (!data.labels?.length || !ds) return [];
+                  const fills = ds.backgroundColor;
+                  return data.labels.map((label, i) => ({
+                    text: String(label),
+                    fillStyle: Array.isArray(fills) ? fills[i] : fills,
+                    strokeStyle: "transparent",
+                    lineWidth: 0,
+                    hidden: false,
+                    index: i,
+                    datasetIndex: 0,
+                    pointStyle: "circle",
+                  }));
+                },
               },
             },
             tooltip: {
