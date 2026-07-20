@@ -3192,23 +3192,23 @@
       border-radius: 8px;
     }
     .nav-agent-btn.nav-agent-sync {
-      background: rgba(59, 130, 246, 0.2);
-      color: #93c5fd;
-      border-color: rgba(59, 130, 246, 0.38);
-      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+      background: #2563eb;
+      color: #fff;
+      border-color: #3b82f6;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset, 0 2px 8px rgba(37, 99, 235, 0.28);
     }
     .nav-agent-btn.nav-agent-sync:hover {
-      background: rgba(59, 130, 246, 0.3);
+      background: #1d4ed8;
       filter: none;
     }
     .nav-agent-btn.nav-agent-assess {
-      background: rgba(34, 197, 94, 0.2);
-      color: #86efac;
-      border-color: rgba(34, 197, 94, 0.38);
-      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+      background: #16a34a;
+      color: #fff;
+      border-color: #22c55e;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset, 0 2px 8px rgba(22, 163, 74, 0.28);
     }
     .nav-agent-btn.nav-agent-assess:hover {
-      background: rgba(34, 197, 94, 0.3);
+      background: #15803d;
       filter: none;
     }
     .nav-group {
@@ -3239,19 +3239,19 @@
       border: 1px solid rgba(154, 168, 188, 0.2);
     }
     .nav-group-portfolio .nav-group-label {
-      color: #93c5fd;
-      background: rgba(59, 130, 246, 0.14);
-      border-color: rgba(59, 130, 246, 0.32);
+      color: #eff6ff;
+      background: rgba(59, 130, 246, 0.32);
+      border-color: rgba(147, 197, 253, 0.55);
     }
     .nav-group-symbol .nav-group-label {
-      color: #7dd3fc;
-      background: rgba(56, 189, 248, 0.12);
-      border-color: rgba(56, 189, 248, 0.3);
+      color: #f0f9ff;
+      background: rgba(14, 165, 233, 0.3);
+      border-color: rgba(125, 211, 252, 0.55);
     }
     .nav-group-agents .nav-group-label {
-      color: #c4b5fd;
-      background: rgba(139, 92, 246, 0.14);
-      border-color: rgba(139, 92, 246, 0.32);
+      color: #f5f3ff;
+      background: rgba(139, 92, 246, 0.32);
+      border-color: rgba(196, 181, 253, 0.55);
     }
     .nav-group-label svg {
       display: block;
@@ -3285,9 +3285,10 @@
       border-radius: 6px;
     }
     .nav-group-portfolio .nav-group-tabs button.active {
-      background: rgba(59, 130, 246, 0.22);
-      color: #e2ecff;
-      border-color: rgba(59, 130, 246, 0.42);
+      background: #2563eb;
+      color: #fff;
+      border-color: #60a5fa;
+      font-weight: 600;
     }
     .nav-group-portfolio .nav-group-tabs button.active::after {
       content: "";
@@ -3326,9 +3327,10 @@
       border-radius: 6px;
     }
     .nav-group-symbol .nav-group-tabs button.active {
-      background: rgba(56, 189, 248, 0.22);
-      color: #e0f7ff;
-      border-color: rgba(56, 189, 248, 0.42);
+      background: #0284c7;
+      color: #fff;
+      border-color: #38bdf8;
+      font-weight: 600;
     }
     .nav-group-symbol .nav-group-tabs button.active::after {
       content: "";
@@ -3351,7 +3353,8 @@
     body.is-symbol-view #view-inspector:not([hidden]) {
       box-shadow: inset 0 3px 0 var(--symbol-tab-accent);
     }
-    nav.tabs button { background: transparent; color: var(--muted); border: 1px solid transparent; }
+    nav.tabs button { background: transparent; color: #b6c3d6; border: 1px solid transparent; }
+    nav.tabs button:hover { color: var(--text); }
     nav.tabs button.active { background: var(--panel-2); color: var(--text); border-color: var(--border); }
     .view { padding: 1rem; }
     .view[hidden] { display: none !important; }
@@ -3825,6 +3828,32 @@
     .header-status .refresh-what { color: var(--text); font-weight: 600; }
     .header-status .refresh-time { font-variant-numeric: tabular-nums; }
     .header-status .price-asof-stale { color: var(--danger); font-weight: 700; }
+    .user-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #c5d0de;
+    }
+    .user-avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--panel-2);
+      border: 1.5px solid rgba(226, 232, 240, 0.55);
+      box-shadow: 0 0 0 1px rgba(15, 20, 25, 0.65);
+      flex-shrink: 0;
+    }
+    .user-logout {
+      color: #93c5fd;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .user-logout:hover {
+      color: #bfdbfe;
+      text-decoration: underline;
+    }
     .header-info-wrap { position: relative; flex: none; }
     .header-info-btn {
       width: 28px; height: 28px; border-radius: 50%;
@@ -4071,11 +4100,11 @@
       </div>
     </div>
     <div class="actions">
-      <span id="userChip" hidden style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#9aa8bc">
-        <img id="userAvatar" alt="" width="24" height="24" style="border-radius:50%;display:none">
+      <span id="userChip" class="user-chip" hidden>
+        <img id="userAvatar" class="user-avatar" alt="" width="24" height="24" hidden>
         <span id="userPlanBadge" class="plan-badge" hidden></span>
         <span id="userEmail"></span>
-        <a id="logoutLink" href="/auth/logout" style="display:none;color:#7aa2f7;text-decoration:none">Logout</a>
+        <a id="logoutLink" class="user-logout" href="/auth/logout" hidden>Logout</a>
       </span>
     </div>
   </header>
@@ -5235,8 +5264,14 @@
         signedInUserId = data.user.id;
         document.getElementById("userEmail").textContent = data.user.email || data.user.name || "";
         const avatar = document.getElementById("userAvatar");
-        if (data.user.picture) { avatar.src = data.user.picture; avatar.style.display = "inline-block"; }
-        if (data.authEnabled) document.getElementById("logoutLink").style.display = "inline";
+        if (data.user.picture) {
+          avatar.src = data.user.picture;
+          avatar.hidden = false;
+        }
+        if (data.authEnabled) {
+          const logout = document.getElementById("logoutLink");
+          logout.hidden = false;
+        }
         chip.hidden = false;
         applyPlanFromMe(data);
       } catch (_) { /* non-fatal */ }
