@@ -190,6 +190,11 @@ export const api = {
       body: JSON.stringify(data),
       timeoutMs: NOTE_SAVE_TIMEOUT_MS,
     }),
+  deleteNote: (symbol: string, noteId: number) =>
+    apiFetch<{ status: string; id: number }>(
+      `/symbols/${encodeURIComponent(symbol)}/notes/${noteId}`,
+      { method: "DELETE" },
+    ),
   inspector: (symbol: string, options?: { lite?: boolean }) => {
     const lite = options?.lite !== false;
     return apiFetch<import("./types").InspectorPayload>(

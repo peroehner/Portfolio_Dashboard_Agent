@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -177,6 +178,7 @@ export default function SymbolDetailScreen() {
   const [noteText, setNoteText] = useState("");
   const [composingNote, setComposingNote] = useState(false);
   const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
+  const [deletingNoteId, setDeletingNoteId] = useState<number | null>(null);
 
   useEffect(() => {
     setFullData(null);
@@ -420,6 +422,26 @@ export default function SymbolDetailScreen() {
       setSaveError(err instanceof Error ? err.message : "Failed to add note");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteNote(note: Note) {
+    const noteId = Number(note.id);
+    if (!Number.isFinite(noteId)) {
+      setSaveError("This note cannot be deleted because it has no id.");
+      return;
+    }
+    if (deletingNoteId != null) return;
+    setDeletingNoteId(noteId);
+    setSaveError(null);
+    try {
+      await api.deleteNote(sym, noteId);
+      if (expandedNoteKey === String(note.id ?? "")) setExpandedNoteKey(null);
+      await refreshAll();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to delete note");
+    } finally {
+      setDeletingNoteId(null);
     }
   }
 
@@ -682,7 +704,26 @@ export default function SymbolDetailScreen() {
                           <Text style={styles.noteMeta} numberOfLines={1}>
                             {(note.date || "—") + (note.source ? ` · ${note.source}` : "")}
                           </Text>
-                          <Text style={styles.noteExpandHint}>{expanded ? "Less" : "More"}</Text>
+                          <View style={styles.noteMetaActions}>
+                            <Text style={styles.noteExpandHint}>{expanded ? "Less" : "More"}</Text>
+                            {note.id != null ? (
+                              <Pressable
+                                style={[
+                                  styles.noteDeleteBtn,
+                                  deletingNoteId === note.id && styles.noteDeleteBtnDisabled,
+                                ]}
+                                onPress={(event) => {
+                                  event.stopPropagation();
+                                  void deleteNote(note);
+                                }}
+                                disabled={deletingNoteId != null}
+                                hitSlop={8}
+                                accessibilityLabel={`Delete note ${note.date || ""}`}
+                              >
+                                <Ionicons name="trash-outline" size={14} color={colors.danger} />
+                              </Pressable>
+                            ) : null}
+                          </View>
                         </View>
                         {note.text ? (
                           <Text style={styles.noteBody} numberOfLines={expanded ? undefined : 4}>
@@ -973,6 +1014,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.sm,
   },
+  noteMetaActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   noteMeta: {
     color: colors.textMuted,
     fontSize: 12,
@@ -983,6 +1029,17 @@ const styles = StyleSheet.create({
     color: colors.link,
     fontSize: 11,
     fontWeight: "700",
+  },
+  noteDeleteBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    backgroundColor: colors.surface,
+  },
+  noteDeleteBtnDisabled: {
+    opacity: 0.5,
   },
   noteBody: {
     color: colors.text,
