@@ -706,23 +706,29 @@ export default function SymbolDetailScreen() {
                           </Text>
                           <View style={styles.noteMetaActions}>
                             <Text style={styles.noteExpandHint}>{expanded ? "Less" : "More"}</Text>
-                            {note.id != null ? (
-                              <Pressable
-                                style={[
-                                  styles.noteDeleteBtn,
-                                  deletingNoteId === note.id && styles.noteDeleteBtnDisabled,
-                                ]}
-                                onPress={(event) => {
-                                  event.stopPropagation();
-                                  void deleteNote(note);
-                                }}
-                                disabled={deletingNoteId != null}
-                                hitSlop={8}
-                                accessibilityLabel={`Delete note ${note.date || ""}`}
-                              >
-                                <Ionicons name="trash-outline" size={14} color={colors.danger} />
-                              </Pressable>
-                            ) : null}
+                            <Pressable
+                              style={[
+                                styles.noteDeleteBtn,
+                                (note.id == null || deletingNoteId != null) && styles.noteDeleteBtnDisabled,
+                              ]}
+                              onPress={(event) => {
+                                event.stopPropagation();
+                                void deleteNote(note);
+                              }}
+                              disabled={note.id == null || deletingNoteId != null}
+                              hitSlop={8}
+                              accessibilityLabel={
+                                note.id == null
+                                  ? "Delete unavailable for this note"
+                                  : `Delete note ${note.date || ""}`
+                              }
+                            >
+                              <Ionicons
+                                name="trash-outline"
+                                size={14}
+                                color={note.id == null ? colors.textMuted : colors.danger}
+                              />
+                            </Pressable>
                           </View>
                         </View>
                         {note.text ? (
