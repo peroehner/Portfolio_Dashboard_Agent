@@ -97,6 +97,14 @@ export function formatRelativeDate(value?: string | null): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/** Holdings entry date — include year for disambiguation. */
+export function formatEntryDate(value?: string | null): string {
+  if (!value) return "";
+  const date = parseDateInput(value);
+  if (!date) return value;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 /** e.g. Jul 12 23:24 — for quote/news timestamps in subtitles. */
 export function formatShortDateTime(value?: string | null): string {
   if (!value) return "";

@@ -23,7 +23,7 @@ import { SaiSummaryCard } from "@/components/inspector/SaiSummaryCard";
 import { SymbolTabBar, type SymbolTab } from "@/components/inspector/SymbolTabBar";
 import { SaiBadge } from "@/components/SaiBadge";
 import { Screen } from "@/components/Screen";
-import { api } from "@/lib/api";
+import { api, isTimeoutApiError } from "@/lib/api";
 import { getRecommendationDrivers, headlineForAction } from "@/lib/inspectorHelpers";
 import { formatPrice, formatQty } from "@/lib/format";
 import {
@@ -375,14 +375,14 @@ export default function SymbolDetailScreen() {
 
   async function addNote() {
     if (!noteText.trim()) return;
+    const payload: Note = {
+      date: noteDate.trim() || todayIso(),
+      source: noteTitle.trim() || undefined,
+      text: noteText.trim(),
+    };
     setSaving(true);
     setSaveError(null);
     try {
-      const payload: Note = {
-        date: noteDate.trim() || todayIso(),
-        source: noteTitle.trim() || undefined,
-        text: noteText.trim(),
-      };
       await api.addNote(sym, payload);
       setNoteText("");
       setNoteTitle("");
@@ -390,6 +390,33 @@ export default function SymbolDetailScreen() {
       setComposingNote(false);
       await refreshAll();
     } catch (err) {
+      if (isTimeoutApiError(err)) {
+        try {
+          const inspector = await api.inspector(sym, { lite: true });
+          const saved = (inspector.quote?.notes ?? []).some((note) => {
+            const noteTextValue = (note.text || "").trim();
+            const payloadText = (payload.text || "").trim();
+            if (!payloadText || noteTextValue !== payloadText) return false;
+            const noteDateValue = (note.date || "").trim();
+            const payloadDate = (payload.date || "").trim();
+            if (payloadDate && noteDateValue && payloadDate !== noteDateValue) return false;
+            const noteSourceValue = (note.source || "").trim().toLowerCase();
+            const payloadSource = (payload.source || "").trim().toLowerCase();
+            if (payloadSource && noteSourceValue && payloadSource !== noteSourceValue) return false;
+            return true;
+          });
+          if (saved) {
+            setNoteText("");
+            setNoteTitle("");
+            setNoteDate(todayIso());
+            setComposingNote(false);
+            await refreshAll();
+            return;
+          }
+        } catch {
+          // Keep original timeout error below when verification fails.
+        }
+      }
       setSaveError(err instanceof Error ? err.message : "Failed to add note");
     } finally {
       setSaving(false);

@@ -202,7 +202,12 @@ function sortValue(row: PortfolioRow, key: PortfolioSortKey): string | number | 
   return row[key as keyof PortfolioRow] as number | null;
 }
 
-function compareRows(a: PortfolioRow, b: PortfolioRow, key: PortfolioSortKey): number {
+function compareRows(
+  a: PortfolioRow,
+  b: PortfolioRow,
+  key: PortfolioSortKey,
+  direction: SortDirection,
+): number {
   const av = sortValue(a, key);
   const bv = sortValue(b, key);
   const aNull = av == null || av === "";
@@ -210,8 +215,12 @@ function compareRows(a: PortfolioRow, b: PortfolioRow, key: PortfolioSortKey): n
   if (aNull && bNull) return a.symbol.localeCompare(b.symbol);
   if (aNull) return 1;
   if (bNull) return -1;
-  if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv);
-  return Number(av) - Number(bv);
+  let cmp = 0;
+  if (typeof av === "string" && typeof bv === "string") cmp = av.localeCompare(bv);
+  else cmp = Number(av) - Number(bv);
+  if (cmp === 0) return a.symbol.localeCompare(b.symbol);
+  const mult = direction === "asc" ? 1 : -1;
+  return cmp * mult;
 }
 
 export function sortPortfolioRows(
@@ -223,11 +232,9 @@ export function sortPortfolioRows(
     sorted.sort((a, b) => a.symbol.localeCompare(b.symbol));
     return sorted;
   }
-  const mult = sort.direction === "asc" ? 1 : -1;
-  sorted.sort((a, b) => {
-    const cmp = compareRows(a, b, sort.key as PortfolioSortKey);
-    return cmp === 0 ? a.symbol.localeCompare(b.symbol) : cmp * mult;
-  });
+  sorted.sort((a, b) =>
+    compareRows(a, b, sort.key as PortfolioSortKey, sort.direction as SortDirection),
+  );
   return sorted;
 }
 

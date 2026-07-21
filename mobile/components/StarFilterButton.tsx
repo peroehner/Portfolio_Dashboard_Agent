@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet } from "react-native";
 
-import { appendStarFilterToken } from "@/lib/filters";
+import { toggleStarFilterToken } from "@/lib/filters";
 import { colors, radii } from "@/lib/theme";
 
 interface StarFilterButtonProps {
@@ -9,16 +9,16 @@ interface StarFilterButtonProps {
   onChangeFilter: (next: string) => void;
 }
 
-/** Tap = `*` / `,*` (OR). Long-press = `+*` / `,+*` (AND). */
+/** Tap toggles `*` (OR). Long-press toggles `+*` (AND). */
 export function StarFilterButton({ filter, onChangeFilter }: StarFilterButtonProps) {
   return (
     <Pressable
       style={({ pressed }) => [styles.btn, pressed && styles.btnPressed]}
-      onPress={() => onChangeFilter(appendStarFilterToken(filter, false))}
-      onLongPress={() => onChangeFilter(appendStarFilterToken(filter, true))}
+      onPress={() => onChangeFilter(toggleStarFilterToken(filter, false))}
+      onLongPress={() => onChangeFilter(toggleStarFilterToken(filter, true))}
       delayLongPress={350}
       hitSlop={6}
-      accessibilityLabel="Add starred filter. Long press for AND starred."
+      accessibilityLabel="Toggle starred filter. Long press for AND starred."
     >
       <Ionicons name="star" size={16} color={colors.warning} />
     </Pressable>

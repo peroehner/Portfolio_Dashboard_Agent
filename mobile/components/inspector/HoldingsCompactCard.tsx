@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { getPositionDisplay } from "@/lib/inspectorHelpers";
-import { formatMoney, formatPct, formatRelativeDate, pctColor } from "@/lib/format";
+import { formatEntryDate, formatMoney, formatPct, pctColor } from "@/lib/format";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { InspectorPayload } from "@/lib/types";
 
@@ -50,7 +50,7 @@ export function HoldingsCompactCard({ data }: HoldingsCompactCardProps) {
       ) : (
         <View style={styles.grid}>
           <View style={styles.col}>
-            <ColCell label="Entry" value={pos.entryDate ? formatRelativeDate(pos.entryDate) : "—"} />
+            <ColCell label="Entry" value={pos.entryDate ? formatEntryDate(pos.entryDate) : "—"} />
             <ColCell label="Sh" value={formatShares(pos.shares)} />
             <ColCell label="Inv" value={formatMoney(pos.investment)} />
           </View>

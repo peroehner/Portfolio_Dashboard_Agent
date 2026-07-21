@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 
-import { api } from "@/lib/api";
+import { api, isTimeoutApiError } from "@/lib/api";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { Note } from "@/lib/types";
 
@@ -49,20 +49,54 @@ export function NoteModal({ visible, draft, onClose, onSaved }: NoteModalProps) 
     setError(null);
   }, [draft]);
 
+  function noteLooksSaved(
+    notes: Note[] | undefined,
+    payload: Note,
+    symbol: string,
+  ): boolean {
+    const wantedDate = (payload.date || "").trim();
+    const wantedSource = (payload.source || "").trim().toLowerCase();
+    const wantedText = (payload.text || "").trim();
+    if (!wantedText) return false;
+    return (notes ?? []).some((note) => {
+      if ((note.symbol || symbol).toUpperCase() !== symbol.toUpperCase()) return false;
+      const noteDate = (note.date || "").trim();
+      const noteSource = (note.source || "").trim().toLowerCase();
+      const noteText = (note.text || "").trim();
+      if (!noteText) return false;
+      if (noteText !== wantedText) return false;
+      if (wantedDate && noteDate && noteDate !== wantedDate) return false;
+      if (wantedSource && noteSource && noteSource !== wantedSource) return false;
+      return true;
+    });
+  }
+
   async function save() {
     if (!draft?.symbol || !text.trim()) return;
+    const payload: Note = {
+      date: date.trim() || todayIso(),
+      source: title.trim() || undefined,
+      text: text.trim(),
+    };
     setSaving(true);
     setError(null);
     try {
-      const payload: Note = {
-        date: date.trim() || todayIso(),
-        source: title.trim() || undefined,
-        text: text.trim(),
-      };
       await api.addNote(draft.symbol, payload);
       onSaved?.(payload, draft.symbol);
       onClose();
     } catch (err) {
+      if (isTimeoutApiError(err)) {
+        try {
+          const inspector = await api.inspector(draft.symbol, { lite: true });
+          if (noteLooksSaved(inspector.quote?.notes, payload, draft.symbol)) {
+            onSaved?.(payload, draft.symbol);
+            onClose();
+            return;
+          }
+        } catch {
+          // Keep original timeout error below when post-timeout verification fails.
+        }
+      }
       setError(err instanceof Error ? err.message : "Failed to add note");
     } finally {
       setSaving(false);

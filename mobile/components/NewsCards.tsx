@@ -311,16 +311,18 @@ const styles = StyleSheet.create({
   recoRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   recoLeft: {
-    flex: 1,
-    minWidth: 0,
+    flexShrink: 0,
+    flexGrow: 1,
+    maxWidth: "62%",
     gap: 2,
   },
   recoHeadline: {
     flex: 1,
-    minWidth: 0,
+    flexShrink: 1,
+    minWidth: 72,
     color: colors.text,
     fontSize: 12,
     fontWeight: "600",

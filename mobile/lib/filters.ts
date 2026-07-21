@@ -44,9 +44,29 @@ export function symbolMatchesFilter(
   });
 }
 
-/** Append `*` (OR) or `+*` (AND) to a filter string. */
-export function appendStarFilterToken(filter: string, andMode: boolean): string {
+function isOrStarToken(term: string): boolean {
+  const lower = term.toLowerCase();
+  return lower === "*" || lower === "star" || lower === "⭐";
+}
+
+function isAndStarToken(term: string): boolean {
+  const lower = term.toLowerCase();
+  return lower === "+*" || lower === "+star";
+}
+
+/** Toggle `*` (OR) or `+*` (AND) in a filter string. */
+export function toggleStarFilterToken(filter: string, andMode: boolean): string {
   const token = andMode ? "+*" : "*";
+  const matcher = andMode ? isAndStarToken : isOrStarToken;
+  const parts = filter
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.some(matcher)) {
+    return parts.filter((part) => !matcher(part)).join(",");
+  }
+
   const trimmed = filter.trim();
   if (!trimmed) return token;
   if (trimmed.endsWith(",")) return `${trimmed}${token}`;

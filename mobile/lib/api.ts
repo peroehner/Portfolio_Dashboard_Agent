@@ -10,6 +10,7 @@ const HEALTH_RETRY_MS = 4000;
 const DEFAULT_TIMEOUT_MS = 12000;
 const NEWS_FEED_TIMEOUT_MS = 45000;
 const FUNDAMENTALS_TIMEOUT_MS = 45000;
+const NOTE_SAVE_TIMEOUT_MS = 45000;
 
 function pointsAtLocalhost(url: string): boolean {
   return /localhost|127\.0\.0\.1/i.test(url);
@@ -49,6 +50,10 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.status = status;
   }
+}
+
+export function isTimeoutApiError(err: unknown): err is ApiError {
+  return err instanceof ApiError && err.status === 408;
 }
 
 export function getApiBaseUrl(): string {
@@ -183,6 +188,7 @@ export const api = {
     apiFetch<import("./types").Note>(`/symbols/${encodeURIComponent(symbol)}/notes`, {
       method: "POST",
       body: JSON.stringify(data),
+      timeoutMs: NOTE_SAVE_TIMEOUT_MS,
     }),
   inspector: (symbol: string, options?: { lite?: boolean }) => {
     const lite = options?.lite !== false;
