@@ -726,8 +726,16 @@ export default function SymbolDetailScreen() {
                               <Ionicons
                                 name="trash-outline"
                                 size={14}
-                                color={note.id == null ? colors.textMuted : colors.danger}
+                                color={note.id == null ? colors.textMuted : "#fecaca"}
                               />
+                              <Text
+                                style={[
+                                  styles.noteDeleteText,
+                                  note.id == null && styles.noteDeleteTextDisabled,
+                                ]}
+                              >
+                                Del
+                              </Text>
                             </Pressable>
                           </View>
                         </View>
@@ -1037,15 +1045,26 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   noteDeleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "#7f1d1d",
     borderRadius: radii.sm,
     paddingHorizontal: 6,
     paddingVertical: 3,
-    backgroundColor: colors.surface,
+    backgroundColor: "#3f151b",
   },
   noteDeleteBtnDisabled: {
     opacity: 0.5,
+  },
+  noteDeleteText: {
+    color: "#fecaca",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  noteDeleteTextDisabled: {
+    color: colors.textMuted,
   },
   noteBody: {
     color: colors.text,
