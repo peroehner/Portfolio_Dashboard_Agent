@@ -92,13 +92,13 @@ export function InspectorChartSvg({
       <Defs>
         {/* stopOpacity required — rgba in stopColor renders opaque on many RN SVG builds. */}
         <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#c4b5fd" stopOpacity={0.12} />
-          <Stop offset="0.55" stopColor="#93c5fd" stopOpacity={0.05} />
-          <Stop offset="1" stopColor="#60a5fa" stopOpacity={0.01} />
+          <Stop offset="0" stopColor="#c4b5fd" stopOpacity={0.05} />
+          <Stop offset="0.55" stopColor="#93c5fd" stopOpacity={0.02} />
+          <Stop offset="1" stopColor="#60a5fa" stopOpacity={0} />
         </LinearGradient>
       </Defs>
 
-      {/* Grid */}
+      {/* Horizontal price guides only — kept nearly invisible so data lines dominate. */}
       {ticks.map((price) => {
         const y = yForPrice(price);
         return (
@@ -108,22 +108,11 @@ export function InspectorChartSvg({
             y1={y}
             x2={width - pad}
             y2={y}
-            stroke="rgba(45, 58, 79, 0.55)"
+            stroke="rgba(148, 163, 184, 0.04)"
             strokeWidth={1}
           />
         );
       })}
-      {dateTicks.map((tick) => (
-        <Line
-          key={`grid-x-${tick.x}`}
-          x1={xForNorm(tick.x)}
-          y1={pad}
-          x2={xForNorm(tick.x)}
-          y2={pad + plotH}
-          stroke="rgba(45, 58, 79, 0.45)"
-          strokeWidth={1}
-        />
-      ))}
 
       {/* Price fill sits behind volume, Fib, trends, and pattern overlays. */}
       {areaPoints ? <Polygon points={areaPoints} fill={`url(#${gradId})`} stroke="none" /> : null}
@@ -178,7 +167,7 @@ export function InspectorChartSvg({
                 y={y}
                 width={barW}
                 height={h}
-                fill={bar.up ? "rgba(34, 197, 94, 0.32)" : "rgba(248, 113, 113, 0.32)"}
+                fill={bar.up ? "rgba(34, 197, 94, 0.14)" : "rgba(248, 113, 113, 0.14)"}
               />
             );
           })

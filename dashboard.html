@@ -17,13 +17,13 @@
       --bg: #0f1419;
       --panel: #1a2332;
       --panel-2: #243044;
-      --text: #e7ecf3;
-      --muted: #9aa8bc;
+      --text: #f1f5f9;
+      --muted: #c5d0de;
       --accent: #3b82f6;
       --accent-2: #22c55e;
       --warn: #f59e0b;
       --danger: #ef4444;
-      --border: #2d3a4f;
+      --border: #3d4f68;
       --radius: 10px;
       --portfolio-tab-accent: #3b82f6;
       --portfolio-tab-accent-dim: rgba(59, 130, 246, 0.28);
@@ -104,9 +104,10 @@
       gap: 0.15rem;
     }
     .brand-tagline {
-      font-size: 0.72rem;
+      font-size: 0.78rem;
       color: var(--muted);
       letter-spacing: 0.02em;
+      font-weight: 500;
     }
     .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     button, .btn {
@@ -189,19 +190,19 @@
     .panel-symbol-head .symbol-head-company {
       font-size: 1.1rem;
       font-weight: 600;
-      color: var(--muted);
+      color: #c5d0de;
     }
     .panel-symbol-head .symbol-head-company::before {
       content: "·";
       margin-right: 0.55rem;
-      color: var(--muted);
+      color: #c5d0de;
     }
     .panel-symbol-head .symbol-head-ticker {
       font-size: 0.95rem;
       font-weight: 600;
       letter-spacing: 0.04em;
       text-transform: uppercase;
-      color: var(--muted);
+      color: #c5d0de;
       line-height: 1.1;
     }
     .panel-symbol-head .symbol-head-ticker.is-active {
@@ -209,8 +210,8 @@
       font-weight: 800;
       letter-spacing: 0.07em;
       text-transform: none;
-      color: #ddd6fe;
-      text-shadow: 0 0 28px rgba(139, 92, 246, 0.35);
+      color: #ffffff;
+      text-shadow: none;
     }
     .inspector-detail-toolbar {
       display: flex;
@@ -415,10 +416,11 @@
       align-items: baseline;
       gap: 0.5rem;
       margin: 0 0 0.45rem;
-      font-size: 0.74rem;
+      font-size: 0.78rem;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--muted);
+      color: #d5dee9;
+      font-weight: 700;
     }
     .target-planned-group { margin-top: 0.85rem; }
     .planned-trade-pair {
@@ -452,9 +454,11 @@
       justify-content: space-between;
       gap: 0.5rem;
       margin: 0 0 0.3rem;
-      font-size: 0.74rem;
+      font-size: 0.78rem;
       text-transform: uppercase;
       letter-spacing: 0.04em;
+      color: #d5dee9;
+      font-weight: 700;
     }
     .target-field .field-hint {
       font-size: 0.68rem;
@@ -476,11 +480,12 @@
     }
     .target-field-meta {
       margin-top: 0.25rem;
-      font-size: 0.72rem;
-      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #c5d0de;
     }
-    .target-field-meta.positive { color: var(--accent-2); }
-    .target-field-meta.negative { color: var(--danger); }
+    .target-field-meta.positive { color: #4ade80; }
+    .target-field-meta.negative { color: #fca5a5; }
     /* In-flight button feedback: disabled look + inline spinner. */
     button.btn-pending { opacity: 0.8; cursor: progress; }
     .btn-spinner {
@@ -688,7 +693,7 @@
       border-radius: 8px;
       padding: 0.75rem;
     }
-    .metric .label { color: var(--muted); font-size: 0.8rem; }
+    .metric .label { color: var(--muted); font-size: 0.8rem; font-weight: 600; }
     .metric .value { font-size: 1.1rem; font-weight: 600; }
     .metric .subvalue { font-size: 0.9rem; font-weight: 600; color: var(--accent-2); margin-top: 0.2rem; }
     .metric .subvalue.negative { color: var(--danger); }
@@ -744,7 +749,7 @@
     table.data th.sortable:hover { color: var(--text); }
     table.data th.sortable.active { color: var(--accent); }
     table.data th .sort-indicator { font-size: 0.7rem; margin-left: 0.2rem; opacity: 0.85; }
-    table.data th .th-help { font-size: 0.7rem; margin-left: 0.25rem; opacity: 0.5; cursor: help; }
+    table.data th .th-help { font-size: 0.7rem; margin-left: 0.25rem; opacity: 0.75; cursor: help; }
     table.data th.sortable:hover .th-help { opacity: 0.85; }
     table.data th .th-help-wrap {
       position: relative;
@@ -827,7 +832,7 @@
     }
     .visual-card .visual-subtitle {
       margin: 0 0 1rem;
-      color: var(--muted);
+      color: #d0dae8;
       font-size: 0.85rem;
       line-height: 1.45;
     }
@@ -1588,22 +1593,32 @@
       font-size: 0.85rem;
     }
     .recommendation-card {
-      background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(167,139,250,0.1));
-      border: 1px solid rgba(96,165,250,0.35);
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.22), rgba(124, 58, 237, 0.16));
+      border: 1px solid rgba(147, 197, 253, 0.42);
       border-radius: 12px;
       padding: 1rem 1.1rem;
       margin-bottom: 1rem;
     }
     .recommendation-card .rec-headline {
       font-size: 1.05rem;
-      font-weight: 600;
+      font-weight: 700;
       margin: 0.5rem 0 0.65rem;
       line-height: 1.35;
+      color: #f8fafc;
     }
     .recommendation-card .rec-rationale {
-      font-size: 0.92rem;
-      line-height: 1.5;
-      color: #e2e8f0;
+      font-size: 0.94rem;
+      line-height: 1.55;
+      color: #f1f5f9;
+    }
+    .recommendation-card .watch-list {
+      color: #e7ecf3;
+    }
+    .recommendation-card .watch-list li {
+      color: #e7ecf3;
+    }
+    .recommendation-card .empty {
+      color: #b6c3d6;
     }
     .thesis-card {
       background: rgba(34,197,94,0.06);
@@ -1692,8 +1707,9 @@
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
-      font-size: 0.78rem;
-      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #d5dee9;
       white-space: nowrap;
     }
     .inspector-chart-wrap {
@@ -1894,9 +1910,9 @@
     }
     .trend-waves-details summary {
       cursor: pointer;
-      color: #c4b5fd;
+      color: #f5f3ff;
       font-size: 0.95rem;
-      font-weight: 700;
+      font-weight: 800;
       letter-spacing: 0.01em;
       user-select: none;
     }
@@ -2047,14 +2063,22 @@
       color: var(--muted);
     }
     /* Shared accent treatment for Inspector card/eyebrow headlines (SAI flagship +
-       its peer section titles) so they stand out consistently. Defined after the
-       per-card headline rules so it wins on equal specificity; caveat/count spans
-       keep their own muted color. */
+       its peer section titles) so they stand out consistently. Higher specificity
+       beats the generic `.valuation-scoring h3` / `.inspector-chart-head h3` rules. */
     .card-headline-accent,
     h3.card-headline-accent,
-    h4.card-headline-accent {
-      color: #f8fafc;
-      font-weight: 700;
+    h4.card-headline-accent,
+    .inspector-chart-head h3.card-headline-accent,
+    .valuation-scoring h3.card-headline-accent,
+    .valuation-scoring h4.card-headline-accent,
+    .inspector-side-card h3.card-headline-accent,
+    .inspector-section h3.card-headline-accent {
+      color: #ffffff;
+      font-weight: 800;
+    }
+    .card-headline-accent .pattern-caveat {
+      color: #b6c3d6;
+      font-weight: 500;
     }
     .pattern-list {
       display: grid;
@@ -2123,8 +2147,9 @@
       flex-wrap: wrap;
       gap: 0.55rem 0.85rem;
       margin-top: 0.55rem;
-      font-size: 0.72rem;
-      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #d5dee9;
     }
     .inspector-chart-legend span {
       display: inline-flex;
@@ -2150,9 +2175,9 @@
       border: none;
       border-radius: 999px;
       padding: 0.32rem 0.7rem;
-      font-size: 0.72rem;
+      font-size: 0.74rem;
       font-weight: 600;
-      color: var(--muted);
+      color: #c5d0de;
       background: transparent;
       cursor: pointer;
     }
@@ -2406,7 +2431,8 @@
       font-size: 0.68rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: var(--muted);
+      color: #c5d0de;
+      font-weight: 700;
       margin-bottom: 0.3rem;
     }
     .valuation-metric .value {
@@ -2676,10 +2702,43 @@
       align-items: center;
       gap: 1.5rem;
       flex-wrap: wrap;
-      padding: 0.6rem 0 1rem 0;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 1rem;
+      padding: 0.35rem 0 0.55rem 0;
+      margin-bottom: 0.15rem;
     }
+    .tr-breakdown {
+      margin-top: 0.15rem;
+      border-top: 1px solid rgba(45, 58, 79, 0.45);
+      padding-top: 0.15rem;
+    }
+    .tr-breakdown > summary {
+      cursor: pointer;
+      list-style: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: #dbe7f5;
+      padding: 0.45rem 0.15rem;
+      user-select: none;
+    }
+    .tr-breakdown > summary::-webkit-details-marker { display: none; }
+    .tr-breakdown > summary::before {
+      content: "";
+      width: 0.4rem;
+      height: 0.4rem;
+      border-right: 2px solid #93c5fd;
+      border-bottom: 2px solid #93c5fd;
+      transform: rotate(-45deg);
+      transition: transform 0.15s ease;
+      flex: none;
+      margin-top: -0.1rem;
+    }
+    .tr-breakdown[open] > summary::before {
+      transform: rotate(45deg);
+      margin-top: 0.05rem;
+    }
+    .tr-breakdown-body { padding: 0.15rem 0 0.35rem; }
     .tr-overall-rate {
       display: flex;
       align-items: baseline;
@@ -2701,29 +2760,35 @@
       color: var(--muted);
       font-size: 0.9rem;
     }
-    .tr-section { margin-top: 1rem; }
-    .tr-section h3 { margin: 0 0 0.5rem 0; font-size: 0.95rem; }
+    .tr-section { margin-top: 0.85rem; }
+    .tr-section:first-child { margin-top: 0.35rem; }
+    .tr-section h3 { margin: 0 0 0.4rem 0; font-size: 0.92rem; color: #e7ecf3; }
     .tr-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     .tr-table th {
       text-align: left;
-      color: var(--muted);
-      font-weight: 500;
-      font-size: 0.78rem;
+      color: #b6c3d6;
+      font-weight: 600;
+      font-size: 0.76rem;
       text-transform: uppercase;
       letter-spacing: 0.03em;
-      padding: 0.3rem 0.6rem;
-      border-bottom: 1px solid var(--border);
+      padding: 0.28rem 0.55rem;
+      border-bottom: 1px solid rgba(45, 58, 79, 0.55);
     }
-    .tr-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+    .tr-table td {
+      padding: 0.38rem 0.55rem;
+      border-bottom: 1px solid rgba(45, 58, 79, 0.32);
+      color: #e7ecf3;
+    }
+    .tr-table tbody tr:last-child td { border-bottom: none; }
     .tr-table .tr-num { text-align: right; }
-    .tr-muted { color: var(--muted); }
+    .tr-muted { color: #c5d0de; }
     .tr-rate { font-weight: 700; }
-    .tr-rate.tr-good { color: #22c55e; }
-    .tr-rate.tr-mid { color: #f59e0b; }
-    .tr-rate.tr-bad { color: #ef4444; }
-    .tr-rate.tr-rate-na { color: var(--muted); font-weight: 500; }
-    .tr-table td .pos { color: #22c55e; }
-    .tr-table td .neg { color: #ef4444; }
+    .tr-rate.tr-good { color: #4ade80; }
+    .tr-rate.tr-mid { color: #fbbf24; }
+    .tr-rate.tr-bad { color: #f87171; }
+    .tr-rate.tr-rate-na { color: #c5d0de; font-weight: 500; }
+    .tr-table td .pos { color: #4ade80; }
+    .tr-table td .neg { color: #f87171; }
     .tr-table tr[onclick] { cursor: pointer; }
     .tr-table tbody tr[onclick]:hover { background: var(--panel-2); }
     .la-conf { color: var(--muted); font-size: 0.78rem; text-transform: capitalize; }
@@ -3074,10 +3139,11 @@
       margin-bottom: 0.35rem;
     }
     button.btn-danger {
-      background: rgba(239,68,68,0.15);
-      color: #fca5a5;
-      border: 1px solid rgba(239,68,68,0.35);
+      background: #b91c1c;
+      color: #fff;
+      border: 1px solid #f87171;
       font-size: 0.75rem;
+      font-weight: 700;
       padding: 0.2rem 0.55rem;
     }
     .alert, .note, .assessment, .fib {
@@ -3086,9 +3152,11 @@
       padding: 0.75rem;
       margin-bottom: 0.6rem;
       border-left: 3px solid var(--accent);
+      color: #e7ecf3;
     }
     .alert { border-left-color: var(--warn); }
     .alert .alert-kind { margin-right: 0.45rem; vertical-align: baseline; }
+    .alert .alert-msg { color: #e7ecf3; }
     /* Stale alerts: condition no longer holds — keep but mute/grey them, with a
        dimmed (outline-style) glyph vs the full-color active one. */
     .alert.alert-stale {
@@ -3192,23 +3260,23 @@
       border-radius: 8px;
     }
     .nav-agent-btn.nav-agent-sync {
-      background: rgba(59, 130, 246, 0.2);
-      color: #93c5fd;
-      border-color: rgba(59, 130, 246, 0.38);
-      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+      background: #1d4ed8;
+      color: #fff;
+      border-color: #60a5fa;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14) inset, 0 2px 8px rgba(29, 78, 216, 0.35);
     }
     .nav-agent-btn.nav-agent-sync:hover {
-      background: rgba(59, 130, 246, 0.3);
+      background: #1e40af;
       filter: none;
     }
     .nav-agent-btn.nav-agent-assess {
-      background: rgba(34, 197, 94, 0.2);
-      color: #86efac;
-      border-color: rgba(34, 197, 94, 0.38);
-      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+      background: #15803d;
+      color: #fff;
+      border-color: #4ade80;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14) inset, 0 2px 8px rgba(21, 128, 61, 0.35);
     }
     .nav-agent-btn.nav-agent-assess:hover {
-      background: rgba(34, 197, 94, 0.3);
+      background: #166534;
       filter: none;
     }
     .nav-group {
@@ -3239,19 +3307,19 @@
       border: 1px solid rgba(154, 168, 188, 0.2);
     }
     .nav-group-portfolio .nav-group-label {
-      color: #93c5fd;
-      background: rgba(59, 130, 246, 0.14);
-      border-color: rgba(59, 130, 246, 0.32);
+      color: #fff;
+      background: #1d4ed8;
+      border-color: #60a5fa;
     }
     .nav-group-symbol .nav-group-label {
-      color: #7dd3fc;
-      background: rgba(56, 189, 248, 0.12);
-      border-color: rgba(56, 189, 248, 0.3);
+      color: #fff;
+      background: #0369a1;
+      border-color: #7dd3fc;
     }
     .nav-group-agents .nav-group-label {
-      color: #c4b5fd;
-      background: rgba(139, 92, 246, 0.14);
-      border-color: rgba(139, 92, 246, 0.32);
+      color: #fff;
+      background: #6d28d9;
+      border-color: #c4b5fd;
     }
     .nav-group-label svg {
       display: block;
@@ -3285,9 +3353,10 @@
       border-radius: 6px;
     }
     .nav-group-portfolio .nav-group-tabs button.active {
-      background: rgba(59, 130, 246, 0.22);
-      color: #e2ecff;
-      border-color: rgba(59, 130, 246, 0.42);
+      background: #1d4ed8;
+      color: #fff;
+      border-color: #93c5fd;
+      font-weight: 700;
     }
     .nav-group-portfolio .nav-group-tabs button.active::after {
       content: "";
@@ -3326,9 +3395,10 @@
       border-radius: 6px;
     }
     .nav-group-symbol .nav-group-tabs button.active {
-      background: rgba(56, 189, 248, 0.22);
-      color: #e0f7ff;
-      border-color: rgba(56, 189, 248, 0.42);
+      background: #0369a1;
+      color: #fff;
+      border-color: #7dd3fc;
+      font-weight: 700;
     }
     .nav-group-symbol .nav-group-tabs button.active::after {
       content: "";
@@ -3351,7 +3421,8 @@
     body.is-symbol-view #view-inspector:not([hidden]) {
       box-shadow: inset 0 3px 0 var(--symbol-tab-accent);
     }
-    nav.tabs button { background: transparent; color: var(--muted); border: 1px solid transparent; }
+    nav.tabs button { background: transparent; color: #d5dee9; border: 1px solid transparent; font-weight: 550; }
+    nav.tabs button:hover { color: #fff; }
     nav.tabs button.active { background: var(--panel-2); color: var(--text); border-color: var(--border); }
     .view { padding: 1rem; }
     .view[hidden] { display: none !important; }
@@ -3485,6 +3556,16 @@
       color: #fff;
       border-color: var(--accent);
     }
+    button.secondary.filter-btn {
+      color: #e7ecf3;
+      font-weight: 600;
+      border-color: #4b5d78;
+      background: #1e2a3c;
+    }
+    button.secondary.filter-btn:hover {
+      border-color: #60a5fa;
+      color: #fff;
+    }
     .filter-sep {
       width: 1px;
       align-self: stretch;
@@ -3564,41 +3645,51 @@
       font-weight: 700;
       letter-spacing: 0.04em;
       text-transform: uppercase;
-      color: var(--muted);
+      color: #d5dee9;
       white-space: nowrap;
     }
     .fib-proximity-cell {
       display: inline-block;
-      padding: 0.18rem 0.5rem;
+      padding: 0.2rem 0.55rem;
       border-radius: 6px;
-      font-weight: 600;
+      font-weight: 700;
       white-space: nowrap;
     }
     .fib-proximity-cell.fib-critical {
-      background: rgba(239, 68, 68, 0.18);
-      color: #fca5a5;
-      border: 1px solid rgba(239, 68, 68, 0.35);
+      background: #b91c1c;
+      color: #fff;
+      border: 1px solid #f87171;
     }
     .fib-proximity-cell.fib-warning {
-      background: rgba(245, 158, 11, 0.18);
-      color: #fcd34d;
-      border: 1px solid rgba(245, 158, 11, 0.35);
+      background: #b45309;
+      color: #fff;
+      border: 1px solid #fbbf24;
     }
     .fib-proximity-cell.fib-neutral {
-      background: rgba(154, 168, 188, 0.12);
-      color: var(--muted);
-      border: 1px solid var(--border);
+      background: #334155;
+      color: #f1f5f9;
+      border: 1px solid #64748b;
     }
     .fib-proximity-cell.fib-unknown {
-      color: var(--muted);
+      color: #b6c3d6;
     }
     @media (max-width: 900px) {
       .fib-legend-grid { grid-template-columns: 1fr; }
       .fib-ticker-filter { margin-left: 0; width: 100%; }
     }
     table.data { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    table.data th, table.data td { text-align: left; padding: 0.55rem 0.4rem; border-bottom: 1px solid var(--border); }
-    table.data th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; }
+    table.data th, table.data td {
+      text-align: left;
+      padding: 0.55rem 0.4rem;
+      border-bottom: 1px solid rgba(45, 58, 79, 0.38);
+    }
+    table.data th {
+      color: #d5dee9;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
     table.data tbody tr[data-row-key] { cursor: pointer; }
     table.data tbody tr[data-row-key]:hover td { background: rgba(148, 163, 184, 0.08); }
     table.data tbody tr.row-selected td {
@@ -3819,7 +3910,7 @@
       border-radius: 999px;
       background: var(--panel-2);
       border: 1px solid var(--border);
-      color: var(--muted);
+      color: #d5dee9;
       white-space: nowrap;
     }
     .header-status .refresh-what { color: var(--text); font-weight: 600; }
@@ -4071,7 +4162,7 @@
       </div>
     </div>
     <div class="actions">
-      <span id="userChip" hidden style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#9aa8bc">
+      <span id="userChip" hidden style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#c5d0de">
         <img id="userAvatar" alt="" width="24" height="24" style="border-radius:50%;display:none">
         <span id="userPlanBadge" class="plan-badge" hidden></span>
         <span id="userEmail"></span>
@@ -6605,13 +6696,13 @@
       const fib = fibApi || inspector?.fib;
       if (!fib) return [];
       const levels = [
-        { label: "Swing Low", price: fib.swingLow, color: "#9aa8bc" },
+        { label: "Swing Low", price: fib.swingLow, color: "#cbd5e1" },
         ...(fib.levels || []).map((level) => ({
           label: level.label,
           price: level.price,
-          color: "#3b82f6",
+          color: "#60a5fa",
         })),
-        { label: "Swing High", price: fib.swingHigh, color: "#a78bfa" },
+        { label: "Swing High", price: fib.swingHigh, color: "#c4b5fd" },
       ];
       return levels.filter((level) => level.price != null);
     }
@@ -7916,8 +8007,10 @@
           datasets: [{
             data: payload.values,
             backgroundColor: colors,
-            borderWidth: 2,
-            borderColor: "#1a2332",
+            borderWidth: 0,
+            borderColor: "transparent",
+            hoverBorderWidth: 0,
+            hoverBorderColor: "transparent",
           }],
         },
         options: {
@@ -7928,11 +8021,29 @@
             legend: {
               position: "bottom",
               labels: {
-                color: "#9aa8bc",
+                color: "#e7ecf3",
+                font: { size: 12, weight: "600" },
                 usePointStyle: true,
-                pointStyle: "rect",
-                boxWidth: 12,
-                padding: 14,
+                pointStyle: "circle",
+                boxWidth: 10,
+                boxHeight: 10,
+                padding: 12,
+                generateLabels(chart) {
+                  const data = chart.data;
+                  const ds = data.datasets?.[0];
+                  if (!data.labels?.length || !ds) return [];
+                  const fills = ds.backgroundColor;
+                  return data.labels.map((label, i) => ({
+                    text: String(label),
+                    fillStyle: Array.isArray(fills) ? fills[i] : fills,
+                    strokeStyle: "transparent",
+                    lineWidth: 0,
+                    hidden: false,
+                    index: i,
+                    datasetIndex: 0,
+                    pointStyle: "circle",
+                  }));
+                },
               },
             },
             tooltip: {
@@ -8536,6 +8647,9 @@
               </table>
             </div>`
           : "";
+      const breakdown = [section("SAI actions", recos), section("Chart patterns", patterns), section("Confluence bias", confluence)]
+        .filter(Boolean)
+        .join("");
       body.innerHTML = `
         <div class="tr-overall">
           <div class="tr-overall-rate">${trackRecordRate(overall)}<span class="tr-overall-label">overall hit rate</span></div>
@@ -8545,9 +8659,12 @@
             <span>avg return ${trackRecordReturn(overall)}</span>
           </div>
         </div>
-        ${section("SAI actions", recos)}
-        ${section("Chart patterns", patterns)}
-        ${section("Confluence bias", confluence)}`;
+        ${breakdown
+          ? `<details class="tr-breakdown">
+              <summary>Signal breakdown</summary>
+              <div class="tr-breakdown-body">${breakdown}</div>
+            </details>`
+          : ""}`;
     }
 
     async function loadTrackRecord() {
@@ -11568,24 +11685,24 @@
     function resolveFibLevelMeta(label, fallbackColor) {
       const lowered = String(label || "").toLowerCase();
       if (lowered.startsWith("0%") || (lowered.includes("0%") && lowered.includes("high"))) {
-        return { key: "high", shortLabel: "0% High", color: "#a78bfa" };
+        return { key: "high", shortLabel: "0% High", color: "#c4b5fd" };
       }
       if (lowered.includes("38.2")) {
-        return { key: "fib-0.382", shortLabel: "38.2% Fib", color: "#3b82f6" };
+        return { key: "fib-0.382", shortLabel: "38.2% Fib", color: "#60a5fa" };
       }
       if (lowered.includes("50.0") || lowered.includes("center")) {
-        return { key: "fib-0.5", shortLabel: "50.0% Center", color: "#f59e0b" };
+        return { key: "fib-0.5", shortLabel: "50.0% Center", color: "#fbbf24" };
       }
       if (lowered.includes("61.8") || lowered.includes("golden")) {
-        return { key: "fib-0.618", shortLabel: "61.8% Golden", color: "#ef4444" };
+        return { key: "fib-0.618", shortLabel: "61.8% Golden", color: "#f87171" };
       }
       if (lowered.startsWith("100%") || (lowered.includes("low") && lowered.includes("base"))) {
-        return { key: "base", shortLabel: "100% Base", color: "#9aa8bc" };
+        return { key: "base", shortLabel: "100% Base", color: "#cbd5e1" };
       }
       return {
         key: "fib-other",
         shortLabel: label,
-        color: fallbackColor || "#9aa8bc",
+        color: fallbackColor || "#cbd5e1",
       };
     }
     const TREND_CHART_COLORS = {
@@ -11608,11 +11725,11 @@
     function buildClientFibBlueprint(fib) {
       if (!fib) return null;
       const palette = {
-        "0% High": "#a78bfa",
-        "38.2% Fib": "#3b82f6",
-        "50.0% Center": "#f59e0b",
-        "61.8% Golden": "#ef4444",
-        "100% Base": "#9aa8bc",
+        "0% High": "#c4b5fd",
+        "38.2% Fib": "#60a5fa",
+        "50.0% Center": "#fbbf24",
+        "61.8% Golden": "#f87171",
+        "100% Base": "#cbd5e1",
       };
       const blueprintRatios = {
         0.382: ["fib-0.382", "38.2% Fib"],
@@ -12510,7 +12627,7 @@
       const legend = document.getElementById(`inspectorTrendLegend-${panelId}`);
       if (!legend) return;
       const items = [
-        `<span><span class="legend-line" style="color:#c4b5fd;"></span>Window price</span>`,
+        `<span><span class="legend-line" style="color:#e9d5ff;"></span>Window price</span>`,
         ...waves.map((wave, index) => {
           const color = trendChartColor(wave, index);
           const arrow = wave.direction === "down" ? "↓" : "↑";
@@ -12548,7 +12665,7 @@
         const pts = timeline.points;
         const barColors = pts.map((p, i) => {
           const prev = i > 0 ? pts[i - 1].price : p.price;
-          return (p.price >= prev) ? "rgba(34, 197, 94, 0.32)" : "rgba(248, 113, 113, 0.32)";
+          return (p.price >= prev) ? "rgba(34, 197, 94, 0.14)" : "rgba(248, 113, 113, 0.14)";
         });
         datasets.push({
           type: "bar",
@@ -12568,23 +12685,23 @@
         datasets.push({
           label: "Window price",
           data: timeline.points.map((point) => ({ x: point.date, y: point.price })),
-          borderColor: "#c4b5fd",
+          borderColor: "#e9d5ff",
           backgroundColor(context) {
             const chart = context.chart;
             const { ctx, chartArea } = chart;
-            if (!chartArea) return "rgba(147, 197, 253, 0.12)";
+            if (!chartArea) return "rgba(147, 197, 253, 0.05)";
             const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-            gradient.addColorStop(0, "rgba(147, 197, 253, 0.16)");
-            gradient.addColorStop(0.55, "rgba(96, 165, 250, 0.07)");
-            gradient.addColorStop(1, "rgba(59, 130, 246, 0.015)");
+            gradient.addColorStop(0, "rgba(147, 197, 253, 0.08)");
+            gradient.addColorStop(0.55, "rgba(96, 165, 250, 0.03)");
+            gradient.addColorStop(1, "rgba(59, 130, 246, 0.0)");
             return gradient;
           },
           fill: true,
           tension: 0.25,
           pointRadius: 0,
           pointHoverRadius: 4,
-          pointHoverBackgroundColor: "#e9d5ff",
-          borderWidth: 2.75,
+          pointHoverBackgroundColor: "#f5f3ff",
+          borderWidth: 3,
           order: 25,
         });
       }
@@ -12682,7 +12799,7 @@
           borderColor: level.color,
           borderDash: [6, 4],
           pointRadius: 0,
-          borderWidth: 1.5,
+          borderWidth: 2.25,
           fill: false,
           order: 30,
           _fibKey: level.key,
@@ -12694,15 +12811,17 @@
         x: {
           type: "time",
           time: { unit: "day", tooltipFormat: "yyyy-MM-dd" },
-          grid: { color: "rgba(45, 58, 79, 0.55)" },
-          ticks: { color: "#9aa8bc", maxRotation: 0, autoSkip: true },
+          border: { display: false },
+          grid: { display: false },
+          ticks: { color: "#c5d0de", maxRotation: 0, autoSkip: true },
         },
         y: {
-          grid: { color: "rgba(45, 58, 79, 0.55)" },
+          border: { display: false },
+          grid: { display: false },
           ticks: {
             // Fullscreen: sticky overlay paints the price legend so ticks stay
             // visible while the canvas scrolls horizontally.
-            color: isFullscreen ? "transparent" : "#9aa8bc",
+            color: isFullscreen ? "transparent" : "#c5d0de",
             callback: (value) => formatMoney(value),
           },
         },
@@ -12795,7 +12914,7 @@
           borderColor: level.color,
           borderDash: [6, 4],
           pointRadius: 0,
-          borderWidth: 1.5,
+          borderWidth: 2.25,
           fill: false,
           _fibKey: level.key,
           hidden: inspectorFibToggles[level.key] === false,
@@ -12823,13 +12942,15 @@
           },
           scales: {
             x: {
-              grid: { color: "rgba(45, 58, 79, 0.55)" },
-              ticks: { color: "#9aa8bc" },
+              border: { display: false },
+              grid: { display: false },
+              ticks: { color: "#c5d0de" },
             },
             y: {
-              grid: { color: "rgba(45, 58, 79, 0.55)" },
+              border: { display: false },
+              grid: { display: false },
               ticks: {
-                color: "#9aa8bc",
+                color: "#c5d0de",
                 callback: (value) => formatMoney(value),
               },
             },
@@ -13113,13 +13234,13 @@
       --bg: #0f1419;
       --panel: #1a2332;
       --panel-2: #243044;
-      --text: #e7ecf3;
-      --muted: #9aa8bc;
+      --text: #f1f5f9;
+      --muted: #c5d0de;
       --accent: #3b82f6;
       --accent-2: #22c55e;
       --warn: #f59e0b;
       --danger: #ef4444;
-      --border: #2d3a4f;
+      --border: #3d4f68;
       --radius: 10px;
       --portfolio-tab-accent: #3b82f6;
       --portfolio-tab-accent-dim: rgba(59, 130, 246, 0.28);
@@ -13167,10 +13288,10 @@
       font-size: 1.15rem;
       font-weight: 800;
       letter-spacing: 0.06em;
-      color: #ddd6fe;
+      color: #ffffff;
     }
     .symbol-head-quote { font-size: 0.88rem; font-weight: 600; color: var(--text); }
-    .symbol-head-company { font-size: 0.82rem; font-weight: 600; color: var(--muted); }
+    .symbol-head-company { font-size: 0.82rem; font-weight: 600; color: #c5d0de; }
     .symbol-head-company::before { content: "·"; margin-right: 0.35rem; }
     .inspector-sai-head {
       display: inline-flex;
@@ -13216,23 +13337,24 @@
       page-break-inside: avoid;
     }
     .recommendation-card.snap-sai-card {
-      background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(167,139,250,0.1));
-      border-color: rgba(96,165,250,0.35);
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.22), rgba(124, 58, 237, 0.16));
+      border-color: rgba(147, 197, 253, 0.42);
     }
     .card-headline-accent,
     h3.card-headline-accent,
     h4.card-headline-accent {
-      color: #f8fafc;
-      font-weight: 700;
+      color: #ffffff;
+      font-weight: 800;
     }
     .inspector-chart-head h3,
     .valuation-scoring h3,
     .inspector-section h3 {
       margin: 0 0 0.25rem;
       font-size: 0.78rem;
-      color: var(--text);
+      color: #ffffff;
       text-transform: none;
       letter-spacing: normal;
+      font-weight: 800;
     }
     .pattern-caveat { font-size: 0.58rem; font-weight: 500; color: var(--muted); text-transform: none; }
     .chip {
@@ -13281,11 +13403,11 @@
     .confluence-col li { font-size: 0.62rem; margin-bottom: 0.05rem; line-height: 1.25; }
     .confluence-col li.empty { color: var(--muted); list-style: none; margin-left: -0.85rem; }
     .confluence-fib-note, .confluence-watch { margin: 0.15rem 0 0; font-size: 0.62rem; line-height: 1.3; }
-    .recommendation-card.snap-sai-card .rec-headline { font-size: 0.78rem; font-weight: 600; margin: 0.15rem 0 0.2rem; line-height: 1.25; }
+    .recommendation-card.snap-sai-card .rec-headline { font-size: 0.78rem; font-weight: 700; margin: 0.15rem 0 0.2rem; line-height: 1.25; color: #f8fafc; }
     .recommendation-card.snap-sai-card .rec-rationale {
       font-size: 0.68rem;
       line-height: 1.32;
-      color: #e2e8f0;
+      color: #f1f5f9;
     }
     .recommendation-card.snap-sai-card h3 { margin: 0 0 0.15rem; font-size: 0.58rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
     .snap-watch-label {

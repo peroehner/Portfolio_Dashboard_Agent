@@ -4,7 +4,7 @@ export const colors = {
   surfaceAlt: "#334155",
   border: "#475569",
   text: "#f1f5f9",
-  textMuted: "#94a3b8",
+  textMuted: "#cbd5e1",
   accent: "#22c55e",
   accentMuted: "#166534",
   danger: "#f87171",
@@ -13,7 +13,7 @@ export const colors = {
   link: "#93c5fd",
   buy: "#4ade80",
   sell: "#f87171",
-  hold: "#94a3b8",
+  hold: "#cbd5e1",
   watch: "#fbbf24",
 };
 
