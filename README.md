@@ -181,6 +181,6 @@ Expo app in [`mobile/`](mobile/). See [docs/MOBILE.md](docs/MOBILE.md) for setup
 ├── api/v1.py            # REST routes
 ├── services/            # Business logic
 ├── db/database.py       # Postgres schema + migrations
-├── docs/                # API, data/persistence, Replit guides
+├── docs/                # API, data/persistence, caching, Replit guides
 └── render.yaml          # Render blueprint
 ```
