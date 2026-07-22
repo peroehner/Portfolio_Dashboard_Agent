@@ -3604,10 +3604,14 @@
     table.data tbody tr.row-selected td {
       background: rgba(139, 92, 246, 0.16);
     }
-    table.data tbody tr.row-selected td:first-child {
+    table.data tbody tr.row-selected:hover td { background: rgba(139, 92, 246, 0.22); }
+    /* Persistent blue bar: symbol is in the cross-tab filter set (Set Filter). */
+    table.data tbody tr.row-filter-member td:first-child {
       box-shadow: inset 3px 0 0 var(--accent);
     }
-    table.data tbody tr.row-selected:hover td { background: rgba(139, 92, 246, 0.22); }
+    table.data tbody tr.row-filter-member.row-selected td:first-child {
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
     table.data tfoot tr.total-row td {
       border-top: 2px solid var(--border);
       background: var(--panel-2);
@@ -4471,7 +4475,7 @@
 
   <main id="view-holdings" class="view" hidden>
     <section class="panel holdings-table-panel portfolio-table-panel">
-      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Totals apply to the selection. Double-click table to expand full width.</p>
+      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Totals apply to the selection. Set Filter saves symbols (blue left bar); Filter toggles that subset. Double-click table to expand full width.</p>
       <div class="holdings-filter-bar">
         <button type="button" class="secondary filter-btn active" data-holdings-filter="all" onclick="setHoldingsFilter('all')">All</button>
         <button type="button" class="secondary filter-btn" data-holdings-filter="large" onclick="setHoldingsFilter('large')" title="Top 20% by share count">Large</button>
@@ -4484,7 +4488,11 @@
     </section>
     <section class="panel holdings-inspector-panel">
       <div class="holdings-inspector-head">
-        <h2 id="holdingsInspectorTitle"><span id="holdingsInspectorTitleText">Inspector</span></h2>
+        <h2 id="holdingsInspectorTitle" class="panel-symbol-head">
+          <span class="symbol-head-row">
+            <span class="symbol-head-ticker is-active" id="holdingsInspectorTitleText">Inspector</span>
+          </span>
+        </h2>
         <button type="button" class="secondary holdings-inspector-next" id="btnHoldingsInspectorNext" onclick="openNextHoldingsInspector()" hidden>Next →</button>
       </div>
       <div id="holdingsInspectorEmpty" class="empty">Select a symbol from the holdings table.</div>
@@ -4644,7 +4652,7 @@
 
   <div id="view-screening" class="view" hidden>
     <div class="wide-panel portfolio-table-panel">
-      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs.</p>
+      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Set Filter saves symbols (blue left bar). Filter shows only those symbols; click again to show all.</p>
       <div class="screening-filter-bar">
         <button type="button" class="secondary filter-btn active" data-screen-filter="all" onclick="setScreeningFilter('all')">All</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
@@ -4668,7 +4676,7 @@
 
   <div id="view-simulation" class="view" hidden>
     <div class="wide-panel portfolio-table-panel">
-      <p class="panel-hint">Totals apply to (filtered) list or a selected scope. Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows.</p>
+      <p class="panel-hint">Totals apply to (filtered) list or a selected scope. Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Set Filter saves symbols (blue left bar); Filter toggles that subset.</p>
       <div id="simulationKpis" class="sim-kpis"></div>
       <div class="screening-filter-bar">
         <button type="button" class="secondary filter-btn active" data-sim-filter="all" onclick="setSimulationFilter('all')" title="All symbols that have at least one priced planned-trade threshold">All (with plans)</button>
@@ -4692,7 +4700,7 @@
 
   <div id="view-fib" class="view" hidden>
     <div class="wide-panel portfolio-table-panel">
-      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs.</p>
+      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Set Filter saves symbols (blue left bar). Filter shows only those symbols; click again to show all.</p>
       <div class="fib-filter-bar">
         <button type="button" class="secondary filter-btn" data-fib-confirmed="1" onclick="toggleFibConfirmed()" title="Show only symbols whose chart pattern is confirmed — price has broken the key level in the pattern's direction (the measured-move target is active).">Confirmed Patterns</button>
         <input type="text" id="fibTickerFilter" class="fib-ticker-filter" placeholder="Filter by ticker..." oninput="setFibTickerFilter(this.value)">
@@ -4743,7 +4751,7 @@
 
   <main id="view-fundamentals" class="view" hidden>
     <section class="panel portfolio-table-panel">
-      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs.</p>
+      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Set Filter saves symbols (blue left bar). Filter shows only those symbols; click again to show all.</p>
       <div class="fundamentals-tabbar">
         <button class="fund-tab active" data-fund-tab="val" onclick="setFundamentalsTab('val')">Valuation · Growth · Profitability</button>
         <button class="fund-tab" data-fund-tab="health" onclick="setFundamentalsTab('health')">Health · Analyst</button>
@@ -5915,6 +5923,33 @@
       watch: "Watch-only",
     };
 
+    function getFilterClipboardSet() {
+      if (!selectionClipboard.length) return new Set();
+      return new Set(selectionClipboard.map((s) => String(s).toUpperCase()));
+    }
+
+    function rerenderFilterMemberBars() {
+      if (tableDataCache.holdings?.length) {
+        setSortableTableHtml("holdingsTable", "holdings", renderHoldingsTable(tableDataCache.holdings));
+        syncHoldingsInspectorHead(selectedSymbol);
+      }
+      if (viewDataCache.screening.data) {
+        renderScreeningView();
+      } else if (tableDataCache.screening?.length) {
+        setSortableTableHtml("screeningTable", "screening", renderScreeningTable(tableDataCache.screening));
+      }
+      if (document.getElementById("simulationTable")) {
+        renderSimulationView();
+      }
+      if (fibMapData.length) {
+        renderFibMapView();
+      }
+      if (fundamentalsRows.length) {
+        renderFundamentalsTable();
+      }
+      updateClipButtons();
+    }
+
     function portfolioTabSelectedSymbols(tabId) {
       if (!PORTFOLIO_CLIP_TABS.has(tabId)) return [];
       return [...getMultiSelection(tabId)];
@@ -6125,12 +6160,14 @@
             : `Filter unchanged (${selectionClipboard.length} symbol${selectionClipboard.length === 1 ? "" : "s"}).`,
           addedCount ? "success" : "info"
         );
+        rerenderFilterMemberBars();
         return;
       }
       selectionClipboard = incoming;
       updateClipButtons();
       saveFilterState();
       setStatus(`Filter set: ${incoming.length} symbol${incoming.length === 1 ? "" : "s"} — ${incoming.join(", ")}.`, "success");
+      rerenderFilterMemberBars();
     }
 
     function pastePortfolioSelection(tabId) {
@@ -7549,14 +7586,18 @@
       const keyColumn = columns.find((column) => column.rowKey) || columns[0];
       const selectedKey = tableSelection[selectionKeyFor(tableId)];
       const multiSelected = options.selectedKeys || null;
+      const filterMembers = getFilterClipboardSet();
       const body = sortedRows.map((row) => {
         const rowKey = keyColumn ? String(keyColumn.sortValue(row) ?? "") : "";
         const isSelected = multiSelected
           ? multiSelected.has(rowKey)
           : (rowKey !== "" && rowKey === selectedKey);
-        const selectedClass = isSelected ? " class=\"row-selected\"" : "";
+        const rowClasses = [];
+        if (isSelected) rowClasses.push("row-selected");
+        if (rowKey && filterMembers.has(rowKey)) rowClasses.push("row-filter-member");
+        const classAttr = rowClasses.length ? ` class="${rowClasses.join(" ")}"` : "";
         const keyAttr = rowKey !== "" ? ` data-row-key="${escapeHtml(rowKey)}"` : "";
-        return `<tr${selectedClass}${keyAttr}>${columns.map((column) => {
+        return `<tr${classAttr}${keyAttr}>${columns.map((column) => {
           const cellAttrs = column.coloredPercent ? ' class="pct-cell"' : "";
           return `<td${cellAttrs}>${column.render(row)}</td>`;
         }).join("")}</tr>`;
@@ -8984,7 +9025,7 @@
       const titleText = document.getElementById("holdingsInspectorTitleText");
       const btn = document.getElementById("btnHoldingsInspectorNext");
       const panelVisible = document.getElementById("holdingsInspectorPanel")?.hidden === false;
-      if (titleText) titleText.textContent = symbol ? `${symbol} Inspector` : "Inspector";
+      if (titleText) titleText.textContent = symbol ? String(symbol).toUpperCase() : "Inspector";
       const order = currentHoldingsOrder();
       const canNext = Boolean(symbol) && order.length > 1;
       if (btn) {
