@@ -24,7 +24,9 @@ import {
 import { formatMoney } from "@/lib/format";
 
 export const CHART_PAD = 10;
-/** Wider left gutter: price ticks + sticky Fib labels. */
+/** Left gutter when only price ticks are shown (portrait). */
+export const CHART_PAD_LEFT_PRICE = 52;
+/** Wider left gutter for sticky Y-axis with price + legacy fib column. */
 export const CHART_PAD_LEFT = 72;
 /** Extra bottom room for the date timeline. */
 export const CHART_PAD_BOTTOM = 22;
@@ -37,6 +39,10 @@ interface InspectorChartSvgProps {
   padLeft?: number;
   /** Draw Y-axis labels inside the SVG. */
   showYLabels?: boolean;
+  /** Draw fib % labels in the left gutter (off in portrait — use showFibLineLabels in landscape). */
+  showFibAxisLabels?: boolean;
+  /** Draw fib labels on their horizontal lines (web parity; landscape/fullscreen). */
+  showFibLineLabels?: boolean;
   /** Draw bottom date timeline. */
   showXLabels?: boolean;
   /** Highlight nearest price point (normalized x 0–1). */
@@ -48,8 +54,10 @@ export function InspectorChartSvg({
   model,
   width,
   height,
-  padLeft = CHART_PAD_LEFT,
+  padLeft = CHART_PAD_LEFT_PRICE,
   showYLabels = true,
+  showFibAxisLabels = false,
+  showFibLineLabels = false,
   showXLabels = true,
   hoverNormX = null,
   hoverPoint = null,
@@ -147,7 +155,7 @@ export function InspectorChartSvg({
           })
         : null}
 
-      {showYLabels
+      {showFibAxisLabels
         ? model.fibLines.slice(0, 8).map((fib) => {
             const y = yForPrice(fib.price);
             return (
@@ -200,6 +208,25 @@ export function InspectorChartSvg({
           />
         );
       })}
+
+      {showFibLineLabels
+        ? model.fibLines.map((fib) => {
+            const y = yForPrice(fib.price);
+            return (
+              <SvgText
+                key={`fib-line-${fib.label}-${fib.price}`}
+                x={width - pad - 4}
+                y={y - 2}
+                fill={fib.color}
+                fontSize="10"
+                fontWeight="600"
+                textAnchor="end"
+              >
+                {`${fib.label} ${formatMoney(fib.price)}`}
+              </SvgText>
+            );
+          })
+        : null}
 
       {model.tradeLevels.map((level) => {
         if (level.edge !== "none" || level.y == null) return null;
