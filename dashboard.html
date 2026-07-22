@@ -4488,7 +4488,11 @@
     </section>
     <section class="panel holdings-inspector-panel">
       <div class="holdings-inspector-head">
-        <h2 id="holdingsInspectorTitle"><span id="holdingsInspectorTitleText">Inspector</span></h2>
+        <h2 id="holdingsInspectorTitle" class="panel-symbol-head">
+          <span class="symbol-head-row">
+            <span class="symbol-head-ticker is-active" id="holdingsInspectorTitleText">Inspector</span>
+          </span>
+        </h2>
         <button type="button" class="secondary holdings-inspector-next" id="btnHoldingsInspectorNext" onclick="openNextHoldingsInspector()" hidden>Next →</button>
       </div>
       <div id="holdingsInspectorEmpty" class="empty">Select a symbol from the holdings table.</div>
@@ -9021,7 +9025,7 @@
       const titleText = document.getElementById("holdingsInspectorTitleText");
       const btn = document.getElementById("btnHoldingsInspectorNext");
       const panelVisible = document.getElementById("holdingsInspectorPanel")?.hidden === false;
-      if (titleText) titleText.textContent = symbol ? `${symbol} Inspector` : "Inspector";
+      if (titleText) titleText.textContent = symbol ? String(symbol).toUpperCase() : "Inspector";
       const order = currentHoldingsOrder();
       const canNext = Boolean(symbol) && order.length > 1;
       if (btn) {
