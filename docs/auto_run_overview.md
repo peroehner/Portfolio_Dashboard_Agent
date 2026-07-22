@@ -14,6 +14,8 @@ function names, intervals, and env knobs — not assumptions about how a dashboa
 > cache is **passive**: it recomputes lazily on the next request after it
 > expires, never on a timer.
 
+Also see **[CACHING.md](./CACHING.md)** — web vs mobile load paths, Fundamentals/News cost, client TTLs.
+
 There are three independent "who triggers it" layers, and conflating them is the
 usual source of confusion:
 
@@ -265,7 +267,11 @@ timer; nothing pre-warms them in the background.
 | View auto-refresh (Overview/Holdings) | `setInterval` | **every 30 s** (skips when hidden/typing/in-flight) | **Client** | `dashboard.html` · `autoRefreshTick` / `startAutoRefresh` (`AUTO_REFRESH_MS`) |
 | Top-news / rec-changes feed | During Overview refresh, throttled | **≤ every 5 min** | **Client** | `dashboard.html` · `loadTopNews` (`TOPNEWS_REFRESH_MS`) |
 | Per-symbol news sentiment | `selectSymbol()` (memoized) | on demand, once/symbol/session | **Client** | `dashboard.html` · `resolveNewsSentiment` (`newsSentimentCache` Map) |
-| Inspector / fundamentals / assessments / track record / reaction badges | View or symbol open | event-driven | **Client** | `dashboard.html` render-time loaders |
+| Inspector / assessments / track record / reaction badges | View or symbol open | event-driven | **Client** | `dashboard.html` render-time loaders |
+| Fundamentals **tab** | Tab open | **always refetch** (no 60s client TTL) | **Client** | `dashboard.html` · `loadFundamentals` |
+| Fundamentals for Simulation | Tab / criteria change | **≤ 60s** client cache | **Client** | `dashboard.html` · `ensureFundamentalsCache` |
+| Mobile Portfolio | Tab focus | every focus + pull-to-refresh | **Client** | `mobile/app/(tabs)/portfolio.tsx` · `useFocusEffect` |
+| Mobile News / Fundamentals | Tab mount | once per mount (+ pull / Retry); 45s timeout | **Client** | `mobile/lib/useApiQuery.ts`, `mobile/lib/api.ts` |
 | Portfolio / symbol assessment | "Assess" button | **never auto** | Client-initiated, server-executed | `POST /assess`, `POST /symbols/<symbol>/assess` |
 | Note synthesis | "Synthesize" button | **never auto** | Client-initiated, server-executed | `POST /notes/synthesize` |
 | Market / fundamentals / history / fib caches | Request after TTL expiry | lazy, passive | Server (no timer) | `TtlCache.get(key, factory)` across `services/*` |

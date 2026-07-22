@@ -19,13 +19,26 @@ Use **TestFlight** when you are away from home. Expo Go still needs a Metro pack
 | Tab | API | Purpose |
 |-----|-----|---------|
 | **Summary** | `GET /overview` | KPIs, allocation chart, recent alerts |
-| **Portfolio** | `GET /portfolio`, `GET /assessments/overview` | Sortable holdings table with SAI |
+| **Portfolio** | `GET /portfolio`, `GET /assessments/overview`, `GET /holdings` | Sortable holdings table with SAI |
 | **Fundamentals** | `GET /fundamentals?includeNews=0` | Valuation/growth + health/analyst tables, 52W range |
 | **News** | `GET /news-feed` | SAI changes + ranked news |
 | **Alerts** | `GET /alerts`, `POST /alerts/{id}/dismiss` | Active alerts, dismiss |
 | **Symbol** (stack) | `GET /symbols/{symbol}/inspector` | Price, position, thresholds, recommendation |
 
 Comma-separated ticker filters work the same as the web app (`GH, ne` → GH and NET).
+
+### Loading & caching (mobile)
+
+There is **no** client TTL. `useApiQuery` keeps in-memory state until remount / pull-to-refresh / Retry.
+
+| Tab | Refetch behavior |
+|-----|------------------|
+| **Portfolio** | Also refetches on **every tab focus** (so threshold edits from Symbol detail show up) |
+| **Summary / Fundamentals / News / Alerts** | Fetch on first mount; switching tabs does **not** refetch |
+
+Each load calls `api.wake()` first (cold Render). Fundamentals and News use a **45s** timeout.
+
+**News timeouts:** `/news-feed` currently runs bulk fundamentals+news enrichment for the whole portfolio, then ranks headlines — same cost class as Fundamentals. A **Retry after a few seconds** usually succeeds once the API is awake and server caches are warm. Full map: [CACHING.md](./CACHING.md).
 
 ---
 

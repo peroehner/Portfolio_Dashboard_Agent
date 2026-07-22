@@ -9,8 +9,9 @@ This document is the canonical reference for what the Portfolio Dashboard Agent 
 | New/altered Postgres table or column | `db/database.py`, this doc, README § Data & persistence |
 | Import merge/replace or new import fields | `services/import_service.py`, this doc |
 | New persisted API writes | relevant `services/*.py`, `docs/API.md` if public |
-| Background sync interval or cached fields | `main.py`, `api/v1.py` `/config`, this doc |
-| Browser `localStorage` or client-only state | `dashboard.html`, this doc |
+| Background sync interval or cached fields | `main.py`, `api/v1.py` `/config`, this doc, [CACHING.md](./CACHING.md) |
+| Browser `localStorage` or client-only state | `dashboard.html`, this doc, [CACHING.md](./CACHING.md) |
+| Web/mobile load cadence or view TTL | `dashboard.html`, `mobile/lib/useApiQuery.ts`, [CACHING.md](./CACHING.md) |
 | OAuth / multi-user behavior | `auth.py`, `.env.example`, this doc |
 
 ## Storage location
@@ -154,6 +155,8 @@ Not stored in Postgres; fetched when an endpoint or UI view needs it:
 | Table sort, selected symbol, fib toggles, chart mode | JavaScript memory — lost on reload |
 | Screening / fib view cache | In-memory ~60s (`VIEW_CACHE_TTL_MS`) — not shared across users if session changes (page reloads on user switch) |
 
+Web vs mobile load/cache behavior (auto-refresh, Fundamentals vs News cost, mobile focus refetch): **[CACHING.md](./CACHING.md)**. Scheduled activity and passive `TtlCache`s: **[auto_run_overview.md](./auto_run_overview.md)**.
+
 Use **separate browsers or profiles** for local multi-user testing — one session cookie per browser.
 
 ## Cloud deployment notes
@@ -170,6 +173,6 @@ Use **separate browsers or profiles** for local multi-user testing — one sessi
 
 **Refreshed on schedule**: `symbol_market` prices (~5 min), analyst targets (~1 h), fundamentals TTL (`SYMBOL_MARKET_FUNDAMENTALS_TTL_SECONDS`), daily base assessments (UTC day).
 
-**Always live**: news headlines, auto fibs, chart series, screening scores, overview YTD.
+**Always live** (or lazy after TTL): news headlines, auto fibs, chart series, screening scores, overview YTD — see [CACHING.md](./CACHING.md).
 
 **Never stored**: original import file blob.
