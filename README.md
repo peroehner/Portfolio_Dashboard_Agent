@@ -65,9 +65,9 @@ Full reference: [docs/API.md](docs/API.md)
 
 The server stores durable portfolio state in **Postgres** (via `DATABASE_URL`; psycopg3 + connection pool). Locally, start it with `docker compose up -d db`. The browser is a client: it loads and edits via the REST API. Uploaded analyst/import files are **parsed once** — the raw file is not kept on disk.
 
-> **Maintenance:** When you change persistence (schema, import modes, sync behavior, or client-side storage), update this section and [docs/DATA.md](docs/DATA.md). Trigger files: `db/database.py`, `services/import_service.py`, `services/portfolio_service.py`, `main.py` (background sync), `dashboard.html` (`localStorage`).
+> **Maintenance:** When you change persistence (schema, import modes, sync behavior, or client-side storage), update this section and [docs/DATA.md](docs/DATA.md). When you change load/cache TTLs or refresh cadence (web or mobile), update [docs/CACHING.md](docs/CACHING.md). Trigger files: `db/database.py`, `services/import_service.py`, `services/portfolio_service.py`, `main.py` (background sync), `dashboard.html` (`localStorage`, view caches), `mobile/lib/useApiQuery.ts`.
 
-Canonical detail: [docs/DATA.md](docs/DATA.md)
+Canonical detail: [docs/DATA.md](docs/DATA.md). Loading, TTLs, and web vs mobile refresh behavior: [docs/CACHING.md](docs/CACHING.md).
 
 ### Architecture
 
