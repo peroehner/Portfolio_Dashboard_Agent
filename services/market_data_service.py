@@ -211,6 +211,12 @@ class MarketDataService:
                 if not company_name:
                     company_name = resolve_company_name(symbol)
 
+                # Never advance day% / as-of without a price — COALESCE would keep
+                # a stale close while rewriting the change fields (weekend lag UX).
+                if price is None:
+                    day_change_pct = None
+                    as_of = None
+
                 if not any(
                     value is not None
                     for value in (

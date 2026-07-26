@@ -32,7 +32,13 @@ class PortfolioEngine:
         return {ticker: quote.get("currentPrice") for ticker, quote in quotes.items()}
 
     def fetch_market_quotes(self, tickers, *, include_analyst_targets: bool = True):
-        """Fetches live price and optionally analyst 1Y mean target per ticker."""
+        """Fetches live price and optionally analyst 1Y mean target per ticker.
+
+        Uses the browser-impersonating Yahoo session when available. Bare
+        ``yf.download`` without that session is frequently blocked from
+        datacenter IPs (Render), which used to leave ``symbol_market`` stuck on
+        the prior session close even after Sync Prices.
+        """
         logging.info(
             "Engine fetching yfinance data for %s tickers (targets=%s)",
             len(tickers),
@@ -41,43 +47,49 @@ class PortfolioEngine:
         if not tickers:
             return {}
 
-        from services.market_cache import yf_throttle
-
         from services.company_name import resolve_company_name
+        from services.market_cache import get_yf_session, reset_yf_session, yf_throttle
 
         day_changes = {ticker: None for ticker in tickers}
         prices = {ticker: None for ticker in tickers}
         price_as_of = {ticker: None for ticker in tickers}
         data = None
         multi = len(tickers) > 1
+        session = get_yf_session()
         try:
             with yf_throttle():
-                data = yf.download(tickers, period="5d", progress=False)
-            for ticker in tickers:
-                try:
-                    closes = (
-                        data["Close"][ticker].dropna()
-                        if multi
-                        else data["Close"].dropna()
-                    )
-                    if closes.empty:
-                        continue
-                    price = float(closes.iloc[-1])
-                    prices[ticker] = price
+                # Pass session so bulk download shares the curl_cffi crumb path.
+                data = yf.download(
+                    tickers,
+                    period="5d",
+                    progress=False,
+                    session=session,
+                )
+            if data is not None and not getattr(data, "empty", True):
+                for ticker in tickers:
                     try:
-                        price_as_of[ticker] = closes.index[-1].strftime("%Y-%m-%d")
-                    except (AttributeError, ValueError, TypeError):
-                        price_as_of[ticker] = None
-                    if len(closes) >= 2:
-                        previous = float(closes.iloc[-2])
-                        if previous:
-                            day_changes[ticker] = round((price - previous) / previous * 100, 2)
-                except (KeyError, IndexError, TypeError):
-                    prices[ticker] = None
+                        closes = (
+                            data["Close"][ticker].dropna()
+                            if multi
+                            else data["Close"].dropna()
+                        )
+                        parsed = self._quotes_from_closes(closes)
+                        if parsed is None:
+                            continue
+                        prices[ticker] = parsed["price"]
+                        price_as_of[ticker] = parsed["priceAsOf"]
+                        day_changes[ticker] = parsed["dayChangePct"]
+                    except (KeyError, IndexError, TypeError):
+                        prices[ticker] = None
         except Exception as e:
             logging.error(f"Failed to fetch market prices: {e}")
+            reset_yf_session()
         finally:
             data = None
+
+        missing = [ticker for ticker in tickers if prices.get(ticker) is None]
+        if missing:
+            self._fill_quotes_from_history(missing, prices, price_as_of, day_changes)
 
         quotes = {}
         for ticker in tickers:
@@ -88,7 +100,10 @@ class PortfolioEngine:
                 else {"mean": None, "low": None, "high": None}
             )
             price = prices[ticker]
+            as_of = price_as_of.get(ticker)
             day_pct = day_changes.get(ticker)
+            if price is None:
+                price, as_of = self._price_as_of_from_info(info)
             if day_pct is None:
                 day_pct = self._day_change_pct_from_info(info, price)
             company_name = resolve_company_name(ticker, info)
@@ -103,9 +118,74 @@ class PortfolioEngine:
                 "analystTargetLow": analyst_targets["low"],
                 "analystTargetHigh": analyst_targets["high"],
                 "companyName": company_name,
-                "priceAsOf": price_as_of.get(ticker),
+                "priceAsOf": as_of,
             }
         return quotes
+
+    @staticmethod
+    def _quotes_from_closes(closes):
+        """Map a Close series to price / as-of / day%."""
+        if closes is None or getattr(closes, "empty", True):
+            return None
+        price = float(closes.iloc[-1])
+        as_of = None
+        try:
+            as_of = closes.index[-1].strftime("%Y-%m-%d")
+        except (AttributeError, ValueError, TypeError):
+            as_of = None
+        day_pct = None
+        if len(closes) >= 2:
+            previous = float(closes.iloc[-2])
+            if previous:
+                day_pct = round((price - previous) / previous * 100, 2)
+        return {"price": price, "priceAsOf": as_of, "dayChangePct": day_pct}
+
+    def _fill_quotes_from_history(self, tickers, prices, price_as_of, day_changes):
+        """Per-symbol history via the impersonating session (download fallback)."""
+        from services.market_cache import make_ticker, yf_pool
+
+        def _one(symbol: str):
+            try:
+                hist = make_ticker(symbol).history(period="5d", auto_adjust=True)
+            except Exception as exc:  # noqa: BLE001
+                logging.warning("History fallback failed for %s: %s", symbol, exc)
+                return symbol, None
+            if hist is None or getattr(hist, "empty", True) or "Close" not in hist.columns:
+                return symbol, None
+            return symbol, self._quotes_from_closes(hist["Close"].dropna())
+
+        for symbol, parsed in yf_pool.map(_one, tickers):
+            if not parsed:
+                continue
+            prices[symbol] = parsed["price"]
+            price_as_of[symbol] = parsed["priceAsOf"]
+            day_changes[symbol] = parsed["dayChangePct"]
+
+    @staticmethod
+    def _price_as_of_from_info(info: dict) -> tuple[float | None, str | None]:
+        """Last-resort price from quoteSummary when history is unavailable."""
+        if not info:
+            return None, None
+        raw = info.get("regularMarketPrice") or info.get("currentPrice")
+        if raw is None:
+            return None, None
+        try:
+            price = float(raw)
+        except (TypeError, ValueError):
+            return None, None
+        as_of = None
+        ts = info.get("regularMarketTime")
+        if ts is not None:
+            try:
+                from datetime import datetime
+                from zoneinfo import ZoneInfo
+
+                as_of = datetime.fromtimestamp(
+                    int(ts), tz=ZoneInfo("America/New_York")
+                ).strftime("%Y-%m-%d")
+            except Exception:  # noqa: BLE001
+                as_of = None
+        return price, as_of
 
     def _fetch_ticker_info(self, ticker: str) -> dict:
         from services.market_cache import make_ticker, ticker_info_cache
