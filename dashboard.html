@@ -10397,9 +10397,10 @@
     const TAX_PROPOSAL_MIN_GAIN_PCT = 15;
     const TAX_PROPOSAL_PEAK_PCT = 95;
     const TAX_PROPOSAL_MAX_POSITIONS = 10;
-    // Worth-to-invest (WTL) = 100 + gainPct. Deep tax-loss sells: WTL < 50% ⇒ gainPct < -50.
-    const TAX_PROPOSAL_MAX_WTL_PCT = 50;
-    const TAX_PROPOSAL_LOSS_SCORE_WEIGHT = 40; // significant rank weight for %-loss severity
+    // Worth-to-divest (WTD) = 100 + gainPct. Deep tax-loss sells: WTD < 50% ⇒ gainPct < -50.
+    const TAX_PROPOSAL_MAX_WTD_PCT = 50;
+    const TAX_PROPOSAL_LOSS_SCORE_WEIGHT = 50; // max %-loss rank points (−50% → +30, −100% → +50)
+    const TAX_PROPOSAL_LOSS_SCORE_AT_GATE = 30; // points at the WTD < 50% gate (−50% loss)
     const TAX_PROPOSAL_SAI_ACTION_WEIGHT = { sell: 20, watch: 12, hold: 4, buy: 0 };
     const TAX_PROPOSAL_SAI_CONF_BONUS = { high: 3, medium: 2, low: 1 };
     let fundamentalsCacheAt = 0;
@@ -11050,29 +11051,34 @@
       return weight;
     }
 
-    /** Worth-to-invest: market value as % of cost (100 + gainPct). */
-    function taxProposalWtlPct(gainPct) {
+    /** Worth-to-divest: market value as % of cost (100 + gainPct). */
+    function taxProposalWtdPct(gainPct) {
       if (!Number.isFinite(gainPct)) return null;
       return 100 + gainPct;
     }
 
-    /** %-loss vs invest (0 when flat/green; 50 when WTL is 50%). */
+    /** %-loss vs cost (null when flat/green; 50 when WTD is 50%). */
     function taxProposalLossPct(gainPct) {
       if (!Number.isFinite(gainPct) || gainPct >= 0) return null;
       return Math.abs(gainPct);
     }
 
     /**
-     * Rank weight for deep %-losses. At −50% → half of cap; at −100% → full cap.
+     * Rank weight for deep %-losses (−50% → +30, −100% → +50).
      * Thesis: the deeper the loss vs cost, the more attractive the tax-loss sell.
+     * Applies only to tax-loss sell candidates — not winner-trim ranking.
      */
     function taxProposalLossScore(gainPct) {
       const lossPct = taxProposalLossPct(gainPct);
       if (lossPct == null || lossPct <= 0) return 0;
-      return Math.min(
-        TAX_PROPOSAL_LOSS_SCORE_WEIGHT,
-        (lossPct / 100) * TAX_PROPOSAL_LOSS_SCORE_WEIGHT,
-      );
+      const gate = TAX_PROPOSAL_MAX_WTD_PCT;
+      const floorPts = TAX_PROPOSAL_LOSS_SCORE_AT_GATE;
+      const maxPts = TAX_PROPOSAL_LOSS_SCORE_WEIGHT;
+      if (lossPct <= gate) {
+        return (lossPct / gate) * floorPts;
+      }
+      const t = Math.min(1, (lossPct - gate) / (100 - gate));
+      return floorPts + t * (maxPts - floorPts);
     }
 
     function taxProposalLoserUniverse() {
@@ -11093,17 +11099,17 @@
         universeCount: loserRows.length,
         withCostBasis: 0,
         excludedSaiTech: 0,
-        failedWtl: 0,
+        failedWtd: 0,
         qualified: 0,
       };
       const candidates = [];
       loserRows.forEach((screenRow) => {
         const gainPct = Number(screenRow.holding?.gainPct);
-        const wtlPct = taxProposalWtlPct(gainPct);
+        const wtdPct = taxProposalWtdPct(gainPct);
         const lossPct = taxProposalLossPct(gainPct);
-        const deepLoss = wtlPct != null && wtlPct < TAX_PROPOSAL_MAX_WTL_PCT;
+        const deepLoss = wtdPct != null && wtdPct < TAX_PROPOSAL_MAX_WTD_PCT;
         if (!deepLoss) {
-          diagnostics.failedWtl += 1;
+          diagnostics.failedWtd += 1;
           return;
         }
         const price = Number(screenRow.currentPrice);
@@ -11144,7 +11150,7 @@
           cashGenerated: maxShares * (Number.isFinite(price) ? price : 0),
           gainPct,
           lossPct,
-          wtlPct,
+          wtdPct,
           deepLoss: true,
           hasSellPlan,
           isTrim,
@@ -11311,8 +11317,8 @@
           <td style="text-align:right;">${renderColoredMoneyCell(-cand.netLossMax)}</td>
           <td style="text-align:right;">${formatMoney(cand.cashGenerated)}</td>
           <td style="text-align:right;" class="negative" title="Unrealized loss vs cost basis">${cand.lossPct != null ? `−${cand.lossPct.toFixed(1)}%` : "—"}</td>
-          <td style="text-align:right;" title="Worth-to-invest = market value ÷ cost (100% + Gain %). Deep-loss gate: WTL &lt; ${TAX_PROPOSAL_MAX_WTL_PCT}%">${cand.wtlPct != null ? `${cand.wtlPct.toFixed(1)}%` : "—"}</td>
-          <td style="text-align:right;" title="Ranking score (higher = preferred tax-loss sell). %-loss contributes up to +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT}.">${Math.round(cand.score)}</td>
+          <td style="text-align:right;" title="Worth-to-divest = market value ÷ cost (100% + Gain %). Deep-loss gate: WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%">${cand.wtdPct != null ? `${cand.wtdPct.toFixed(1)}%` : "—"}</td>
+          <td style="text-align:right;" title="Ranking score (higher = preferred tax-loss sell). %-loss: −50% → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}, −100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT}.">${Math.round(cand.score)}</td>
           <td>${escapeHtml(String(cand.saiAction))} · ${escapeHtml(String(cand.techBias))}</td>
           <td>${renderTaxLossSellCriteriaTags(cand)}</td>
         </tr>`).join("");
@@ -11323,16 +11329,16 @@
       if (!candidates.length) {
         return `
           <h4 style="margin:0.65rem 0 0.35rem;font-size:0.82rem;font-weight:600;color:var(--text);">
-            Tax-loss sell candidates (WTL &lt; ${TAX_PROPOSAL_MAX_WTL_PCT}%)
+            Tax-loss sell candidates (WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%)
           </h4>
-          <p class="sim-tax-proposal-note">No holdings qualify yet — need unrealized loss with worth-to-invest below ${TAX_PROPOSAL_MAX_WTL_PCT}% of cost (Gain % &lt; −${TAX_PROPOSAL_MAX_WTL_PCT}).</p>
+          <p class="sim-tax-proposal-note">No holdings qualify yet — need unrealized loss with worth-to-divest below ${TAX_PROPOSAL_MAX_WTD_PCT}% of cost (Gain % &lt; −${TAX_PROPOSAL_MAX_WTD_PCT}).</p>
           ${renderTaxLossSellDiagnostics(lossSells?.diagnostics)}`;
       }
       return `
         <h4 style="margin:0.65rem 0 0.35rem;font-size:0.82rem;font-weight:600;color:var(--text);">
-          Tax-loss sell candidates (${candidates.length}) · WTL &lt; ${TAX_PROPOSAL_MAX_WTL_PCT}%
+          Tax-loss sell candidates (${candidates.length}) · WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%
         </h4>
-        <p class="sim-tax-proposal-note">Deeper %-loss vs cost ranks higher (up to +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT} score). Prefer these names when harvesting losses in Simulation.</p>
+        <p class="sim-tax-proposal-note">Deeper %-loss vs cost ranks higher (−50% → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}, −100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT}). Prefer these names when harvesting losses in Simulation. Winner-trim ranking below is independent.</p>
         <table>
           <thead>
             <tr>
@@ -11341,7 +11347,7 @@
               <th style="text-align:right;">Max loss</th>
               <th style="text-align:right;">Cash</th>
               <th style="text-align:right;">Loss %</th>
-              <th style="text-align:right;">WTL %</th>
+              <th style="text-align:right;">WTD %</th>
               <th style="text-align:right;">Score</th>
               <th>SAI / Tech</th>
               <th>Criteria</th>
@@ -11388,7 +11394,7 @@
             <tr><td>Holdings with negative gain (full portfolio)</td><td style="text-align:right;">${diag.universeCount}</td></tr>
             <tr><td>…with avg cost basis (taxable loss computable)</td><td style="text-align:right;">${diag.withCostBasis}</td></tr>
             <tr><td>Excluded · SAI Buy high confidence</td><td style="text-align:right;">${diag.excludedSaiTech}</td></tr>
-            <tr><td>Failed · WTL ≥ ${TAX_PROPOSAL_MAX_WTL_PCT}% (loss shallower than −${TAX_PROPOSAL_MAX_WTL_PCT}%)</td><td style="text-align:right;">${diag.failedWtl}</td></tr>
+            <tr><td>Failed · WTD ≥ ${TAX_PROPOSAL_MAX_WTD_PCT}% (loss shallower than −${TAX_PROPOSAL_MAX_WTD_PCT}%)</td><td style="text-align:right;">${diag.failedWtd}</td></tr>
             <tr><td><strong>Qualified loss-sell candidates</strong></td><td style="text-align:right;"><strong>${diag.qualified}</strong></td></tr>
           </tbody>
         </table>`;
@@ -11415,7 +11421,7 @@
       const lossPts = row.lossScore != null ? Math.round(row.lossScore) : 0;
       const saiLabel = row.saiWeight != null ? `SAI +${row.saiWeight}` : "SAI";
       const tags = [
-        { label: `WTL &lt; ${TAX_PROPOSAL_MAX_WTL_PCT}%`, pass: row.deepLoss },
+        { label: `WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%`, pass: row.deepLoss },
         { label: `Loss % +${lossPts}`, pass: lossPts > 0 },
         { label: row.hasSellPlan ? (row.isTrim ? "Trim · plan cap" : "Plan cap") : "Holdings sell", pass: true },
         { label: saiLabel, pass: true },
@@ -11453,16 +11459,16 @@
       return `
         <p>Helps plan <strong>tax-loss harvesting</strong>: which underwater holdings are the most attractive sells, then which <strong>winner trims</strong> can offset those losses. Planning aid only — not tax advice.</p>
         <h4>Tax-loss sell candidates (by %-loss)</h4>
-        <p>Thesis: the deeper the unrealized loss vs cost, the more attractive the sell. Worth-to-invest (WTL) = market value ÷ cost = 100% + Gain %.</p>
+        <p>Thesis: the deeper the unrealized loss vs cost, the more attractive the sell. Worth-to-divest (WTD) = market value ÷ cost = 100% + Gain %.</p>
         <ul>
-          <li>Qualify: <strong>WTL &lt; ${TAX_PROPOSAL_MAX_WTL_PCT}%</strong> (Gain % &lt; −${TAX_PROPOSAL_MAX_WTL_PCT})</li>
+          <li>Qualify: <strong>WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%</strong> (Gain % &lt; −${TAX_PROPOSAL_MAX_WTD_PCT})</li>
           <li>Avg cost required; excluded: SAI Buy with high confidence</li>
-          <li>Ranking gives <strong>up to +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT}</strong> from %-loss severity (−50% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT / 2}, −100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT}), plus plan/trim/SAI bonuses</li>
+          <li>Ranking gives <strong>−50% → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}</strong>, <strong>−100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT}</strong> from %-loss, plus plan/trim/SAI bonuses</li>
         </ul>
         <h4>Loss pool</h4>
         <p>Sum of negative Net Gains from the current Simulation table scope (selection + filters). Updates when you change scope or pricing mode.</p>
         <h4>Winner-trim candidates</h4>
-        <p>All holdings with positive unrealized gain, scanned across the full portfolio:</p>
+        <p>Separate ranking from tax-loss sells (%-loss weight does <strong>not</strong> change winner-trim order). All holdings with positive unrealized gain:</p>
         <ul>
           <li>Gain ≥ ${TAX_PROPOSAL_MIN_GAIN_PCT}% on the holding (avg cost required)</li>
           <li>Price ≥ ${TAX_PROPOSAL_PEAK_PCT}% of 52-week high (Fundamentals)</li>
