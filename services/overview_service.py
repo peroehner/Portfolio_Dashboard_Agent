@@ -75,6 +75,8 @@ class OverviewService:
             prices = {symbol: None for symbol in symbols}
             data = None
             try:
+                from services.market_cache import get_yf_session
+
                 with yf_throttle():
                     data = yf.download(
                         symbols,
@@ -82,6 +84,7 @@ class OverviewService:
                         progress=False,
                         auto_adjust=True,
                         group_by="column",
+                        session=get_yf_session(),
                     )
                 if data.empty:
                     return prices
