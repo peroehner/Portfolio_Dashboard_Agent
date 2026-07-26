@@ -12,7 +12,7 @@ Companion docs: [DATA.md](./DATA.md) (persistence), [auto_run_overview.md](./aut
 
 | Layer | What | Typical freshness |
 |-------|------|-------------------|
-| **Server schedule** | Background price sync → Postgres `symbol_market` | Every **5 min** (`background_sync_loop`). Sync uses the browser-impersonating Yahoo session (`YF_IMPERSONATE` / curl_cffi); bare `yf.download` without that session is often blocked on Render and can leave closes stuck on the prior session. |
+| **Server schedule** | Background price sync → Postgres `symbol_market` | Every **5 min** (`background_sync_loop`). Sync uses the browser-impersonating Yahoo session (`YF_IMPERSONATE` / curl_cffi). When daily history lags the latest US session (common from datacenter IPs), Sync prefers newer `regularMarketPrice` / `regularMarketTime` from quoteSummary over the stale history bar. |
 | **Server TTL caches** | Yahoo/Finnhub fundamentals, news, ticker info (in-process + optional DB blob) | **~6h / 1h / 15m** (env-tunable) |
 | **Client memory** | Browser view caches; mobile React state | Web: **~60s** on some views; mobile: until remount / refresh |
 

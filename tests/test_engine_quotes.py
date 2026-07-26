@@ -36,6 +36,22 @@ class PriceAsOfFromInfoTests(unittest.TestCase):
         self.assertEqual(as_of, "2026-07-24")
 
 
+class InfoQuoteNewerTests(unittest.TestCase):
+    def test_prefers_info_when_history_session_lags(self) -> None:
+        self.assertTrue(
+            PortfolioEngine._info_quote_is_newer(
+                "2026-07-23", "2026-07-24", 190.01, 204.89
+            )
+        )
+
+    def test_keeps_history_when_same_session(self) -> None:
+        self.assertFalse(
+            PortfolioEngine._info_quote_is_newer(
+                "2026-07-24", "2026-07-24", 204.89, 204.89
+            )
+        )
+
+
 class FetchMarketQuotesTests(unittest.TestCase):
     @patch("engine.yf.download")
     def test_download_receives_impersonating_session(self, download) -> None:
@@ -108,6 +124,32 @@ class FetchMarketQuotesTests(unittest.TestCase):
                 side_effect=lambda fn, items: [fn(x) for x in items],
             ):
                 quotes = engine.fetch_market_quotes(["HUBS"], include_analyst_targets=False)
+
+        self.assertEqual(quotes["HUBS"]["currentPrice"], 204.89)
+        self.assertEqual(quotes["HUBS"]["priceAsOf"], "2026-07-24")
+        self.assertEqual(quotes["HUBS"]["dayChangePct"], 7.83)
+
+    @patch("engine.yf.download")
+    def test_prefers_newer_info_when_history_stuck_prior_session(self, download) -> None:
+        """Render chart feed can end Thursday while quoteSummary has Friday close."""
+        idx = pd.to_datetime(["2026-07-22", "2026-07-23"])
+        frame = pd.DataFrame({"Close": [204.90, 190.01]}, index=idx)
+        download.return_value = frame
+        ts = int(datetime(2026, 7, 24, 16, 0, tzinfo=ZoneInfo("America/New_York")).timestamp())
+        info = {
+            "regularMarketPrice": 204.89,
+            "previousClose": 190.01,
+            "regularMarketChangePercent": 7.83,
+            "regularMarketTime": ts,
+        }
+
+        engine = PortfolioEngine()
+        with patch("services.market_cache.get_yf_session", return_value=object()), patch.object(
+            engine, "_fetch_ticker_info", return_value=info
+        ), patch(
+            "services.company_name.resolve_company_name", return_value="HubSpot"
+        ):
+            quotes = engine.fetch_market_quotes(["HUBS"], include_analyst_targets=False)
 
         self.assertEqual(quotes["HUBS"]["currentPrice"], 204.89)
         self.assertEqual(quotes["HUBS"]["priceAsOf"], "2026-07-24")
