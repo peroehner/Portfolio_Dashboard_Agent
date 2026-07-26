@@ -102,8 +102,22 @@ class PortfolioEngine:
             price = prices[ticker]
             as_of = price_as_of.get(ticker)
             day_pct = day_changes.get(ticker)
-            if price is None:
-                price, as_of = self._price_as_of_from_info(info)
+            info_price, info_as_of = self._price_as_of_from_info(info)
+            # Datacenter Yahoo chart feeds sometimes omit the latest US session
+            # (history ends prior day) while quoteSummary already has that close.
+            # Prefer the newer info quote so Sync cannot rewrite stale closes.
+            if self._info_quote_is_newer(as_of, info_as_of, price, info_price):
+                logging.info(
+                    "Using newer quoteSummary for %s (history asOf=%s → info asOf=%s)",
+                    ticker,
+                    as_of,
+                    info_as_of,
+                )
+                price = info_price
+                as_of = info_as_of
+                day_pct = self._day_change_pct_from_info(info, price)
+            elif price is None:
+                price, as_of = info_price, info_as_of
             if day_pct is None:
                 day_pct = self._day_change_pct_from_info(info, price)
             company_name = resolve_company_name(ticker, info)
@@ -163,7 +177,7 @@ class PortfolioEngine:
 
     @staticmethod
     def _price_as_of_from_info(info: dict) -> tuple[float | None, str | None]:
-        """Last-resort price from quoteSummary when history is unavailable."""
+        """Price + session date from quoteSummary (regularMarket*)."""
         if not info:
             return None, None
         raw = info.get("regularMarketPrice") or info.get("currentPrice")
@@ -186,6 +200,28 @@ class PortfolioEngine:
             except Exception:  # noqa: BLE001
                 as_of = None
         return price, as_of
+
+    @staticmethod
+    def _info_quote_is_newer(
+        hist_as_of: str | None,
+        info_as_of: str | None,
+        hist_price: float | None,
+        info_price: float | None,
+    ) -> bool:
+        """True when quoteSummary reflects a newer session than daily history."""
+        if info_price is None:
+            return False
+        if info_as_of and (hist_as_of is None or info_as_of > hist_as_of):
+            return True
+        if (
+            info_as_of
+            and hist_as_of == info_as_of
+            and hist_price is not None
+            and abs(float(info_price) - float(hist_price)) > 0.05
+        ):
+            # Same calendar label but history bar disagrees with the live quote.
+            return True
+        return False
 
     def _fetch_ticker_info(self, ticker: str) -> dict:
         from services.market_cache import make_ticker, ticker_info_cache
