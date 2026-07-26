@@ -41,11 +41,32 @@ from services.market_data_service import MarketDataService
 # burst past that, causing 429s. An optional global minimum interval between
 # Finnhub requests smooths the burst. It's OFF by default because a blocking
 # throttle on the synchronous bulk endpoint could exceed the server request
-# timeout for large portfolios; we instead rely on retry-on-429 plus not caching
-# empty results (so reloads converge). Set FINNHUB_MIN_INTERVAL_SECONDS to enable.
+# timeout for large portfolios. Set FINNHUB_MIN_INTERVAL_SECONDS to enable.
 _finnhub_min_interval = float(os.environ.get("FINNHUB_MIN_INTERVAL_SECONDS", "0"))
 _finnhub_throttle_lock = threading.Lock()
 _finnhub_last_call = [0.0]
+
+# Portfolio-wide 429 circuit-breaker. When any Finnhub call hits 429 the whole
+# process pauses Finnhub calls for this many seconds so the rate-limit window
+# has time to clear before the next symbol tries. Without it, concurrent calls
+# still in-flight retry serially (up to 3× with sleeps) and the bulk fetch
+# stalls for many seconds per symbol.
+_finnhub_429_cooldown_seconds = float(
+    os.environ.get("FINNHUB_429_COOLDOWN_SECONDS", "60")
+)
+_finnhub_429_until = [0.0]   # monotonic timestamp; 0 = not in cooldown
+_finnhub_429_lock = threading.Lock()
+
+
+def _finnhub_in_429_cooldown() -> bool:
+    return time.monotonic() < _finnhub_429_until[0]
+
+
+def _finnhub_mark_429() -> None:
+    if _finnhub_429_cooldown_seconds <= 0:
+        return
+    with _finnhub_429_lock:
+        _finnhub_429_until[0] = time.monotonic() + _finnhub_429_cooldown_seconds
 
 
 def _finnhub_throttle() -> None:
@@ -638,6 +659,10 @@ class FundamentalsService:
         provider = self.active_news_provider()
         if _in_cooldown(f"news:{symbol}"):
             return []
+        # Skip Finnhub entirely while the portfolio-wide 429 circuit-breaker is open.
+        if provider == "finnhub" and _finnhub_in_429_cooldown():
+            logger.debug("Finnhub 429 circuit-breaker active; using yfinance for %s", symbol)
+            provider = "yfinance"
         try:
             if provider == "finnhub":
                 return news_cache.get(f"finnhub:{symbol}", lambda: self._fetch_finnhub_news(symbol))
@@ -645,6 +670,8 @@ class FundamentalsService:
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to fetch news for %s via %s: %s", symbol, provider, exc)
             if provider == "finnhub":
+                # Open the circuit-breaker so remaining parallel calls skip Finnhub.
+                _finnhub_mark_429()
                 try:
                     return news_cache.get(f"yfinance:{symbol}", lambda: self._fetch_yfinance_news(symbol))
                 except Exception as fallback_exc:  # noqa: BLE001
@@ -704,7 +731,10 @@ class FundamentalsService:
         ctx = ssl.create_default_context(cafile=certifi.where())
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
         is_finnhub = "finnhub.io" in url
-        attempts = 3 if is_finnhub else 1
+        # One immediate retry on 429 (short sleep). The portfolio-wide circuit-
+        # breaker in fetch_recent_news already prevents follow-on calls from
+        # stacking up, so we no longer need the old 3-attempt × 1.5s chain.
+        attempts = 2 if is_finnhub else 1
         for attempt in range(attempts):
             if is_finnhub:
                 _finnhub_throttle()
@@ -712,9 +742,8 @@ class FundamentalsService:
                 with urllib.request.urlopen(req, timeout=20, context=ctx) as response:
                     return json.loads(response.read().decode("utf-8"))
             except urllib.error.HTTPError as exc:
-                # 429 (rate limited) is retryable with backoff; re-raise otherwise.
                 if exc.code == 429 and attempt < attempts - 1:
-                    time.sleep(1.5 * (attempt + 1))
+                    time.sleep(0.5)
                     continue
                 raise
 
