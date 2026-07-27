@@ -10439,10 +10439,11 @@
     const TAX_PROPOSAL_MIN_GAIN_PCT = 15;
     const TAX_PROPOSAL_PEAK_PCT = 95;
     const TAX_PROPOSAL_MAX_POSITIONS = 10;
-    // Worth-to-divest (WTD) = 100 + gainPct. Deep tax-loss sells: WTD < 50% ⇒ gainPct < -50.
-    const TAX_PROPOSAL_MAX_WTD_PCT = 50;
-    const TAX_PROPOSAL_LOSS_SCORE_WEIGHT = 50; // max %-loss rank points (−50% → +30, −100% → +50)
-    const TAX_PROPOSAL_LOSS_SCORE_AT_GATE = 30; // points at the WTD < 50% gate (−50% loss)
+    // Loss-score ranks deeper %-losses higher (−50% → +30, −100% → +50).
+    // No hard WTD gate: all simulation-scope losers qualify; the slider filters.
+    const TAX_PROPOSAL_LOSS_SCORE_WEIGHT = 50;
+    const TAX_PROPOSAL_LOSS_SCORE_AT_GATE = 30; // points at −50% loss (anchor on the curve)
+    const TAX_PROPOSAL_LOSS_SCORE_ANCHOR_PCT = 50; // %-loss where AT_GATE points apply
     const TAX_PROPOSAL_SAI_ACTION_WEIGHT = { sell: 20, watch: 12, hold: 4, buy: 0 };
     const TAX_PROPOSAL_SAI_CONF_BONUS = { high: 3, medium: 2, low: 1 };
     let taxProposalLossScoreThreshold = 0;
@@ -11099,27 +11100,28 @@
       return weight;
     }
 
-    /** Worth-to-divest: market value as % of cost (100 + gainPct). */
+    /** Worth-to-divest: market value as % of cost (100 + gainPct). Informational only. */
     function taxProposalWtdPct(gainPct) {
       if (!Number.isFinite(gainPct)) return null;
       return 100 + gainPct;
     }
 
-    /** %-loss vs cost (null when flat/green; 50 when WTD is 50%). */
+    /** %-loss vs cost (null when flat/green). */
     function taxProposalLossPct(gainPct) {
       if (!Number.isFinite(gainPct) || gainPct >= 0) return null;
       return Math.abs(gainPct);
     }
 
     /**
-     * Rank weight for deep %-losses (−50% → +30, −100% → +50).
+     * Rank weight for %-losses (−50% → +30, −100% → +50).
      * Thesis: the deeper the loss vs cost, the more attractive the tax-loss sell.
      * Applies only to tax-loss sell candidates — not winner-trim ranking.
+     * Not a hard qualify gate; the Loss-score slider filters the list.
      */
     function taxProposalLossScore(gainPct) {
       const lossPct = taxProposalLossPct(gainPct);
       if (lossPct == null || lossPct <= 0) return 0;
-      const gate = TAX_PROPOSAL_MAX_WTD_PCT;
+      const gate = TAX_PROPOSAL_LOSS_SCORE_ANCHOR_PCT;
       const floorPts = TAX_PROPOSAL_LOSS_SCORE_AT_GATE;
       const maxPts = TAX_PROPOSAL_LOSS_SCORE_WEIGHT;
       if (lossPct <= gate) {
@@ -11150,7 +11152,6 @@
         universeCount: loserRows.length,
         withCostBasis: 0,
         excludedSaiTech: 0,
-        failedWtd: 0,
         qualified: 0,
       };
       const candidates = [];
@@ -11159,11 +11160,6 @@
         const gainPct = Number(screenRow.holding?.gainPct);
         const wtdPct = taxProposalWtdPct(gainPct);
         const lossPct = taxProposalLossPct(gainPct);
-        const deepLoss = wtdPct != null && wtdPct < TAX_PROPOSAL_MAX_WTD_PCT;
-        if (!deepLoss) {
-          diagnostics.failedWtd += 1;
-          return;
-        }
         const price = Number(screenRow.currentPrice);
         const costBasis = Number(screenRow.holding?.costBasis);
         const lossPerShare = (Number.isFinite(price) && Number.isFinite(costBasis))
@@ -11203,7 +11199,6 @@
           gainPct,
           lossPct,
           wtdPct,
-          deepLoss: true,
           hasSellPlan,
           isTrim,
           score,
@@ -11396,8 +11391,8 @@
           <td style="text-align:right;">${renderColoredMoneyCell(-cand.netLossMax)}</td>
           <td style="text-align:right;">${formatMoney(cand.cashGenerated)}</td>
           <td style="text-align:right;" class="negative" title="Unrealized loss vs cost basis">${cand.lossPct != null ? `−${cand.lossPct.toFixed(1)}%` : "—"}</td>
-          <td style="text-align:right;" title="Worth-to-divest = market value ÷ cost (100% + Gain %). Deep-loss gate: WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%">${cand.wtdPct != null ? `${cand.wtdPct.toFixed(1)}%` : "—"}</td>
-          <td style="text-align:right;" title="%-loss rank points (−50% → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}, −100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT})">${Math.round(cand.lossScore || 0)}</td>
+          <td style="text-align:right;" title="Market value ÷ cost (100% + Gain %)">${cand.wtdPct != null ? `${cand.wtdPct.toFixed(1)}%` : "—"}</td>
+          <td style="text-align:right;" title="%-loss rank points (−${TAX_PROPOSAL_LOSS_SCORE_ANCHOR_PCT}% → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}, −100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT})">${Math.round(cand.lossScore || 0)}</td>
         </tr>`;
       }).join("");
     }
@@ -11416,7 +11411,7 @@
             step="1"
             value="${value}"
             oninput="onTaxLossScoreThresholdChange(this.value)"
-            title="0 = all WTD-qualified candidates count toward the loss pool. Raise to require deeper %-loss."
+            title="0 = all Simulation-scope loss candidates count. Raise to require deeper %-loss."
           />
           <span class="sim-tax-threshold-val" id="taxLossScoreThresholdVal">${value}</span>
         </div>`;
@@ -11432,8 +11427,8 @@
       if (!candidates.length) {
         return `
           <div class="sim-tax-section">
-            <h4>Tax-loss sell candidates (WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%)</h4>
-            <p class="sim-tax-proposal-note">No holdings qualify yet — need unrealized loss with worth-to-divest below ${TAX_PROPOSAL_MAX_WTD_PCT}% of cost (Gain % &lt; −${TAX_PROPOSAL_MAX_WTD_PCT}) within ${scopeLabel}.</p>
+            <h4>Tax-loss sell candidates</h4>
+            <p class="sim-tax-proposal-note">No holdings with computable unrealized losses in ${scopeLabel} (need avg cost; SAI Buy high confidence is excluded).</p>
           </div>`;
       }
       const selectedCount = proposal?.selectedLossCount ?? 0;
@@ -11443,7 +11438,7 @@
       const excludedByThreshold = Math.max(0, (proposal?.allCandidatePool ?? 0) - selectedPool);
       return `
         <div class="sim-tax-section">
-          <h4>Tax-loss sell candidates (${totalCount}) · WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%</h4>
+          <h4>Tax-loss sell candidates (${totalCount})</h4>
           ${renderTaxLossScoreThresholdBar(threshold, maxLossScore)}
           <table>
             <thead>
@@ -11464,7 +11459,7 @@
             <strong>${selectedCount}</strong> of ${totalCount} candidates
             (loss-score ≥ ${Math.round(threshold)}).
             ${excludedByThreshold > 0 ? `Below threshold: ${formatMoney(excludedByThreshold)}.` : ""}
-            ${excludedByRules > 0 ? `Outside WTD/exclusion rules in ${scopeLabel}: ${formatMoney(excludedByRules)}.` : ""}
+            ${excludedByRules > 0 ? `Still unpaired in ${scopeLabel} (no cost basis / SAI excluded): ${formatMoney(excludedByRules)}.` : ""}
             Hover rows for SAI/tech details.
           </p>
         </div>`;
@@ -11528,12 +11523,13 @@
       return `
         <p>Helps plan <strong>tax-loss harvesting</strong>: which underwater holdings are the most attractive sells, then which <strong>winner trims</strong> can offset those losses. Planning aid only — not tax advice.</p>
         <h4>Tax-loss sell candidates (by %-loss)</h4>
-        <p>Thesis: the deeper the unrealized loss vs cost, the more attractive the sell. Worth-to-divest (WTD) = market value ÷ cost = 100% + Gain %.</p>
+        <p>Thesis: the deeper the unrealized loss vs cost, the more attractive the sell. All Simulation-scope symbols with computable unrealized losses qualify; the Loss-score slider is the manual filter.</p>
         <ul>
-          <li>Qualify: <strong>WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%</strong> (Gain % &lt; −${TAX_PROPOSAL_MAX_WTD_PCT})</li>
-          <li>Avg cost required; excluded: SAI Buy with high confidence</li>
-          <li><strong>Loss-score</strong> from %-loss: <strong>−50% → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}</strong>, <strong>−100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT}</strong></li>
-          <li><strong>Loss-score threshold</strong> slider: 0 = all WTD-qualified rows count toward the loss pool; raise to require deeper losses</li>
+          <li>Universe: negative-gain holdings in the current Simulation scope (avg cost required)</li>
+          <li>Excluded: SAI Buy with high confidence</li>
+          <li><strong>Loss-score</strong> from %-loss: <strong>−${TAX_PROPOSAL_LOSS_SCORE_ANCHOR_PCT}% → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}</strong>, <strong>−100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT}</strong></li>
+          <li><strong>Loss-score threshold</strong> slider: 0 = all candidates count toward the loss pool; raise to require deeper losses</li>
+          <li>WTD % (market value ÷ cost) is shown for reference only — it is not a hard gate</li>
         </ul>
         <h4>Selected loss pool</h4>
         <p>Sum of max loss from tax-loss candidates that meet the current loss-score threshold. Winner-trim pairing uses this amount.</p>
