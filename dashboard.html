@@ -3649,10 +3649,41 @@
     }
     .sim-tax-proposal {
       margin-top: 0.85rem;
-      padding: 0.85rem 0.95rem;
+      padding: 0.65rem 0.75rem;
       border: 1px solid var(--border);
       border-radius: 8px;
       background: var(--panel-2);
+    }
+    .sim-tax-section + .sim-tax-section {
+      margin-top: 1rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid var(--border);
+    }
+    .sim-tax-section h4 {
+      margin: 0 0 0.35rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .sim-tax-threshold-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.75rem;
+      margin: 0.2rem 0 0.45rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .sim-tax-threshold-bar input[type="range"] {
+      flex: 1 1 160px;
+      max-width: 280px;
+      accent-color: var(--accent);
+    }
+    .sim-tax-threshold-val {
+      font-weight: 700;
+      color: var(--text);
+      min-width: 1.5rem;
+      text-align: right;
     }
     .sim-tax-proposal-head {
       display: flex;
@@ -3687,6 +3718,12 @@
     }
     .sim-tax-proposal tr.sim-tax-pick-row td:first-child {
       font-weight: 700;
+    }
+    .sim-tax-proposal tr.sim-tax-loss-selected td {
+      background: rgba(239, 68, 68, 0.08);
+    }
+    .sim-tax-proposal tr.sim-tax-loss-muted td {
+      opacity: 0.42;
     }
     .sim-tax-pick-badge {
       display: inline-block;
@@ -4681,6 +4718,7 @@
         <span class="sim-legs-sep" aria-hidden="true"></span>
         <button type="button" class="secondary filter-btn active" data-sim-pricing="threshold" onclick="setSimulationPricingMode('threshold')" title="Execute planned sizes at their threshold prices (default)">Thresholds</button>
         <button type="button" class="secondary filter-btn" data-sim-pricing="current" onclick="setSimulationPricingMode('current')" title="Execute planned sizes at today's price — net cash and gains for tax-balancing what-if">Current Price</button>
+        <button type="button" class="help-btn" id="simTaxProposalHelpBtn" onclick="openTaxLossProposalHelp()" title="Tax-loss selling proposal" aria-label="Tax-loss selling proposal help" hidden>?</button>
         <button type="button" class="success" style="margin-left:auto;" onclick="saveSimulationSnapshot()">Save to Summary</button>
         <span class="sel-clip-actions" data-clip-tab="simulation" style="margin-left:0.4rem;"></span>
       </div>
@@ -5788,6 +5826,7 @@
         simulationFilter,
         simulationLegs,
         simulationPricingMode,
+        taxProposalLossScoreThreshold,
         fibMapBand,
         fibMapTicker,
         fibConfirmedOnly,
@@ -5834,6 +5873,9 @@
         }
         if (new Set(["threshold", "current"]).has(saved.simulationPricingMode)) {
           simulationPricingMode = saved.simulationPricingMode;
+        }
+        if (Number.isFinite(saved.taxProposalLossScoreThreshold)) {
+          taxProposalLossScoreThreshold = Math.max(0, Number(saved.taxProposalLossScoreThreshold));
         }
 
         const fibBands = new Set(["all", "critical", "warning", "neutral"]);
@@ -10403,6 +10445,8 @@
     const TAX_PROPOSAL_LOSS_SCORE_AT_GATE = 30; // points at the WTD < 50% gate (−50% loss)
     const TAX_PROPOSAL_SAI_ACTION_WEIGHT = { sell: 20, watch: 12, hold: 4, buy: 0 };
     const TAX_PROPOSAL_SAI_CONF_BONUS = { high: 3, medium: 2, low: 1 };
+    let taxProposalLossScoreThreshold = 0;
+    let lastTaxProposalContext = null;
     let fundamentalsCacheAt = 0;
 
     function screeningRowSentiment(row) {
@@ -10909,11 +10953,15 @@
       document.querySelectorAll("#view-simulation [data-sim-pricing]").forEach((button) => {
         button.classList.toggle("active", button.dataset.simPricing === simulationPricingMode);
       });
+      updateTaxProposalHelpButton();
     }
 
     function updateSimulationCaption() {
       const el = document.getElementById("simulationCaption");
       if (!el) return;
+      const showTaxProposal = simulationPricingMode === "current" && simulationLegs !== "buys";
+      el.hidden = showTaxProposal;
+      if (showTaxProposal) return;
       el.textContent = simulationPricingMode === "current"
         ? "executes planned share sizes at today's price · Close % still uses thresholds · ignores fees/taxes/slippage · flows, not a balance"
         : "assumes every boundary hits at threshold prices · ignores fees/taxes/slippage · flows, not a balance";
@@ -11168,18 +11216,32 @@
         });
       });
       candidates.sort((a, b) => b.score - a.score || b.netLossMax - a.netLossMax || b.lossPct - a.lossPct);
-      const qualifiedLossPool = candidates.reduce((sum, row) => sum + Math.max(0, Number(row.netLossMax) || 0), 0);
-      return { candidates, diagnostics, qualifiedLossPool };
+      return { candidates, diagnostics };
     }
 
-    function buildTaxLossProposal(lossPool, scopedSymbols = null) {
+    function taxProposalSelectedLossSells(lossSells, lossScoreThreshold = taxProposalLossScoreThreshold) {
+      const threshold = Math.max(0, Number(lossScoreThreshold) || 0);
+      const selected = (lossSells?.candidates || []).filter(
+        (row) => (Number(row.lossScore) || 0) >= threshold,
+      );
+      const selectedLossPool = selected.reduce(
+        (sum, row) => sum + Math.max(0, Number(row.netLossMax) || 0),
+        0,
+      );
+      return { selected, selectedLossPool, threshold };
+    }
+
+    function buildTaxLossProposal(lossPool, scopedSymbols = null, lossScoreThreshold = taxProposalLossScoreThreshold) {
       const winnerRows = taxProposalWinnerUniverse();
       const fundBySymbol = fundamentalsMapBySymbol();
       const lossRows = taxProposalLossUniverse();
       const sellPlan = computeTradePlan(lossRows, "sells", "current");
       const sellPlanBySymbol = new Map(sellPlan.symbols.map((row) => [row.symbol, row]));
       const lossSells = buildTaxLossSellCandidates(scopedSymbols);
-      const qualifiedLossPool = Number(lossSells?.qualifiedLossPool) || 0;
+      const { selected, selectedLossPool, threshold } = taxProposalSelectedLossSells(
+        lossSells,
+        lossScoreThreshold,
+      );
       const diagnostics = {
         universeCount: winnerRows.length,
         withCostBasis: 0,
@@ -11256,7 +11318,7 @@
         });
       });
       candidates.sort((a, b) => b.score - a.score || b.netGainsMax - a.netGainsMax);
-      let remaining = qualifiedLossPool;
+      let remaining = selectedLossPool;
       const picks = [];
       for (const cand of candidates) {
         if (picks.length >= TAX_PROPOSAL_MAX_POSITIONS || remaining <= 0) break;
@@ -11275,11 +11337,19 @@
         remaining = Math.max(0, remaining - suggestGain);
       }
       const offsetGain = picks.reduce((sum, row) => sum + row.suggestGain, 0);
+      const allCandidatePool = (lossSells.candidates || []).reduce(
+        (sum, row) => sum + Math.max(0, Number(row.netLossMax) || 0),
+        0,
+      );
       return {
-        lossPool: qualifiedLossPool,
-        unqualifiedLossPool: Math.max(0, (Number(lossPool) || 0) - qualifiedLossPool),
+        lossPool: selectedLossPool,
+        allCandidatePool,
+        selectedLossCount: selected.length,
+        totalLossCandidateCount: (lossSells.candidates || []).length,
+        lossScoreThreshold: threshold,
+        unqualifiedLossPool: Math.max(0, (Number(lossPool) || 0) - allCandidatePool),
         offsetGain,
-        remainingLoss: Math.max(0, qualifiedLossPool - offsetGain),
+        remainingLoss: Math.max(0, selectedLossPool - offsetGain),
         picks,
         candidateCount: candidates.length,
         candidates,
@@ -11314,79 +11384,143 @@
       }).join("");
     }
 
-    function renderTaxLossSellCandidateRows(candidates) {
+    function renderTaxLossSellCandidateRows(candidates, lossScoreThreshold = 0) {
+      const threshold = Math.max(0, Number(lossScoreThreshold) || 0);
       return candidates.map((cand) => {
-        const rowHover = `Loss score ${Math.round(cand.score)} · SAI ${cand.saiAction} (${cand.saiConfidence}) · Tech ${cand.techBias}`;
+        const qualifies = (Number(cand.lossScore) || 0) >= threshold;
+        const rowHover = `Loss-score ${Math.round(cand.lossScore || 0)} · total rank ${Math.round(cand.score)} · SAI ${cand.saiAction} (${cand.saiConfidence}) · Tech ${cand.techBias}`;
         return `
-        <tr title="${escapeHtml(rowHover)}">
+        <tr class="${qualifies ? "sim-tax-loss-selected" : "sim-tax-loss-muted"}" title="${escapeHtml(rowHover)}">
           <td><a class="sim-tax-symbol-link" href="#" onclick="selectSymbol('${cand.symbol}'); showView('portfolio'); return false;">${escapeHtml(cand.symbol)}</a></td>
           <td>${renderTaxProposalTrimCell(cand)}</td>
           <td style="text-align:right;">${renderColoredMoneyCell(-cand.netLossMax)}</td>
           <td style="text-align:right;">${formatMoney(cand.cashGenerated)}</td>
           <td style="text-align:right;" class="negative" title="Unrealized loss vs cost basis">${cand.lossPct != null ? `−${cand.lossPct.toFixed(1)}%` : "—"}</td>
           <td style="text-align:right;" title="Worth-to-divest = market value ÷ cost (100% + Gain %). Deep-loss gate: WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%">${cand.wtdPct != null ? `${cand.wtdPct.toFixed(1)}%` : "—"}</td>
+          <td style="text-align:right;" title="%-loss rank points (−50% → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}, −100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT})">${Math.round(cand.lossScore || 0)}</td>
         </tr>`;
       }).join("");
     }
 
-    function renderTaxLossSellTable(lossSells) {
+    function renderTaxLossScoreThresholdBar(threshold, maxScore) {
+      const max = Math.max(1, Math.round(Number(maxScore) || TAX_PROPOSAL_LOSS_SCORE_WEIGHT));
+      const value = Math.max(0, Math.min(max, Math.round(Number(threshold) || 0)));
+      return `
+        <div class="sim-tax-threshold-bar">
+          <label for="taxLossScoreThreshold">Loss-score threshold</label>
+          <input
+            type="range"
+            id="taxLossScoreThreshold"
+            min="0"
+            max="${max}"
+            step="1"
+            value="${value}"
+            oninput="onTaxLossScoreThresholdChange(this.value)"
+            title="0 = all WTD-qualified candidates count toward the loss pool. Raise to require deeper %-loss."
+          />
+          <span class="sim-tax-threshold-val" id="taxLossScoreThresholdVal">${value}</span>
+        </div>`;
+    }
+
+    function renderTaxLossSellSection(lossSells, proposal, scopeLabel) {
       const candidates = lossSells?.candidates || [];
+      const threshold = proposal?.lossScoreThreshold ?? taxProposalLossScoreThreshold;
+      const maxLossScore = candidates.reduce(
+        (max, row) => Math.max(max, Number(row.lossScore) || 0),
+        TAX_PROPOSAL_LOSS_SCORE_WEIGHT,
+      );
       if (!candidates.length) {
         return `
-          <h4 style="margin:0.65rem 0 0.35rem;font-size:0.82rem;font-weight:600;color:var(--text);">
-            Tax-loss sell candidates (WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%)
-          </h4>
-          <p class="sim-tax-proposal-note">No holdings qualify yet — need unrealized loss with worth-to-divest below ${TAX_PROPOSAL_MAX_WTD_PCT}% of cost (Gain % &lt; −${TAX_PROPOSAL_MAX_WTD_PCT}).</p>`;
+          <div class="sim-tax-section">
+            <h4>Tax-loss sell candidates (WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%)</h4>
+            <p class="sim-tax-proposal-note">No holdings qualify yet — need unrealized loss with worth-to-divest below ${TAX_PROPOSAL_MAX_WTD_PCT}% of cost (Gain % &lt; −${TAX_PROPOSAL_MAX_WTD_PCT}) within ${scopeLabel}.</p>
+          </div>`;
+      }
+      const selectedCount = proposal?.selectedLossCount ?? 0;
+      const totalCount = proposal?.totalLossCandidateCount ?? candidates.length;
+      const selectedPool = proposal?.lossPool ?? 0;
+      const excludedByRules = proposal?.unqualifiedLossPool ?? 0;
+      const excludedByThreshold = Math.max(0, (proposal?.allCandidatePool ?? 0) - selectedPool);
+      return `
+        <div class="sim-tax-section">
+          <h4>Tax-loss sell candidates (${totalCount}) · WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%</h4>
+          ${renderTaxLossScoreThresholdBar(threshold, maxLossScore)}
+          <table>
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Max sell</th>
+                <th style="text-align:right;">Max loss</th>
+                <th style="text-align:right;">Cash</th>
+                <th style="text-align:right;">Loss %</th>
+                <th style="text-align:right;">WTD %</th>
+                <th style="text-align:right;">Loss-score</th>
+              </tr>
+            </thead>
+            <tbody>${renderTaxLossSellCandidateRows(candidates, threshold)}</tbody>
+          </table>
+          <p class="sim-tax-proposal-note">
+            Selected loss pool <strong>${formatMoney(selectedPool)}</strong> from
+            <strong>${selectedCount}</strong> of ${totalCount} candidates
+            (loss-score ≥ ${Math.round(threshold)}).
+            ${excludedByThreshold > 0 ? `Below threshold: ${formatMoney(excludedByThreshold)}.` : ""}
+            ${excludedByRules > 0 ? `Outside WTD/exclusion rules in ${scopeLabel}: ${formatMoney(excludedByRules)}.` : ""}
+            Hover rows for SAI/tech details.
+          </p>
+        </div>`;
+    }
+
+    function renderTaxProposalTable(candidates, picks, proposal) {
+      const pickCount = (picks || []).length;
+      if (!candidates.length) {
+        return `
+          <div class="sim-tax-section">
+            <h4>Winner-trim candidates</h4>
+            <p class="sim-tax-proposal-note">No winner trims matched every criterion for the current selected loss pool.</p>
+          </div>`;
       }
       return `
-        <h4 style="margin:0.65rem 0 0.35rem;font-size:0.82rem;font-weight:600;color:var(--text);">
-          Tax-loss sell candidates (${candidates.length}) · WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%
-        </h4>
-        <table>
-          <thead>
-            <tr>
-              <th>Symbol</th>
-              <th>Max sell</th>
-              <th style="text-align:right;">Max loss</th>
-              <th style="text-align:right;">Cash</th>
-              <th style="text-align:right;">Loss %</th>
-              <th style="text-align:right;">WTD %</th>
-            </tr>
-          </thead>
-          <tbody>${renderTaxLossSellCandidateRows(candidates)}</tbody>
-        </table>`;
-    }
-
-    function renderTaxProposalTable(candidates, picks) {
-      if (!candidates.length) return "";
-      const pickCount = (picks || []).length;
-      return `
-        <h4 style="margin:0.65rem 0 0.35rem;font-size:0.82rem;font-weight:600;color:var(--text);">
-          Winner-trim candidates (${candidates.length})${pickCount ? ` · ${pickCount} in proposed allocation` : ""}
-        </h4>
-        <table>
-          <thead>
-            <tr>
-              <th>Symbol</th>
-              <th>Proposed sell</th>
-              <th>Max trim</th>
-              <th style="text-align:right;">Proposed gain</th>
-              <th style="text-align:right;">Max gain</th>
-              <th style="text-align:right;">Cash</th>
-              <th style="text-align:right;">Gain %</th>
-              <th style="text-align:right;">52W peak</th>
-            </tr>
-          </thead>
-          <tbody>${renderTaxProposalCandidateRows(candidates, picks)}</tbody>
-        </table>`;
-    }
-
-    function simTaxProposalHeadHtml() {
-      return `
-        <div class="sim-tax-proposal-head">
-          <h3>Tax-Loss Selling Proposal</h3>
-          <button type="button" class="help-btn" onclick="openTaxLossProposalHelp()" title="How the tax-loss selling proposal works" aria-label="How the tax-loss selling proposal works">?</button>
+        <div class="sim-tax-section">
+          <h4>Winner-trim candidates (${candidates.length})${pickCount ? ` · ${pickCount} in proposed allocation` : ""}</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Proposed sell</th>
+                <th>Max trim</th>
+                <th style="text-align:right;">Proposed gain</th>
+                <th style="text-align:right;">Max gain</th>
+                <th style="text-align:right;">Cash</th>
+                <th style="text-align:right;">Gain %</th>
+                <th style="text-align:right;">52W peak</th>
+              </tr>
+            </thead>
+            <tbody>${renderTaxProposalCandidateRows(candidates, picks)}</tbody>
+          </table>
+          <p class="sim-tax-proposal-note">
+            Proposed winner trims offset <strong>${formatMoney(proposal.offsetGain)}</strong>
+            of <strong>${formatMoney(proposal.lossPool)}</strong> selected loss pool
+            ${proposal.remainingLoss > 0 ? `(≈ ${formatMoney(proposal.remainingLoss)} still unpaired)` : "(fully paired)"}.
+            Est. tax shield ≈ <strong>${formatMoney(proposal.offsetGain * SIM_TAX_RATE)}</strong> at ${(SIM_TAX_RATE * 100).toFixed(3)}%.
+            Highlighted rows are the recommended allocation. Hover rows for score/SAI/tech details.
+          </p>
         </div>`;
+    }
+
+    function updateTaxProposalHelpButton() {
+      const btn = document.getElementById("simTaxProposalHelpBtn");
+      if (!btn) return;
+      btn.hidden = simulationPricingMode !== "current" || simulationLegs === "buys";
+    }
+
+    function onTaxLossScoreThresholdChange(value) {
+      taxProposalLossScoreThreshold = Math.max(0, Number(value) || 0);
+      const valEl = document.getElementById("taxLossScoreThresholdVal");
+      if (valEl) valEl.textContent = String(Math.round(taxProposalLossScoreThreshold));
+      saveFilterState();
+      if (lastTaxProposalContext) {
+        renderTaxLossProposal(lastTaxProposalContext.scopedPlan, lastTaxProposalContext.useSelection);
+      }
     }
 
     function taxLossProposalHelpHtml() {
@@ -11398,10 +11532,11 @@
         <ul>
           <li>Qualify: <strong>WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%</strong> (Gain % &lt; −${TAX_PROPOSAL_MAX_WTD_PCT})</li>
           <li>Avg cost required; excluded: SAI Buy with high confidence</li>
-          <li>Ranking gives <strong>−50% → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}</strong>, <strong>−100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT}</strong> from %-loss, plus plan/trim/SAI bonuses</li>
+          <li><strong>Loss-score</strong> from %-loss: <strong>−50% → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}</strong>, <strong>−100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT}</strong></li>
+          <li><strong>Loss-score threshold</strong> slider: 0 = all WTD-qualified rows count toward the loss pool; raise to require deeper losses</li>
         </ul>
-        <h4>Loss pool</h4>
-        <p>Sum of negative Net Gains from the current Simulation table scope (selection + filters). Updates when you change scope or pricing mode.</p>
+        <h4>Selected loss pool</h4>
+        <p>Sum of max loss from tax-loss candidates that meet the current loss-score threshold. Winner-trim pairing uses this amount.</p>
         <h4>Winner-trim candidates</h4>
         <p>Separate ranking from tax-loss sells (%-loss weight does <strong>not</strong> change winner-trim order). All holdings with positive unrealized gain:</p>
         <ul>
@@ -11424,7 +11559,7 @@
           <tr><td>SAI Buy (if not excluded)</td><td>+0</td></tr>
         </table>
         <h4>Allocation</h4>
-        <p>Greedy fill by score until the loss pool is covered (max ${TAX_PROPOSAL_MAX_POSITIONS} proposed winner-trim lines). Highlighted rows are the recommended allocation; other rows are alternate candidates.</p>
+        <p>Greedy fill by score until the selected loss pool is covered (max ${TAX_PROPOSAL_MAX_POSITIONS} proposed winner-trim lines). Highlighted rows are the recommended allocation; other rows are alternate candidates.</p>
         <p class="help-caveat">Est. tax uses ${taxPct}% on paired gains (Abgeltungssteuer + Soli).</p>`;
     }
 
@@ -11447,10 +11582,12 @@
     function renderTaxLossProposal(scopedPlan, useSelection) {
       const el = document.getElementById("simulationTaxProposal");
       if (!el) return;
+      updateTaxProposalHelpButton();
       if (simulationPricingMode !== "current" || simulationLegs === "buys") {
         el.hidden = true;
         return;
       }
+      lastTaxProposalContext = { scopedPlan, useSelection };
       const lossPool = taxProposalLossPool(scopedPlan);
       const scopeLabel = useSelection
         ? `${scopedPlan.scopeCount} selected symbol${scopedPlan.scopeCount === 1 ? "" : "s"}`
@@ -11458,35 +11595,28 @@
       const scopedSymbols = (scopedPlan?.symbols || []).map((row) => row.symbol);
       const proposal = buildTaxLossProposal(lossPool, scopedSymbols);
       el.hidden = false;
-      const lossSellHtml = renderTaxLossSellTable(proposal.lossSells);
+      const lossSellHtml = renderTaxLossSellSection(proposal.lossSells, proposal, scopeLabel);
       if (!lossPool) {
         el.innerHTML = `
-          ${simTaxProposalHeadHtml()}
           ${lossSellHtml}
-          <p class="sim-tax-proposal-note">No sell losses in current Simulation scope (${scopeLabel}). Select or filter to loss positions (negative Net Gains) to build a loss pool for winner-trim pairing.</p>
-          `;
+          <div class="sim-tax-section">
+            <h4>Winner-trim candidates</h4>
+            <p class="sim-tax-proposal-note">No sell losses in current Simulation scope (${scopeLabel}). Select or filter to loss positions (negative Net Gains) to build a loss pool for winner-trim pairing.</p>
+          </div>`;
         return;
       }
-      if (!proposal.candidates.length) {
+      if (!proposal.lossPool) {
         el.innerHTML = `
-          ${simTaxProposalHeadHtml()}
           ${lossSellHtml}
-          <p class="sim-tax-proposal-note">Loss pool <strong>${formatMoney(proposal.lossPool)}</strong> from ${scopeLabel} — no winner trims matched every criterion.</p>
-          `;
+          <div class="sim-tax-section">
+            <h4>Winner-trim candidates</h4>
+            <p class="sim-tax-proposal-note">Raise the loss-score threshold or include deeper-loss names to build a selected loss pool for winner-trim pairing.</p>
+          </div>`;
         return;
       }
       el.innerHTML = `
-        ${simTaxProposalHeadHtml()}
         ${lossSellHtml}
-        <p class="sim-tax-proposal-note">
-          Qualified loss pool <strong>${formatMoney(proposal.lossPool)}</strong> from ${scopeLabel}
-          ${proposal.unqualifiedLossPool > 0 ? `(excluded by tax-loss rules: ${formatMoney(proposal.unqualifiedLossPool)})` : ""}.
-          Proposed winner trims offset <strong>${formatMoney(proposal.offsetGain)}</strong>
-          ${proposal.remainingLoss > 0 ? `(≈ ${formatMoney(proposal.remainingLoss)} loss still unpaired)` : "(fully paired)"}.
-          Est. tax shield ≈ <strong>${formatMoney(proposal.offsetGain * SIM_TAX_RATE)}</strong> at ${(SIM_TAX_RATE * 100).toFixed(3)}%.
-          Hover table rows for scoring/SAI/tech details.
-        </p>
-        ${renderTaxProposalTable(proposal.candidates, proposal.picks)}`;
+        ${renderTaxProposalTable(proposal.candidates, proposal.picks, proposal)}`;
     }
 
     function setSimulationFilter(filter) {
