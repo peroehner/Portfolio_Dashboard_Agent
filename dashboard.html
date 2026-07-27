@@ -3607,6 +3607,11 @@
     table.data tbody tr.row-selected td:first-child {
       box-shadow: inset 3px 0 0 var(--accent);
     }
+    /* Filter-set membership (Set Filter clipboard): accent bar only, no fill —
+       so members stay visible when Filter is off and the full list is shown. */
+    table.data tbody tr.row-in-filter-set:not(.row-selected) td:first-child {
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
     table.data tbody tr.row-selected:hover td { background: rgba(139, 92, 246, 0.22); }
     table.data tfoot tr.total-row td {
       border-top: 2px solid var(--border);
@@ -6166,6 +6171,7 @@
         selectionClipboard = [...merged].sort();
         updateClipButtons();
         saveFilterState();
+        refreshFilterSetRowMarks();
         setStatus(
           addedCount
             ? `Added ${addedCount} symbol${addedCount === 1 ? "" : "s"} to filter (${selectionClipboard.length} total): ${selectionClipboard.join(", ")}.`
@@ -6177,7 +6183,19 @@
       selectionClipboard = incoming;
       updateClipButtons();
       saveFilterState();
+      refreshFilterSetRowMarks();
       setStatus(`Filter set: ${incoming.length} symbol${incoming.length === 1 ? "" : "s"} — ${incoming.join(", ")}.`, "success");
+    }
+
+    function refreshFilterSetRowMarks() {
+      for (const tabId of PORTFOLIO_CLIP_TABS) {
+        if (tableDataCache[tabId]?.length) rerenderTable(tabId);
+      }
+    }
+
+    function filterSetSymbolSet() {
+      if (!selectionClipboard.length) return null;
+      return new Set(selectionClipboard.map((s) => String(s).toUpperCase()));
     }
 
     function pastePortfolioSelection(tabId) {
@@ -7596,14 +7614,19 @@
       const keyColumn = columns.find((column) => column.rowKey) || columns[0];
       const selectedKey = tableSelection[selectionKeyFor(tableId)];
       const multiSelected = options.selectedKeys || null;
+      const filterSet = filterSetSymbolSet();
       const body = sortedRows.map((row) => {
         const rowKey = keyColumn ? String(keyColumn.sortValue(row) ?? "") : "";
         const isSelected = multiSelected
           ? multiSelected.has(rowKey)
           : (rowKey !== "" && rowKey === selectedKey);
-        const selectedClass = isSelected ? " class=\"row-selected\"" : "";
+        const inFilterSet = Boolean(filterSet && rowKey && filterSet.has(String(rowKey).toUpperCase()));
+        const classes = [];
+        if (isSelected) classes.push("row-selected");
+        if (inFilterSet) classes.push("row-in-filter-set");
+        const classAttr = classes.length ? ` class="${classes.join(" ")}"` : "";
         const keyAttr = rowKey !== "" ? ` data-row-key="${escapeHtml(rowKey)}"` : "";
-        return `<tr${selectedClass}${keyAttr}>${columns.map((column) => {
+        return `<tr${classAttr}${keyAttr}>${columns.map((column) => {
           const cellAttrs = column.coloredPercent ? ' class="pct-cell"' : "";
           return `<td${cellAttrs}>${column.render(row)}</td>`;
         }).join("")}</tr>`;
