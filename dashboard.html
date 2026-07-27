@@ -3757,7 +3757,7 @@
     .sim-tax-crit.pass { color: #86efac; border-color: rgba(34, 197, 94, 0.35); }
     .sim-tax-crit.fail { color: var(--muted); opacity: 0.75; }
     .sim-tax-proposal details {
-      margin-top: 0.65rem;
+      margin-top: 0.45rem;
       font-size: 0.76rem;
       color: var(--muted);
     }
@@ -3765,6 +3765,11 @@
       cursor: pointer;
       color: var(--text);
       font-weight: 600;
+      font-size: 0.78rem;
+    }
+    .sim-tax-proposal details table {
+      margin-top: 0.35rem;
+      font-size: 0.76rem;
     }
     .sim-tax-proposal details ol {
       margin: 0.4rem 0 0;
@@ -11149,14 +11154,17 @@
       const sellPlan = computeTradePlan(lossRows, "sells", "current");
       const sellPlanBySymbol = new Map(sellPlan.symbols.map((row) => [row.symbol, row]));
       const diagnostics = {
-        universeCount: loserRows.length,
+        scopedUniverseCount: 0,
+        missingCostBasis: 0,
         withCostBasis: 0,
         excludedSaiTech: 0,
+        noSellableShares: 0,
         qualified: 0,
       };
       const candidates = [];
       loserRows.forEach((screenRow) => {
         if (scopeSet && !scopeSet.has(String(screenRow.symbol || "").toUpperCase())) return;
+        diagnostics.scopedUniverseCount += 1;
         const gainPct = Number(screenRow.holding?.gainPct);
         const wtdPct = taxProposalWtdPct(gainPct);
         const lossPct = taxProposalLossPct(gainPct);
@@ -11165,7 +11173,10 @@
         const lossPerShare = (Number.isFinite(price) && Number.isFinite(costBasis))
           ? costBasis - price
           : null;
-        if (lossPerShare == null || !(lossPerShare > 0)) return;
+        if (lossPerShare == null || !(lossPerShare > 0)) {
+          diagnostics.missingCostBasis += 1;
+          return;
+        }
         diagnostics.withCostBasis += 1;
         const exclusion = taxProposalExcluded(screenRow);
         if (exclusion.excluded) {
@@ -11176,7 +11187,10 @@
         const planRow = sellPlanBySymbol.get(screenRow.symbol);
         const sellPlanQty = Number(planRow?.sharesOut) || taxProposalSellPlanQty(screenRow);
         const maxShares = taxProposalMaxTrimShares(screenRow, sellPlanQty);
-        if (maxShares <= 0) return;
+        if (maxShares <= 0) {
+          diagnostics.noSellableShares += 1;
+          return;
+        }
         const netLossMax = lossPerShare * maxShares;
         const hasSellPlan = sellPlanQty > 0;
         const isTrim = hasSellPlan ? held > sellPlanQty : maxShares < held;
@@ -11417,6 +11431,50 @@
         </div>`;
     }
 
+    function renderTaxLossSellScanDetails(diag, proposal) {
+      if (!diag) return "";
+      const threshold = Math.round(proposal?.lossScoreThreshold ?? taxProposalLossScoreThreshold);
+      const listed = proposal?.totalLossCandidateCount ?? diag.qualified ?? 0;
+      const selected = proposal?.selectedLossCount ?? 0;
+      const belowThreshold = Math.max(0, listed - selected);
+      return `
+        <details class="sim-tax-scan-details">
+          <summary>Show scan details</summary>
+          <table>
+            <thead><tr><th>Loss-sell scan</th><th style="text-align:right;">Count</th></tr></thead>
+            <tbody>
+              <tr><td>Holdings with negative gain (Simulation scope)</td><td style="text-align:right;">${diag.scopedUniverseCount ?? 0}</td></tr>
+              <tr><td>Failed · no avg cost basis (loss not computable)</td><td style="text-align:right;">${diag.missingCostBasis ?? 0}</td></tr>
+              <tr><td>Excluded · SAI Buy high confidence</td><td style="text-align:right;">${diag.excludedSaiTech ?? 0}</td></tr>
+              <tr><td>Failed · no sellable shares</td><td style="text-align:right;">${diag.noSellableShares ?? 0}</td></tr>
+              <tr><td><strong>Listed tax-loss candidates</strong></td><td style="text-align:right;"><strong>${listed}</strong></td></tr>
+              <tr><td>Selected · loss-score ≥ ${threshold}</td><td style="text-align:right;">${selected}</td></tr>
+              <tr><td>Below loss-score threshold</td><td style="text-align:right;">${belowThreshold}</td></tr>
+            </tbody>
+          </table>
+        </details>`;
+    }
+
+    function renderWinnerTrimScanDetails(diag) {
+      if (!diag) return "";
+      return `
+        <details class="sim-tax-scan-details">
+          <summary>Show scan details</summary>
+          <table>
+            <thead><tr><th>Winner-trim scan</th><th style="text-align:right;">Count</th></tr></thead>
+            <tbody>
+              <tr><td>Holdings with positive gain (full portfolio)</td><td style="text-align:right;">${diag.universeCount ?? 0}</td></tr>
+              <tr><td>…with avg cost basis (taxable gain computable)</td><td style="text-align:right;">${diag.withCostBasis ?? 0}</td></tr>
+              <tr><td>Excluded · SAI Buy high confidence</td><td style="text-align:right;">${diag.excludedSaiTech ?? 0}</td></tr>
+              <tr><td>Failed · gain &lt; ${TAX_PROPOSAL_MIN_GAIN_PCT}%</td><td style="text-align:right;">${diag.failedGain ?? 0}</td></tr>
+              <tr><td>Failed · 52W peak data missing</td><td style="text-align:right;">${diag.peakMissing ?? 0}</td></tr>
+              <tr><td>Failed · below ${TAX_PROPOSAL_PEAK_PCT}% of 52W high</td><td style="text-align:right;">${diag.failedPeak ?? 0}</td></tr>
+              <tr><td><strong>Qualified winner-trim candidates</strong></td><td style="text-align:right;"><strong>${diag.qualified ?? 0}</strong></td></tr>
+            </tbody>
+          </table>
+        </details>`;
+    }
+
     function renderTaxLossSellSection(lossSells, proposal, scopeLabel) {
       const candidates = lossSells?.candidates || [];
       const threshold = proposal?.lossScoreThreshold ?? taxProposalLossScoreThreshold;
@@ -11429,6 +11487,7 @@
           <div class="sim-tax-section">
             <h4>Tax-loss sell candidates</h4>
             <p class="sim-tax-proposal-note">No holdings with computable unrealized losses in ${scopeLabel} (need avg cost; SAI Buy high confidence is excluded).</p>
+            ${renderTaxLossSellScanDetails(lossSells?.diagnostics, proposal)}
           </div>`;
       }
       const selectedCount = proposal?.selectedLossCount ?? 0;
@@ -11462,16 +11521,19 @@
             ${excludedByRules > 0 ? `Still unpaired in ${scopeLabel} (no cost basis / SAI excluded): ${formatMoney(excludedByRules)}.` : ""}
             Hover rows for SAI/tech details.
           </p>
+          ${renderTaxLossSellScanDetails(lossSells?.diagnostics, proposal)}
         </div>`;
     }
 
     function renderTaxProposalTable(candidates, picks, proposal) {
       const pickCount = (picks || []).length;
+      const scanDetails = renderWinnerTrimScanDetails(proposal?.diagnostics);
       if (!candidates.length) {
         return `
           <div class="sim-tax-section">
             <h4>Winner-trim candidates</h4>
             <p class="sim-tax-proposal-note">No winner trims matched every criterion for the current selected loss pool.</p>
+            ${scanDetails}
           </div>`;
       }
       return `
@@ -11499,6 +11561,7 @@
             Est. tax shield ≈ <strong>${formatMoney(proposal.offsetGain * SIM_TAX_RATE)}</strong> at ${(SIM_TAX_RATE * 100).toFixed(3)}%.
             Highlighted rows are the recommended allocation. Hover rows for score/SAI/tech details.
           </p>
+          ${scanDetails}
         </div>`;
     }
 
