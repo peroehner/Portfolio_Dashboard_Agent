@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import platform
 import resource
+import time
+from datetime import datetime, timezone
 from typing import Any
 
 from db.database import get_connection
@@ -171,6 +173,7 @@ def _footprint_rows(conn) -> list[dict[str, Any]]:
                   + COALESCE(pg_column_size(analyst_target_1y), 0)
                   + octet_length(COALESCE(company_name, ''))
                   + COALESCE(pg_column_size(fundamentals_json), 0)
+                  + COALESCE(pg_column_size(news_json), 0)
               ), 0)::bigint AS payload_bytes
           FROM symbol_market
           """,
@@ -288,5 +291,161 @@ def build_footprint_snapshot() -> dict[str, Any]:
             "totalApproxBytes": cache_bytes,
             "categories": cache_rows,
             "historyBySymbol": _history_cache_breakdown(),
+        },
+    }
+
+
+def _parse_fetched_at(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        dt = datetime.strptime(str(value), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        return dt.timestamp()
+    except ValueError:
+        return None
+
+
+def _blob_age_summary(
+    conn,
+    column: str,
+    *,
+    ttl_seconds: float,
+) -> dict[str, Any]:
+    """Fresh vs stale counts for a symbol_market JSONB blob with fetchedAt."""
+    if column not in ("fundamentals_json", "news_json"):
+        raise ValueError(f"unsupported column: {column}")
+    rows = conn.execute(
+        f"""
+        SELECT
+            symbol,
+            {column}->>'fetchedAt' AS fetched_at
+        FROM symbol_market
+        WHERE {column} IS NOT NULL
+        """
+    ).fetchall()
+    now = time.time()
+    oldest: str | None = None
+    newest: str | None = None
+    oldest_ts: float | None = None
+    newest_ts: float | None = None
+    fresh = 0
+    stale = 0
+    for row in rows:
+        fetched_at = row.get("fetched_at")
+        ts = _parse_fetched_at(fetched_at)
+        if ts is None:
+            stale += 1
+            continue
+        age = now - ts
+        if age <= ttl_seconds:
+            fresh += 1
+        else:
+            stale += 1
+        if oldest_ts is None or ts < oldest_ts:
+            oldest_ts = ts
+            oldest = fetched_at
+        if newest_ts is None or ts > newest_ts:
+            newest_ts = ts
+            newest = fetched_at
+    market_total = conn.execute("SELECT COUNT(*) AS n FROM symbol_market").fetchone()
+    symbols_total = conn.execute(
+        "SELECT COUNT(DISTINCT symbol) AS n FROM symbols"
+    ).fetchone()
+    tracked = int(symbols_total["n"] or 0) if symbols_total else 0
+    present = len(rows)
+    return {
+        "trackedSymbols": tracked,
+        "withBlob": present,
+        "missing": max(0, tracked - present),
+        "fresh": fresh,
+        "stale": stale,
+        "ttlSeconds": float(ttl_seconds),
+        "oldestFetchedAt": oldest,
+        "newestFetchedAt": newest,
+        "marketRows": int(market_total["n"] or 0) if market_total else 0,
+    }
+
+
+def build_cache_health_snapshot() -> dict[str, Any]:
+    """Worker cycle status + Postgres fundamentals/news freshness for Consol."""
+    import os
+
+    from services.enrichment_warmer_service import (
+        warm_chunk_size,
+        warm_interval_seconds,
+        warm_pause_seconds,
+        warmer_enabled,
+    )
+    from services.market_data_service import MarketDataService
+    from services.worker_status import worker_status_snapshot
+
+    market = MarketDataService()
+    with get_connection() as conn:
+        price_row = conn.execute(
+            """
+            SELECT
+                MAX(price_as_of) AS max_price_as_of,
+                MAX(updated_at) AS max_updated_at,
+                COUNT(*) FILTER (WHERE current_price IS NOT NULL) AS with_price
+            FROM symbol_market
+            """
+        ).fetchone()
+        daily_assessment = conn.execute(
+            "SELECT value FROM app_meta WHERE key = %s",
+            ("daily_assessment_last_date",),
+        ).fetchone()
+        fundamentals = _blob_age_summary(
+            conn,
+            "fundamentals_json",
+            ttl_seconds=market.fundamentals_ttl_seconds(),
+        )
+        news = _blob_age_summary(
+            conn,
+            "news_json",
+            ttl_seconds=market.news_ttl_seconds(),
+        )
+
+    workers = worker_status_snapshot()
+    return {
+        "workers": {
+            "priceSync": workers.get("priceSync"),
+            "enrichmentWarm": workers.get("enrichmentWarm"),
+            "priceSyncIntervalSeconds": 300,
+            "enrichmentWarmIntervalSeconds": warm_interval_seconds() if warmer_enabled() else None,
+            "enrichmentWarmChunkSize": warm_chunk_size() if warmer_enabled() else None,
+            "enrichmentWarmPauseSeconds": warm_pause_seconds() if warmer_enabled() else None,
+            "enrichmentWarmerEnabled": warmer_enabled(),
+            "dailyAssessmentLastDate": (
+                daily_assessment["value"] if daily_assessment else None
+            ),
+        },
+        "postgres": {
+            "prices": {
+                "source": "yahoo (background sync)",
+                "destination": "symbol_market",
+                "withPrice": int(price_row["with_price"] or 0) if price_row else 0,
+                "maxPriceAsOf": price_row["max_price_as_of"] if price_row else None,
+                "maxUpdatedAt": price_row["max_updated_at"] if price_row else None,
+            },
+            "fundamentals": {
+                "source": "yahoo (+ finnhub backfill)",
+                "destination": "symbol_market.fundamentals_json",
+                "persistenceEnabled": market.fundamentals_persistence_enabled(),
+                **fundamentals,
+            },
+            "news": {
+                "source": os.environ.get("NEWS_PROVIDER", "").strip() or "finnhub|yfinance",
+                "destination": "symbol_market.news_json",
+                "persistenceEnabled": market.news_persistence_enabled(),
+                **news,
+            },
+        },
+        "servingModel": {
+            "userEndpoints": (
+                "cache-first (Postgres / in-process TTL); "
+                "live fill on miss when ENRICHMENT_LIVE_FALLBACK=1"
+            ),
+            "backgroundWarm": "paced chunks; starred → held → watchlist",
+            "priceSync": "live Yahoo every ~5 min into Postgres; clients read DB",
         },
     }

@@ -172,6 +172,17 @@ def background_sync_loop():
                 total_new_alerts,
             )
             try:
+                from services.worker_status import record_price_sync
+
+                record_price_sync(
+                    symbol_count=len(tickers),
+                    updated=int(result.get("updated") or 0),
+                    new_alerts=total_new_alerts,
+                    refresh_targets=refresh_targets,
+                )
+            except Exception:  # noqa: BLE001
+                logging.exception("Failed to record price-sync status")
+            try:
                 from services.daily_assessment_service import run_daily_assessments, should_run_today
 
                 if should_run_today():
@@ -187,9 +198,11 @@ def background_enrichment_warmer_loop():
     """Paced fundamentals + news warmer; starred symbols first when available."""
     from services.enrichment_warmer_service import run_warm_cycle, warm_interval_seconds, warmer_enabled
     from services.fundamentals_service import FundamentalsService
+    from services.worker_status import record_enrichment_warm, record_enrichment_warm_disabled
 
     if not warmer_enabled():
         logging.info("Enrichment warmer disabled (ENRICHMENT_WARMER=0).")
+        record_enrichment_warm_disabled()
         return
 
     fundamentals_service = FundamentalsService()
@@ -197,9 +210,25 @@ def background_enrichment_warmer_loop():
     logging.info("Enrichment warmer started (interval=%ss).", interval)
     while True:
         try:
-            run_warm_cycle(fundamentals_service)
-        except Exception:  # noqa: BLE001 - never block the warmer thread
+            result = run_warm_cycle(fundamentals_service)
+            record_enrichment_warm(
+                queued=int(result.get("queued") or 0),
+                warmed=int(result.get("warmed") or 0),
+                skipped=int(result.get("skipped") or 0),
+                enabled=True,
+            )
+        except Exception as exc:  # noqa: BLE001 - never block the warmer thread
             logging.exception("Enrichment warmer cycle failed")
+            try:
+                record_enrichment_warm(
+                    queued=0,
+                    warmed=0,
+                    skipped=0,
+                    enabled=True,
+                    error=str(exc)[:200],
+                )
+            except Exception:  # noqa: BLE001
+                pass
         time.sleep(interval)
 
 

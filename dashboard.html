@@ -1322,6 +1322,58 @@
       margin: 0 0 0.55rem;
       line-height: 1.35;
     }
+    .consol-cache-health {
+      margin-top: 0.85rem;
+      padding: 0.75rem 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel-2);
+    }
+    .consol-cache-health h3 {
+      margin: 0 0 0.35rem;
+      font-size: 0.95rem;
+    }
+    .consol-cache-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 0.75rem;
+      margin-top: 0.55rem;
+    }
+    .consol-cache-card {
+      padding: 0.55rem 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel);
+    }
+    .consol-cache-card h4 {
+      margin: 0 0 0.35rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .consol-cache-card dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 0.2rem 0.55rem;
+      font-size: 0.78rem;
+    }
+    .consol-cache-card dt { color: var(--muted); }
+    .consol-cache-card dd {
+      margin: 0;
+      color: var(--text);
+      font-weight: 600;
+      text-align: right;
+      word-break: break-word;
+    }
+    .consol-cache-serving {
+      margin: 0.55rem 0 0;
+      font-size: 0.76rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
     .consol-footprint-total {
       font-size: 0.82rem;
       color: var(--muted);
@@ -4351,9 +4403,10 @@
         <h2 class="section-title">Consol</h2>
         <button type="button" class="secondary" onclick="loadConsol()">Refresh</button>
       </div>
-      <p class="panel-hint">Author-only workload snapshot. Toggle via logo click or Cmd/Ctrl+Shift+Y. Background sync runs every 5 min; daily assessments pre-warm shared base reads once per UTC day.</p>
+      <p class="panel-hint">Author-only workload snapshot. Toggle via logo click or Cmd/Ctrl+Shift+Y. Shows last price sync / enrichment warm cycles, Postgres cache freshness, and footprint. Background sync ~5 min; daily assessments once per UTC day.</p>
       <div class="summary-strip" id="consolMetrics"></div>
       <div id="consolTrend"></div>
+      <div id="consolCacheHealth"></div>
       <div class="consol-detail-grid">
         <div id="consolFootprint" class="consol-detail-col"></div>
         <div class="consol-detail-col consol-users-col">
@@ -5351,6 +5404,141 @@
         </div>`;
     }
 
+    function formatConsolUtcStamp(value) {
+      if (!value) return "—";
+      const raw = String(value);
+      // Accept ISO (...Z) or "YYYY-MM-DD HH:MM:SS"
+      const normalized = raw.endsWith("Z") || raw.includes("T")
+        ? raw
+        : `${raw.replace(" ", "T")}Z`;
+      const dt = new Date(normalized);
+      if (Number.isNaN(dt.getTime())) return escapeHtml(raw);
+      return escapeHtml(dt.toISOString().replace(".000Z", "Z"));
+    }
+
+    function formatConsolRelative(value) {
+      if (!value) return "";
+      const raw = String(value);
+      const normalized = raw.endsWith("Z") || raw.includes("T")
+        ? raw
+        : `${raw.replace(" ", "T")}Z`;
+      const dt = new Date(normalized);
+      if (Number.isNaN(dt.getTime())) return "";
+      const sec = Math.max(0, Math.round((Date.now() - dt.getTime()) / 1000));
+      if (sec < 60) return `${sec}s ago`;
+      if (sec < 3600) return `${Math.round(sec / 60)}m ago`;
+      if (sec < 86400) return `${Math.round(sec / 3600)}h ago`;
+      return `${Math.round(sec / 86400)}d ago`;
+    }
+
+    function consolDlRows(pairs) {
+      return pairs.map(([label, value]) => `
+        <dt>${escapeHtml(label)}</dt>
+        <dd>${value}</dd>
+      `).join("");
+    }
+
+    function renderConsolCacheHealth(data) {
+      const el = document.getElementById("consolCacheHealth");
+      if (!el) return;
+      const health = data?.cacheHealth;
+      if (!health) {
+        el.innerHTML = "";
+        return;
+      }
+      const workers = health.workers || {};
+      const pg = health.postgres || {};
+      const prices = pg.prices || {};
+      const funds = pg.fundamentals || {};
+      const news = pg.news || {};
+      const sync = workers.priceSync;
+      const warm = workers.enrichmentWarm;
+      const serving = health.servingModel || {};
+
+      const syncAt = sync?.at;
+      const warmAt = warm?.at;
+      const syncStamp = syncAt
+        ? `${formatConsolUtcStamp(syncAt)}${formatConsolRelative(syncAt) ? ` · ${formatConsolRelative(syncAt)}` : ""}`
+        : "not yet this worker";
+      const warmStamp = warmAt
+        ? `${formatConsolUtcStamp(warmAt)}${formatConsolRelative(warmAt) ? ` · ${formatConsolRelative(warmAt)}` : ""}`
+        : (workers.enrichmentWarmerEnabled === false ? "disabled" : "not yet this worker");
+
+      el.innerHTML = `
+        <div class="consol-cache-health">
+          <h3>Cache &amp; workers</h3>
+          <p class="consol-footprint-note">
+            When each background cycle last ran in <strong>this worker</strong>, what it fetched,
+            and how fresh Postgres enrichment blobs are (served to users cache-first).
+          </p>
+          <div class="consol-cache-grid">
+            <div class="consol-cache-card">
+              <h4>Price sync</h4>
+              <dl>${consolDlRows([
+                ["Last cycle", syncStamp],
+                ["Source → dest", escapeHtml(`${sync?.source || "yahoo"} → ${sync?.destination || "symbol_market"}`)],
+                ["Symbols / updated", sync
+                  ? `${Number(sync.symbolCount || 0).toLocaleString()} / ${Number(sync.updated || 0).toLocaleString()}`
+                  : "—"],
+                ["New alerts", sync ? Number(sync.newAlerts || 0).toLocaleString() : "—"],
+                ["Targets refresh", sync ? (sync.refreshTargets ? "yes" : "no") : "—"],
+                ["Interval", `${Number(workers.priceSyncIntervalSeconds || 300)}s`],
+                ["DB max price_as_of", formatConsolUtcStamp(prices.maxPriceAsOf)],
+                ["DB max updated_at", formatConsolUtcStamp(prices.maxUpdatedAt)],
+                ["Rows with price", Number(prices.withPrice || 0).toLocaleString()],
+              ])}</dl>
+            </div>
+            <div class="consol-cache-card">
+              <h4>Enrichment warmer</h4>
+              <dl>${consolDlRows([
+                ["Last cycle", warmStamp],
+                ["Source → dest", escapeHtml(`${warm?.source || "yahoo/finnhub"} → fundamentals+news`)],
+                ["Warmed (live fetch)", warm ? Number(warm.warmed || 0).toLocaleString() : "—"],
+                ["Skipped (still fresh)", warm ? Number(warm.skippedFresh || 0).toLocaleString() : "—"],
+                ["Queue size", warm ? Number(warm.queued || 0).toLocaleString() : "—"],
+                ["Chunk / pause", workers.enrichmentWarmerEnabled
+                  ? `${Number(workers.enrichmentWarmChunkSize || 0)} / ${Number(workers.enrichmentWarmPauseSeconds || 0)}s`
+                  : "—"],
+                ["Interval", workers.enrichmentWarmIntervalSeconds != null
+                  ? `${Number(workers.enrichmentWarmIntervalSeconds)}s`
+                  : "—"],
+                ["Error", warm?.error ? escapeHtml(String(warm.error)) : "—"],
+              ])}</dl>
+            </div>
+            <div class="consol-cache-card">
+              <h4>Fundamentals (Postgres)</h4>
+              <dl>${consolDlRows([
+                ["Source", escapeHtml(funds.source || "—")],
+                ["Fresh / stale / missing", `${Number(funds.fresh || 0)} / ${Number(funds.stale || 0)} / ${Number(funds.missing || 0)}`],
+                ["With blob", `${Number(funds.withBlob || 0)} of ${Number(funds.trackedSymbols || 0)}`],
+                ["TTL", formatConsolTtl(funds.ttlSeconds)],
+                ["Oldest fetchedAt", formatConsolUtcStamp(funds.oldestFetchedAt)],
+                ["Newest fetchedAt", formatConsolUtcStamp(funds.newestFetchedAt)],
+                ["Persistence", funds.persistenceEnabled === false ? "off" : "on"],
+              ])}</dl>
+            </div>
+            <div class="consol-cache-card">
+              <h4>News (Postgres)</h4>
+              <dl>${consolDlRows([
+                ["Source", escapeHtml(news.source || "—")],
+                ["Fresh / stale / missing", `${Number(news.fresh || 0)} / ${Number(news.stale || 0)} / ${Number(news.missing || 0)}`],
+                ["With blob", `${Number(news.withBlob || 0)} of ${Number(news.trackedSymbols || 0)}`],
+                ["TTL", formatConsolTtl(news.ttlSeconds)],
+                ["Oldest fetchedAt", formatConsolUtcStamp(news.oldestFetchedAt)],
+                ["Newest fetchedAt", formatConsolUtcStamp(news.newestFetchedAt)],
+                ["Persistence", news.persistenceEnabled === false ? "off" : "on"],
+              ])}</dl>
+            </div>
+          </div>
+          <p class="consol-cache-serving">
+            <strong>Serving model:</strong> ${escapeHtml(serving.priceSync || "")}.
+            ${escapeHtml(serving.userEndpoints || "")}.
+            Warm priority: ${escapeHtml(serving.backgroundWarm || "")}.
+            Daily assessment last date: ${escapeHtml(workers.dailyAssessmentLastDate || "—")}.
+          </p>
+        </div>`;
+    }
+
     function formatConsolBytes(bytes) {
       const n = Number(bytes);
       if (!Number.isFinite(n) || n <= 0) return "—";
@@ -5512,14 +5700,17 @@
         const data = await api("/consol");
         renderConsolMetrics(data);
         renderConsolTrend(data);
+        renderConsolCacheHealth(data);
         renderConsolFootprint(data);
         renderConsolTables(data);
       } catch (err) {
         const usersEl = document.getElementById("consolUsersTable");
         const usageEl = document.getElementById("consolUsageTable");
         const footprintEl = document.getElementById("consolFootprint");
+        const cacheEl = document.getElementById("consolCacheHealth");
         const msg = `<div class="empty">Consol unavailable: ${escapeHtml(err?.message || "request failed")}</div>`;
         if (footprintEl) footprintEl.innerHTML = msg;
+        if (cacheEl) cacheEl.innerHTML = "";
         if (usersEl) usersEl.innerHTML = "";
         if (usageEl) usageEl.innerHTML = "";
       }
