@@ -11090,7 +11090,10 @@
       });
     }
 
-    function buildTaxLossSellCandidates() {
+    function buildTaxLossSellCandidates(scopedSymbols = null) {
+      const scopeSet = scopedSymbols
+        ? new Set((scopedSymbols || []).map((sym) => String(sym || "").toUpperCase()))
+        : null;
       const loserRows = taxProposalLoserUniverse();
       const lossRows = taxProposalLossUniverse();
       const sellPlan = computeTradePlan(lossRows, "sells", "current");
@@ -11104,6 +11107,7 @@
       };
       const candidates = [];
       loserRows.forEach((screenRow) => {
+        if (scopeSet && !scopeSet.has(String(screenRow.symbol || "").toUpperCase())) return;
         const gainPct = Number(screenRow.holding?.gainPct);
         const wtdPct = taxProposalWtdPct(gainPct);
         const lossPct = taxProposalLossPct(gainPct);
@@ -11164,16 +11168,18 @@
         });
       });
       candidates.sort((a, b) => b.score - a.score || b.netLossMax - a.netLossMax || b.lossPct - a.lossPct);
-      return { candidates, diagnostics };
+      const qualifiedLossPool = candidates.reduce((sum, row) => sum + Math.max(0, Number(row.netLossMax) || 0), 0);
+      return { candidates, diagnostics, qualifiedLossPool };
     }
 
-    function buildTaxLossProposal(lossPool) {
+    function buildTaxLossProposal(lossPool, scopedSymbols = null) {
       const winnerRows = taxProposalWinnerUniverse();
       const fundBySymbol = fundamentalsMapBySymbol();
       const lossRows = taxProposalLossUniverse();
       const sellPlan = computeTradePlan(lossRows, "sells", "current");
       const sellPlanBySymbol = new Map(sellPlan.symbols.map((row) => [row.symbol, row]));
-      const lossSells = buildTaxLossSellCandidates();
+      const lossSells = buildTaxLossSellCandidates(scopedSymbols);
+      const qualifiedLossPool = Number(lossSells?.qualifiedLossPool) || 0;
       const diagnostics = {
         universeCount: winnerRows.length,
         withCostBasis: 0,
@@ -11250,7 +11256,7 @@
         });
       });
       candidates.sort((a, b) => b.score - a.score || b.netGainsMax - a.netGainsMax);
-      let remaining = lossPool;
+      let remaining = qualifiedLossPool;
       const picks = [];
       for (const cand of candidates) {
         if (picks.length >= TAX_PROPOSAL_MAX_POSITIONS || remaining <= 0) break;
@@ -11270,9 +11276,10 @@
       }
       const offsetGain = picks.reduce((sum, row) => sum + row.suggestGain, 0);
       return {
-        lossPool,
+        lossPool: qualifiedLossPool,
+        unqualifiedLossPool: Math.max(0, (Number(lossPool) || 0) - qualifiedLossPool),
         offsetGain,
-        remainingLoss: Math.max(0, lossPool - offsetGain),
+        remainingLoss: Math.max(0, qualifiedLossPool - offsetGain),
         picks,
         candidateCount: candidates.length,
         candidates,
@@ -11292,8 +11299,9 @@
       const pickBySymbol = new Map((picks || []).map((row) => [row.symbol, row]));
       return candidates.map((cand) => {
         const pick = pickBySymbol.get(cand.symbol);
+        const rowHover = `Winner-trim score ${Math.round(cand.score)} · SAI ${cand.saiAction} (${cand.saiConfidence}) · Tech ${cand.techBias}`;
         return `
-          <tr class="${pick ? "sim-tax-pick-row" : ""}">
+          <tr class="${pick ? "sim-tax-pick-row" : ""}" title="${escapeHtml(rowHover)}">
             <td><a class="sim-tax-symbol-link" href="#" onclick="selectSymbol('${cand.symbol}'); showView('portfolio'); return false;">${escapeHtml(cand.symbol)}</a>${pick ? `<span class="sim-tax-pick-badge">Proposed</span>` : ""}</td>
             <td>${pick ? `${simQty(pick.suggestShares)} of ${simQty(cand.held)}` : "—"}</td>
             <td>${renderTaxProposalTrimCell(cand)}</td>
@@ -11302,26 +11310,23 @@
             <td style="text-align:right;">${pick ? formatMoney(pick.suggestCash) : formatMoney(cand.cashGenerated)}</td>
             <td style="text-align:right;">${Number.isFinite(cand.gainPct) ? `${cand.gainPct.toFixed(1)}%` : "—"}</td>
             <td style="text-align:right;">${cand.peakPct != null ? `${cand.peakPct.toFixed(1)}%` : "—"}</td>
-            <td style="text-align:right;" title="Ranking score (higher = preferred for tax-loss pairing)">${Math.round(cand.score)}</td>
-            <td>${escapeHtml(String(cand.saiAction))} · ${escapeHtml(String(cand.techBias))}</td>
-            <td>${renderTaxCriteriaTags(cand)}</td>
           </tr>`;
       }).join("");
     }
 
     function renderTaxLossSellCandidateRows(candidates) {
-      return candidates.map((cand) => `
-        <tr>
+      return candidates.map((cand) => {
+        const rowHover = `Loss score ${Math.round(cand.score)} · SAI ${cand.saiAction} (${cand.saiConfidence}) · Tech ${cand.techBias}`;
+        return `
+        <tr title="${escapeHtml(rowHover)}">
           <td><a class="sim-tax-symbol-link" href="#" onclick="selectSymbol('${cand.symbol}'); showView('portfolio'); return false;">${escapeHtml(cand.symbol)}</a></td>
           <td>${renderTaxProposalTrimCell(cand)}</td>
           <td style="text-align:right;">${renderColoredMoneyCell(-cand.netLossMax)}</td>
           <td style="text-align:right;">${formatMoney(cand.cashGenerated)}</td>
           <td style="text-align:right;" class="negative" title="Unrealized loss vs cost basis">${cand.lossPct != null ? `−${cand.lossPct.toFixed(1)}%` : "—"}</td>
           <td style="text-align:right;" title="Worth-to-divest = market value ÷ cost (100% + Gain %). Deep-loss gate: WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%">${cand.wtdPct != null ? `${cand.wtdPct.toFixed(1)}%` : "—"}</td>
-          <td style="text-align:right;" title="Ranking score (higher = preferred tax-loss sell). %-loss: −50% → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}, −100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT}.">${Math.round(cand.score)}</td>
-          <td>${escapeHtml(String(cand.saiAction))} · ${escapeHtml(String(cand.techBias))}</td>
-          <td>${renderTaxLossSellCriteriaTags(cand)}</td>
-        </tr>`).join("");
+        </tr>`;
+      }).join("");
     }
 
     function renderTaxLossSellTable(lossSells) {
@@ -11331,14 +11336,12 @@
           <h4 style="margin:0.65rem 0 0.35rem;font-size:0.82rem;font-weight:600;color:var(--text);">
             Tax-loss sell candidates (WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%)
           </h4>
-          <p class="sim-tax-proposal-note">No holdings qualify yet — need unrealized loss with worth-to-divest below ${TAX_PROPOSAL_MAX_WTD_PCT}% of cost (Gain % &lt; −${TAX_PROPOSAL_MAX_WTD_PCT}).</p>
-          ${renderTaxLossSellDiagnostics(lossSells?.diagnostics)}`;
+          <p class="sim-tax-proposal-note">No holdings qualify yet — need unrealized loss with worth-to-divest below ${TAX_PROPOSAL_MAX_WTD_PCT}% of cost (Gain % &lt; −${TAX_PROPOSAL_MAX_WTD_PCT}).</p>`;
       }
       return `
         <h4 style="margin:0.65rem 0 0.35rem;font-size:0.82rem;font-weight:600;color:var(--text);">
           Tax-loss sell candidates (${candidates.length}) · WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%
         </h4>
-        <p class="sim-tax-proposal-note">Deeper %-loss vs cost ranks higher (−50% → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}, −100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT}). Prefer these names when harvesting losses in Simulation. Winner-trim ranking below is independent.</p>
         <table>
           <thead>
             <tr>
@@ -11348,14 +11351,10 @@
               <th style="text-align:right;">Cash</th>
               <th style="text-align:right;">Loss %</th>
               <th style="text-align:right;">WTD %</th>
-              <th style="text-align:right;">Score</th>
-              <th>SAI / Tech</th>
-              <th>Criteria</th>
             </tr>
           </thead>
           <tbody>${renderTaxLossSellCandidateRows(candidates)}</tbody>
-        </table>
-        ${renderTaxLossSellDiagnostics(lossSells?.diagnostics)}`;
+        </table>`;
     }
 
     function renderTaxProposalTable(candidates, picks) {
@@ -11376,74 +11375,10 @@
               <th style="text-align:right;">Cash</th>
               <th style="text-align:right;">Gain %</th>
               <th style="text-align:right;">52W peak</th>
-              <th style="text-align:right;">Score</th>
-              <th>SAI / Tech</th>
-              <th>Criteria</th>
             </tr>
           </thead>
           <tbody>${renderTaxProposalCandidateRows(candidates, picks)}</tbody>
         </table>`;
-    }
-
-    function renderTaxLossSellDiagnostics(diag) {
-      if (!diag) return "";
-      return `
-        <table style="margin-top:0.55rem;font-size:0.78rem;">
-          <thead><tr><th>Loss-sell scan</th><th style="text-align:right;">Count</th></tr></thead>
-          <tbody>
-            <tr><td>Holdings with negative gain (full portfolio)</td><td style="text-align:right;">${diag.universeCount}</td></tr>
-            <tr><td>…with avg cost basis (taxable loss computable)</td><td style="text-align:right;">${diag.withCostBasis}</td></tr>
-            <tr><td>Excluded · SAI Buy high confidence</td><td style="text-align:right;">${diag.excludedSaiTech}</td></tr>
-            <tr><td>Failed · WTD ≥ ${TAX_PROPOSAL_MAX_WTD_PCT}% (loss shallower than −${TAX_PROPOSAL_MAX_WTD_PCT}%)</td><td style="text-align:right;">${diag.failedWtd}</td></tr>
-            <tr><td><strong>Qualified loss-sell candidates</strong></td><td style="text-align:right;"><strong>${diag.qualified}</strong></td></tr>
-          </tbody>
-        </table>`;
-    }
-
-    function renderTaxDiagnostics(diag) {
-      if (!diag) return "";
-      return `
-        <table style="margin-top:0.55rem;font-size:0.78rem;">
-          <thead><tr><th>Winner-trim scan</th><th style="text-align:right;">Count</th></tr></thead>
-          <tbody>
-            <tr><td>Holdings with positive gain (full portfolio)</td><td style="text-align:right;">${diag.universeCount}</td></tr>
-            <tr><td>…with avg cost basis (taxable gain computable)</td><td style="text-align:right;">${diag.withCostBasis}</td></tr>
-            <tr><td>Excluded · SAI Buy high confidence</td><td style="text-align:right;">${diag.excludedSaiTech}</td></tr>
-            <tr><td>Failed · gain &lt; ${TAX_PROPOSAL_MIN_GAIN_PCT}%</td><td style="text-align:right;">${diag.failedGain}</td></tr>
-            <tr><td>Failed · 52W peak data missing</td><td style="text-align:right;">${diag.peakMissing}</td></tr>
-            <tr><td>Failed · below ${TAX_PROPOSAL_PEAK_PCT}% of 52W high</td><td style="text-align:right;">${diag.failedPeak}</td></tr>
-            <tr><td><strong>Qualified winner-trim candidates</strong></td><td style="text-align:right;"><strong>${diag.qualified}</strong></td></tr>
-          </tbody>
-        </table>`;
-    }
-
-    function renderTaxLossSellCriteriaTags(row) {
-      const lossPts = row.lossScore != null ? Math.round(row.lossScore) : 0;
-      const saiLabel = row.saiWeight != null ? `SAI +${row.saiWeight}` : "SAI";
-      const tags = [
-        { label: `WTD &lt; ${TAX_PROPOSAL_MAX_WTD_PCT}%`, pass: row.deepLoss },
-        { label: `Loss % +${lossPts}`, pass: lossPts > 0 },
-        { label: row.hasSellPlan ? (row.isTrim ? "Trim · plan cap" : "Plan cap") : "Holdings sell", pass: true },
-        { label: saiLabel, pass: true },
-      ];
-      return `<span class="sim-tax-criteria">${tags.map((tag) =>
-        `<span class="sim-tax-crit ${tag.pass ? "pass" : "fail"}">${tag.pass ? "✓" : "○"} ${tag.label}</span>`
-      ).join("")}</span>`;
-    }
-
-    function renderTaxCriteriaTags(row) {
-      const saiLabel = row.saiWeight != null
-        ? `SAI +${row.saiWeight}`
-        : "SAI";
-      const tags = [
-        { label: `Gain ≥${TAX_PROPOSAL_MIN_GAIN_PCT}%`, pass: row.significantGain },
-        { label: `Peak ≥${TAX_PROPOSAL_PEAK_PCT}%`, pass: row.nearPeak },
-        { label: row.hasSellPlan ? (row.isTrim ? "Trim · plan cap" : "Plan cap") : "Holdings trim", pass: true },
-        { label: saiLabel, pass: true },
-      ];
-      return `<span class="sim-tax-criteria">${tags.map((tag) =>
-        `<span class="sim-tax-crit ${tag.pass ? "pass" : "fail"}">${tag.pass ? "✓" : "○"} ${escapeHtml(tag.label)}</span>`
-      ).join("")}</span>`;
     }
 
     function simTaxProposalHeadHtml() {
@@ -11520,7 +11455,8 @@
       const scopeLabel = useSelection
         ? `${scopedPlan.scopeCount} selected symbol${scopedPlan.scopeCount === 1 ? "" : "s"}`
         : `${scopedPlan.scopeCount} symbol${scopedPlan.scopeCount === 1 ? "" : "s"} in Simulation scope`;
-      const proposal = buildTaxLossProposal(lossPool);
+      const scopedSymbols = (scopedPlan?.symbols || []).map((row) => row.symbol);
+      const proposal = buildTaxLossProposal(lossPool, scopedSymbols);
       el.hidden = false;
       const lossSellHtml = renderTaxLossSellTable(proposal.lossSells);
       if (!lossPool) {
@@ -11528,7 +11464,7 @@
           ${simTaxProposalHeadHtml()}
           ${lossSellHtml}
           <p class="sim-tax-proposal-note">No sell losses in current Simulation scope (${scopeLabel}). Select or filter to loss positions (negative Net Gains) to build a loss pool for winner-trim pairing.</p>
-          ${renderTaxDiagnostics(proposal.diagnostics)}`;
+          `;
         return;
       }
       if (!proposal.candidates.length) {
@@ -11536,21 +11472,21 @@
           ${simTaxProposalHeadHtml()}
           ${lossSellHtml}
           <p class="sim-tax-proposal-note">Loss pool <strong>${formatMoney(proposal.lossPool)}</strong> from ${scopeLabel} — no winner trims matched every criterion.</p>
-          ${renderTaxDiagnostics(proposal.diagnostics)}`;
+          `;
         return;
       }
       el.innerHTML = `
         ${simTaxProposalHeadHtml()}
         ${lossSellHtml}
         <p class="sim-tax-proposal-note">
-          Loss pool <strong>${formatMoney(proposal.lossPool)}</strong> from ${scopeLabel}.
+          Qualified loss pool <strong>${formatMoney(proposal.lossPool)}</strong> from ${scopeLabel}
+          ${proposal.unqualifiedLossPool > 0 ? `(excluded by tax-loss rules: ${formatMoney(proposal.unqualifiedLossPool)})` : ""}.
           Proposed winner trims offset <strong>${formatMoney(proposal.offsetGain)}</strong>
           ${proposal.remainingLoss > 0 ? `(≈ ${formatMoney(proposal.remainingLoss)} loss still unpaired)` : "(fully paired)"}.
           Est. tax shield ≈ <strong>${formatMoney(proposal.offsetGain * SIM_TAX_RATE)}</strong> at ${(SIM_TAX_RATE * 100).toFixed(3)}%.
-          Highlighted rows are the recommended winner-trim allocation; other rows show alternate candidates.
+          Hover table rows for scoring/SAI/tech details.
         </p>
-        ${renderTaxProposalTable(proposal.candidates, proposal.picks)}
-        ${renderTaxDiagnostics(proposal.diagnostics)}`;
+        ${renderTaxProposalTable(proposal.candidates, proposal.picks)}`;
     }
 
     function setSimulationFilter(filter) {
