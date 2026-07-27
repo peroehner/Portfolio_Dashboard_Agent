@@ -301,6 +301,8 @@ MIGRATION_STATEMENTS: tuple[str, ...] = (
     )
     """,
     "ALTER TABLE user_daily_usage ADD COLUMN IF NOT EXISTS manual_ai_actions INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS is_starred BOOLEAN NOT NULL DEFAULT FALSE",
+    "ALTER TABLE symbol_market ADD COLUMN IF NOT EXISTS news_json JSONB",
 )
 
 BOOTSTRAP_USER_EMAIL = os.environ.get("BOOTSTRAP_USER_EMAIL", "local@portfolio.local")
@@ -486,6 +488,32 @@ def list_distinct_symbols() -> list[str]:
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT DISTINCT symbol FROM symbols ORDER BY symbol"
+        ).fetchall()
+    return [row["symbol"] for row in rows]
+
+
+def list_starred_symbols() -> list[str]:
+    """Return tickers starred by at least one user (union across portfolios)."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT symbol FROM symbols
+            WHERE is_starred = TRUE
+            ORDER BY symbol
+            """
+        ).fetchall()
+    return [row["symbol"] for row in rows]
+
+
+def list_held_symbols() -> list[str]:
+    """Return tickers with a positive quantity in any user's holdings."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT symbol FROM holdings
+            WHERE quantity > 0
+            ORDER BY symbol
+            """
         ).fetchall()
     return [row["symbol"] for row in rows]
 

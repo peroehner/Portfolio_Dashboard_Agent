@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { api } from "@/lib/api";
 import { loadStarredSymbols, saveStarredSymbols } from "@/lib/starredSymbols";
 
 interface StarredSymbolsContextValue {
@@ -20,20 +21,49 @@ interface StarredSymbolsContextValue {
 
 const StarredSymbolsContext = createContext<StarredSymbolsContextValue | null>(null);
 
+async function syncStarredToBackend(next: Set<string>): Promise<void> {
+  try {
+    await api.syncStarredSymbols([...next]);
+  } catch {
+    // Offline or auth — local stars still work; warmer picks them up on next sync.
+  }
+}
+
 export function StarredSymbolsProvider({ children }: { children: ReactNode }) {
   const [starred, setStarredState] = useState<Set<string>>(() => new Set());
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    void loadStarredSymbols().then((loaded) => {
-      setStarredState(loaded);
+    let cancelled = false;
+    void (async () => {
+      const local = await loadStarredSymbols();
+      let merged = new Set(local);
+      try {
+        const { symbols } = await api.portfolio();
+        const serverStarred = symbols
+          .filter((item) => item.isStarred)
+          .map((item) => item.symbol.toUpperCase());
+        if (serverStarred.length) {
+          merged = new Set([...merged, ...serverStarred]);
+        }
+      } catch {
+        // API unavailable — keep local stars only.
+      }
+      if (cancelled) return;
+      setStarredState(merged);
       setReady(true);
-    });
+      await saveStarredSymbols(merged);
+      void syncStarredToBackend(merged);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const commit = useCallback((next: Set<string>) => {
     setStarredState(next);
     void saveStarredSymbols(next);
+    void syncStarredToBackend(next);
   }, []);
 
   const isStarred = useCallback((symbol: string) => starred.has(String(symbol || "").toUpperCase()), [starred]);

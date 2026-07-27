@@ -45,6 +45,47 @@ def _plan_limit_response(exc) -> tuple:
     return jsonify(body), 403
 
 
+def _enrichment_live_fallback_enabled() -> bool:
+    return os.environ.get("ENRICHMENT_LIVE_FALLBACK", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def _portfolio_enrichment(
+    symbols: list[str],
+    *,
+    include_news: bool = True,
+) -> dict[str, dict]:
+    """Cache-first enrichment; optional live fill for cache misses."""
+    live = request.args.get("live", default=0, type=int) > 0
+    upper = [s.upper() for s in symbols]
+    if live:
+        return fundamentals_service.get_enrichment_bulk(upper)
+
+    cached = fundamentals_service.get_enrichment_bulk_cached(upper)
+    if not _enrichment_live_fallback_enabled():
+        return cached
+
+    missing: list[str] = []
+    for symbol in upper:
+        data = cached.get(symbol, {})
+        fundamentals = data.get("fundamentals") or {}
+        if not fundamentals:
+            missing.append(symbol)
+            continue
+        if include_news and not (data.get("recentNews") or []):
+            missing.append(symbol)
+    if not missing:
+        return cached
+    live_fill = fundamentals_service.get_enrichment_bulk(missing)
+    merged = dict(cached)
+    merged.update(live_fill)
+    return merged
+
+
 def _app_build_id() -> str | None:
     """Short git/deploy id for the About panel (env on Render, else local git)."""
     for key in ("BUILD_SHA", "RENDER_GIT_COMMIT", "GIT_COMMIT"):
@@ -383,6 +424,32 @@ def delete_symbol(symbol):
     if not portfolio_service.delete_symbol(symbol):
         return jsonify({"error": f"Symbol {symbol.upper()} not found."}), 404
     return jsonify({"status": "deleted", "symbol": symbol.upper()})
+
+
+@v1_bp.route("/symbols/<symbol>/star", methods=["PATCH"])
+def set_symbol_star(symbol):
+    data = request.get_json(silent=True) or {}
+    if "starred" not in data:
+        return jsonify({"error": "starred is required (boolean)."}), 400
+    item = portfolio_service.set_symbol_starred(symbol, bool(data["starred"]))
+    if item is None:
+        return jsonify({"error": f"Symbol {symbol.upper()} not found."}), 404
+    return jsonify(item)
+
+
+@v1_bp.route("/starred-symbols", methods=["GET"])
+def get_starred_symbols():
+    return jsonify({"symbols": portfolio_service.list_starred_symbols()})
+
+
+@v1_bp.route("/starred-symbols", methods=["PUT"])
+def put_starred_symbols():
+    data = request.get_json(silent=True) or {}
+    raw = data.get("symbols")
+    if not isinstance(raw, list):
+        return jsonify({"error": "symbols must be an array of ticker strings."}), 400
+    synced = portfolio_service.sync_starred_symbols(raw)
+    return jsonify({"symbols": synced})
 
 
 @v1_bp.route("/symbols/<symbol>/notes", methods=["GET"])
@@ -802,7 +869,10 @@ def assess_symbol(symbol):
 def list_fundamentals():
     include_news = request.args.get("includeNews", default=1, type=int) > 0
     symbols_meta = portfolio_service.list_symbols()
-    enrichment = fundamentals_service.get_enrichment_bulk([s["symbol"] for s in symbols_meta])
+    enrichment = _portfolio_enrichment(
+        [s["symbol"] for s in symbols_meta],
+        include_news=include_news,
+    )
     rows = []
     for meta in symbols_meta:
         symbol = meta["symbol"]
@@ -867,7 +937,10 @@ def news_feed():
         changes_total = assessment_service.count_recommendation_changes()
 
     symbols_meta = portfolio_service.list_symbols()
-    enrichment = fundamentals_service.get_enrichment_bulk([s["symbol"] for s in symbols_meta])
+    enrichment = _portfolio_enrichment(
+        [s["symbol"] for s in symbols_meta],
+        include_news=True,
+    )
     items = []
     for meta in symbols_meta:
         symbol = meta["symbol"]

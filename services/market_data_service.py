@@ -19,6 +19,7 @@ from services.company_name import resolve_company_name
 
 # Reuse the fundamentals in-memory TTL as the default DB cache window.
 _DEFAULT_FUNDAMENTALS_TTL = float(os.environ.get("FUNDAMENTALS_CACHE_TTL_SECONDS", "21600"))
+_DEFAULT_NEWS_TTL = float(os.environ.get("NEWS_CACHE_TTL_SECONDS", "3600"))
 
 
 def _utc_now_text() -> str:
@@ -152,6 +153,76 @@ class MarketDataService:
                 VALUES (%s, %s::jsonb, app_now_text())
                 ON CONFLICT (symbol) DO UPDATE SET
                     fundamentals_json = EXCLUDED.fundamentals_json,
+                    updated_at = app_now_text()
+                """,
+                (symbol, json.dumps(payload)),
+            )
+            conn.commit()
+
+    def news_ttl_seconds(self) -> float:
+        return float(
+            os.environ.get(
+                "SYMBOL_MARKET_NEWS_TTL_SECONDS",
+                str(_DEFAULT_NEWS_TTL),
+            )
+        )
+
+    def news_persistence_enabled(self) -> bool:
+        return os.environ.get("SYMBOL_MARKET_NEWS", "1").strip().lower() not in (
+            "0",
+            "false",
+            "no",
+            "off",
+        )
+
+    def get_news(
+        self,
+        symbol: str,
+        *,
+        max_age_seconds: float | None = None,
+    ) -> list[dict[str, Any]] | None:
+        """Return persisted recent news when the blob is still fresh."""
+        if not self.news_persistence_enabled():
+            return None
+        symbol = symbol.upper()
+        ttl = self.news_ttl_seconds() if max_age_seconds is None else max_age_seconds
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT news_json FROM symbol_market WHERE symbol = %s",
+                (symbol,),
+            ).fetchone()
+        if not row or not row.get("news_json"):
+            return None
+        blob = row["news_json"]
+        if isinstance(blob, str):
+            try:
+                blob = json.loads(blob)
+            except json.JSONDecodeError:
+                return None
+        if not isinstance(blob, dict):
+            return None
+        fetched_at = _parse_utc_text(blob.get("fetchedAt"))
+        if fetched_at is None or (time.time() - fetched_at) > ttl:
+            return None
+        recent_news = blob.get("recentNews")
+        return recent_news if isinstance(recent_news, list) else []
+
+    def save_news(self, symbol: str, recent_news: list[dict[str, Any]]) -> None:
+        """Persist recent news for a symbol (shared across all users)."""
+        if not self.news_persistence_enabled():
+            return
+        symbol = symbol.upper()
+        payload = {
+            "recentNews": recent_news or [],
+            "fetchedAt": _utc_now_text(),
+        }
+        with get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO symbol_market (symbol, news_json, updated_at)
+                VALUES (%s, %s::jsonb, app_now_text())
+                ON CONFLICT (symbol) DO UPDATE SET
+                    news_json = EXCLUDED.news_json,
                     updated_at = app_now_text()
                 """,
                 (symbol, json.dumps(payload)),

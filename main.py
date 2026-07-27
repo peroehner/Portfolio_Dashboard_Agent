@@ -117,6 +117,8 @@ import_service = ImportService()
 engine = None
 _sync_worker_started = False
 _sync_worker_lock = threading.Lock()
+_enrichment_warmer_started = False
+_enrichment_warmer_lock = threading.Lock()
 
 
 def get_engine():
@@ -181,14 +183,39 @@ def background_sync_loop():
         time.sleep(300)
 
 
+def background_enrichment_warmer_loop():
+    """Paced fundamentals + news warmer; starred symbols first when available."""
+    from services.enrichment_warmer_service import run_warm_cycle, warm_interval_seconds, warmer_enabled
+    from services.fundamentals_service import FundamentalsService
+
+    if not warmer_enabled():
+        logging.info("Enrichment warmer disabled (ENRICHMENT_WARMER=0).")
+        return
+
+    fundamentals_service = FundamentalsService()
+    interval = warm_interval_seconds()
+    logging.info("Enrichment warmer started (interval=%ss).", interval)
+    while True:
+        try:
+            run_warm_cycle(fundamentals_service)
+        except Exception:  # noqa: BLE001 - never block the warmer thread
+            logging.exception("Enrichment warmer cycle failed")
+        time.sleep(interval)
+
+
 def ensure_background_worker():
     """Start price sync worker once (works under gunicorn and dev server)."""
-    global _sync_worker_started
+    global _sync_worker_started, _enrichment_warmer_started
     with _sync_worker_lock:
         if not _sync_worker_started:
             worker = threading.Thread(target=background_sync_loop, daemon=True)
             worker.start()
             _sync_worker_started = True
+    with _enrichment_warmer_lock:
+        if not _enrichment_warmer_started:
+            warmer = threading.Thread(target=background_enrichment_warmer_loop, daemon=True)
+            warmer.start()
+            _enrichment_warmer_started = True
 
 
 @app.before_request

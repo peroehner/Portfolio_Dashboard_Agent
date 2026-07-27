@@ -65,6 +65,7 @@ export interface PortfolioSymbol {
   buyBelow?: number | null;
   sellAbove?: number | null;
   annualDividend?: number | null;
+  isStarred?: boolean;
   notes?: Note[];
   latestAssessment?: SaiSummary | null;
 }

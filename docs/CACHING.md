@@ -13,6 +13,7 @@ Companion docs: [DATA.md](./DATA.md) (persistence), [auto_run_overview.md](./aut
 | Layer | What | Typical freshness |
 |-------|------|-------------------|
 | **Server schedule** | Background price sync → Postgres `symbol_market` | Every **5 min** (`background_sync_loop`). Sync uses the browser-impersonating Yahoo session (`YF_IMPERSONATE` / curl_cffi). When daily history lags the latest US session (common from datacenter IPs), Sync prefers newer `regularMarketPrice` / `regularMarketTime` from quoteSummary over the stale history bar. |
+| **Server schedule** | Background enrichment warmer → Postgres `symbol_market` fundamentals + news | Every **5 min** by default (`background_enrichment_warmer_loop`). Warms a small chunk per cycle with pauses; **starred symbols first** when `symbols.is_starred` is set (synced from mobile/web). |
 | **Server TTL caches** | Yahoo/Finnhub fundamentals, news, ticker info (in-process + optional DB blob) | **~6h / 1h / 15m** (env-tunable) |
 | **Client memory** | Browser view caches; mobile React state | Web: **~60s** on some views; mobile: until remount / refresh |
 
@@ -44,7 +45,8 @@ Passive server caches **never self-refresh**; they recompute only on the next re
 | Analyst targets (on sync) | ~every 12th cycle (~1h) | `TARGET_REFRESH_CYCLES` |
 | Fundamentals (in-process / Finnhub blob) | 21600s (6h) | `FUNDAMENTALS_CACHE_TTL_SECONDS` |
 | Fundamentals (Postgres `symbol_market.fundamentals_json`) | same order | `SYMBOL_MARKET_FUNDAMENTALS_TTL_SECONDS` |
-| News headlines | 3600s (1h) | `NEWS_CACHE_TTL_SECONDS` |
+| News (Postgres `symbol_market.news_json`) | 3600s (1h) | `SYMBOL_MARKET_NEWS_TTL_SECONDS` |
+| News headlines (in-process) | 3600s (1h) | `NEWS_CACHE_TTL_SECONDS` |
 | Yahoo ticker `.info` | 900s (15m) | `YFINANCE_INFO_CACHE_TTL_SECONDS` |
 | 52W high/low from daily history | 900s | `FUNDAMENTALS_52W_HISTORY_TTL_SECONDS` |
 | yfinance failure cooldown | 600s | `YFINANCE_FAILURE_COOLDOWN_SECONDS` |
@@ -107,21 +109,27 @@ Timeouts: default API **12s**; Fundamentals and News **45s** (`FUNDAMENTALS_TIME
 
 ## Expensive paths: Fundamentals & News
 
+### Background warmer (cache-first)
+
+A daemon thread (`background_enrichment_warmer_loop` in `main.py`) paces fundamentals + news fetches in small chunks with pauses (`ENRICHMENT_WARM_*` env vars). Priority order:
+
+1. **Starred** symbols (`symbols.is_starred`, synced from mobile via `PUT /starred-symbols`)
+2. **Held** symbols (positive `holdings.quantity`)
+3. Remaining watchlist tickers
+
+User endpoints read **persisted** blobs first (`symbol_market.fundamentals_json`, `symbol_market.news_json`). Pass `?live=1` to force the old on-demand bulk fetch. When `ENRICHMENT_LIVE_FALLBACK=1` (default), symbols with no warm cache yet are still filled live on the first request.
+
 ### Fundamentals
 
-`GET /fundamentals` runs `get_enrichment_bulk` over **all** portfolio symbols (Yahoo/Finnhub + caches). Mobile uses `?includeNews=0` so news is skipped on that tab.
+`GET /fundamentals` serves warmed Postgres/in-process cache for all portfolio symbols. Mobile uses `?includeNews=0` so news is skipped on that tab.
 
 ### News & Changes (`GET /news-feed`)
 
-Despite the name, the handler currently:
-
 1. Loads recommendation changes from Postgres (cheap)
-2. Calls **`get_enrichment_bulk` for every symbol** — each symbol fetches **fundamentals and news**
+2. Reads **cached** enrichment per symbol (no burst unless `?live=1` or cache miss with live fallback)
 3. Runs **`score_and_rank`** (bulk price history) to rank headlines by market reaction
 
-So a News open can cost as much as (or more than) a Fundamentals open. Mobile aborts at **45s** → “Could not load data / Request timed out after 45s”.
-
-**Retry after a moment usually works:** wake is done, server caches may already be warm from the timed-out attempt, and transient Yahoo/Finnhub/cell delays often clear. Not guaranteed if the first run never cached or the network stays bad.
+Mobile aborts at **45s** when live fallback must cold-fetch a large portfolio. After the warmer has cycled, opens are typically fast.
 
 Web Summary throttles top news to ≤ every 5 minutes and often calls `/news-feed` with `skipChanges=1`.
 
@@ -157,7 +165,7 @@ Web Summary throttles top news to ≤ every 5 minutes and often calls `/news-fee
 | Area | Path |
 |------|------|
 | Background sync | `main.py` → `background_sync_loop` |
-| News / fundamentals enrichment | `services/fundamentals_service.py`, `api/v1.py` (`/fundamentals`, `/news-feed`) |
+| News / fundamentals enrichment | `services/fundamentals_service.py`, `services/enrichment_warmer_service.py`, `api/v1.py` (`/fundamentals`, `/news-feed`, `/starred-symbols`) |
 | Relevance ranking | `services/news_relevance_service.py` |
 | Web timers & view caches | `dashboard.html` (`VIEW_CACHE_TTL_MS`, `AUTO_REFRESH_MS`, `TOPNEWS_REFRESH_MS`, `loadFundamentals`, `ensureFundamentalsCache`) |
 | Mobile queries | `mobile/lib/useApiQuery.ts`, `mobile/lib/api.ts`, `mobile/app/(tabs)/*.tsx` |

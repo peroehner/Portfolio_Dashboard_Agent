@@ -184,6 +184,11 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  syncStarredSymbols: (symbols: string[]) =>
+    apiFetch<{ symbols: string[] }>("/starred-symbols", {
+      method: "PUT",
+      body: JSON.stringify({ symbols }),
+    }),
   addNote: (symbol: string, data: import("./types").Note) =>
     apiFetch<import("./types").Note>(`/symbols/${encodeURIComponent(symbol)}/notes`, {
       method: "POST",

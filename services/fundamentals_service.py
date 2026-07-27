@@ -255,6 +255,38 @@ class FundamentalsService:
             results[symbol] = enrichment
         return results
 
+    def get_enrichment_cached(self, symbol: str) -> dict[str, Any]:
+        """Return persisted enrichment only (no live network fetch)."""
+        symbol = symbol.upper()
+        fundamentals = self.market_data_service.get_fundamentals(symbol) or {}
+        recent_news = self.market_data_service.get_news(symbol)
+        if recent_news is None:
+            recent_news = []
+        return {"fundamentals": fundamentals, "recentNews": recent_news}
+
+    def get_enrichment_bulk_cached(self, symbols: list[str]) -> dict[str, dict[str, Any]]:
+        """Read persisted enrichment for many symbols (no network)."""
+        unique = [s.upper() for s in dict.fromkeys(symbols)]
+        return {symbol: self.get_enrichment_cached(symbol) for symbol in unique}
+
+    def warm_symbol(self, symbol: str) -> dict[str, Any]:
+        """Fetch live enrichment for one symbol and persist to shared storage."""
+        symbol = symbol.upper()
+        fundamentals = self._fetch_live_fundamentals(symbol)
+        fundamentals = self._with_history_52w(symbol, fundamentals)
+        if not self._is_empty_fundamentals(fundamentals):
+            self.market_data_service.save_fundamentals(symbol, fundamentals)
+        recent_news = self.fetch_recent_news(symbol)
+        self.market_data_service.save_news(symbol, recent_news)
+        return {"fundamentals": fundamentals, "recentNews": recent_news}
+
+    def symbol_needs_warm(self, symbol: str) -> bool:
+        """True when fundamentals or news are missing or past TTL."""
+        symbol = symbol.upper()
+        fundamentals = self.market_data_service.get_fundamentals(symbol)
+        news = self.market_data_service.get_news(symbol)
+        return fundamentals is None or news is None
+
     def fetch_fundamentals(self, symbol: str) -> dict[str, Any]:
         """yfinance first; backfill from Finnhub when core financials are missing.
 

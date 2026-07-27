@@ -154,6 +154,59 @@ class PortfolioService:
         assert result is not None
         return result
 
+    def list_starred_symbols(self) -> list[str]:
+        """Symbols starred in the current user's portfolio."""
+        user_id = get_current_user_id()
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT symbol FROM symbols
+                WHERE user_id = %s AND is_starred = TRUE
+                ORDER BY symbol
+                """,
+                (user_id,),
+            ).fetchall()
+        return [row["symbol"] for row in rows]
+
+    def set_symbol_starred(self, symbol: str, starred: bool) -> dict[str, Any] | None:
+        symbol = symbol.upper()
+        user_id = get_current_user_id()
+        with get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE symbols
+                SET is_starred = %s, updated_at = app_now_text()
+                WHERE user_id = %s AND symbol = %s
+                """,
+                (bool(starred), user_id, symbol),
+            )
+            conn.commit()
+            if cursor.rowcount == 0:
+                return None
+        return self.get_symbol(symbol)
+
+    def sync_starred_symbols(self, symbols: list[str]) -> list[str]:
+        """Set starred=true for listed symbols; clear star on other portfolio symbols."""
+        user_id = get_current_user_id()
+        wanted = {str(s).strip().upper() for s in symbols if str(s).strip()}
+        with get_connection() as conn:
+            rows = conn.execute(
+                "SELECT symbol FROM symbols WHERE user_id = %s",
+                (user_id,),
+            ).fetchall()
+            portfolio = {row["symbol"] for row in rows}
+            for symbol in portfolio:
+                conn.execute(
+                    """
+                    UPDATE symbols
+                    SET is_starred = %s, updated_at = app_now_text()
+                    WHERE user_id = %s AND symbol = %s
+                    """,
+                    (symbol in wanted, user_id, symbol),
+                )
+            conn.commit()
+        return sorted(sym for sym in wanted if sym in portfolio)
+
     def delete_symbol(self, symbol: str) -> bool:
         symbol = symbol.upper()
         user_id = get_current_user_id()
@@ -299,6 +352,7 @@ class PortfolioService:
             "tradeAbovePrice": row["trade_above_price"] if "trade_above_price" in keys else None,
             "tradeAboveShares": row["trade_above_shares"] if "trade_above_shares" in keys else None,
             "annualDividend": row["annual_dividend"],
+            "isStarred": bool(row["is_starred"]) if "is_starred" in keys else False,
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],
         }
