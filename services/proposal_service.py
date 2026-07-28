@@ -64,6 +64,20 @@ def _round_score(value: float) -> int:
     return int(round(_clamp(value, 0, 100)))
 
 
+def band_bias_for_total(total: int) -> dict[str, Any]:
+    """Advisory score band — does not override assessment action until Slice 4."""
+    t = int(total)
+    if t >= 75:
+        return {"code": "strong_buy", "label": "Strong buy / size-up", "range": "≥75"}
+    if t >= 60:
+        return {"code": "buy", "label": "Buy / add", "range": "60–74"}
+    if t >= 45:
+        return {"code": "watch_hold", "label": "Watch / hold with catalysts", "range": "45–59"}
+    if t >= 30:
+        return {"code": "hold_trim", "label": "Hold / trim bias", "range": "30–44"}
+    return {"code": "sell_avoid", "label": "Sell / avoid", "range": "<30"}
+
+
 def pillar_scales_from_track_record(summary: dict[str, Any] | None) -> dict[str, float]:
     """Map Agent Signal Record hit rates → State/Trigger soft multipliers.
 
@@ -223,6 +237,7 @@ class ProposalService:
             stability["rawAction"] = published_action
 
         total = state["score"] + trigger["score"] + fit["score"]
+        band_bias = band_bias_for_total(total)
         fit_extensions = {key: None for key in FIT_EXTENSION_KEYS}
         for key in FIT_EXTENSION_KEYS:
             if key in prefs and prefs[key] is not None:
@@ -239,6 +254,11 @@ class ProposalService:
                 "trigger": trigger["score"],
                 "portfolioFit": fit["score"],
                 "total": total,
+            },
+            "bandBias": {
+                **band_bias,
+                "advisory": True,
+                "note": "Score band only — does not override SAI action until Slice 4",
             },
             "components": {
                 "state": state,
@@ -338,9 +358,19 @@ class ProposalService:
             if current_price > 0 and tgt:
                 upside = (tgt - current_price) / current_price * 100
         if isinstance(upside, (int, float)):
-            upside_pts = _clamp(float(upside) / 45.0 * 20.0, 0, 20)
-            score += upside_pts
-            factors.append(f"Upside vs target ≈ {float(upside):.1f}% → state +{upside_pts:.0f}")
+            if float(upside) >= 0:
+                upside_pts = _clamp(float(upside) / 45.0 * 20.0, 0, 20)
+                score += upside_pts
+                factors.append(
+                    f"Upside vs target ≈ {float(upside):.1f}% → state +{upside_pts:.0f}"
+                )
+            else:
+                # Stretched vs target: soft State drag (common on strong tech names).
+                drag = _clamp(abs(float(upside)) / 25.0 * 8.0, 0, 8)
+                score -= drag
+                factors.append(
+                    f"Price above target ≈ {float(upside):.1f}% → state −{drag:.0f}"
+                )
 
         raw_screen = screening.get("score")
         if isinstance(raw_screen, (int, float)):
@@ -362,6 +392,16 @@ class ProposalService:
             score += 4
             factors.append("Revenue growth supportive → state +4")
 
+        # Valuation stretch (PEG / trailing P/E) — soft State penalty only.
+        peg = _fund_get(fundamentals, "pegRatio", "peg")
+        trailing_pe = _fund_get(fundamentals, "trailingPe", "trailingPE")
+        if isinstance(peg, (int, float)) and peg >= 2.5:
+            score -= 5
+            factors.append(f"Elevated PEG {float(peg):.2f} → state −5")
+        elif isinstance(trailing_pe, (int, float)) and trailing_pe >= 35:
+            score -= 4
+            factors.append(f"Elevated trailing P/E {float(trailing_pe):.1f} → state −4")
+
         note_hits = [
             f
             for f in note_factors
@@ -382,7 +422,7 @@ class ProposalService:
             factors.append(f"Track-record state scale ×{scale:.2f}")
 
         capped = _round_score(_clamp(score, 0, STATE_MAX))
-        return {"score": capped, "max": STATE_MAX, "factors": factors[:6]}
+        return {"score": capped, "max": STATE_MAX, "factors": factors[:8]}
 
     def _score_trigger(
         self,

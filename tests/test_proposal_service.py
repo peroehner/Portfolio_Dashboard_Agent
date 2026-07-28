@@ -127,6 +127,31 @@ class ProposalServiceTests(unittest.TestCase):
             self.assertEqual(proposal["stability"]["rawAction"], "buy")
             importlib.reload(mod)
 
+    def test_valuation_stretch_and_band_bias(self) -> None:
+        proposal = self.svc.build(
+            symbol="AAPL",
+            action="hold",
+            confidence="medium",
+            context={
+                "currentPrice": 200,
+                "analystTarget1y": 180,
+                "screening": {"score": 10, "upsidePct": -10, "flags": []},
+                "fundamentals": {
+                    "valuation": {"trailingPe": 41.0, "pegRatio": 2.7},
+                    "growthProfitability": {"operatingMargins": 0.3, "revenueGrowth": 0.15},
+                },
+                "holding": {"quantity": 10, "weightPct": 12.0},
+                "alerts": [],
+            },
+            previous_actions=["hold"],
+        )
+        factors = " ".join(proposal["components"]["state"]["factors"]).lower()
+        self.assertTrue("peg" in factors or "p/e" in factors or "above target" in factors)
+        self.assertIn("bandBias", proposal)
+        self.assertTrue(proposal["bandBias"]["advisory"])
+        self.assertEqual(proposal["action"], "hold")
+        self.assertEqual(proposal["authority"], "assessment")
+
     def test_track_record_scales(self) -> None:
         scales = pillar_scales_from_track_record(
             {

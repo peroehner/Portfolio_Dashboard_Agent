@@ -1711,6 +1711,12 @@
       color: var(--muted);
       line-height: 1.35;
     }
+    .chip.proposal-total {
+      background: rgba(96, 165, 250, 0.18);
+      border: 1px solid rgba(96, 165, 250, 0.45);
+      color: #bfdbfe;
+      font-variant-numeric: tabular-nums;
+    }
     .proposal-prefs-panel {
       margin-top: 1rem;
     }
@@ -9644,10 +9650,20 @@
       const sentClass = sentiment === "bullish" ? "sentiment-bullish"
         : sentiment === "bearish" ? "sentiment-bearish"
         : "sentiment-neutral";
+      const scores = rec?.proposal?.scores;
+      const total = scores != null ? Number(scores.total) : null;
+      const band = rec?.proposal?.bandBias;
+      const totalTitle = band?.label
+        ? `Proposal total ${total}/100 — advisory band: ${band.label} (does not override SAI)`
+        : `Proposal total ${total}/100 (State+Trigger+Fit; does not override SAI)`;
+      const totalChip = Number.isFinite(total)
+        ? `<span class="chip proposal-total" title="${escapeHtml(totalTitle)}">${total}</span>`
+        : "";
       const chips = `
           <span class="chip ${action}" title="Action">${action}</span>
           <span class="chip hold" title="Confidence Level">${confidence}</span>
-          <span class="chip ${sentClass}" title="${sentimentTitle}">${sentiment}</span>`;
+          <span class="chip ${sentClass}" title="${sentimentTitle}">${sentiment}</span>
+          ${totalChip}`;
       if (bare) return chips;
       if (wrapperClass) {
         return `<span class="${wrapperClass}">${chips}</span>`;
@@ -12249,7 +12265,11 @@
       const total = Number(s.total) || state + trigger + fit;
       const pct = (v, max) => Math.max(0, Math.min(100, (Number(v) / max) * 100));
       const stab = proposal.stability || {};
+      const band = proposal.bandBias || {};
       const notes = [];
+      if (band.label) {
+        notes.push(`Band (advisory): ${band.label}${band.range ? ` [${band.range}]` : ""}`);
+      }
       if (stab.gated) notes.push("Stability gate held prior action");
       else if (stab.hysteresisHint) notes.push(stab.hysteresisHint);
       const veto = (proposal.vetoes || []).find((v) => v.severity === "block" || v.severity === "warn");

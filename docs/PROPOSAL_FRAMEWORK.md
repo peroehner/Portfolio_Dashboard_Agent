@@ -26,17 +26,17 @@ total = state + trigger + portfolioFit   # 0–100
 Slice 1 computes **heuristic scaffold scores** from data already in assess/inspector context.
 They explain structure; they do **not** yet override the overlay/LLM action.
 
-### Suggested action bands (future authority)
+### Suggested action bands (advisory now; authority later)
 
-| Total | Bias (when scores become authoritative) |
-|------:|------------------------------------------|
+| Total | Bias |
+|------:|------|
 | ≥ 75 | Strong buy / size-up candidate |
 | 60–74 | Buy / add |
 | 45–59 | Watch / hold with catalysts |
 | 30–44 | Hold / trim bias |
 | < 30 | Sell / avoid |
 
-Bands are documented for roadmap only; v1 keeps `proposal.action` aligned with the assessment action.
+Emitted on every proposal as `bandBias` (`advisory: true`). **Does not change SAI action** until Slice 4. v1 keeps `proposal.action` aligned with the assessment action (`authority: "assessment"`).
 
 ## Pillar detail
 
@@ -183,7 +183,17 @@ Mobile compact card is deferred; API fields remain optional for later clients.
 1. **Slice 1** — schema, scaffold scores, API attachment  
 2. **Slice 2** — State/Trigger weight tune + track-record soft scales; `PROPOSAL_STABILITY_GATE` (default off)  
 3. **Slice 3** — Portfolio Fit preferences + web compact scorecard (mobile deferred)  
-4. **Slice 4** — scores become co-authority or primary; bands drive action with vetoes  
+4. **Tune (no authority)** — valuation stretch in State; advisory `bandBias`; header total chip  
+5. **Slice 4** — scores become co-authority or primary; bands drive action with vetoes  
+
+### Tuning log (no authority)
+
+| Change | Why |
+|--------|-----|
+| Soft State drag when price is above target | Stretched names (e.g. AAPL) were scoring upside as if still cheap |
+| PEG ≥ 2.5 or trailing P/E ≥ 35 soft State −4/−5 | Valuation caution without flipping SAI |
+| `bandBias` advisory field + scorecard note | Make documented bands usable as a second opinion |
+| Header chip shows proposal total | Scores were easy to miss below the fold in Inspector |
 
 ### Env flags (Slice 2)
 
