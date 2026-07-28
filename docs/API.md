@@ -202,7 +202,7 @@ Set `NOTE_SYNTHESIS_GUIDANCE` in env to append custom instructions to the synthe
 }
 ```
 
-`proposal` is additive (Slice 1 scaffold). Inspector attaches the same object at `recommendation.proposal`. Full schema and Portfolio Fit roadmap: [PROPOSAL_FRAMEWORK.md](./PROPOSAL_FRAMEWORK.md).
+`proposal` is additive. Inspector attaches the same object at `recommendation.proposal` and renders State / Trigger / Fit bars on the web SAI card. Portfolio Fit prefs: `GET/PATCH /preferences`. Full schema: [PROPOSAL_FRAMEWORK.md](./PROPOSAL_FRAMEWORK.md).
 
 **Actions:** `buy` | `sell` | `hold` | `watch`
 

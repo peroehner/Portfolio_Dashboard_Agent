@@ -13,11 +13,13 @@ from services.fundamentals_service import FundamentalsService
 from services.holdings_service import HoldingsService
 from services.llm_client import LLMClient
 from services.portfolio_service import PortfolioService
+from services.preferences_service import PreferencesService
 from services.proposal_service import ProposalService
 from services.screening_service import ScreeningService
 from services.symbol_assessment_service import DEDUP_BASE_ASSESSMENT, SymbolAssessmentService
 from services.technical_service import TechnicalService
 from services.technical_signals_service import TechnicalSignalsService
+from services.track_record_service import TrackRecordService
 
 # Tier 1+2: feed computed technical signals (multi-timeframe trend/momentum +
 # adaptive Fibonacci swing) into the assessment. Toggle off to A/B against the
@@ -83,6 +85,29 @@ class AssessmentService:
         self.symbol_assessment_service = SymbolAssessmentService()
         self.overlay_service = AssessmentOverlayService(self.llm_client)
         self.proposal_service = ProposalService()
+        self.preferences_service = PreferencesService()
+        self.track_record_service = TrackRecordService()
+
+    def _proposal_extras(self) -> dict[str, Any]:
+        """Shared inputs for proposal scoring (prefs, income, track-record scales)."""
+        fit_prefs = self.preferences_service.get_portfolio_fit()
+        portfolio_annual_dividend = 0.0
+        for holding in self.holdings_service.list_holdings():
+            per_sh = holding.get("annualDividend")
+            qty = holding.get("quantity") or 0
+            if isinstance(per_sh, (int, float)) and qty:
+                portfolio_annual_dividend += float(per_sh) * float(qty)
+        track_summary = None
+        if TRACK_RECORD:
+            try:
+                track_summary = self.track_record_service.get_summary()
+            except Exception:  # noqa: BLE001 - scoring must not fail assess
+                track_summary = None
+        return {
+            "fit_prefs": fit_prefs,
+            "portfolio_annual_dividend": round(portfolio_annual_dividend, 2),
+            "track_record_summary": track_summary,
+        }
 
     def _compute_assessment(self, symbol: str) -> tuple[dict[str, Any], dict[str, Any]]:
         """Build context and run assessment (shared base + personal overlay when enabled)."""
@@ -364,6 +389,7 @@ class AssessmentService:
                 (user_id, symbol),
             ).fetchone()
             previous_actions = self._recent_actions(conn, user_id, symbol)
+            extras = self._proposal_extras()
             proposal = self.proposal_service.build(
                 symbol=symbol,
                 action=result["action"],
@@ -373,6 +399,9 @@ class AssessmentService:
                 action_source=result.get("actionSource"),
                 context=context,
                 previous_actions=previous_actions,
+                fit_prefs=extras["fit_prefs"],
+                track_record_summary=extras["track_record_summary"],
+                portfolio_annual_dividend=extras["portfolio_annual_dividend"],
             )
             proposal_json = json.dumps(proposal)
             cursor = conn.execute(
@@ -628,9 +657,9 @@ class AssessmentService:
         symbol = symbol.upper()
         if self.portfolio_service.get_symbol(symbol) is None:
             return None
+        extras = self._proposal_extras()
         history = self.list_assessments(symbol=symbol, limit=5)
         if not history:
-            # No assess yet: still return a scaffold from live context so mobile can probe.
             symbol_data = self.portfolio_service.get_symbol(symbol)
             context = self._build_context(symbol_data)
             return self.proposal_service.build(
@@ -642,10 +671,12 @@ class AssessmentService:
                 action_source=None,
                 context=context,
                 previous_actions=[],
+                fit_prefs=extras["fit_prefs"],
+                track_record_summary=extras["track_record_summary"],
+                portfolio_annual_dividend=extras["portfolio_annual_dividend"],
             )
         latest = history[0]
-        if latest.get("proposal"):
-            return latest["proposal"]
+        # Rebuild when prefs may have changed; always refresh fitExtensions from prefs.
         previous_actions = [a["action"] for a in history[1:]]
         symbol_data = self.portfolio_service.get_symbol(symbol)
         context = self._build_context(symbol_data) if symbol_data else None
@@ -653,6 +684,9 @@ class AssessmentService:
             latest,
             context=context,
             previous_actions=previous_actions,
+            fit_prefs=extras["fit_prefs"],
+            track_record_summary=extras["track_record_summary"],
+            portfolio_annual_dividend=extras["portfolio_annual_dividend"],
         )
 
     @staticmethod

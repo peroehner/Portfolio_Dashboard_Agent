@@ -131,6 +131,10 @@ class InspectorService:
             holding=holding,
             proposal_service=self.proposal_service,
         )
+        # Always refresh proposal so Portfolio Fit prefs apply without re-assess.
+        live_proposal = self.assessment_service.get_proposal(symbol)
+        if live_proposal:
+            recommendation["proposal"] = live_proposal
 
         valuation = self._valuation_metrics(symbol, symbol_data, screen_row, holding)
 

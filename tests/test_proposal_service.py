@@ -1,8 +1,14 @@
-"""Unit tests for the trading proposal scaffold (Slice 1)."""
+"""Unit tests for the trading proposal scaffold (Slices 1–3)."""
 
+import os
 import unittest
+from unittest.mock import patch
 
-from services.proposal_service import FIT_EXTENSION_KEYS, ProposalService
+from services.proposal_service import (
+    FIT_EXTENSION_KEYS,
+    ProposalService,
+    pillar_scales_from_track_record,
+)
 
 
 class ProposalServiceTests(unittest.TestCase):
@@ -47,9 +53,9 @@ class ProposalServiceTests(unittest.TestCase):
         )
         for key in FIT_EXTENSION_KEYS:
             self.assertIn(key, proposal["fitExtensions"])
-            self.assertIsNone(proposal["fitExtensions"][key])
         self.assertEqual(proposal["stability"]["sameActionStreak"], 2)
         self.assertTrue(proposal["stability"]["confirmed"])
+        self.assertFalse(proposal["stability"]["gated"])
 
     def test_hard_trigger_and_concentration_veto(self) -> None:
         proposal = self.svc.build(
@@ -74,28 +80,69 @@ class ProposalServiceTests(unittest.TestCase):
         self.assertEqual(proposal["stability"]["sameActionStreak"], 1)
         self.assertFalse(proposal["stability"]["confirmed"])
 
-    def test_build_from_assessment_uses_context(self) -> None:
-        assessment = {
-            "symbol": "MSFT",
-            "action": "hold",
-            "confidence": "low",
-            "rationale": "Neutral",
-            "factors": [],
-            "actionSource": "rules_fallback",
-        }
-        proposal = self.svc.build_from_assessment(
-            assessment,
+    def test_fit_prefs_dividend_and_volatility(self) -> None:
+        proposal = self.svc.build(
+            symbol="DIV",
+            action="watch",
+            confidence="medium",
             context={
-                "symbol": "MSFT",
-                "currentPrice": 400,
-                "screening": {"score": 5, "upsidePct": 5, "flags": []},
+                "currentPrice": 40,
+                "screening": {"score": 10, "upsidePct": 10, "flags": []},
+                "fundamentals": {"beta": 0.8, "dividendYield": 0.03},
                 "holding": None,
                 "alerts": [],
             },
+            fit_prefs={
+                "targetAnnualDividend": 8000,
+                "volatilityPreference": "low",
+                "maxSingleNameWeightPct": 12,
+            },
+            portfolio_annual_dividend=1000,
             previous_actions=[],
         )
-        self.assertEqual(proposal["action"], "hold")
-        self.assertEqual(proposal["scores"]["portfolioFit"], 8)  # watchlist neutral base
+        self.assertEqual(proposal["fitExtensions"]["targetAnnualDividend"], 8000.0)
+        self.assertEqual(proposal["fitExtensions"]["volatilityPreference"], "low")
+        self.assertEqual(proposal["fitExtensions"]["maxSingleNameWeightPct"], 12.0)
+        factors = " ".join(proposal["components"]["portfolioFit"]["factors"]).lower()
+        self.assertIn("income gap", factors)
+        self.assertIn("beta", factors)
+
+    def test_stability_gate_holds_prior_action(self) -> None:
+        with patch.dict(os.environ, {"PROPOSAL_STABILITY_GATE": "1"}):
+            import importlib
+
+            import services.proposal_service as mod
+
+            importlib.reload(mod)
+            svc = mod.ProposalService()
+            proposal = svc.build(
+                symbol="FLIP",
+                action="buy",
+                confidence="high",
+                context={"screening": {}, "alerts": [], "holding": None},
+                previous_actions=["hold"],
+            )
+            self.assertEqual(proposal["action"], "hold")
+            self.assertTrue(proposal["stability"]["gated"])
+            self.assertEqual(proposal["stability"]["rawAction"], "buy")
+            importlib.reload(mod)
+
+    def test_track_record_scales(self) -> None:
+        scales = pillar_scales_from_track_record(
+            {
+                "byKind": {
+                    "recommendation": {"wins": 10, "losses": 2, "hitRate": 10 / 12},
+                    "pattern": {"wins": 8, "losses": 2, "hitRate": 0.8},
+                    "confluence": {"wins": 7, "losses": 3, "hitRate": 0.7},
+                }
+            }
+        )
+        self.assertGreater(scales["state"], 1.0)
+        self.assertGreater(scales["trigger"], 1.0)
+        thin = pillar_scales_from_track_record(
+            {"byKind": {"recommendation": {"wins": 1, "losses": 0, "hitRate": 1.0}}}
+        )
+        self.assertEqual(thin["state"], 1.0)
 
 
 if __name__ == "__main__":

@@ -179,10 +179,20 @@ def get_me():
     })
 
 
-@v1_bp.route("/preferences", methods=["PATCH"])
-def update_preferences():
-    """Reserved for future per-user preferences."""
-    return jsonify({})
+@v1_bp.route("/preferences", methods=["GET", "PATCH"])
+def preferences():
+    """Per-user preferences (Portfolio Fit targets for the proposal framework)."""
+    from services.preferences_service import PreferencesService
+
+    svc = PreferencesService()
+    if request.method == "GET":
+        return jsonify(svc.get())
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(svc.update(payload))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
 
 @v1_bp.route("/config", methods=["GET"])
 def get_config():
@@ -202,6 +212,8 @@ def get_config():
         "features": {
             "noteSynthesis": True,
             "authorConsoleEnabled": _author_console_allowed(),
+            "proposalStabilityGate": os.environ.get("PROPOSAL_STABILITY_GATE", "0").lower()
+            not in ("0", "false", "no", "off"),
         },
         "geminiModel": client.gemini_model if client.active_provider() == "gemini" else None,
         "docs": {

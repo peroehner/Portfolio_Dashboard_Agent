@@ -39,8 +39,21 @@ Optional `ALLOWED_EMAILS` restricts who may sign in (comma-separated).
 
 ### `users`
 
-Google OAuth identity and preferences (`prefer_computed_trends`, etc.).
+Google OAuth identity and preferences (`prefer_computed_trends`, `preferences_json` for Portfolio Fit targets).
 
+`preferences_json` shape (Slice 3):
+
+```json
+{
+  "portfolioFit": {
+    "targetAnnualDividend": 5000,
+    "volatilityPreference": "moderate",
+    "maxSingleNameWeightPct": 15
+  }
+}
+```
+
+API: `GET/PATCH /api/v1/preferences`.
 ### `symbols` (per user)
 
 Personal thresholds and targets only — **not** live market quotes.

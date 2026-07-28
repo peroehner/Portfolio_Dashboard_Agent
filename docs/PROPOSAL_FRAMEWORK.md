@@ -159,9 +159,11 @@ Emitted as `proposal.vetoes[]` with `{ code, message, severity }`.
 | `POST /symbols/{symbol}/assess` (and portfolio assess) | `proposal` on each assessment | Also persisted in `assessments.trading_recommendation` as JSON |
 | `GET /symbols/{symbol}/inspector` | `recommendation.proposal` | Built from latest assessment + live context when possible |
 | `GET /symbols/{symbol}/proposal` | top-level `proposal` | Dedicated read for mobile / tooling |
-| Overview / Summary tables | unchanged | Avoid UI disruption |
+| Overview / Summary tables | unchanged for SAI list | Avoid UI disruption |
+| Summary → Portfolio Fit preferences | form under Agent Signal Record | Sets `GET/PATCH /preferences` |
+| Inspector SAI card | compact State / Trigger / Fit bars | Web only for now |
 
-Mobile: keep sparse `SaiSummary` / `Assessment` types; treat `proposal` as optional. Compact proposal card is a later mobile slice.
+Mobile compact card is deferred; API fields remain optional for later clients.
 
 ## Implementation map
 
@@ -169,20 +171,30 @@ Mobile: keep sparse `SaiSummary` / `Assessment` types; treat `proposal` as optio
 |-------|----------|
 | Doc (this file) | `docs/PROPOSAL_FRAMEWORK.md` |
 | Builder | `services/proposal_service.py` |
+| Preferences | `services/preferences_service.py` + `users.preferences_json` |
 | Assess attach + persist | `services/assessment_service.py` |
-| Inspector attach | `services/inspector_service.py` → `build_symbol_recommendation` |
+| Inspector attach | `services/inspector_service.py` → `recommendation.proposal` |
 | Dedicated route | `api/v1.py` → `GET /symbols/<symbol>/proposal` |
+| Prefs API | `api/v1.py` → `GET/PATCH /preferences` |
+| Web scorecard + prefs form | `dashboard.html` |
 
 ## Iteration plan
 
-1. **Slice 1 (this)** — schema, scaffold scores, API attachment, no dashboard redesign  
-2. **Slice 2** — tune State/Trigger weights against Agent Signal Record; optional stability gating behind a flag  
-3. **Slice 3** — Portfolio Fit preferences (dividend target, volatility, caps) + mobile compact card  
-4. **Slice 4** — scores become co-authority or primary; bands drive action with vetoes
+1. **Slice 1** — schema, scaffold scores, API attachment  
+2. **Slice 2** — State/Trigger weight tune + track-record soft scales; `PROPOSAL_STABILITY_GATE` (default off)  
+3. **Slice 3** — Portfolio Fit preferences + web compact scorecard (mobile deferred)  
+4. **Slice 4** — scores become co-authority or primary; bands drive action with vetoes  
+
+### Env flags (Slice 2)
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `PROPOSAL_TRACK_RECORD_WEIGHTS` | `1` | Soft-nudge State/Trigger from Agent Signal Record hit rates (≥8 decisive samples) |
+| `PROPOSAL_STABILITY_GATE` | `0` | When `1`, unconfirmed flips publish prior `proposal.action` (SAI assessment action unchanged) |
 
 ## Related
 
 - Assessment overlay: `services/assessment_overlay_service.py`  
 - Signal track record: [signal_track_record.md](./signal_track_record.md)  
 - API overview: [API.md](./API.md)  
-- Mobile surfaces: [MOBILE.md](./MOBILE.md)
+- Mobile surfaces: [MOBILE.md](./MOBILE.md) (proposal card later)

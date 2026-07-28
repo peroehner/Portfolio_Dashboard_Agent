@@ -9,6 +9,10 @@ OPENAPI_SPEC = {
     "paths": {
         "/health": {"get": {"summary": "API health check"}},
         "/config": {"get": {"summary": "Runtime configuration (provider, sync interval)"}},
+        "/preferences": {
+            "get": {"summary": "User preferences (Portfolio Fit targets)"},
+            "patch": {"summary": "Update user preferences"},
+        },
         "/overview": {"get": {"summary": "Portfolio KPIs and holdings summary"}},
         "/symbols": {
             "get": {"summary": "List symbols"},

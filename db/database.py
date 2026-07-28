@@ -74,6 +74,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         picture TEXT,
         plan TEXT NOT NULL DEFAULT 'free',
         prefer_computed_trends BOOLEAN NOT NULL DEFAULT FALSE,
+        preferences_json JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TEXT NOT NULL DEFAULT app_now_text(),
         last_login_at TEXT
     )
@@ -290,6 +291,7 @@ MIGRATION_STATEMENTS: tuple[str, ...] = (
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TEXT",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free'",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS prefer_computed_trends BOOLEAN NOT NULL DEFAULT FALSE",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences_json JSONB NOT NULL DEFAULT '{}'::jsonb",
     """
     CREATE TABLE IF NOT EXISTS user_daily_usage (
         user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
