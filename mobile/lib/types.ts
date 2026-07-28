@@ -136,6 +136,27 @@ export interface Assessment {
   rationale?: string;
   createdAt?: string;
   provider?: string;
+  /** Optional Decision Framework scaffold — see docs/PROPOSAL_FRAMEWORK.md */
+  proposal?: TradingProposal;
+}
+
+export interface TradingProposalScores {
+  state?: number;
+  trigger?: number;
+  portfolioFit?: number;
+  total?: number;
+}
+
+/** Additive API field; UI can ignore until a compact proposal card lands. */
+export interface TradingProposal {
+  schemaVersion?: number;
+  action?: SaiAction | string;
+  confidence?: string;
+  authority?: string;
+  scores?: TradingProposalScores;
+  rationale?: string;
+  actionSource?: string | null;
+  fitExtensions?: Record<string, unknown>;
 }
 
 export interface RecommendationChange {
@@ -183,6 +204,7 @@ export interface InspectorPayload {
     sentiment?: string;
     sentimentSource?: string;
     sentimentDetail?: string;
+    proposal?: TradingProposal;
   };
   screening?: {
     score?: number | null;

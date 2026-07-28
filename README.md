@@ -19,6 +19,9 @@ waves, technical stance): **[docs/PATTERNS.md](docs/PATTERNS.md)**.
 Assessment signal scoring (SAI, patterns, confluence hit rates):
 **[docs/signal_track_record.md](docs/signal_track_record.md)** (Agent Signal Record).
 
+Trading proposal framework (State / Trigger / Portfolio Fit — API scaffold):
+**[docs/PROPOSAL_FRAMEWORK.md](docs/PROPOSAL_FRAMEWORK.md)**.
+
 ## Local development
 
 ```bash

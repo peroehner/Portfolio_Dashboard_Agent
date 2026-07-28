@@ -13,6 +13,7 @@ from services.fundamentals_service import FundamentalsService
 from services.holdings_service import HoldingsService
 from services.llm_client import LLMClient
 from services.portfolio_service import PortfolioService
+from services.proposal_service import ProposalService
 from services.screening_service import ScreeningService
 from services.symbol_assessment_service import DEDUP_BASE_ASSESSMENT, SymbolAssessmentService
 from services.technical_service import TechnicalService
@@ -81,6 +82,7 @@ class AssessmentService:
         self.assess_workers = max(1, int(os.environ.get("ASSESS_WORKERS", "6")))
         self.symbol_assessment_service = SymbolAssessmentService()
         self.overlay_service = AssessmentOverlayService(self.llm_client)
+        self.proposal_service = ProposalService()
 
     def _compute_assessment(self, symbol: str) -> tuple[dict[str, Any], dict[str, Any]]:
         """Build context and run assessment (shared base + personal overlay when enabled)."""
@@ -330,6 +332,18 @@ class AssessmentService:
             holding = {**holding, "weightPct": round(holding["marketValue"] / total_market_value * 100, 2)}
         return holding
 
+    def _recent_actions(self, conn, user_id: int, symbol: str, limit: int = 5) -> list[str]:
+        rows = conn.execute(
+            """
+            SELECT action FROM assessments
+            WHERE user_id = %s AND symbol = %s
+            ORDER BY created_at DESC, id DESC
+            LIMIT %s
+            """,
+            (user_id, symbol, limit),
+        ).fetchall()
+        return [row["action"] for row in rows]
+
     def _save_assessment(
         self,
         symbol: str,
@@ -349,6 +363,18 @@ class AssessmentService:
                 """,
                 (user_id, symbol),
             ).fetchone()
+            previous_actions = self._recent_actions(conn, user_id, symbol)
+            proposal = self.proposal_service.build(
+                symbol=symbol,
+                action=result["action"],
+                confidence=result["confidence"],
+                rationale=result.get("rationale") or "",
+                factors=result.get("factors") or [],
+                action_source=result.get("actionSource"),
+                context=context,
+                previous_actions=previous_actions,
+            )
+            proposal_json = json.dumps(proposal)
             cursor = conn.execute(
                 """
                 INSERT INTO assessments (
@@ -366,7 +392,7 @@ class AssessmentService:
                     result["rationale"],
                     factors_json,
                     synthesis_json,
-                    None,
+                    proposal_json,
                     result["provider"],
                 ),
             )
@@ -398,6 +424,8 @@ class AssessmentService:
         if result.get("baseFromCache") is not None:
             assessment["baseFromCache"] = result["baseFromCache"]
         assessment["context"] = context
+        # Prefer freshly built proposal (row parse is identical, but keeps types tight).
+        assessment["proposal"] = proposal
         return assessment
 
     def _record_recommendation_change(
@@ -575,8 +603,12 @@ class AssessmentService:
     def _row_to_assessment(self, row) -> dict[str, Any]:
         factors = self._parse_json_field(row["factors"], default=[])
         note_synthesis = self._parse_json_field(row["note_synthesis"], default={})
+        proposal = self._parse_json_field(row["trading_recommendation"], default=None)
+        # Legacy rows may store non-proposal text in trading_recommendation — ignore.
+        if not isinstance(proposal, dict) or proposal.get("schemaVersion") is None:
+            proposal = None
 
-        return {
+        out = {
             "id": row["id"],
             "symbol": row["symbol"],
             "action": row["action"],
@@ -587,6 +619,41 @@ class AssessmentService:
             "provider": row["provider"],
             "createdAt": row["created_at"],
         }
+        if proposal is not None:
+            out["proposal"] = proposal
+        return out
+
+    def get_proposal(self, symbol: str) -> dict[str, Any] | None:
+        """Latest proposal for a symbol — stored if present, else rebuilt from latest assess."""
+        symbol = symbol.upper()
+        if self.portfolio_service.get_symbol(symbol) is None:
+            return None
+        history = self.list_assessments(symbol=symbol, limit=5)
+        if not history:
+            # No assess yet: still return a scaffold from live context so mobile can probe.
+            symbol_data = self.portfolio_service.get_symbol(symbol)
+            context = self._build_context(symbol_data)
+            return self.proposal_service.build(
+                symbol=symbol,
+                action="hold",
+                confidence="medium",
+                rationale="Run Assess Symbol to generate a full proposal.",
+                factors=[],
+                action_source=None,
+                context=context,
+                previous_actions=[],
+            )
+        latest = history[0]
+        if latest.get("proposal"):
+            return latest["proposal"]
+        previous_actions = [a["action"] for a in history[1:]]
+        symbol_data = self.portfolio_service.get_symbol(symbol)
+        context = self._build_context(symbol_data) if symbol_data else None
+        return self.proposal_service.build_from_assessment(
+            latest,
+            context=context,
+            previous_actions=previous_actions,
+        )
 
     @staticmethod
     def _parse_json_field(raw, default):

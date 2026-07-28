@@ -32,6 +32,9 @@ OPENAPI_SPEC = {
         "/symbols/{symbol}/notes/synthesize": {"post": {"summary": "Synthesize all notes for symbol"}},
         "/symbols/{symbol}/fib-levels": {"get": {"summary": "Fibonacci retracement levels"}},
         "/symbols/{symbol}/inspector": {"get": {"summary": "Full symbol context"}},
+        "/symbols/{symbol}/proposal": {
+            "get": {"summary": "Trading proposal (State/Trigger/Portfolio Fit scaffold)"}
+        },
         "/symbols/{symbol}/fundamentals": {"get": {"summary": "Fundamentals + recent news snapshot"}},
         "/symbols/{symbol}/assess": {"post": {"summary": "Assess one symbol"}},
         "/portfolio": {"get": {"summary": "All symbols with details"}},

@@ -866,6 +866,18 @@ def assess_symbol(symbol):
     return jsonify(assessment), 201
 
 
+@v1_bp.route("/symbols/<symbol>/proposal", methods=["GET"])
+def get_symbol_proposal(symbol):
+    """Decision-framework proposal (State / Trigger / Portfolio Fit).
+
+    Additive read surface for web tooling and mobile. See docs/PROPOSAL_FRAMEWORK.md.
+    """
+    proposal = assessment_service.get_proposal(symbol)
+    if proposal is None:
+        return jsonify({"error": f"Symbol {symbol.upper()} not found."}), 404
+    return jsonify({"symbol": symbol.upper(), "proposal": proposal})
+
+
 @v1_bp.route("/fundamentals", methods=["GET"])
 def list_fundamentals():
     include_news = request.args.get("includeNews", default=1, type=int) > 0

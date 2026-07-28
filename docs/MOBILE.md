@@ -25,6 +25,8 @@ Use **TestFlight** when you are away from home. Expo Go still needs a Metro pack
 | **Alerts** | `GET /alerts`, `POST /alerts/{id}/dismiss` | Active alerts, dismiss |
 | **Symbol** (stack) | `GET /symbols/{symbol}/inspector` | Price, position, thresholds, recommendation |
 
+Optional later: `GET /symbols/{symbol}/proposal` and `recommendation.proposal` on inspector (State / Trigger / Portfolio Fit scaffold — see [PROPOSAL_FRAMEWORK.md](./PROPOSAL_FRAMEWORK.md)). Keep `SaiSummary` / `Assessment` types sparse; treat `proposal` as optional JSON.
+
 Comma-separated ticker filters work the same as the web app (`GH, ne` → GH and NET).
 
 ### Loading & caching (mobile)

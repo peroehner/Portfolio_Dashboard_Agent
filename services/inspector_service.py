@@ -10,6 +10,7 @@ from services.fib_service import FibService
 from services.fundamentals_service import FundamentalsService
 from services.holdings_service import HoldingsService
 from services.portfolio_service import PortfolioService
+from services.proposal_service import ProposalService
 from services.screening_service import ScreeningService
 from services.technical_service import TechnicalService
 from services.technical_signals_service import TechnicalSignalsService
@@ -26,6 +27,7 @@ class InspectorService:
         self.technical_service = TechnicalService()
         self.technical_signals_service = TechnicalSignalsService()
         self.fundamentals_service = FundamentalsService()
+        self.proposal_service = ProposalService()
 
     def inspect(
         self,
@@ -120,8 +122,14 @@ class InspectorService:
         holding = self.holdings_service.get_holding(symbol)
         news_sentiment = self._news_sentiment_for_symbol(symbol) if include_news else None
         recommendation = build_symbol_recommendation(
-            symbol_data, assessments, alerts, screen_row, nearest,
+            symbol_data,
+            assessments,
+            alerts,
+            screen_row,
+            nearest,
             news_sentiment=news_sentiment,
+            holding=holding,
+            proposal_service=self.proposal_service,
         )
 
         valuation = self._valuation_metrics(symbol, symbol_data, screen_row, holding)
@@ -622,6 +630,8 @@ def build_symbol_recommendation(
     screening: dict[str, Any],
     nearest_fib: dict[str, Any] | None,
     news_sentiment: dict[str, Any] | None = None,
+    holding: dict[str, Any] | None = None,
+    proposal_service: ProposalService | None = None,
 ) -> dict[str, Any]:
     notes = symbol_data.get("notes", [])
     syntheses = [note["synthesis"] for note in notes if note.get("synthesis")]
@@ -683,6 +693,47 @@ def build_symbol_recommendation(
 
     headline = InspectorService._headline_for_action(action, sentiment)
 
+    proposal = None
+    if latest and latest.get("proposal"):
+        proposal = latest["proposal"]
+    else:
+        builder = proposal_service or ProposalService()
+        previous_actions = [a.get("action") for a in assessments[1:6]] if assessments else []
+        trade_below = symbol_data.get("tradeBelowPrice")
+        trade_above = symbol_data.get("tradeAbovePrice")
+        buy_below = trade_below if trade_below is not None else symbol_data.get("buyBelow")
+        sell_above = trade_above if trade_above is not None else symbol_data.get("sellAbove")
+        proposal = builder.build(
+            symbol=symbol_data.get("symbol") or "",
+            action=action,
+            confidence=confidence,
+            rationale=rationale,
+            factors=drivers,
+            action_source=latest.get("actionSource") if latest else None,
+            context={
+                "symbol": symbol_data.get("symbol"),
+                "currentPrice": symbol_data.get("currentPrice"),
+                "targetPrice": symbol_data.get("targetPrice"),
+                "analystTarget1y": symbol_data.get("analystTarget1y"),
+                "buyBelow": buy_below,
+                "sellAbove": sell_above,
+                "screening": {
+                    "score": screening.get("score"),
+                    "upsidePct": screening.get("upsidePct"),
+                    "flags": screening.get("flags", []),
+                    "fibDistancePct": screening.get("fibDistancePct"),
+                    "techStance": screening.get("techStance"),
+                },
+                "holding": holding,
+                "alerts": alerts,
+            },
+            screening=screening,
+            holding=holding,
+            alerts=alerts,
+            news_sentiment=news_sentiment,
+            previous_actions=previous_actions,
+        )
+
     return {
         "action": action,
         "confidence": confidence,
@@ -700,4 +751,5 @@ def build_symbol_recommendation(
         "assessedAt": latest.get("createdAt") if latest else None,
         "provider": latest.get("provider") if latest else None,
         "upsidePct": screening.get("upsidePct"),
+        "proposal": proposal,
     }

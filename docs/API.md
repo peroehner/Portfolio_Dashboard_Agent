@@ -163,6 +163,7 @@ Set `NOTE_SYNTHESIS_GUIDANCE` in env to append custom instructions to the synthe
 | GET | `/fib-proximity` | — |
 | GET | `/symbols/{symbol}/fib-levels` | — |
 | GET | `/symbols/{symbol}/inspector` | Full context for one symbol |
+| GET | `/symbols/{symbol}/proposal` | Trading proposal scaffold (State / Trigger / Portfolio Fit) |
 
 ---
 
@@ -191,9 +192,17 @@ Set `NOTE_SYNTHESIS_GUIDANCE` in env to append custom instructions to the synthe
     "sourceNoteCount": 1
   },
   "provider": "openai",
-  "createdAt": "2026-06-05 22:00:00"
+  "createdAt": "2026-06-05 22:00:00",
+  "proposal": {
+    "schemaVersion": 1,
+    "authority": "assessment",
+    "scores": { "state": 28, "trigger": 14, "portfolioFit": 11, "total": 53 },
+    "fitExtensions": { "targetAnnualDividend": null, "volatilityPreference": null }
+  }
 }
 ```
+
+`proposal` is additive (Slice 1 scaffold). Inspector attaches the same object at `recommendation.proposal`. Full schema and Portfolio Fit roadmap: [PROPOSAL_FRAMEWORK.md](./PROPOSAL_FRAMEWORK.md).
 
 **Actions:** `buy` | `sell` | `hold` | `watch`
 
