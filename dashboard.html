@@ -3711,6 +3711,22 @@
       border-radius: 8px;
       background: var(--panel-2);
     }
+    .sim-tax-columns {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 0.9rem;
+      align-items: start;
+      max-height: 35vh;
+    }
+    .sim-tax-column {
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(18, 25, 39, 0.55);
+      padding: 0.55rem 0.6rem;
+      overflow: auto;
+      max-height: 35vh;
+    }
     .sim-tax-section + .sim-tax-section {
       margin-top: 1rem;
       padding-top: 0.85rem;
@@ -3722,6 +3738,11 @@
       font-weight: 600;
       color: var(--text);
     }
+    .sim-tax-table-scroll {
+      overflow: auto;
+      max-width: 100%;
+    }
+    .sim-tax-table-scroll table { min-width: 640px; }
     .sim-tax-threshold-bar {
       display: flex;
       align-items: center;
@@ -3827,6 +3848,13 @@
     .sim-tax-proposal details table {
       margin-top: 0.35rem;
       font-size: 0.76rem;
+    }
+    @media (max-width: 1200px) {
+      .sim-tax-columns {
+        grid-template-columns: 1fr;
+        max-height: none;
+      }
+      .sim-tax-column { max-height: 32vh; }
     }
     .sim-tax-proposal details ol {
       margin: 0.4rem 0 0;
@@ -11713,20 +11741,22 @@
         <div class="sim-tax-section">
           <h4>Tax-loss sell candidates (${totalCount})</h4>
           ${renderTaxLossScoreThresholdBar(threshold, maxLossScore)}
-          <table>
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Max sell</th>
-                <th style="text-align:right;">Max loss</th>
-                <th style="text-align:right;">Cash</th>
-                <th style="text-align:right;">Loss %</th>
-                <th style="text-align:right;">WTD %</th>
-                <th style="text-align:right;">Loss-score</th>
-              </tr>
-            </thead>
-            <tbody>${renderTaxLossSellCandidateRows(candidates, threshold)}</tbody>
-          </table>
+          <div class="sim-tax-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Max sell</th>
+                  <th style="text-align:right;">Max loss</th>
+                  <th style="text-align:right;">Cash</th>
+                  <th style="text-align:right;">Loss %</th>
+                  <th style="text-align:right;">WTD %</th>
+                  <th style="text-align:right;">Loss-score</th>
+                </tr>
+              </thead>
+              <tbody>${renderTaxLossSellCandidateRows(candidates, threshold)}</tbody>
+            </table>
+          </div>
           <p class="sim-tax-proposal-note">
             Selected loss pool <strong>${formatMoney(selectedPool)}</strong> from
             <strong>${selectedCount}</strong> of ${totalCount} candidates
@@ -11753,21 +11783,23 @@
       return `
         <div class="sim-tax-section">
           <h4>Winner-trim candidates (${candidates.length})${pickCount ? ` · ${pickCount} in proposed allocation` : ""}</h4>
-          <table>
-            <thead>
-              <tr>
-                <th>Symbol</th>
-                <th>Proposed sell</th>
-                <th>Max trim</th>
-                <th style="text-align:right;">Proposed gain</th>
-                <th style="text-align:right;">Max gain</th>
-                <th style="text-align:right;">Cash</th>
-                <th style="text-align:right;">Gain %</th>
-                <th style="text-align:right;">52W peak</th>
-              </tr>
-            </thead>
-            <tbody>${renderTaxProposalCandidateRows(candidates, picks)}</tbody>
-          </table>
+          <div class="sim-tax-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Proposed sell</th>
+                  <th>Max trim</th>
+                  <th style="text-align:right;">Proposed gain</th>
+                  <th style="text-align:right;">Max gain</th>
+                  <th style="text-align:right;">Cash</th>
+                  <th style="text-align:right;">Gain %</th>
+                  <th style="text-align:right;">52W peak</th>
+                </tr>
+              </thead>
+              <tbody>${renderTaxProposalCandidateRows(candidates, picks)}</tbody>
+            </table>
+          </div>
           <p class="sim-tax-proposal-note">
             Proposed winner trims offset <strong>${formatMoney(proposal.offsetGain)}</strong>
             of <strong>${formatMoney(proposal.lossPool)}</strong> selected loss pool
@@ -11871,25 +11903,43 @@
       const lossSellHtml = renderTaxLossSellSection(proposal.lossSells, proposal, scopeLabel);
       if (!lossPool) {
         el.innerHTML = `
-          ${lossSellHtml}
-          <div class="sim-tax-section">
-            <h4>Winner-trim candidates</h4>
-            <p class="sim-tax-proposal-note">No sell losses in current Simulation scope (${scopeLabel}). Select or filter to loss positions (negative Net Gains) to build a loss pool for winner-trim pairing.</p>
+          <div class="sim-tax-columns">
+            <div class="sim-tax-column">
+              ${lossSellHtml}
+            </div>
+            <div class="sim-tax-column">
+              <div class="sim-tax-section">
+                <h4>Winner-trim candidates</h4>
+                <p class="sim-tax-proposal-note">No sell losses in current Simulation scope (${scopeLabel}). Select or filter to loss positions (negative Net Gains) to build a loss pool for winner-trim pairing.</p>
+              </div>
+            </div>
           </div>`;
         return;
       }
       if (!proposal.lossPool) {
         el.innerHTML = `
-          ${lossSellHtml}
-          <div class="sim-tax-section">
-            <h4>Winner-trim candidates</h4>
-            <p class="sim-tax-proposal-note">Raise the loss-score threshold or include deeper-loss names to build a selected loss pool for winner-trim pairing.</p>
+          <div class="sim-tax-columns">
+            <div class="sim-tax-column">
+              ${lossSellHtml}
+            </div>
+            <div class="sim-tax-column">
+              <div class="sim-tax-section">
+                <h4>Winner-trim candidates</h4>
+                <p class="sim-tax-proposal-note">Raise the loss-score threshold or include deeper-loss names to build a selected loss pool for winner-trim pairing.</p>
+              </div>
+            </div>
           </div>`;
         return;
       }
       el.innerHTML = `
-        ${lossSellHtml}
-        ${renderTaxProposalTable(proposal.candidates, proposal.picks, proposal)}`;
+        <div class="sim-tax-columns">
+          <div class="sim-tax-column">
+            ${lossSellHtml}
+          </div>
+          <div class="sim-tax-column">
+            ${renderTaxProposalTable(proposal.candidates, proposal.picks, proposal)}
+          </div>
+        </div>`;
     }
 
     function setSimulationFilter(filter) {
