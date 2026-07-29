@@ -1004,6 +1004,15 @@ def get_assessments_overview():
     return jsonify({"assessments": assessment_service.latest_overview()})
 
 
+@v1_bp.route("/assessments/band-divergence", methods=["GET"])
+def get_band_divergence():
+    """Return symbols where new band-based SAI diverges from legacy technical/news SAI.
+
+    Only symbols that have proposal payloads with both new and legacy actions are
+    included. Rows that agree directionally (buy / hold / sell) are excluded."""
+    return jsonify({"divergences": assessment_service.band_divergence()})
+
+
 @v1_bp.route("/track-record", methods=["GET"])
 def get_track_record():
     """Read-only self-scoring of past recommendations and detected patterns.

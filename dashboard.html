@@ -7370,7 +7370,7 @@
           <label for="editNoteText-${note.id}">Note</label>
           <textarea id="editNoteText-${note.id}" class="note-text-edit" rows="7">${escapeHtml(note.text)}</textarea>
           <div class="actions" style="margin-top:0.4rem;">
-            <button type="button" onclick="saveNote(${note.id})">Save</button>
+            <button type="button" id="saveNoteBtn-${note.id}" onclick="saveNote(${note.id})">Save</button>
             <button type="button" class="secondary" onclick="cancelEditNote()">Cancel</button>
           </div>
         </div>`;
@@ -7441,10 +7441,11 @@
 
     async function saveNote(noteId) {
       if (!selectedSymbol) return;
+      const saveBtn = document.getElementById(`saveNoteBtn-${noteId}`);
       const date = document.getElementById(`editNoteDate-${noteId}`)?.value || null;
       const source = document.getElementById(`editNoteSource-${noteId}`)?.value || "";
       const text = document.getElementById(`editNoteText-${noteId}`)?.value || "";
-      try {
+      const doSave = async () => {
         await api(`/symbols/${selectedSymbol}/notes/${noteId}`, {
           method: "PUT",
           body: JSON.stringify({ date, source, text }),
@@ -7452,6 +7453,13 @@
         editingNoteId = null;
         await selectSymbol(selectedSymbol);
         setStatus("Note saved.");
+      };
+      try {
+        if (saveBtn) {
+          await withButtonPending(saveBtn, "Saving…", doSave);
+        } else {
+          await doSave();
+        }
       } catch (error) {
         setStatus(error.message, "error");
       }
@@ -9654,8 +9662,8 @@
       const total = scores != null ? Number(scores.total) : null;
       const band = rec?.proposal?.bandBias;
       const totalTitle = band?.label
-        ? `Proposal total ${total}/100 — advisory band: ${band.label} (does not override SAI)`
-        : `Proposal total ${total}/100 (State+Trigger+Fit; does not override SAI)`;
+        ? `Proposal total ${total}/100 — band action: ${band.label}`
+        : `Proposal total ${total}/100 (State+Trigger+Fit)`;
       const totalChip = Number.isFinite(total)
         ? `<span class="chip proposal-total" title="${escapeHtml(totalTitle)}">${total}</span>`
         : "";
@@ -12266,9 +12274,13 @@
       const pct = (v, max) => Math.max(0, Math.min(100, (Number(v) / max) * 100));
       const stab = proposal.stability || {};
       const band = proposal.bandBias || {};
+      const legacy = proposal.legacySai || {};
       const notes = [];
+      if (legacy.diverged && legacy.note) {
+        notes.push(legacy.note);
+      }
       if (band.label) {
-        notes.push(`Band (advisory): ${band.label}${band.range ? ` [${band.range}]` : ""}`);
+        notes.push(`Band: ${band.label}${band.range ? ` [${band.range}]` : ""}`);
       }
       if (stab.gated) notes.push("Stability gate held prior action");
       else if (stab.hysteresisHint) notes.push(stab.hysteresisHint);

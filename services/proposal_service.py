@@ -65,7 +65,7 @@ def _round_score(value: float) -> int:
 
 
 def band_bias_for_total(total: int) -> dict[str, Any]:
-    """Advisory score band — does not override assessment action until Slice 4."""
+    """Score band for mapping totals into actionable buckets."""
     t = int(total)
     if t >= 75:
         return {"code": "strong_buy", "label": "Strong buy / size-up", "range": "≥75"}
@@ -76,6 +76,16 @@ def band_bias_for_total(total: int) -> dict[str, Any]:
     if t >= 30:
         return {"code": "hold_trim", "label": "Hold / trim bias", "range": "30–44"}
     return {"code": "sell_avoid", "label": "Sell / avoid", "range": "<30"}
+
+
+def action_for_band_code(code: str) -> str:
+    """Map proposal band code into canonical SAI actions."""
+    c = str(code or "").lower()
+    if c in ("strong_buy", "buy"):
+        return "buy"
+    if c in ("watch_hold", "hold_trim"):
+        return "watch"
+    return "sell"
 
 
 def pillar_scales_from_track_record(summary: dict[str, Any] | None) -> dict[str, float]:
@@ -216,9 +226,12 @@ class ProposalService:
             fit_prefs=prefs,
             fundamentals=ctx.get("fundamentals") or {},
         )
-        stability = self._stability(action=action, previous_actions=previous_actions or [])
-
-        published_action = str(action or "hold").lower()
+        base_assessment_action = str(action or "hold").lower()
+        total = state["score"] + trigger["score"] + fit["score"]
+        band_bias = band_bias_for_total(total)
+        band_action = action_for_band_code(band_bias["code"])
+        stability = self._stability(action=band_action, previous_actions=previous_actions or [])
+        published_action = band_action
         if (
             PROPOSAL_STABILITY_GATE
             and not stability["confirmed"]
@@ -227,17 +240,23 @@ class ProposalService:
         ):
             published_action = str(previous_actions[0]).lower()
             stability["gated"] = True
-            stability["rawAction"] = str(action or "hold").lower()
+            stability["rawAction"] = band_action
             stability["hysteresisHint"] = (
                 f"Stability gate held {published_action} "
-                f"(unconfirmed flip from assessment {stability['rawAction']})"
+                f"(unconfirmed flip from band action {stability['rawAction']})"
             )
         else:
             stability["gated"] = False
             stability["rawAction"] = published_action
 
-        total = state["score"] + trigger["score"] + fit["score"]
-        band_bias = band_bias_for_total(total)
+        legacy_diverged = base_assessment_action != published_action
+        legacy_note = None
+        if legacy_diverged:
+            src = str(action_source or "technical/news")
+            legacy_note = (
+                f"TECHNICAL / NEWS signaled {base_assessment_action.upper()} "
+                f"({src}); band-based SAI is {published_action.upper()}."
+            )
         fit_extensions = {key: None for key in FIT_EXTENSION_KEYS}
         for key in FIT_EXTENSION_KEYS:
             if key in prefs and prefs[key] is not None:
@@ -248,7 +267,7 @@ class ProposalService:
             "symbol": symbol.upper(),
             "action": published_action,
             "confidence": str(confidence or "medium").lower(),
-            "authority": "assessment",
+            "authority": "proposal_band",
             "scores": {
                 "state": state["score"],
                 "trigger": trigger["score"],
@@ -257,8 +276,16 @@ class ProposalService:
             },
             "bandBias": {
                 **band_bias,
-                "advisory": True,
-                "note": "Score band only — does not override SAI action until Slice 4",
+                "advisory": False,
+                "note": "Band-derived action is authoritative for SAI.",
+            },
+            "legacySai": {
+                "action": base_assessment_action,
+                "confidence": str(confidence or "medium").lower(),
+                "actionSource": action_source,
+                "diverged": legacy_diverged,
+                "note": legacy_note,
+                "rationale": rationale or "",
             },
             "components": {
                 "state": state,

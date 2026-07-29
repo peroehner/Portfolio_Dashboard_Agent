@@ -264,6 +264,79 @@ class AssessmentService:
             )
         return out
 
+    def band_divergence(self) -> list[dict[str, Any]]:
+        """Compare latest *new* SAI (band-based) vs legacy technical/news SAI.
+
+        Returns only symbols where both are present and disagree in directional
+        sentiment (buy / hold / sell)."""
+
+        def _action_sentiment(action: str) -> str:
+            a = action.lower()
+            if "buy" in a or "add" in a:
+                return "buy"
+            if "sell" in a or "avoid" in a or "trim" in a:
+                return "sell"
+            return "hold"
+
+        user_id = get_current_user_id()
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT symbol, action, trading_recommendation, created_at
+                FROM (
+                    SELECT *, ROW_NUMBER() OVER (
+                        PARTITION BY symbol ORDER BY created_at DESC, id DESC
+                    ) AS rn
+                    FROM assessments
+                    WHERE user_id = %s
+                ) ranked
+                WHERE rn = 1
+                  AND trading_recommendation IS NOT NULL
+                ORDER BY symbol
+                """,
+                (user_id,),
+            ).fetchall()
+
+        results: list[dict[str, Any]] = []
+        for row in rows:
+            proposal = self._parse_json_field(row["trading_recommendation"], default=None)
+            if not proposal or not isinstance(proposal, dict):
+                continue
+            legacy = proposal.get("legacySai") or {}
+            legacy_action = str(legacy.get("action") or "").strip().lower()
+            if not legacy_action:
+                continue
+            scores = proposal.get("scores") or {}
+            total = scores.get("total")
+            if total is None:
+                continue
+            new_sai_action = str(row["action"] or "").strip().lower()
+            new_sai_sentiment = _action_sentiment(new_sai_action)
+            legacy_sentiment = _action_sentiment(legacy_action)
+            if new_sai_sentiment == legacy_sentiment:
+                continue
+            band = proposal.get("bandBias") or {}
+            results.append(
+                {
+                    "symbol": row["symbol"],
+                    "saiAction": new_sai_action,
+                    "saiSentiment": new_sai_sentiment,
+                    "legacySaiAction": legacy_action,
+                    "legacySaiSentiment": legacy_sentiment,
+                    "proposalTotal": int(total),
+                    "bandCode": band.get("code"),
+                    "bandLabel": band.get("label"),
+                    "legacySource": legacy.get("actionSource"),
+                    "legacyNote": legacy.get("note"),
+                    "assessedAt": row["created_at"],
+                    "note": (
+                        f"New SAI says '{new_sai_action}' but legacy technical/news "
+                        f"said '{legacy_action}'"
+                    ),
+                }
+            )
+        return results
+
     def delete_assessment(self, assessment_id: int, symbol: str | None = None) -> bool:
         query = "DELETE FROM assessments WHERE id = %s AND user_id = %s"
         params: list[Any] = [assessment_id, get_current_user_id()]
@@ -403,6 +476,7 @@ class AssessmentService:
                 track_record_summary=extras["track_record_summary"],
                 portfolio_annual_dividend=extras["portfolio_annual_dividend"],
             )
+            stored_action = str(proposal.get("action") or result.get("action") or "watch").lower()
             proposal_json = json.dumps(proposal)
             cursor = conn.execute(
                 """
@@ -416,7 +490,7 @@ class AssessmentService:
                 (
                     user_id,
                     symbol,
-                    result["action"],
+                    stored_action,
                     result["confidence"],
                     result["rationale"],
                     factors_json,
@@ -426,9 +500,10 @@ class AssessmentService:
                 ),
             )
             new_id = cursor.fetchone()["id"]
-            self._record_recommendation_change(conn, user_id, symbol, previous, result)
+            stored_result = {**result, "action": stored_action}
+            self._record_recommendation_change(conn, user_id, symbol, previous, stored_result)
             if TRACK_RECORD:
-                self._capture_signal_outcomes(conn, user_id, symbol, new_id, result, context)
+                self._capture_signal_outcomes(conn, user_id, symbol, new_id, stored_result, context)
             self._trim_assessment_history(conn, user_id, symbol)
             conn.commit()
             row = conn.execute(
