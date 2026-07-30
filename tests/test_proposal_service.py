@@ -41,7 +41,10 @@ class ProposalServiceTests(unittest.TestCase):
         self.assertEqual(proposal["symbol"], "AAPL")
         self.assertEqual(proposal["authority"], "proposal_band")
         self.assertIn(proposal["action"], ("buy", "watch", "sell"))
+        self.assertIn(proposal["confidence"], ("high", "medium", "low"))
+        self.assertEqual(proposal.get("confidenceSource"), "proposal_band")
         self.assertEqual(proposal["legacySai"]["action"], "watch")
+        self.assertEqual(proposal["legacySai"]["confidence"], "medium")
         self.assertIn("diverged", proposal["legacySai"])
         scores = proposal["scores"]
         self.assertGreaterEqual(scores["state"], 0)

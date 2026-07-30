@@ -30,6 +30,20 @@ function performerHint(gainPct?: number | null, gain?: number | null): string | 
   return parts.join(" · ");
 }
 
+function signedMoney(value?: number | null): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${formatMoney(Math.abs(value))}`;
+}
+
+function dayChangeHint(dayValue?: number | null, dayPct?: number | null): string | undefined {
+  if (dayValue == null && dayPct == null) return undefined;
+  const valueText = dayValue != null ? signedMoney(dayValue) : "";
+  const pctText = dayPct != null ? `(${formatPct(dayPct, 2)})` : "";
+  const combined = [valueText, pctText].filter(Boolean).join(" ");
+  return combined ? `${combined} Day` : undefined;
+}
+
 export default function OverviewScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -87,6 +101,113 @@ export default function OverviewScreen() {
     </View>
   );
 
+  const projectedRows = [
+    {
+      key: "analyst",
+      label: "Projected 1Y mean target valuation",
+      value: data?.totalAnalystTargetValue,
+      pct: data?.totalAnalystUpsidePct,
+      color: colors.buy,
+    },
+    {
+      key: "personal",
+      label: "Projected personal target valuation",
+      value: data?.totalPersonalTargetValue,
+      pct: data?.totalPersonalUpsidePct,
+      color: "#a78bfa",
+    },
+    {
+      key: "roc",
+      label: "Projected annual return on capital (ROC)",
+      value: data?.totalProjectedRoc,
+      pct: data?.totalProjectedRocPct,
+      color: colors.warning,
+    },
+    {
+      key: "planned",
+      label: "Projected valuation if planned trades execute",
+      value: data?.simulation?.projectedValuation,
+      pct: data?.simulation?.projectedUpsidePct,
+      color: colors.link,
+    },
+  ].filter((row) => row.value != null);
+
+  const projectionMax = Math.max(
+    data?.totalMarketValue ?? 0,
+    ...projectedRows.map((row) => row.value ?? 0),
+    1,
+  );
+  const plannedMeta =
+    data?.simulation && data.simulation.projectedValuation != null
+      ? [
+          data.simulation.savedAt ? formatShortDateTime(data.simulation.savedAt) : null,
+          `${data.simulation.scopeCount ?? 0} symbols`,
+          `${data.simulation.buyLegs ?? 0} buys`,
+          `${data.simulation.sellLegs ?? 0} sells`,
+          data.simulation.netCashFlow != null
+            ? `Net cash flow ${signedMoney(data.simulation.netCashFlow)}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : null;
+
+  const progressSection = (
+    <View style={[styles.section, isWide && styles.sectionFlex]}>
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>Portfolio progress</Text>
+        <Pressable onPress={() => router.push("/portfolio")}>
+          <Text style={styles.sectionLink}>Portfolio</Text>
+        </Pressable>
+      </View>
+      <View style={styles.progressCard}>
+        <Text style={styles.progressSubhead}>
+          Current portfolio value vs projected valuations at analyst 1Y mean targets and your
+          personal targets.
+        </Text>
+        <View style={styles.progressRow}>
+          <View style={styles.progressLabelLine}>
+            <Text style={styles.progressLabel}>Current aggregated valuation</Text>
+            <Text style={styles.progressValue}>{formatMoney(data?.totalMarketValue)}</Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: `${Math.max(4, ((data?.totalMarketValue ?? 0) / projectionMax) * 100)}%`,
+                  backgroundColor: colors.hold,
+                },
+              ]}
+            />
+          </View>
+        </View>
+        {projectedRows.map((row) => (
+          <View style={styles.progressRow} key={row.key}>
+            <View style={styles.progressLabelLine}>
+              <Text style={styles.progressLabel}>{row.label}</Text>
+              <Text style={[styles.progressValue, { color: pctColor(row.pct) }]}>
+                {formatMoney(row.value)} {row.pct != null ? `(${formatPct(row.pct, 1)})` : ""}
+              </Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${Math.max(4, (((row.value ?? 0) / projectionMax) * 100))}%`,
+                    backgroundColor: row.color,
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        ))}
+        {plannedMeta ? <Text style={styles.progressMeta}>{plannedMeta}</Text> : null}
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <Screen
@@ -113,9 +234,7 @@ export default function OverviewScreen() {
                 label="Market value"
                 value={formatMoney(data?.totalMarketValue, true)}
                 hint={
-                  data?.totalDayChangePct != null
-                    ? `${formatPct(data.totalDayChangePct)} today`
-                    : undefined
+                  dayChangeHint(data?.totalDayChange, data?.totalDayChangePct)
                 }
                 valueColor={pctColor(data?.totalDayChangePct)}
               />
@@ -175,6 +294,7 @@ export default function OverviewScreen() {
               />
             </View>
           </View>
+          {progressSection}
 
           {isWide ? (
             <View style={styles.wideRow}>
@@ -211,6 +331,58 @@ const styles = StyleSheet.create({
   },
   section: {
     marginTop: spacing.md,
+  },
+  progressCard: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.xs,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  progressSubhead: {
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  progressRow: {
+    gap: 6,
+  },
+  progressLabelLine: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  progressLabel: {
+    flex: 1,
+    color: colors.textMuted,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  progressValue: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  progressTrack: {
+    height: 10,
+    borderRadius: 99,
+    backgroundColor: "rgba(148,163,184,0.20)",
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 99,
+  },
+  progressMeta: {
+    marginTop: 2,
+    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 15,
   },
   sectionFlex: {
     flex: 1,

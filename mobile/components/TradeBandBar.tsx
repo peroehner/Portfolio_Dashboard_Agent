@@ -8,11 +8,11 @@ import type { PortfolioRow } from "@/lib/types";
 
 const MAX_SPAN = 20;
 const HEAT_MAX = 15;
-const MIN_GAP = 15;
 const PAD = 4;
 const TRACK_HEIGHT = 5;
 const KNOB_R = 5;
 const BAR_HEIGHT = 36;
+const MIN_HEAT_PX = 2;
 
 function heatColor(distPct: number): string {
   const t = Math.max(0, Math.min(1, distPct / HEAT_MAX));
@@ -68,8 +68,6 @@ export function TradeBandBar({ row, width = 150, active: activeProp }: TradeBand
 
     const aLow = row.analystTargetLow;
     const aHigh = row.analystTargetHigh;
-    const pt =
-      row.personalTarget != null && row.personalTarget > 0 ? row.personalTarget : null;
     const analystMode = aLow != null && aHigh != null && aHigh > aLow;
 
     let low = analystMode ? aLow : price * (1 - MAX_SPAN / 100);
@@ -78,7 +76,6 @@ export function TradeBandBar({ row, width = 150, active: activeProp }: TradeBand
     high = Math.max(high, price);
     if (row.tradeBelowPrice != null) low = Math.min(low, row.tradeBelowPrice);
     if (row.tradeAbovePrice != null) high = Math.max(high, row.tradeAbovePrice);
-    if (pt != null) high = Math.max(high, pt);
     const span = high - low;
 
     const clamp = (v: number) => Math.max(0, Math.min(100, v));
@@ -94,29 +91,12 @@ export function TradeBandBar({ row, width = 150, active: activeProp }: TradeBand
     const closest =
       hasBelow || hasAbove ? (belowDist <= aboveDist ? "below" : "above") : null;
 
-    let pPrice = pos(price);
-    let pBelow = hasBelow ? pos(below) : null;
-    let pAbove = hasAbove ? pos(above) : null;
-    let pClose: number | null = null;
-    if (closest) {
-      pClose = closest === "below" ? (pBelow as number) : (pAbove as number);
-      const dir = pClose >= pPrice ? 1 : -1;
-      if (Math.abs(pClose - pPrice) < MIN_GAP) pClose = pPrice + dir * MIN_GAP;
-      let lo = Math.min(pPrice, pClose);
-      if (lo < PAD) {
-        const d = PAD - lo;
-        pPrice += d;
-        pClose += d;
-      }
-      let hi = Math.max(pPrice, pClose);
-      if (hi > 100 - PAD) {
-        const d = hi - (100 - PAD);
-        pPrice -= d;
-        pClose -= d;
-      }
-      if (closest === "below") pBelow = pClose;
-      else pAbove = pClose;
-    }
+    const pPrice = pos(price);
+    const pBelow = hasBelow ? pos(below) : null;
+    const pAbove = hasAbove ? pos(above) : null;
+    const pClose: number | null = closest
+      ? (closest === "below" ? (pBelow as number) : (pAbove as number))
+      : null;
 
     const dist = closest === "below" ? belowDist : aboveDist;
     const title = tradeBandTooltipText(row) ?? "";
@@ -143,7 +123,7 @@ export function TradeBandBar({ row, width = 150, active: activeProp }: TradeBand
   const trackY = 20;
   const px = (pct: number) => (pct / 100) * width;
   const heatLeft = layout.pClose != null ? Math.min(layout.pPrice, layout.pClose) : null;
-  const heatWidth =
+  const heatWidthPx =
     layout.pClose != null ? Math.abs(layout.pClose - layout.pPrice) : null;
 
   const body = (
@@ -175,11 +155,11 @@ export function TradeBandBar({ row, width = 150, active: activeProp }: TradeBand
           rx={TRACK_HEIGHT / 2}
           fill={layout.analystMode ? "rgba(96,165,250,0.25)" : "rgba(148,163,184,0.2)"}
         />
-        {heatLeft != null && heatWidth != null && layout.closest ? (
+        {heatLeft != null && heatWidthPx != null && layout.closest ? (
           <Rect
             x={px(heatLeft)}
             y={trackY}
-            width={Math.max(2, px(heatWidth))}
+            width={Math.max(MIN_HEAT_PX, px(heatWidthPx))}
             height={TRACK_HEIGHT}
             rx={2}
             fill={heatColor(layout.dist as number)}

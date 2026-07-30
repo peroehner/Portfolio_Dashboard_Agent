@@ -88,6 +88,54 @@ def action_for_band_code(code: str) -> str:
     return "sell"
 
 
+def _downgrade_confidence(level: str) -> str:
+    order = ["high", "medium", "low"]
+    try:
+        idx = order.index(str(level or "medium").lower())
+    except ValueError:
+        idx = 1
+    return order[min(idx + 1, len(order) - 1)]
+
+
+def base_confidence_for_total(*, total: int) -> str:
+    """Base confidence before stability/veto adjustments."""
+    if total >= 75:
+        return "high"
+    if total >= 45:
+        return "medium"
+    return "low"
+
+
+def confirmation_required_for_confidence(level: str) -> int:
+    """High confidence flips can move faster; low needs more confirmations."""
+    lvl = str(level or "medium").lower()
+    if lvl == "high":
+        return 1
+    if lvl == "low":
+        return 3
+    return 2
+
+
+def confidence_for_proposal(
+    *,
+    total: int,
+    action: str,
+    stability: dict[str, Any],
+    vetoes: list[dict[str, str]],
+) -> str:
+    """Map band-scored action context to a confidence level."""
+    conf = base_confidence_for_total(total=total)
+
+    # Reduce confidence when hysteresis still requests confirmation.
+    if stability and (stability.get("gated") or not stability.get("confirmed", True)):
+        conf = _downgrade_confidence(conf)
+
+    # Guardrails/vetoes indicate constraints; soften confidence one notch.
+    if any((v or {}).get("severity") in ("warn", "block") for v in (vetoes or [])):
+        conf = _downgrade_confidence(conf)
+    return conf
+
+
 def pillar_scales_from_track_record(summary: dict[str, Any] | None) -> dict[str, float]:
     """Map Agent Signal Record hit rates → State/Trigger soft multipliers.
 
@@ -230,7 +278,14 @@ class ProposalService:
         total = state["score"] + trigger["score"] + fit["score"]
         band_bias = band_bias_for_total(total)
         band_action = action_for_band_code(band_bias["code"])
-        stability = self._stability(action=band_action, previous_actions=previous_actions or [])
+        base_confidence = base_confidence_for_total(total=total)
+        confirmation_required = confirmation_required_for_confidence(base_confidence)
+        stability = self._stability(
+            action=band_action,
+            previous_actions=previous_actions or [],
+            confirmation_required=confirmation_required,
+            confidence_basis=base_confidence,
+        )
         published_action = band_action
         if (
             PROPOSAL_STABILITY_GATE
@@ -249,6 +304,13 @@ class ProposalService:
             stability["gated"] = False
             stability["rawAction"] = published_action
 
+        published_confidence = confidence_for_proposal(
+            total=total,
+            action=published_action,
+            stability=stability,
+            vetoes=vetoes,
+        )
+
         legacy_diverged = base_assessment_action != published_action
         legacy_note = None
         if legacy_diverged:
@@ -266,7 +328,8 @@ class ProposalService:
             "schemaVersion": SCHEMA_VERSION,
             "symbol": symbol.upper(),
             "action": published_action,
-            "confidence": str(confidence or "medium").lower(),
+            "confidence": published_confidence,
+            "confidenceSource": "proposal_band",
             "authority": "proposal_band",
             "scores": {
                 "state": state["score"],
@@ -772,7 +835,12 @@ class ProposalService:
         return vetoes
 
     def _stability(
-        self, *, action: str, previous_actions: list[str]
+        self,
+        *,
+        action: str,
+        previous_actions: list[str],
+        confirmation_required: int = CONFIRMATION_REQUIRED,
+        confidence_basis: str = "medium",
     ) -> dict[str, Any]:
         """previous_actions: newest-first history *before* the current action."""
         action = str(action or "hold").lower()
@@ -791,8 +859,13 @@ class ProposalService:
             )
         return {
             "sameActionStreak": streak,
-            "confirmationRequired": CONFIRMATION_REQUIRED,
-            "confirmed": streak >= CONFIRMATION_REQUIRED,
+            "confirmationRequired": confirmation_required,
+            "confirmationReason": (
+                f"{str(confidence_basis).lower()} confidence requires "
+                f"{int(confirmation_required)} confirmation"
+                f"{'' if int(confirmation_required) == 1 else 's'}"
+            ),
+            "confirmed": streak >= confirmation_required,
             "hysteresisHint": hysteresis_hint,
             "cooldownUntil": None,
         }

@@ -477,6 +477,9 @@ class AssessmentService:
                 portfolio_annual_dividend=extras["portfolio_annual_dividend"],
             )
             stored_action = str(proposal.get("action") or result.get("action") or "watch").lower()
+            stored_confidence = str(
+                proposal.get("confidence") or result.get("confidence") or "medium"
+            ).lower()
             proposal_json = json.dumps(proposal)
             cursor = conn.execute(
                 """
@@ -491,7 +494,7 @@ class AssessmentService:
                     user_id,
                     symbol,
                     stored_action,
-                    result["confidence"],
+                    stored_confidence,
                     result["rationale"],
                     factors_json,
                     synthesis_json,
@@ -500,7 +503,7 @@ class AssessmentService:
                 ),
             )
             new_id = cursor.fetchone()["id"]
-            stored_result = {**result, "action": stored_action}
+            stored_result = {**result, "action": stored_action, "confidence": stored_confidence}
             self._record_recommendation_change(conn, user_id, symbol, previous, stored_result)
             if TRACK_RECORD:
                 self._capture_signal_outcomes(conn, user_id, symbol, new_id, stored_result, context)

@@ -13,13 +13,31 @@ export interface Overview {
   totalMarketValue?: number | null;
   totalDayChange?: number | null;
   totalDayChangePct?: number | null;
+  totalCostBasis?: number | null;
   unrealizedGain?: number | null;
   unrealizedGainPct?: number | null;
+  totalAnnualDividend?: number | null;
+  totalAnalystTargetValue?: number | null;
+  totalAnalystUpsidePct?: number | null;
+  totalPersonalTargetValue?: number | null;
+  totalPersonalUpsidePct?: number | null;
+  totalProjectedRoc?: number | null;
+  totalProjectedRocPct?: number | null;
   activeAlerts?: number;
   bestPerformer?: { symbol: string; gainPct?: number; gain?: number } | null;
   bestYtdPerformer?: { symbol: string; gainPct?: number; gain?: number } | null;
   pricesAsOf?: string | null;
   holdings?: Holding[];
+  simulation?: {
+    projectedValuation?: number | null;
+    projectedUpsidePct?: number | null;
+    netCashFlow?: number | null;
+    totalNetGains?: number | null;
+    buyLegs?: number;
+    sellLegs?: number;
+    scopeCount?: number;
+    savedAt?: string | null;
+  } | null;
   alerts?: Alert[];
   latestAssessments?: Assessment[];
 }

@@ -637,6 +637,14 @@ def build_symbol_recommendation(
     holding: dict[str, Any] | None = None,
     proposal_service: ProposalService | None = None,
 ) -> dict[str, Any]:
+    def _action_sentiment_hint(action_value: str) -> str:
+        a = str(action_value or "").lower()
+        if a == "buy":
+            return "bullish"
+        if a == "sell":
+            return "bearish"
+        return "neutral"
+
     notes = symbol_data.get("notes", [])
     syntheses = [note["synthesis"] for note in notes if note.get("synthesis")]
     latest = assessments[0] if assessments else None
@@ -696,6 +704,14 @@ def build_symbol_recommendation(
         )
 
     headline = InspectorService._headline_for_action(action, sentiment)
+    action_hint = _action_sentiment_hint(action)
+    sentiment_guard = None
+    if (action_hint == "bullish" and sentiment == "bearish") or (
+        action_hint == "bearish" and sentiment == "bullish"
+    ):
+        sentiment_guard = (
+            f"Sentiment check: market/news tone is {sentiment} while SAI action is {action}."
+        )
 
     proposal = None
     if latest and latest.get("proposal"):
@@ -752,6 +768,7 @@ def build_symbol_recommendation(
         "projections": projections,
         "catalysts": catalysts,
         "watchItems": watch_items[:8],
+        "sentimentGuard": sentiment_guard,
         "assessedAt": latest.get("createdAt") if latest else None,
         "provider": latest.get("provider") if latest else None,
         "upsidePct": screening.get("upsidePct"),

@@ -9912,18 +9912,16 @@
 
       const aLow = row.analystTargetLow;
       const aHigh = row.analystTargetHigh;
-      const pt = (row.personalTarget != null && row.personalTarget > 0) ? row.personalTarget : null;
       const analystMode = aLow != null && aHigh != null && aHigh > aLow;
       // Widen the corridor so every marker stays on-scale: start from the analyst
       // Low→High (or ±MAX_SPAN% fallback), then extend to include the current
-      // price, both planned-trade thresholds, and the personal target.
+      // price and both planned-trade thresholds.
       let low = analystMode ? aLow : price * (1 - MAX_SPAN / 100);
       let high = analystMode ? aHigh : price * (1 + MAX_SPAN / 100);
       low = Math.min(low, price);
       high = Math.max(high, price);
       if (row.tradeBelowPrice != null) low = Math.min(low, row.tradeBelowPrice);
       if (row.tradeAbovePrice != null) high = Math.max(high, row.tradeAbovePrice);
-      if (pt != null) high = Math.max(high, pt);
       const span = high - low;
 
       const PAD = 4; // keep markers sitting at the extremes fully visible
@@ -9961,25 +9959,11 @@
         ? (belowDist <= aboveDist ? "below" : "above")
         : null;
 
-      // Render positions. Start from true positions, then guarantee the
-      // price→closest-threshold gap is at least MIN_GAP% wide and slide that pair
-      // inward if it would run off an end — so the heat bar is always visible even
-      // when a far personal target makes the corridor very wide.
-      const MIN_GAP = 15;
-      let pPrice = pos(price);
-      let pBelow = hasBelow ? pos(below) : null;
-      let pAbove = hasAbove ? pos(above) : null;
-      let pClose = null;
-      if (closest) {
-        pClose = closest === "below" ? pBelow : pAbove;
-        const dir = pClose >= pPrice ? 1 : -1;
-        if (Math.abs(pClose - pPrice) < MIN_GAP) pClose = pPrice + dir * MIN_GAP;
-        let lo = Math.min(pPrice, pClose);
-        if (lo < PAD) { const d = PAD - lo; pPrice += d; pClose += d; }
-        let hi = Math.max(pPrice, pClose);
-        if (hi > 100 - PAD) { const d = hi - (100 - PAD); pPrice -= d; pClose -= d; }
-        if (closest === "below") pBelow = pClose; else pAbove = pClose;
-      }
+      // Keep true positions; only widen the visual heat strip itself when tiny.
+      const pPrice = pos(price);
+      const pBelow = hasBelow ? pos(below) : null;
+      const pAbove = hasAbove ? pos(above) : null;
+      const pClose = closest ? (closest === "below" ? pBelow : pAbove) : null;
 
       const pieces = [];
       pieces.push(`<div class="trade-band-track${analystMode ? " analyst" : " ghost"}"></div>`);
@@ -9989,7 +9973,7 @@
       if (closest) {
         const dist = closest === "below" ? belowDist : aboveDist;
         pieces.push(
-          `<div class="trade-band-heat" style="left:${Math.min(pPrice, pClose).toFixed(2)}%; width:${Math.abs(pClose - pPrice).toFixed(2)}%; background:${heatColor(dist)};"></div>`
+          `<div class="trade-band-heat" style="left:${Math.min(pPrice, pClose).toFixed(2)}%; width:${Math.max(2, Math.abs(pClose - pPrice)).toFixed(2)}%; background:${heatColor(dist)};"></div>`
         );
         pieces.push(
           `<span class="trade-band-pct" style="left:${((pPrice + pClose) / 2).toFixed(2)}%; color:${heatColor(dist)};">${Math.round(dist)}%</span>`
@@ -12318,12 +12302,16 @@
         rec.upsidePct != null ? `${rec.upsidePct}% upside to target` : null,
       ].filter(Boolean).join(" · ");
       const scorecard = renderProposalScorecard(rec.proposal);
+      const sentimentGuard = rec.sentimentGuard
+        ? `<div class="empty" style="margin-top:0.45rem;color:var(--warn);">${escapeHtml(rec.sentimentGuard)}</div>`
+        : "";
       return `
         <div class="recommendation-card" id="inspector-recommendation">
           <h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3>
           <div class="rec-headline">${rec.headline || ""}</div>
           ${scorecard}
           <div class="rec-rationale">${rec.rationale || ""}</div>
+          ${sentimentGuard}
           ${drivers ? `<ul class="watch-list">${drivers}</ul>` : ""}
           ${watch ? `<div style="margin-top:0.75rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;">What to watch</div><ul class="watch-list">${watch}</ul>` : ""}
           ${meta ? `<div class="empty" style="margin-top:0.6rem;">${meta}</div>` : ""}
