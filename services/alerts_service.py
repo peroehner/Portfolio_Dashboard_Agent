@@ -19,11 +19,22 @@ from services.one_yt_context import (
     portfolio_median_upside,
     upside_pct,
 )
+from services.harvest_score import (
+    LOSS_SCORE_ALERT_MIN,
+    TRIM_SCORE_ALERT_MIN,
+    loss_score,
+    residual_loss_pct,
+    trim_score,
+    upside_pct as harvest_upside_pct,
+)
 from services.portfolio_service import PortfolioService
 
 
 _TRADE_ALERT_TYPES = frozenset(
     {"trade_above", "trade_above_near", "trade_below", "trade_below_near"}
+)
+_HARVEST_ALERT_TYPES = frozenset(
+    {"tax_loss_candidate", "winner_trim_candidate", "harvest_imbalance"}
 )
 
 
@@ -107,6 +118,7 @@ class AlertsService:
             created.extend(self._check_thresholds(symbol_data, true_signatures))
             created.extend(self._check_fib_proximity(symbol_data, true_signatures))
         created.extend(self._check_screener(engine, true_signatures))
+        created.extend(self._check_harvest(true_signatures))
         self._apply_staleness(true_signatures)
         return [alert for alert in created if alert is not None]
 
@@ -531,6 +543,169 @@ class AlertsService:
             if dist <= band:
                 return True
         return False
+
+    def _check_harvest(
+        self, true_signatures: set | None = None
+    ) -> list[dict[str, Any]]:
+        """Raise tax-loss / winner-trim / harvest-imbalance alerts from harvest scores."""
+        created: list[dict[str, Any]] = []
+        holdings = self.holdings_service.list_holdings()
+        if not holdings:
+            return created
+
+        total_mv = 0.0
+        for h in holdings:
+            mv = h.get("marketValue")
+            if isinstance(mv, (int, float)) and mv > 0:
+                total_mv += float(mv)
+
+        loss_pool = 0.0
+        trim_pool = 0.0
+        loss_hits = 0
+        trim_hits = 0
+
+        for holding in holdings:
+            qty = holding.get("quantity") or 0
+            if not qty or qty <= 0:
+                continue
+            symbol = str(holding.get("symbol") or "").upper()
+            if not symbol:
+                continue
+            price = holding.get("currentPrice")
+            gain_pct = holding.get("gainPct")
+            a_up = holding.get("analystUpsidePct")
+            if a_up is None:
+                a_up = harvest_upside_pct(
+                    holding.get("analystTarget1y"), price
+                )
+            p_up = holding.get("personalUpsidePct")
+            if p_up is None:
+                p_up = harvest_upside_pct(holding.get("personalTarget"), price)
+
+            mv = holding.get("marketValue")
+            weight = holding.get("weightPct")
+            if (
+                (not isinstance(weight, (int, float)) or weight <= 0)
+                and isinstance(mv, (int, float))
+                and mv > 0
+                and total_mv > 0
+            ):
+                weight = float(mv) / total_mv * 100.0
+
+            # Planned trade intent from symbols table (best-effort).
+            buy_qty = 0.0
+            sell_qty = 0.0
+            try:
+                sym = self.portfolio_service.get_symbol(symbol) or {}
+                for shares_key, default_sell in (
+                    ("tradeBelowShares", False),
+                    ("tradeAboveShares", True),
+                ):
+                    shares = sym.get(shares_key)
+                    price_key = (
+                        "tradeBelowPrice"
+                        if shares_key == "tradeBelowShares"
+                        else "tradeAbovePrice"
+                    )
+                    if sym.get(price_key) is None:
+                        continue
+                    if isinstance(shares, (int, float)) and shares > 0:
+                        buy_qty += float(shares)
+                    elif isinstance(shares, (int, float)) and shares < 0:
+                        sell_qty += abs(float(shares))
+                    elif default_sell and isinstance(shares, (int, float)):
+                        sell_qty += abs(float(shares))
+            except Exception:  # noqa: BLE001
+                pass
+
+            unrealized = holding.get("unrealizedGain")
+            # Approximate max harvest $ from full position (alert reference only).
+            if isinstance(unrealized, (int, float)) and unrealized < 0:
+                max_loss = abs(float(unrealized))
+            else:
+                max_loss = 0.0
+            if isinstance(unrealized, (int, float)) and unrealized > 0:
+                max_gain = float(unrealized)
+            else:
+                max_gain = 0.0
+
+            if isinstance(gain_pct, (int, float)) and gain_pct < 0:
+                ls = loss_score(float(gain_pct), a_up if isinstance(a_up, (int, float)) else None)
+                if ls >= LOSS_SCORE_ALERT_MIN:
+                    loss_hits += 1
+                    loss_pool += max_loss
+                    residual = residual_loss_pct(
+                        float(gain_pct), a_up if isinstance(a_up, (int, float)) else None
+                    )
+                    residual_txt = f"{residual:.0f}%" if residual is not None else "—"
+                    msg = (
+                        f"{symbol} tax-loss candidate · Loss-score {ls:.0f} "
+                        f"(residual {residual_txt} after 1YT) · "
+                        f"mark loss ≈ ${max_loss:,.0f}"
+                    )
+                    alert = self._create_alert(
+                        symbol=symbol,
+                        alert_type="tax_loss_candidate",
+                        message=msg,
+                        price=float(price) if isinstance(price, (int, float)) else None,
+                        reference_value=round(ls, 2),
+                        true_signatures=true_signatures,
+                    )
+                    if alert:
+                        created.append(alert)
+
+            if isinstance(gain_pct, (int, float)) and gain_pct > 0:
+                ts = trim_score(
+                    analyst_upside_pct=a_up if isinstance(a_up, (int, float)) else None,
+                    personal_upside_pct=p_up if isinstance(p_up, (int, float)) else None,
+                    peak_pct=None,
+                    weight_pct=weight if isinstance(weight, (int, float)) else None,
+                    buy_qty=buy_qty,
+                    sell_qty=sell_qty,
+                    held=float(qty),
+                )["trimScore"]
+                if ts >= TRIM_SCORE_ALERT_MIN:
+                    trim_hits += 1
+                    trim_pool += max_gain
+                    msg = (
+                        f"{symbol} winner-trim candidate · Trim-score {ts:.0f} "
+                        f"· mark gain ≈ ${max_gain:,.0f}"
+                    )
+                    alert = self._create_alert(
+                        symbol=symbol,
+                        alert_type="winner_trim_candidate",
+                        message=msg,
+                        price=float(price) if isinstance(price, (int, float)) else None,
+                        reference_value=round(ts, 2),
+                        true_signatures=true_signatures,
+                    )
+                    if alert:
+                        created.append(alert)
+
+        # Portfolio imbalance when both sides qualify but pools diverge > 25%.
+        if loss_hits and trim_hits and loss_pool > 0 and trim_pool > 0:
+            gap = abs(trim_pool - loss_pool)
+            larger = max(trim_pool, loss_pool)
+            if gap / larger >= 0.25:
+                direction = "trim short of losses" if trim_pool < loss_pool else "trim surplus vs losses"
+                msg = (
+                    f"Harvest imbalance · {direction} · "
+                    f"loss pool ≈ ${loss_pool:,.0f} ({loss_hits}) vs "
+                    f"trim pool ≈ ${trim_pool:,.0f} ({trim_hits}) · "
+                    f"gap ≈ ${gap:,.0f}"
+                )
+                alert = self._create_alert(
+                    symbol="PORTFOLIO",
+                    alert_type="harvest_imbalance",
+                    message=msg,
+                    price=None,
+                    reference_value=round(gap, 2),
+                    true_signatures=true_signatures,
+                )
+                if alert:
+                    created.append(alert)
+
+        return created
 
     def _check_screener(
         self, engine, true_signatures: set | None = None

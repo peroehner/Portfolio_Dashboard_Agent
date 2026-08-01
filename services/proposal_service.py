@@ -13,6 +13,12 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
+from services.harvest_score import (
+    fit_harvest_nudge,
+    peak_proximity_pct,
+    upside_pct,
+)
+
 SCHEMA_VERSION = 1
 STATE_MAX = 50
 TRIGGER_MAX = 30
@@ -263,6 +269,9 @@ class ProposalService:
             fit_prefs=prefs,
             fundamentals=ctx.get("fundamentals") or {},
             portfolio_annual_dividend=portfolio_annual_dividend,
+            screening=screening,
+            analyst_target=ctx.get("analystTarget1y"),
+            personal_target=ctx.get("targetPrice") or ctx.get("personalTarget"),
         )
         vetoes = self._vetoes(
             action=action,
@@ -617,9 +626,13 @@ class ProposalService:
         fit_prefs: dict[str, Any],
         fundamentals: dict[str, Any],
         portfolio_annual_dividend: float | None,
+        screening: dict[str, Any] | None = None,
+        analyst_target: float | None = None,
+        personal_target: float | None = None,
     ) -> dict[str, Any]:
         score = 8.0
         factors: list[str] = []
+        screening = screening or {}
         warn_pct = float(fit_prefs.get("maxSingleNameWeightPct") or CONCENTRATION_WARN_PCT)
         veto_pct = max(warn_pct * 1.5, warn_pct + 5.0)
         if fit_prefs.get("maxSingleNameWeightPct") is None:
@@ -682,6 +695,32 @@ class ProposalService:
                 score += 2
                 factors.append("Near personal sell threshold — fit supports trim")
 
+        # Soft harvest Fit nudges from residual Loss-score / Trim-score (capped ±3).
+        a_up = holding.get("analystUpsidePct")
+        if a_up is None:
+            a_up = upside_pct(analyst_target or screening.get("analystTarget1y"), current_price)
+        p_up = holding.get("personalUpsidePct")
+        if p_up is None:
+            p_tgt = personal_target or screening.get("personalTarget") or screening.get("targetPrice")
+            p_up = upside_pct(p_tgt, current_price)
+        high_52 = _fund_get(fundamentals, "high52w", "fiftyTwoWeekHigh", "week52High")
+        peak = peak_proximity_pct(current_price, high_52)
+        buy_qty, sell_qty = self._plan_share_qty(screening)
+        harvest_nudge, harvest_factors = fit_harvest_nudge(
+            action=action,
+            gain_pct=gain_pct if isinstance(gain_pct, (int, float)) else None,
+            analyst_upside_pct=a_up if isinstance(a_up, (int, float)) else None,
+            personal_upside_pct=p_up if isinstance(p_up, (int, float)) else None,
+            peak_pct=peak,
+            weight_pct=weight if isinstance(weight, (int, float)) else None,
+            buy_qty=buy_qty,
+            sell_qty=sell_qty,
+            held=float(holding.get("quantity") or 0),
+        )
+        if harvest_nudge:
+            score += harvest_nudge
+            factors.extend(harvest_factors)
+
         score = self._apply_pref_fit_bonuses(
             score,
             factors,
@@ -693,7 +732,30 @@ class ProposalService:
         )
 
         capped = _round_score(_clamp(score, 0, FIT_MAX))
-        return {"score": capped, "max": FIT_MAX, "factors": factors[:6]}
+        return {"score": capped, "max": FIT_MAX, "factors": factors[:8]}
+
+    @staticmethod
+    def _plan_share_qty(screening: dict[str, Any]) -> tuple[float, float]:
+        """Signed planned buy/sell qty from screening trade legs (abs for each side)."""
+        buy = 0.0
+        sell = 0.0
+        for price_key, shares_key, default_buy in (
+            ("tradeBelowPrice", "tradeBelowShares", True),
+            ("tradeAbovePrice", "tradeAboveShares", False),
+        ):
+            price = screening.get(price_key)
+            shares = screening.get(shares_key)
+            if price is None:
+                continue
+            if isinstance(shares, (int, float)) and shares > 0:
+                buy += float(shares)
+            elif isinstance(shares, (int, float)) and shares < 0:
+                sell += abs(float(shares))
+            elif default_buy:
+                pass
+            else:
+                pass
+        return buy, sell
 
     def _apply_pref_fit_bonuses(
         self,

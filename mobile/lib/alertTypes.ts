@@ -10,6 +10,9 @@ export const ALERT_TYPE_LABELS: Record<string, string> = {
   trade_above_near: "Trade Above Near",
   trade_below: "Trade Below",
   trade_below_near: "Trade Below Near",
+  tax_loss_candidate: "Tax Loss",
+  winner_trim_candidate: "Winner Trim",
+  harvest_imbalance: "Harvest Gap",
 };
 
 /** Short chip label for fine-grained type keys (row badges / legacy). */
@@ -24,6 +27,9 @@ export const ALERT_TYPE_CHIP_LABELS: Record<string, string> = {
   trade_above_near: "Above Near",
   trade_below: "Below",
   trade_below_near: "Below Near",
+  tax_loss_candidate: "Tax$",
+  winner_trim_candidate: "Trim",
+  harvest_imbalance: "Gap",
 };
 
 /** Preferred chip order for fine-grained types (list sort). */
@@ -38,6 +44,9 @@ export const ALERT_TYPE_CHIP_ORDER = [
   "one_yt_watch",
   "one_yt_stretch",
   "screener_upside",
+  "tax_loss_candidate",
+  "winner_trim_candidate",
+  "harvest_imbalance",
 ] as const;
 
 /**
@@ -70,6 +79,11 @@ export const ALERT_FILTER_GROUPS = [
       "one_yt_stretch",
       "screener_upside",
     ],
+  },
+  {
+    key: "harvest",
+    label: "Harvest",
+    types: ["tax_loss_candidate", "winner_trim_candidate", "harvest_imbalance"],
   },
 ] as const;
 
