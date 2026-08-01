@@ -12,11 +12,11 @@ BLOCK_HEADER = re.compile(
     re.I,
 )
 FIB_LEVEL_STYLES = (
-    (("0% (High)", "0% High", "0%"), "high", "0% High", "#a78bfa"),
-    (("38.2% Retracement", "38.2% Fib"), "fib-0.382", "38.2% Fib", "#3b82f6"),
-    (("50.0% Center Line", "50.0% Center"), "fib-0.5", "50.0% Center", "#f59e0b"),
-    (("61.8% Golden Pocket", "61.8% Golden"), "fib-0.618", "61.8% Golden", "#ef4444"),
-    (("100% (Low Base)", "100% Low Base", "100% Base", "100%"), "base", "100% Base", "#9aa8bc"),
+    (("0% (High)", "0% High", "0%"), "high", "0% High", "#c4b5fd"),
+    (("38.2% Retracement", "38.2% Fib"), "fib-0.382", "38.2% Fib", "#60a5fa"),
+    (("50.0% Center Line", "50.0% Center"), "fib-0.5", "50.0% Center", "#fbbf24"),
+    (("61.8% Golden Pocket", "61.8% Golden"), "fib-0.618", "61.8% Golden", "#f87171"),
+    (("100% (Low Base)", "100% Low Base", "100% Base", "100%"), "base", "100% Base", "#cbd5e1"),
 )
 TREND_LINE = re.compile(
     r"^- (T\d+) \((Bullish|Bearish)\):\s+"
@@ -242,16 +242,16 @@ class TechnicalService:
 
         lowered = str(label or "").lower()
         if lowered.startswith("0%") or ("0%" in lowered and "high" in lowered):
-            return {"key": "high", "shortLabel": "0% High", "color": "#a78bfa"}
+            return {"key": "high", "shortLabel": "0% High", "color": "#c4b5fd"}
         if "38.2" in lowered:
-            return {"key": "fib-0.382", "shortLabel": "38.2% Fib", "color": "#3b82f6"}
+            return {"key": "fib-0.382", "shortLabel": "38.2% Fib", "color": "#60a5fa"}
         if "50.0" in lowered or "center" in lowered:
-            return {"key": "fib-0.5", "shortLabel": "50.0% Center", "color": "#f59e0b"}
+            return {"key": "fib-0.5", "shortLabel": "50.0% Center", "color": "#fbbf24"}
         if "61.8" in lowered or "golden" in lowered:
-            return {"key": "fib-0.618", "shortLabel": "61.8% Golden", "color": "#ef4444"}
+            return {"key": "fib-0.618", "shortLabel": "61.8% Golden", "color": "#f87171"}
         if lowered.startswith("100%") or ("low" in lowered and "base" in lowered):
-            return {"key": "base", "shortLabel": "100% Base", "color": "#9aa8bc"}
-        return {"key": "fib-other", "shortLabel": label, "color": "#9aa8bc"}
+            return {"key": "base", "shortLabel": "100% Base", "color": "#cbd5e1"}
+        return {"key": "fib-other", "shortLabel": label, "color": "#cbd5e1"}
 
     @staticmethod
     def fib_levels_list(snapshot: dict[str, Any] | None) -> list[dict[str, Any]]:
