@@ -1053,14 +1053,25 @@
     }
     .holdings-inspector-head {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
       gap: 0.75rem;
       margin-bottom: 0.85rem;
     }
-    .holdings-inspector-head h2 {
+    .holdings-inspector-head .holdings-mini-symbol-head {
       margin: 0;
       min-width: 0;
+      flex: 1 1 auto;
+    }
+    .holdings-mini-symbol-head .symbol-head-ticker.is-active {
+      font-size: 1.35rem;
+      text-shadow: none;
+    }
+    .holdings-mini-symbol-head .symbol-head-quote {
+      font-size: 0.95rem;
+    }
+    .holdings-mini-symbol-head .symbol-head-company {
+      font-size: 0.95rem;
     }
     .holdings-inspector-next {
       flex: 0 0 auto;
@@ -4767,7 +4778,13 @@
     </section>
     <section class="panel holdings-inspector-panel">
       <div class="holdings-inspector-head">
-        <h2 id="holdingsInspectorTitle"><span id="holdingsInspectorTitleText">Inspector</span></h2>
+        <h2 class="panel-symbol-head holdings-mini-symbol-head" id="holdingsInspectorTitle">
+          <span class="symbol-head-row">
+            <span class="symbol-head-ticker" id="holdingsInspectorTitleText">Inspector</span>
+            <span class="symbol-head-quote" id="holdingsInspectorQuote" hidden></span>
+            <span class="symbol-head-company" id="holdingsInspectorCompany" hidden></span>
+          </span>
+        </h2>
         <button type="button" class="secondary holdings-inspector-next" id="btnHoldingsInspectorNext" onclick="openNextHoldingsInspector()" hidden>Next →</button>
       </div>
       <div id="holdingsInspectorEmpty" class="empty">Select a symbol from the holdings table.</div>
@@ -9425,6 +9442,7 @@
               : null;
           return {
             symbol: sym.symbol,
+            companyName: sym.companyName || null,
             currentPrice: price,
             dayChangePct: sym.dayChangePct,
             quantity: 0,
@@ -9496,11 +9514,59 @@
       syncHoldingsInspectorHead(selectedSymbol);
     }
 
-    function syncHoldingsInspectorHead(symbol) {
+    function holdingsRowLookup(symbol) {
+      if (!symbol) return null;
+      return (
+        holdingsRows.find((row) => row.symbol === symbol)
+        || holdingsWatchRows.find((row) => row.symbol === symbol)
+        || null
+      );
+    }
+
+    function syncHoldingsInspectorHead(symbol, quote = null, companyName = null) {
       const titleText = document.getElementById("holdingsInspectorTitleText");
+      const head = document.getElementById("holdingsInspectorTitle");
+      const quoteEl = document.getElementById("holdingsInspectorQuote");
+      const companyEl = document.getElementById("holdingsInspectorCompany");
       const btn = document.getElementById("btnHoldingsInspectorNext");
       const panelVisible = document.getElementById("holdingsInspectorPanel")?.hidden === false;
-      if (titleText) titleText.textContent = symbol ? `${symbol} Inspector` : "Inspector";
+      const row = holdingsRowLookup(symbol);
+      const resolvedQuote = quote || (row ? { currentPrice: row.currentPrice, dayChangePct: row.dayChangePct } : null);
+      const resolvedCompany = companyName ?? row?.companyName ?? null;
+
+      if (titleText) {
+        if (symbol) {
+          titleText.textContent = symbol;
+          titleText.classList.add("is-active");
+          head?.classList.add("has-symbol");
+        } else {
+          titleText.textContent = "Inspector";
+          titleText.classList.remove("is-active");
+          head?.classList.remove("has-symbol");
+        }
+      }
+      if (quoteEl) {
+        const price = resolvedQuote?.currentPrice;
+        const dayPct = resolvedQuote?.dayChangePct;
+        if (symbol && price != null) {
+          const dayHtml = dayPct != null ? ` <span class="quote-day">${formatDayChangePercent(dayPct)}</span>` : "";
+          quoteEl.innerHTML = `(${formatMoney(price)}${dayHtml})`;
+          quoteEl.hidden = false;
+        } else {
+          quoteEl.innerHTML = "";
+          quoteEl.hidden = true;
+        }
+      }
+      if (companyEl) {
+        if (symbol && resolvedCompany) {
+          companyEl.textContent = resolvedCompany;
+          companyEl.hidden = false;
+        } else {
+          companyEl.textContent = "";
+          companyEl.hidden = true;
+        }
+      }
+
       const order = currentHoldingsOrder();
       const canNext = Boolean(symbol) && order.length > 1;
       if (btn) {
@@ -15315,7 +15381,7 @@
       if (panelId === "holdingsInspectorPanel") {
         document.getElementById("holdingsInspectorEmpty").hidden = true;
         document.getElementById("holdingsInspectorPanel").hidden = false;
-        syncHoldingsInspectorHead(symbol);
+        syncHoldingsInspectorHead(symbol, data.quote, data.companyName);
       }
       if (panelId === "inspectorPanel") {
         document.getElementById("inspectorEmpty").hidden = true;
