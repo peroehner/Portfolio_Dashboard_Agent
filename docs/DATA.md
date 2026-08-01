@@ -54,6 +54,13 @@ Google OAuth identity and preferences (`prefer_computed_trends`, `preferences_js
 ```
 
 API: `GET/PATCH /api/v1/preferences`.
+
+### `mobile_sessions` (per user)
+
+Opaque Bearer tokens for the iOS app after Google sign-in. Raw token is shown once;
+only `token_hash` (SHA-256) is stored. Created by `POST /auth/mobile/google`, revoked by
+`POST /auth/mobile/logout`.
+
 ### `symbols` (per user)
 
 Personal thresholds and targets only — **not** live market quotes.

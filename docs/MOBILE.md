@@ -168,21 +168,36 @@ Later updates: bump is automatic (`autoIncrement` + remote version source). Re-r
 | `preview` | Internal ad-hoc install (device UDIDs registered) |
 | `development` | Dev client / simulator |
 
-Production builds bake Render API URL + the current mobile Bearer token. Replace the token with Google OAuth before any public App Store release.
+Production builds bake the Render API URL. Set Google client IDs via EAS secrets /
+`mobile/.env` (`EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`).
+Do not bake `EXPO_PUBLIC_MOBILE_DEV_TOKEN` into TestFlight.
 
 ---
 
 ## Auth note
 
-When Google OAuth is enabled on the API, the mobile app uses `MOBILE_DEV_TOKEN` (Bearer header) for development. Matching vars:
+When Google OAuth is enabled on the API, the mobile app should use **Sign in with Google**.
+Flow: Google ID token → `POST /auth/mobile/google` → per-user `Authorization: Bearer`
+session (stored hashed in `mobile_sessions`). Each Google account gets its own portfolio,
+same isolation as the web app.
+
+### Production / TestFlight env
+
+| Location | Variable |
+|----------|----------|
+| Render / API `.env` | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, optional `GOOGLE_MOBILE_IOS_CLIENT_ID` |
+| EAS / `mobile/.env` | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` |
+
+Do **not** set `EXPO_PUBLIC_MOBILE_DEV_TOKEN` on production TestFlight builds.
+
+### Local simulator only (optional)
 
 | File | Variable |
 |------|----------|
-| repo `.env` (local) | `MOBILE_DEV_TOKEN` |
-| Render dashboard | `MOBILE_DEV_TOKEN` |
-| `mobile/.env` / `eas.json` | `EXPO_PUBLIC_MOBILE_DEV_TOKEN` |
+| repo `.env` (local) | `MOBILE_DEV_TOKEN`, optional `MOBILE_DEV_USER_EMAIL` |
+| `mobile/.env` | `EXPO_PUBLIC_MOBILE_DEV_TOKEN` (must match) |
 
-Production App Store builds should use proper Google sign-in, not a dev token.
+**Adding a new person (web vs mobile, TestFlight, allowlists):** see **[USERS.md](./USERS.md)**.
 
 ---
 

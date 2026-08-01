@@ -22,6 +22,9 @@ Assessment signal scoring (SAI, patterns, confluence hit rates):
 Trading proposal framework (State / Trigger / Portfolio Fit — API scaffold):
 **[docs/PROPOSAL_FRAMEWORK.md](docs/PROPOSAL_FRAMEWORK.md)**.
 
+Adding a new web or mobile user:
+**[docs/USERS.md](docs/USERS.md)**.
+
 ## Local development
 
 ```bash
@@ -168,11 +171,13 @@ With OAuth configured, each signed-in user has an isolated portfolio in that dat
 
 Register the redirect URI in [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → OAuth client → Authorized redirect URIs. If the app is in **Testing** mode, add each user email under Test users.
 
+Step-by-step for granting access: **[docs/USERS.md](docs/USERS.md)** (web allowlist / Google Test users; mobile TestFlight + `MOBILE_DEV_TOKEN` binding).
+
 **Note:** Free-tier web instances sleep when idle. Managed Postgres persists across redeploys (the `free` DB plan expires after 30 days).
 
 ## Mobile (iOS)
 
-Expo app in [`mobile/`](mobile/). See [docs/MOBILE.md](docs/MOBILE.md) for setup (`npm install` → `npm run ios`). The API client guide in [docs/REPLIT.md](docs/REPLIT.md) still documents endpoint shapes.
+Expo app in [`mobile/`](mobile/). See [docs/MOBILE.md](docs/MOBILE.md) for setup (`npm install` → `npm run ios`). The API client guide in [docs/REPLIT.md](docs/REPLIT.md) still documents endpoint shapes. Adding users / TestFlight access: [docs/USERS.md](docs/USERS.md).
 
 ## Project structure
 
