@@ -118,7 +118,11 @@ class AlertsService:
             created.extend(self._check_thresholds(symbol_data, true_signatures))
             created.extend(self._check_fib_proximity(symbol_data, true_signatures))
         created.extend(self._check_screener(engine, true_signatures))
-        created.extend(self._check_harvest(true_signatures))
+        try:
+            created.extend(self._check_harvest(true_signatures))
+        except Exception:  # noqa: BLE001
+            # Harvest alerts are additive — never fail the whole Check Alerts run.
+            pass
         self._apply_staleness(true_signatures)
         return [alert for alert in created if alert is not None]
 

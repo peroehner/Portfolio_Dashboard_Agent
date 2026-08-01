@@ -16,9 +16,11 @@ import { NewsSymbolGroupCard, SaiChangeCard } from "@/components/NewsCards";
 import { NewsArticleModal } from "@/components/NewsArticleModal";
 import { NoteModal, type NoteDraft } from "@/components/NoteModal";
 import { Screen } from "@/components/Screen";
+import { RecallFilterButton } from "@/components/RecallFilterButton";
 import { StarFilterButton } from "@/components/StarFilterButton";
 import { api } from "@/lib/api";
 import { FILTER_PLACEHOLDER } from "@/lib/filters";
+import { usePersistedSymbolFilter } from "@/lib/usePersistedSymbolFilter";
 import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 import {
   changeTimestamp,
@@ -119,7 +121,7 @@ function PaneHeader({
 }
 
 export default function NewsScreen() {
-  const [filter, setFilter] = useState("");
+  const { filter, setFilter, lastFilter, applyLast, canRecall } = usePersistedSymbolFilter();
   const [dirFilter, setDirFilter] = useState<RecoChangesDirFilter>("");
   const [expanded, setExpanded] = useState<Pane | null>(null);
   const [noteDraft, setNoteDraft] = useState<NoteDraft | null>(null);
@@ -219,6 +221,11 @@ export default function NewsScreen() {
             onChangeText={setFilter}
             autoCapitalize="characters"
             autoCorrect={false}
+          />
+          <RecallFilterButton
+            visible={canRecall}
+            onPress={applyLast}
+            lastFilter={lastFilter}
           />
           <StarFilterButton filter={filter} onChangeFilter={setFilter} />
         </View>

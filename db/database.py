@@ -305,6 +305,17 @@ MIGRATION_STATEMENTS: tuple[str, ...] = (
     "ALTER TABLE user_daily_usage ADD COLUMN IF NOT EXISTS manual_ai_actions INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS is_starred BOOLEAN NOT NULL DEFAULT FALSE",
     "ALTER TABLE symbol_market ADD COLUMN IF NOT EXISTS news_json JSONB",
+    """
+    CREATE TABLE IF NOT EXISTS mobile_sessions (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT app_now_text(),
+        expires_at TEXT NOT NULL,
+        last_used_at TEXT
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_mobile_sessions_user ON mobile_sessions(user_id)",
 )
 
 BOOTSTRAP_USER_EMAIL = os.environ.get("BOOTSTRAP_USER_EMAIL", "local@portfolio.local")
@@ -467,6 +478,78 @@ def get_user(user_id: int) -> dict | None:
             "SELECT id, google_sub, email, name, picture, plan FROM users WHERE id = %s",
             (user_id,),
         ).fetchone()
+
+
+def create_mobile_session(user_id: int, *, days: int = 60) -> str:
+    """Create a mobile API session and return the raw bearer token (shown once)."""
+    import hashlib
+    import secrets
+    from datetime import datetime, timedelta, timezone
+
+    raw = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    expires = (
+        datetime.now(timezone.utc) + timedelta(days=max(1, int(days)))
+    ).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO mobile_sessions (user_id, token_hash, expires_at)
+            VALUES (%s, %s, %s)
+            """,
+            (user_id, token_hash, expires),
+        )
+        conn.commit()
+    return raw
+
+
+def resolve_mobile_session(raw_token: str) -> int | None:
+    """Return user_id for a valid mobile bearer token, or None."""
+    import hashlib
+    from datetime import datetime, timezone
+
+    if not raw_token:
+        return None
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT id, user_id, expires_at
+            FROM mobile_sessions
+            WHERE token_hash = %s
+            """,
+            (token_hash,),
+        ).fetchone()
+        if not row:
+            return None
+        expires_raw = str(row["expires_at"] or "")
+        try:
+            expires = datetime.fromisoformat(expires_raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if expires < datetime.now(timezone.utc):
+            conn.execute("DELETE FROM mobile_sessions WHERE id = %s", (row["id"],))
+            conn.commit()
+            return None
+        conn.execute(
+            "UPDATE mobile_sessions SET last_used_at = app_now_text() WHERE id = %s",
+            (row["id"],),
+        )
+        conn.commit()
+        return int(row["user_id"])
+
+
+def revoke_mobile_session(raw_token: str) -> None:
+    import hashlib
+
+    if not raw_token:
+        return
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    with get_connection() as conn:
+        conn.execute("DELETE FROM mobile_sessions WHERE token_hash = %s", (token_hash,))
+        conn.commit()
 
 
 def get_prefer_computed_trends(user_id: int | None = None) -> bool:

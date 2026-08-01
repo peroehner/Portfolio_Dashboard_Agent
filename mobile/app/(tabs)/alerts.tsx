@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AlertRow } from "@/components/AlertRow";
+import { RecallFilterButton } from "@/components/RecallFilterButton";
 import { Screen } from "@/components/Screen";
 import { StarFilterButton } from "@/components/StarFilterButton";
 import { api } from "@/lib/api";
@@ -23,13 +24,14 @@ import {
   sortAlertFilterGroupEntries,
 } from "@/lib/alertTypes";
 import { FILTER_PLACEHOLDER } from "@/lib/filters";
+import { usePersistedSymbolFilter } from "@/lib/usePersistedSymbolFilter";
 import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { Alert } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
 
 export default function AlertsScreen() {
-  const [filter, setFilter] = useState("");
+  const { filter, setFilter, lastFilter, applyLast, canRecall } = usePersistedSymbolFilter();
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [dismissingId, setDismissingId] = useState<number | null>(null);
   const { data, loading, error, refresh } = useApiQuery<{ alerts: Alert[] }>(
@@ -113,6 +115,11 @@ export default function AlertsScreen() {
             onChangeText={setFilter}
             autoCapitalize="characters"
             autoCorrect={false}
+          />
+          <RecallFilterButton
+            visible={canRecall}
+            onPress={applyLast}
+            lastFilter={lastFilter}
           />
           <StarFilterButton filter={filter} onChangeFilter={setFilter} />
         </View>

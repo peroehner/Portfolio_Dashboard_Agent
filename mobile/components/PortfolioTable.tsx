@@ -22,6 +22,7 @@ import {
   pctColor,
 } from "@/lib/format";
 import {
+  computePortfolioTotals,
   cyclePortfolioSort,
   portfolioTableColumns,
   sortHeaderLabel,
@@ -118,6 +119,7 @@ export function PortfolioTable({
   const scrollX = useRef(new Animated.Value(0)).current;
   const [tipSymbol, setTipSymbol] = useState<string | null>(null);
   const longPressedRef = useRef(false);
+  const totals = useMemo(() => computePortfolioTotals(rows), [rows]);
 
   const browseSymbols = rows.map((row) => row.symbol);
 
@@ -203,6 +205,14 @@ export function PortfolioTable({
                 </View>
               </View>
             ))}
+            {rows.length > 0 ? (
+              <View style={[styles.stickyDataRow, styles.totalRow, { width: stickyWidth }]}>
+                <View style={[styles.symbolCell, { width: symbolWidth }]}>
+                  <Text style={styles.totalLabel}>{totals.symbol?.text ?? "TOTAL"}</Text>
+                </View>
+                <View style={[styles.saiCell, { width: saiWidth }]} />
+              </View>
+            ) : null}
           </View>
 
           <Animated.ScrollView
@@ -275,6 +285,34 @@ export function PortfolioTable({
                   </View>
                 );
               })}
+              {rows.length > 0 ? (
+                <View style={[styles.scrollDataRow, styles.totalRow]}>
+                  {scrollColumns.map((col) => {
+                    const cell = totals[col.key];
+                    return (
+                      <View
+                        key={col.key}
+                        style={[
+                          styles.dataCell,
+                          { width: col.width },
+                          col.align === "right" && styles.alignRightCell,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.totalCellText,
+                            col.align === "right" && styles.alignRight,
+                            cell?.color ? { color: cell.color } : null,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {cell?.text ?? ""}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null}
             </View>
           </Animated.ScrollView>
         </View>
@@ -447,5 +485,20 @@ const styles = StyleSheet.create({
   },
   alignRightCell: {
     alignItems: "flex-end",
+  },
+  totalRow: {
+    backgroundColor: colors.surfaceAlt,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  totalLabel: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  totalCellText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

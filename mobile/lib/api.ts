@@ -12,6 +12,17 @@ const NEWS_FEED_TIMEOUT_MS = 45000;
 const FUNDAMENTALS_TIMEOUT_MS = 45000;
 const NOTE_SAVE_TIMEOUT_MS = 45000;
 
+/** Per-user Google mobile session token (preferred over shared MOBILE_DEV_TOKEN). */
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token?.trim() || null;
+}
+
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
 function pointsAtLocalhost(url: string): boolean {
   return /localhost|127\.0\.0\.1/i.test(url);
 }
@@ -69,6 +80,12 @@ export function getApiHostLabel(): string {
   }
 }
 
+/** Origin without /api/v1 — used for /auth/mobile/* routes. */
+export function getApiOrigin(): string {
+  const base = getApiBaseUrl().replace(/\/api\/v1\/?$/, "");
+  return base || getApiBaseUrl();
+}
+
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -105,21 +122,33 @@ async function fetchWithTimeout(
   }
 }
 
+function applyAuthHeader(headers: Headers): void {
+  if (headers.has("Authorization")) return;
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    return;
+  }
+  // Shared simulator token only — never prefer over a real user session.
+  const devToken = process.env.EXPO_PUBLIC_MOBILE_DEV_TOKEN?.trim();
+  if (devToken) {
+    headers.set("Authorization", `Bearer ${devToken}`);
+  }
+}
+
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit & { timeoutMs?: number } = {},
+  options: RequestInit & { timeoutMs?: number; absoluteUrl?: boolean } = {},
 ): Promise<T> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...fetchOptions } = options;
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, absoluteUrl = false, ...fetchOptions } = options;
   const base = getApiBaseUrl();
-  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
+  const url = absoluteUrl
+    ? path
+    : `${base}${path.startsWith("/") ? path : `/${path}`}`;
   const headers = new Headers(fetchOptions.headers);
   if (!headers.has("Content-Type") && fetchOptions.body) {
     headers.set("Content-Type", "application/json");
   }
-  const devToken = process.env.EXPO_PUBLIC_MOBILE_DEV_TOKEN?.trim();
-  if (devToken && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${devToken}`);
-  }
+  applyAuthHeader(headers);
 
   const res = await fetchWithTimeout(
     url,
@@ -163,6 +192,39 @@ export async function fetchConfig(): Promise<ApiConfig> {
 export const api = {
   wake: wakeApi,
   config: fetchConfig,
+  me: () =>
+    apiFetch<{
+      authEnabled: boolean;
+      user: {
+        id: number;
+        email?: string | null;
+        name?: string | null;
+        picture?: string | null;
+        plan?: string | null;
+      } | null;
+      planLimits?: unknown;
+    }>("/me"),
+  exchangeGoogleIdToken: (idToken: string) =>
+    apiFetch<{
+      accessToken: string;
+      tokenType: string;
+      user: {
+        id: number;
+        email?: string | null;
+        name?: string | null;
+        picture?: string | null;
+        plan?: string | null;
+      };
+    }>(`${getApiOrigin()}/auth/mobile/google`, {
+      method: "POST",
+      body: JSON.stringify({ idToken }),
+      absoluteUrl: true,
+    }),
+  mobileLogout: () =>
+    apiFetch<{ status: string }>(`${getApiOrigin()}/auth/mobile/logout`, {
+      method: "POST",
+      absoluteUrl: true,
+    }),
   overview: () => apiFetch<import("./types").Overview>("/overview"),
   portfolio: () => apiFetch<{ symbols: import("./types").PortfolioSymbol[] }>("/portfolio"),
   holdings: () => apiFetch<{ holdings: import("./types").Holding[] }>("/holdings"),

@@ -13,6 +13,7 @@ import {
 import { RangeBar, TargetRangeBar } from "@/components/RangeBar";
 import { SymbolStarPressable } from "@/components/SymbolStarPressable";
 import {
+  computeFundamentalsTotals,
   cycleFundamentalsSort,
   fundamentalsColumns,
   renderFundamentalsCell,
@@ -191,6 +192,7 @@ export function FundamentalsTable({
   }, [tab, viewportWidth]);
   const sortedRows = useMemo(() => sortFundamentalsRows(rows, sort), [rows, sort]);
   const browseSymbols = useMemo(() => sortedRows.map((row) => row.symbol), [sortedRows]);
+  const totals = useMemo(() => computeFundamentalsTotals(sortedRows), [sortedRows]);
   const stickyWidth = stickyColumns.reduce((sum, col) => sum + col.width, 0);
   const tableWidth = scrollColumns.reduce((sum, col) => sum + col.width, 0);
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -259,6 +261,27 @@ export function FundamentalsTable({
                 ))}
               </View>
             ))}
+            {sortedRows.length > 0 ? (
+              <View style={[styles.stickyDataRow, styles.totalRow, { width: stickyWidth }]}>
+                {stickyColumns.map((col) => {
+                  if (col.kind === "symbol") {
+                    return (
+                      <View key={col.key} style={[styles.symbolCell, { width: col.width }]}>
+                        <Text style={styles.totalLabel}>{totals.symbol?.text ?? "TOTAL"}</Text>
+                      </View>
+                    );
+                  }
+                  return (
+                    <View
+                      key={col.key}
+                      style={[styles.dataCellSticky, { width: col.width }, styles.alignRightCell]}
+                    >
+                      <Text style={styles.totalCellText}> </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
 
           <Animated.ScrollView
@@ -280,6 +303,34 @@ export function FundamentalsTable({
                   browseSymbols={browseSymbols}
                 />
               ))}
+              {sortedRows.length > 0 ? (
+                <View style={[styles.scrollDataRow, styles.totalRow]}>
+                  {scrollColumns.map((col) => {
+                    const cell = totals[col.key];
+                    return (
+                      <View
+                        key={col.key}
+                        style={[
+                          styles.dataCell,
+                          { width: col.width },
+                          col.align === "right" && styles.alignRightCell,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.totalCellText,
+                            col.align === "right" && styles.alignRight,
+                            cell?.color ? { color: cell.color } : null,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {cell?.text ?? ""}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null}
             </View>
           </Animated.ScrollView>
         </View>
@@ -402,4 +453,19 @@ const styles = StyleSheet.create({
   alignRightCell: { alignItems: "flex-end" },
   cellText: { color: colors.text, fontSize: 12, fontWeight: "500" },
   alignRight: { textAlign: "right" },
+  totalRow: {
+    backgroundColor: colors.surfaceAlt,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  totalLabel: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  totalCellText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
 });

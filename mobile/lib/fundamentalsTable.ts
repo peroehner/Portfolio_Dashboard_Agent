@@ -141,10 +141,13 @@ const VAL_SCROLL: FundamentalsColumn[] = [
 
 const HEALTH_STICKY: FundamentalsColumn[] = [
   { key: "symbol", label: "Symbol", width: 64, kind: "symbol" },
-  { key: "price", label: "Price", width: 72, align: "right", kind: "price" },
 ];
 
 const HEALTH_SCROLL: FundamentalsColumn[] = [
+  { key: "rec", label: "Rating", width: 72, kind: "rating" },
+  { key: "tgtRange", label: "Target", width: 120, kind: "targetRange" },
+  { key: "analysts", label: "#", width: 40, align: "right", kind: "ratio" },
+  { key: "price", label: "Price", width: 72, align: "right", kind: "price" },
   { key: "beta", label: "Beta", width: 52, align: "right", kind: "ratio" },
   { key: "d2e", label: "D/E", width: 52, align: "right", kind: "ratio" },
   { key: "current", label: "Current", width: 60, align: "right", kind: "ratio" },
@@ -152,9 +155,6 @@ const HEALTH_SCROLL: FundamentalsColumn[] = [
   { key: "fcf", label: "FCF", width: 68, align: "right", kind: "largeMoney" },
   { key: "cash", label: "Cash", width: 68, align: "right", kind: "largeMoney" },
   { key: "debt", label: "Debt", width: 68, align: "right", kind: "largeMoney" },
-  { key: "rec", label: "Rating", width: 72, kind: "rating" },
-  { key: "tgtRange", label: "Target", width: 120, kind: "targetRange" },
-  { key: "analysts", label: "#", width: 40, align: "right", kind: "ratio" },
 ];
 
 export function fundamentalsColumns(tab: FundamentalsTab): {
@@ -357,3 +357,32 @@ export function renderFundamentalsCell(
 
   return val;
 }
+
+/** Sum large-money fundamentals for displayed rows; ratios/ratings stay blank. */
+export function computeFundamentalsTotals(
+  rows: FundamentalsRow[],
+): Record<string, FundamentalsCellText> {
+  if (!rows.length) return {};
+
+  const sumFund = (group: string, key: string) =>
+    rows.reduce((acc, row) => acc + (fundNum(fundVal(row, group, key)) || 0), 0);
+
+  const mktCap = sumFund("profile", "marketCap");
+  const fcf = sumFund("financialHealth", "freeCashflow");
+  const cash = sumFund("financialHealth", "totalCash");
+  const debt = sumFund("financialHealth", "totalDebt");
+  const analysts = sumFund("analyst", "analystCount");
+
+  return {
+    symbol: { text: "TOTAL" },
+    mktCap: { text: formatLargeMoney(mktCap || null) },
+    fcf: {
+      text: formatLargeMoney(fcf || null),
+      color: fcf < 0 ? colors.sell : undefined,
+    },
+    cash: { text: formatLargeMoney(cash || null) },
+    debt: { text: formatLargeMoney(debt || null) },
+    analysts: { text: analysts ? String(Math.round(analysts)) : "—" },
+  };
+}
+

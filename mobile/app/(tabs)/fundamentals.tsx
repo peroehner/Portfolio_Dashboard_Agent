@@ -10,10 +10,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { FundamentalsTable } from "@/components/FundamentalsTable";
+import { RecallFilterButton } from "@/components/RecallFilterButton";
 import { Screen } from "@/components/Screen";
 import { StarFilterButton } from "@/components/StarFilterButton";
 import { api } from "@/lib/api";
 import { FILTER_PLACEHOLDER } from "@/lib/filters";
+import { usePersistedSymbolFilter } from "@/lib/usePersistedSymbolFilter";
 import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 import type { FundamentalsSortState, FundamentalsTab } from "@/lib/fundamentalsTable";
 import { colors, radii, spacing } from "@/lib/theme";
@@ -26,7 +28,7 @@ function tabStyle(active: boolean) {
 }
 
 export default function FundamentalsScreen() {
-  const [filter, setFilter] = useState("");
+  const { filter, setFilter, lastFilter, applyLast, canRecall } = usePersistedSymbolFilter();
   const [tab, setTab] = useState<FundamentalsTab>("val");
   const [sort, setSort] = useState<FundamentalsSortState>({
     key: "range52",
@@ -59,6 +61,11 @@ export default function FundamentalsScreen() {
             onChangeText={setFilter}
             autoCapitalize="characters"
             autoCorrect={false}
+          />
+          <RecallFilterButton
+            visible={canRecall}
+            onPress={applyLast}
+            lastFilter={lastFilter}
           />
           <StarFilterButton filter={filter} onChangeFilter={setFilter} />
         </View>

@@ -17,28 +17,49 @@ import { KpiCard } from "@/components/KpiCard";
 import { Screen } from "@/components/Screen";
 import type { AllocationMode } from "@/lib/allocationChart";
 import { api, getApiHostLabel, showApiHostInDev } from "@/lib/api";
+import { useAuth } from "@/lib/AuthContext";
 import { formatMoney, formatPct, formatShortDateTime, pctColor } from "@/lib/format";
 import { openSymbol } from "@/lib/symbolBrowseSession";
 import { colors, spacing } from "@/lib/theme";
 import { useApiQuery } from "@/lib/useApiQuery";
 
-function performerHint(gainPct?: number | null, gain?: number | null): string | undefined {
+const PRIVACY_MASK = "••••";
+
+function privacyMoney(
+  value: number | null | undefined,
+  hide: boolean,
+  compact = false,
+): string {
+  if (hide) return PRIVACY_MASK;
+  return formatMoney(value, compact);
+}
+
+function performerHint(
+  gainPct?: number | null,
+  gain?: number | null,
+  hideAmounts = false,
+): string | undefined {
   if (gainPct == null && gain == null) return undefined;
   const parts: string[] = [];
   if (gainPct != null) parts.push(formatPct(gainPct));
-  if (gain != null) parts.push(formatMoney(gain, true));
+  if (gain != null) parts.push(hideAmounts ? PRIVACY_MASK : formatMoney(gain, true));
   return parts.join(" · ");
 }
 
-function signedMoney(value?: number | null): string {
+function signedMoney(value?: number | null, hideAmounts = false): string {
   if (value == null || Number.isNaN(value)) return "—";
+  if (hideAmounts) return PRIVACY_MASK;
   const sign = value > 0 ? "+" : value < 0 ? "-" : "";
   return `${sign}${formatMoney(Math.abs(value))}`;
 }
 
-function dayChangeHint(dayValue?: number | null, dayPct?: number | null): string | undefined {
+function dayChangeHint(
+  dayValue?: number | null,
+  dayPct?: number | null,
+  hideAmounts = false,
+): string | undefined {
   if (dayValue == null && dayPct == null) return undefined;
-  const valueText = dayValue != null ? signedMoney(dayValue) : "";
+  const valueText = dayValue != null ? signedMoney(dayValue, hideAmounts) : "";
   const pctText = dayPct != null ? `(${formatPct(dayPct, 2)})` : "";
   const combined = [valueText, pctText].filter(Boolean).join(" ");
   return combined ? `${combined} Day` : undefined;
@@ -49,7 +70,9 @@ export default function OverviewScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const [allocationMode, setAllocationMode] = useState<AllocationMode>("top5");
+  const [hideAmounts, setHideAmounts] = useState(false);
   const { data, loading, error, refresh } = useApiQuery(() => api.overview(), []);
+  const { user, authEnabled, signOut } = useAuth();
 
   const cellWidth = useMemo(() => {
     const pad = spacing.lg * 2;
@@ -59,10 +82,11 @@ export default function OverviewScreen() {
 
   const subtitle = useMemo(() => {
     const parts: string[] = [];
+    if (user?.email) parts.push(user.email);
     if (data?.pricesAsOf) parts.push(`Prices ${formatShortDateTime(data.pricesAsOf)}`);
     if (showApiHostInDev()) parts.push(getApiHostLabel());
     return parts.join(" · ");
-  }, [data?.pricesAsOf]);
+  }, [data?.pricesAsOf, user?.email]);
 
   const recentAlerts = (data?.alerts ?? []).slice(0, isWide ? 5 : 3);
   const hasAlerts = recentAlerts.length > 0;
@@ -97,6 +121,7 @@ export default function OverviewScreen() {
         holdings={data?.holdings}
         mode={allocationMode}
         onModeChange={setAllocationMode}
+        hideAmounts={hideAmounts}
       />
     </View>
   );
@@ -145,7 +170,7 @@ export default function OverviewScreen() {
           `${data.simulation.buyLegs ?? 0} buys`,
           `${data.simulation.sellLegs ?? 0} sells`,
           data.simulation.netCashFlow != null
-            ? `Net cash flow ${signedMoney(data.simulation.netCashFlow)}`
+            ? `Net cash flow ${signedMoney(data.simulation.netCashFlow, hideAmounts)}`
             : null,
         ]
           .filter(Boolean)
@@ -168,7 +193,9 @@ export default function OverviewScreen() {
         <View style={styles.progressRow}>
           <View style={styles.progressLabelLine}>
             <Text style={styles.progressLabel}>Current aggregated valuation</Text>
-            <Text style={styles.progressValue}>{formatMoney(data?.totalMarketValue)}</Text>
+            <Text style={styles.progressValue}>
+              {privacyMoney(data?.totalMarketValue, hideAmounts)}
+            </Text>
           </View>
           <View style={styles.progressTrack}>
             <View
@@ -187,7 +214,8 @@ export default function OverviewScreen() {
             <View style={styles.progressLabelLine}>
               <Text style={styles.progressLabel}>{row.label}</Text>
               <Text style={[styles.progressValue, { color: pctColor(row.pct) }]}>
-                {formatMoney(row.value)} {row.pct != null ? `(${formatPct(row.pct, 1)})` : ""}
+                {privacyMoney(row.value, hideAmounts)}{" "}
+                {row.pct != null ? `(${formatPct(row.pct, 1)})` : ""}
               </Text>
             </View>
             <View style={styles.progressTrack}>
@@ -216,6 +244,13 @@ export default function OverviewScreen() {
         loading={loading && !data}
         error={error}
         onRetry={() => void refresh()}
+        rightAction={
+          authEnabled ? (
+            <Pressable onPress={() => void signOut()} accessibilityRole="button">
+              <Text style={styles.signOut}>Sign out</Text>
+            </Pressable>
+          ) : undefined
+        }
       >
         <ScrollView
           refreshControl={
@@ -232,11 +267,20 @@ export default function OverviewScreen() {
               <KpiCard
                 compact
                 label="Market value"
-                value={formatMoney(data?.totalMarketValue, true)}
-                hint={
-                  dayChangeHint(data?.totalDayChange, data?.totalDayChangePct)
-                }
+                value={privacyMoney(data?.totalMarketValue, hideAmounts, true)}
+                hint={dayChangeHint(
+                  data?.totalDayChange,
+                  data?.totalDayChangePct,
+                  hideAmounts,
+                )}
                 valueColor={pctColor(data?.totalDayChangePct)}
+                labelAction={{
+                  icon: hideAmounts ? "eye-off-outline" : "eye-outline",
+                  onPress: () => setHideAmounts((prev) => !prev),
+                  accessibilityLabel: hideAmounts
+                    ? "Show sensitive dollar amounts"
+                    : "Hide sensitive dollar amounts",
+                }}
               />
             </View>
             <View style={[styles.kpiCell, { width: cellWidth }]}>
@@ -244,7 +288,11 @@ export default function OverviewScreen() {
                 compact
                 label="Best Performer"
                 value={data?.bestPerformer?.symbol ?? "—"}
-                hint={performerHint(data?.bestPerformer?.gainPct, data?.bestPerformer?.gain)}
+                hint={performerHint(
+                  data?.bestPerformer?.gainPct,
+                  data?.bestPerformer?.gain,
+                  hideAmounts,
+                )}
                 valueColor={pctColor(data?.bestPerformer?.gainPct)}
                 onPress={
                   data?.bestPerformer?.symbol
@@ -266,7 +314,7 @@ export default function OverviewScreen() {
               <KpiCard
                 compact
                 label="Unrealized gain"
-                value={formatMoney(data?.unrealizedGain, true)}
+                value={privacyMoney(data?.unrealizedGain, hideAmounts, true)}
                 hint={formatPct(data?.unrealizedGainPct)}
                 valueColor={pctColor(data?.unrealizedGainPct)}
               />
@@ -276,7 +324,11 @@ export default function OverviewScreen() {
                 compact
                 label="Best Performer YTD"
                 value={data?.bestYtdPerformer?.symbol ?? "—"}
-                hint={performerHint(data?.bestYtdPerformer?.gainPct, data?.bestYtdPerformer?.gain)}
+                hint={performerHint(
+                  data?.bestYtdPerformer?.gainPct,
+                  data?.bestYtdPerformer?.gain,
+                  hideAmounts,
+                )}
                 valueColor={pctColor(data?.bestYtdPerformer?.gainPct)}
                 onPress={
                   data?.bestYtdPerformer?.symbol
@@ -404,5 +456,11 @@ const styles = StyleSheet.create({
     color: colors.link,
     fontSize: 14,
     fontWeight: "600",
+  },
+  signOut: {
+    color: colors.link,
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 6,
   },
 });

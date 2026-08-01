@@ -46,9 +46,16 @@ interface AllocationChartProps {
   holdings?: Holding[];
   mode: AllocationMode;
   onModeChange: (mode: AllocationMode) => void;
+  /** Mask legend dollar amounts for Summary privacy demos. */
+  hideAmounts?: boolean;
 }
 
-export function AllocationChart({ holdings, mode, onModeChange }: AllocationChartProps) {
+export function AllocationChart({
+  holdings,
+  mode,
+  onModeChange,
+  hideAmounts = false,
+}: AllocationChartProps) {
   const slices = useMemo(() => buildAllocationSlices(holdings, mode), [holdings, mode]);
   const total = useMemo(
     () => (slices ?? []).reduce((sum, slice) => sum + slice.value, 0),
@@ -111,7 +118,7 @@ export function AllocationChart({ holdings, mode, onModeChange }: AllocationChar
                   {arc.label}
                 </Text>
                 <Text style={styles.legendValue}>
-                  {formatMoney(arc.value, true)} · {arc.pct.toFixed(1)}%
+                  {hideAmounts ? "••••" : formatMoney(arc.value, true)} · {arc.pct.toFixed(1)}%
                 </Text>
               </View>
             </View>

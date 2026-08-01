@@ -10,21 +10,33 @@ When enabled:
   - /auth/callback-> exchange code, upsert the user, store user_id in the session
   - /auth/logout  -> clear the session
   - /login        -> minimal "Sign in with Google" page (public)
-  - all other routes require a session; API routes get 401, pages redirect to /login
+  - /auth/mobile/google -> exchange Google ID token for a per-user mobile Bearer
+  - /auth/mobile/logout -> revoke the mobile Bearer session
+  - all other routes require a session or mobile Bearer; API routes get 401,
+    pages redirect to /login
 
 An optional ALLOWED_EMAILS allowlist (comma-separated) restricts who may sign in.
 """
 
-import os
+from __future__ import annotations
 
+import logging
+import os
+from typing import Any
+
+import requests
 from flask import Blueprint, g, jsonify, redirect, request, session
 
 from db.database import (
     clear_current_user_id,
+    create_mobile_session,
     get_bootstrap_user_id,
     get_connection,
     get_or_create_user,
+    get_user,
     reset_current_user_id,
+    resolve_mobile_session,
+    revoke_mobile_session,
     set_current_user_id,
 )
 
@@ -33,8 +45,9 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
 AUTH_ENABLED = bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
 
 # Optional local-only bearer token so the Expo simulator can call the API while
-# OAuth is enabled. Set MOBILE_DEV_TOKEN in .env and the same value as
-# EXPO_PUBLIC_MOBILE_DEV_TOKEN in mobile/.env. Never enable on production.
+# OAuth is enabled. Prefer mobile Google sign-in for TestFlight multi-user.
+# Set MOBILE_DEV_TOKEN in .env and the same value as EXPO_PUBLIC_MOBILE_DEV_TOKEN
+# in mobile/.env. Do not bake this into production TestFlight builds.
 MOBILE_DEV_TOKEN = os.environ.get("MOBILE_DEV_TOKEN", "").strip()
 
 # Optional allowlist: only these emails may sign in. Empty = any Google account.
@@ -50,6 +63,7 @@ _PUBLIC_PREFIXES = ("/auth/", "/assets/", "/docs/")
 
 auth_bp = Blueprint("auth", __name__)
 _oauth = None  # set in init_auth when enabled
+logger = logging.getLogger(__name__)
 
 
 def _email_allowed(email: str | None) -> bool:
@@ -90,11 +104,67 @@ def _mobile_dev_user_id() -> int:
     return get_bootstrap_user_id()
 
 
+def _bearer_token() -> str | None:
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header[7:].strip()
+    return token or None
+
+
 def _mobile_dev_token_valid() -> bool:
     if not MOBILE_DEV_TOKEN:
         return False
-    auth_header = request.headers.get("Authorization", "")
-    return auth_header == f"Bearer {MOBILE_DEV_TOKEN}"
+    return _bearer_token() == MOBILE_DEV_TOKEN
+
+
+def _accepted_google_audiences() -> set[str]:
+    """Web + optional iOS / Expo client IDs allowed on ID-token `aud`."""
+    audiences: set[str] = set()
+    for key in (
+        "GOOGLE_OAUTH_CLIENT_ID",
+        "GOOGLE_MOBILE_IOS_CLIENT_ID",
+        "GOOGLE_MOBILE_WEB_CLIENT_ID",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID",
+    ):
+        value = os.environ.get(key, "").strip()
+        if value:
+            audiences.add(value)
+    extra = os.environ.get("GOOGLE_MOBILE_CLIENT_IDS", "")
+    for part in extra.split(","):
+        value = part.strip()
+        if value:
+            audiences.add(value)
+    return audiences
+
+
+def verify_google_id_token(id_token: str) -> dict[str, Any]:
+    """Validate a Google ID token via tokeninfo and return claims."""
+    if not id_token or not isinstance(id_token, str):
+        raise ValueError("idToken is required.")
+    try:
+        resp = requests.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"id_token": id_token},
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        raise ValueError(f"Could not verify Google token: {exc}") from exc
+    if resp.status_code != 200:
+        raise ValueError("Invalid Google ID token.")
+    claims = resp.json()
+    aud = str(claims.get("aud") or "")
+    if aud not in _accepted_google_audiences():
+        raise ValueError("Google token audience is not accepted for this app.")
+    email = claims.get("email")
+    if not claims.get("sub"):
+        raise ValueError("Google token missing subject.")
+    if str(claims.get("email_verified", "true")).lower() not in ("true", "1"):
+        raise ValueError("Google email is not verified.")
+    if not _email_allowed(email):
+        raise PermissionError(f"Access denied for {email}.")
+    return claims
 
 
 LOGIN_PAGE = """<!doctype html>
@@ -162,6 +232,51 @@ def auth_logout():
     return redirect("/login" if AUTH_ENABLED else "/")
 
 
+@auth_bp.route("/auth/mobile/google", methods=["POST"])
+def auth_mobile_google():
+    """Exchange a Google ID token for a per-user mobile API bearer session."""
+    if not AUTH_ENABLED:
+        return jsonify({"error": "Google OAuth is not configured on this API."}), 503
+    payload = request.get_json(silent=True) or {}
+    id_token = payload.get("idToken") or payload.get("id_token")
+    try:
+        claims = verify_google_id_token(str(id_token or ""))
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 401
+
+    user = get_or_create_user(
+        str(claims["sub"]),
+        str(claims.get("email") or ""),
+        claims.get("name"),
+        claims.get("picture"),
+    )
+    access_token = create_mobile_session(int(user["id"]))
+    return jsonify(
+        {
+            "accessToken": access_token,
+            "tokenType": "Bearer",
+            "user": {
+                "id": user["id"],
+                "email": user["email"],
+                "name": user["name"],
+                "picture": user["picture"],
+                "plan": user.get("plan"),
+            },
+        }
+    )
+
+
+@auth_bp.route("/auth/mobile/logout", methods=["POST"])
+def auth_mobile_logout():
+    """Revoke the current mobile bearer session (if present)."""
+    token = _bearer_token()
+    if token and token != MOBILE_DEV_TOKEN:
+        revoke_mobile_session(token)
+    return jsonify({"status": "ok"})
+
+
 def init_auth(app) -> None:
     """Configure sessions + OAuth and install the per-request auth guard."""
     app.secret_key = (
@@ -207,9 +322,15 @@ def init_auth(app) -> None:
             return None
         user_id = session.get("user_id")
         if user_id is None:
-            if _mobile_dev_token_valid():
+            bearer = _bearer_token()
+            if bearer and _mobile_dev_token_valid():
                 g._user_ctx_token = set_current_user_id(_mobile_dev_user_id())
                 return None
+            if bearer:
+                mobile_user_id = resolve_mobile_session(bearer)
+                if mobile_user_id is not None:
+                    g._user_ctx_token = set_current_user_id(mobile_user_id)
+                    return None
             clear_current_user_id()
             if request.path.startswith("/api/"):
                 return jsonify({"status": "error", "message": "Authentication required."}), 401

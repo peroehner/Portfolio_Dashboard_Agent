@@ -56,16 +56,22 @@ export function AlertMessageText({
 
 export function AlertRow({ alert, onDismiss, dismissing, browseSymbols }: AlertRowProps) {
   const type = alertTypeLabel(alertTypeKey(alert.type || alert.alert_type));
-  const rowStar = useSymbolRowStar(alert.symbol);
+  const symbol = String(alert.symbol || "").trim().toUpperCase();
+  const isPortfolioWide = symbol === "PORTFOLIO";
+  const rowStar = useSymbolRowStar(isPortfolioWide ? "" : symbol);
 
   return (
-    <Pressable style={styles.card} {...rowStar}>
+    <Pressable style={styles.card} {...(isPortfolioWide ? {} : rowStar)}>
       <View style={styles.top}>
-        <SymbolStarPressable
-          style={styles.symbolPress}
-          symbol={alert.symbol}
-          onPress={() => openSymbol(alert.symbol, browseSymbols, "alerts")}
-        />
+        {isPortfolioWide ? (
+          <Text style={styles.symbol}>{symbol || "PORTFOLIO"}</Text>
+        ) : (
+          <SymbolStarPressable
+            style={styles.symbolPress}
+            symbol={symbol}
+            onPress={() => openSymbol(symbol, browseSymbols, "alerts")}
+          />
+        )}
         <View style={styles.typeRow}>
           <Text style={styles.type}>{type}</Text>
           {onDismiss ? (

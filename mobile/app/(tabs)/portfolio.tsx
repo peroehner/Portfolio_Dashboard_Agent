@@ -12,10 +12,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { PortfolioTable } from "@/components/PortfolioTable";
+import { RecallFilterButton } from "@/components/RecallFilterButton";
 import { Screen } from "@/components/Screen";
 import { StarFilterButton } from "@/components/StarFilterButton";
 import { api } from "@/lib/api";
 import { FILTER_PLACEHOLDER } from "@/lib/filters";
+import { usePersistedSymbolFilter } from "@/lib/usePersistedSymbolFilter";
 import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 import {
   buildPortfolioRows,
@@ -38,7 +40,7 @@ export default function PortfolioScreen() {
   const { width, height } = useWindowDimensions();
   const { symbol: symbolParam } = useLocalSearchParams<{ symbol?: string }>();
   const isLandscape = width > height;
-  const [filter, setFilter] = useState("");
+  const { filter, setFilter, lastFilter, applyLast, canRecall } = usePersistedSymbolFilter();
   const [mode, setMode] = useState<PortfolioMode>("all");
   const [sort, setSort] = useState<PortfolioSortState>({ key: null, direction: null });
   const { data, loading, error, refresh } = useApiQuery(
@@ -56,7 +58,7 @@ export default function PortfolioScreen() {
   useEffect(() => {
     const sym = typeof symbolParam === "string" ? symbolParam.trim().toUpperCase() : "";
     if (sym) setFilter(sym);
-  }, [symbolParam]);
+  }, [symbolParam, setFilter]);
 
   // Returning from Symbol details should reflect freshly saved thresholds.
   useFocusEffect(
@@ -116,6 +118,11 @@ export default function PortfolioScreen() {
             onChangeText={setFilter}
             autoCapitalize="characters"
             autoCorrect={false}
+          />
+          <RecallFilterButton
+            visible={canRecall}
+            onPress={applyLast}
+            lastFilter={lastFilter}
           />
           <StarFilterButton filter={filter} onChangeFilter={setFilter} />
           <Pressable

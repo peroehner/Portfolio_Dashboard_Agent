@@ -1,3 +1,4 @@
+import { formatMoney, formatPct, formatQty, formatWeight, pctColor } from "@/lib/format";
 import type { Assessment, Holding, PortfolioRow, PortfolioSymbol, SaiAction } from "@/lib/types";
 
 export type PortfolioSortKey =
@@ -242,3 +243,62 @@ export function sortHeaderLabel(label: string, key: PortfolioSortKey, sort: Port
   if (sort.key !== key || !sort.direction) return label;
   return sort.direction === "asc" ? `${label} ↑` : `${label} ↓`;
 }
+
+export type PortfolioTotalCell = {
+  text: string;
+  color?: string;
+};
+
+/** Footer totals for the currently displayed Portfolio rows (web Holdings TOTAL style). */
+export function computePortfolioTotals(
+  rows: PortfolioRow[],
+): Partial<Record<PortfolioSortKey, PortfolioTotalCell>> {
+  if (!rows.length) return {};
+
+  const sum = (key: keyof PortfolioRow) =>
+    rows.reduce((acc, row) => acc + (Number(row[key]) || 0), 0);
+
+  const totalValue = sum("marketValue");
+  const totalGain = sum("unrealizedGain");
+  const totalDiv = sum("annualDividend");
+  const totalQty = sum("quantity");
+  const totalAnalystVal = sum("analystTargetValue");
+  const totalPtVal = sum("personalTargetValue");
+  const totalWeight = sum("weightPct");
+
+  let dayChangeAmt = 0;
+  let dayWeightBase = 0;
+  rows.forEach((row) => {
+    const v = Number(row.marketValue) || 0;
+    const p = Number(row.dayChangePct);
+    if (Number.isFinite(p) && v > 0) {
+      dayChangeAmt += (v * p) / 100;
+      dayWeightBase += v;
+    }
+  });
+  const dayPct = dayWeightBase ? (dayChangeAmt / dayWeightBase) * 100 : null;
+  const gainPct = totalValue ? (totalGain / totalValue) * 100 : null;
+
+  const money = (n: number) => ({ text: formatMoney(n, true) });
+  const pct = (n: number | null): PortfolioTotalCell =>
+    n == null || !Number.isFinite(n)
+      ? { text: "—" }
+      : { text: formatPct(n), color: pctColor(n) };
+
+  return {
+    symbol: { text: "TOTAL" },
+    quantity: { text: formatQty(totalQty || null) },
+    marketValue: money(totalValue),
+    weightPct: { text: formatWeight(totalWeight || null) },
+    annualDividend: money(totalDiv),
+    unrealizedGain: {
+      text: formatMoney(totalGain, true),
+      color: pctColor(totalGain),
+    },
+    gainPct: pct(gainPct),
+    dayChangePct: pct(dayPct),
+    analystTargetValue: money(totalAnalystVal),
+    personalTargetValue: money(totalPtVal),
+  };
+}
+
