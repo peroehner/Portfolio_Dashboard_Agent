@@ -398,7 +398,9 @@ class TrackRecordService:
             rows = conn.execute(
                 """
                 SELECT kind, label, direction, outcome, return_pct,
-                       confidence, fit_total, band_code, sentiment
+                       confidence, fit_total, band_code, sentiment,
+                       confluence_band, confluence_score, agree_count,
+                       conflict_count, signal_strength
                 FROM signal_outcomes
                 WHERE user_id = %s AND outcome IS NOT NULL
                 """,
@@ -414,6 +416,8 @@ class TrackRecordService:
         by_label: dict[tuple[str, str], dict[str, Any]] = {}
         by_confidence: dict[str, dict[str, Any]] = {}
         by_fit_band: dict[str, dict[str, Any]] = {}
+        by_confluence_band: dict[str, dict[str, Any]] = {}
+        by_confluence_conflict: dict[str, dict[str, Any]] = {}
         for row in rows:
             _accumulate(overall, row)
             kind_bucket = by_kind.setdefault(row["kind"], _new_bucket())
@@ -437,6 +441,20 @@ class TrackRecordService:
                 )
                 _accumulate(fit_bucket, row)
 
+            if row["kind"] == "confluence":
+                band_key = (
+                    str(row.get("confluence_band") or "unknown").strip().lower() or "unknown"
+                )
+                band_bucket = by_confluence_band.setdefault(
+                    band_key, {**_new_bucket(), "confluenceBand": band_key}
+                )
+                _accumulate(band_bucket, row)
+                conflict_key = conflict_bucket_label(row.get("conflict_count"))
+                conflict_bucket = by_confluence_conflict.setdefault(
+                    conflict_key, {**_new_bucket(), "conflictBucket": conflict_key}
+                )
+                _accumulate(conflict_bucket, row)
+
         return {
             "horizonDays": TRACK_RECORD_HORIZON_DAYS,
             "horizonBandPct": TRACK_RECORD_BAND_PCT,
@@ -455,6 +473,14 @@ class TrackRecordService:
             "byFitBand": sorted(
                 (_finalize(bucket) for bucket in by_fit_band.values()),
                 key=lambda b: _fit_band_sort_key(b.get("fitBand")),
+            ),
+            "byConfluenceBand": sorted(
+                (_finalize(bucket) for bucket in by_confluence_band.values()),
+                key=lambda b: _confluence_band_sort_key(b.get("confluenceBand")),
+            ),
+            "byConfluenceConflict": sorted(
+                (_finalize(bucket) for bucket in by_confluence_conflict.values()),
+                key=lambda b: _conflict_bucket_sort_key(b.get("conflictBucket")),
             ),
         }
 
@@ -533,6 +559,61 @@ def strength_from_proposal(proposal: dict[str, Any] | None, confidence: str | No
     return conf, fit_total, band_code
 
 
+def confluence_outcome_meta(confluence: dict[str, Any] | None) -> dict[str, Any]:
+    """Lean/Strong band, score, agree/conflict counts, and conviction strength.
+
+    Label on the bet stays Bullish/Bearish for scoring continuity; ``confluenceBand``
+    carries whether the fuse was Lean (±0.15) or Strong (±0.45).
+    """
+    block = confluence if isinstance(confluence, dict) else {}
+    bias = str(block.get("bias") or "").strip()
+    bias_l = bias.lower()
+    band = None
+    if "lean" in bias_l:
+        band = "lean"
+    elif "bull" in bias_l or "bear" in bias_l:
+        band = "strong"
+
+    score = None
+    if block.get("score") is not None:
+        try:
+            score = round(float(block["score"]), 3)
+        except (TypeError, ValueError):
+            score = None
+
+    agree = None
+    if block.get("agreeCount") is not None:
+        try:
+            agree = int(block["agreeCount"])
+        except (TypeError, ValueError):
+            agree = None
+
+    conflict = None
+    if block.get("conflictCount") is not None:
+        try:
+            conflict = int(block["conflictCount"])
+        except (TypeError, ValueError):
+            conflict = None
+
+    strength = str(block.get("strength") or "").strip().lower() or None
+    if strength not in ("strong", "moderate", "weak"):
+        strength = None
+
+    return {
+        "confluenceBand": band,
+        "confluenceScore": score,
+        "agreeCount": agree,
+        "conflictCount": conflict,
+        "signalStrength": strength,
+    }
+
+
+def conflict_bucket_label(conflict_count: int | None) -> str:
+    if conflict_count is None:
+        return "unknown"
+    return "clean" if int(conflict_count) <= 0 else "contested"
+
+
 def fit_band_label(fit_total: float | None) -> str:
     if fit_total is None:
         return "unknown"
@@ -564,6 +645,18 @@ def _confidence_sort_key(confidence: str | None) -> tuple:
 def _fit_band_sort_key(fit_band: str | None) -> tuple:
     order = {"strong": 0, "mid": 1, "weak": 2, "unknown": 3}
     key = str(fit_band or "unknown").lower()
+    return (order.get(key, 9), key)
+
+
+def _confluence_band_sort_key(band: str | None) -> tuple:
+    order = {"strong": 0, "lean": 1, "unknown": 2}
+    key = str(band or "unknown").lower()
+    return (order.get(key, 9), key)
+
+
+def _conflict_bucket_sort_key(bucket: str | None) -> tuple:
+    order = {"clean": 0, "contested": 1, "unknown": 2}
+    key = str(bucket or "unknown").lower()
     return (order.get(key, 9), key)
 
 

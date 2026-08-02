@@ -585,7 +585,7 @@ class AssessmentService:
         re-assessments, we keep at most one *pending* capture per (symbol, kind,
         label). Recommendation rows also store confidence / Fit / band strength.
         """
-        from services.track_record_service import strength_from_proposal
+        from services.track_record_service import confluence_outcome_meta, strength_from_proposal
 
         entry_price = context.get("currentPrice")
         if not entry_price or entry_price <= 0:
@@ -611,9 +611,11 @@ class AssessmentService:
         # Capture the Confluence agent's fused bias as its own forward-looking bet
         # so its track record can be scored alongside patterns/recommendations. Only
         # directional verdicts are falsifiable, so skip 'Mixed'. Label by direction
-        # so a later bias flip records a distinct, scorable signal.
+        # so a later bias flip records a distinct, scorable signal. Lean vs Strong,
+        # score, and conflicts are stored as metadata (label stays Bullish/Bearish).
         confluence = technical.get("confluence") or {}
         conf_dir = _confluence_direction(confluence.get("bias"))
+        confluence_meta = confluence_outcome_meta(confluence) if conf_dir in ("bullish", "bearish") else None
         if conf_dir in ("bullish", "bearish"):
             captures.append(("confluence", conf_dir.title(), conf_dir))
 
@@ -676,6 +678,41 @@ class AssessmentService:
                         confidence,
                         fit_total,
                         band_code,
+                    ),
+                )
+            elif kind == "confluence" and confluence_meta is not None:
+                conn.execute(
+                    """
+                    INSERT INTO signal_outcomes (
+                        user_id, symbol, assessment_id, kind, label, direction,
+                        entry_price, horizon_days, eval_due_at,
+                        confluence_band, confluence_score, agree_count,
+                        conflict_count, signal_strength
+                    )
+                    VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s,
+                        to_char(
+                            timezone('UTC', now()) + (%s || ' days')::interval,
+                            'YYYY-MM-DD HH24:MI:SS'
+                        ),
+                        %s, %s, %s, %s, %s
+                    )
+                    """,
+                    (
+                        user_id,
+                        symbol,
+                        assessment_id,
+                        kind,
+                        label,
+                        direction,
+                        float(entry_price),
+                        TRACK_RECORD_HORIZON_DAYS,
+                        TRACK_RECORD_HORIZON_DAYS,
+                        confluence_meta.get("confluenceBand"),
+                        confluence_meta.get("confluenceScore"),
+                        confluence_meta.get("agreeCount"),
+                        confluence_meta.get("conflictCount"),
+                        confluence_meta.get("signalStrength"),
                     ),
                 )
             else:

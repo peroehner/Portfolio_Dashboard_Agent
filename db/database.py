@@ -206,6 +206,11 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         band_code TEXT,
         sentiment TEXT,
         alert_id BIGINT,
+        confluence_band TEXT,
+        confluence_score DOUBLE PRECISION,
+        agree_count INTEGER,
+        conflict_count INTEGER,
+        signal_strength TEXT,
         FOREIGN KEY (user_id, symbol) REFERENCES symbols(user_id, symbol) ON DELETE CASCADE
     )
     """,
@@ -315,6 +320,11 @@ MIGRATION_STATEMENTS: tuple[str, ...] = (
     "ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS band_code TEXT",
     "ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS sentiment TEXT",
     "ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS alert_id BIGINT",
+    "ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS confluence_band TEXT",
+    "ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS confluence_score DOUBLE PRECISION",
+    "ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS agree_count INTEGER",
+    "ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS conflict_count INTEGER",
+    "ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS signal_strength TEXT",
     """
     CREATE TABLE IF NOT EXISTS mobile_sessions (
         id BIGSERIAL PRIMARY KEY,

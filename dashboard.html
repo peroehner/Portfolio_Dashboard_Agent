@@ -4748,6 +4748,7 @@
         <h4>Summary card</h4>
         <p><strong>Overall hit</strong> uses decisive bets only. The insight line is a <strong>Bet-S-Hit scorecard</strong>: it calls out where strength-weighted hit is outstanding or good (often SAI Sell, SAI overall, Patterns) versus soft spots (often Confluence Bias — especially Bearish). It may also note Price vs Follow gaps and whether overall Bet-S-Hit says to prefer strong signals.</p>
         <p>Category tables (SAI, Patterns, Confluence, …) stay <strong>collapsed</strong> — expand a row to see per-signal detail.</p>
+        <p>New confluence bets also store <strong>Lean vs Strong</strong> band, fuse <strong>score</strong>, and <strong>agree/conflict</strong> counts. Summary adds Lean/Strong and clean/contested slices once those fields populate (older confluence rows stay “unknown”).</p>
 
         <h4>Accumulation</h4>
         <p>Hit rates still accumulate across all matured bets (no rolling window in the UI yet). A deferred era cutoff is planned for end of August 2026 so older measurement eras can be trimmed later.</p>
@@ -9522,8 +9523,12 @@
       const fibs = (data.byLabel || []).filter((b) => b.kind === "fib");
       const byConf = data.byConfidence || [];
       const byFit = data.byFitBand || [];
+      const byConfBand = data.byConfluenceBand || [];
+      const byConfConflict = data.byConfluenceConflict || [];
       const showConf = trackRecordHasRealStrength(byConf, "confidence");
       const showFit = trackRecordHasRealStrength(byFit, "fitBand");
+      const showConfBand = trackRecordHasRealStrength(byConfBand, "confluenceBand");
+      const showConfConflict = trackRecordHasRealStrength(byConfConflict, "conflictBucket");
 
       const decided = (overall.wins || 0) + (overall.losses || 0);
       body.innerHTML = `
@@ -9544,8 +9549,11 @@
           ${fibs.length ? trackRecordSection("Fib levels", fibs, { key: "fib" }) : ""}
           ${showConf ? trackRecordSection("SAI by confidence", byConf.map((b) => ({ ...b, label: b.confidence })), { labelKey: "label", key: "by-confidence" }) : ""}
           ${showFit ? trackRecordSection("SAI by Fit band", byFit.map((b) => ({ ...b, label: b.fitBand })), { labelKey: "label", key: "by-fit" }) : ""}
+          ${showConfBand ? trackRecordSection("Confluence Lean vs Strong", byConfBand.map((b) => ({ ...b, label: b.confluenceBand })), { labelKey: "label", key: "by-conf-band" }) : ""}
+          ${showConfConflict ? trackRecordSection("Confluence clean vs contested", byConfConflict.map((b) => ({ ...b, label: b.conflictBucket })), { labelKey: "label", key: "by-conf-conflict" }) : ""}
         </div>
         ${!showConf && !showFit ? `<p class="tr-note">Confidence / Fit slices appear once new assessments store strength on SAI bets (older rows may still show as unknown until backfill links assessments).</p>` : ""}
+        ${!showConfBand ? `<p class="tr-note">Confluence Lean vs Strong / clean vs contested slices appear after new assessments store band, score, and conflict counts on confluence bets.</p>` : ""}
         <p class="tr-note"><strong>Price</strong> = episode price move. <strong>Follow</strong> = did the buy/sell call help? <strong>Hit</strong> = unweighted bet hit. <strong>Bet-S-Hit</strong> = strength-weighted Hit (same as Hit until SAI confidence/Fit populate). Color: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>. Decisive sample: ${decided}.</p>`;
     }
 

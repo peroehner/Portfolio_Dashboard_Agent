@@ -163,6 +163,13 @@ Summary insight grades categories by Bet-S-Hit so confluence gaps (e.g. Bearish)
 proposal). Older rows are backfilled from `assessments` via `assessment_id` when
 Summary loads. Summary exposes `byConfidence` and `byFitBand` slices.
 
+**Confluence band metadata:** confluence bets store `confluence_band`
+(`lean` | `strong`), `confluence_score`, `agree_count`, `conflict_count`, and
+`signal_strength` (strong/moderate/weak conviction) at capture. Direction label
+stays Bullish/Bearish for scoring continuity. Summary exposes
+`byConfluenceBand` and `byConfluenceConflict` (`clean` = 0 conflicts,
+`contested` = any). Older confluence rows lack these fields until new assesses.
+
 **Fib bets (P1 — implemented):** when a new `fib_proximity` alert is inserted,
 a `kind=fib` bet opens (label e.g. `61.8% Golden Pocket`). Direction: price
 **above** level → bullish bounce hypothesis; **below** → bearish. Scored with the

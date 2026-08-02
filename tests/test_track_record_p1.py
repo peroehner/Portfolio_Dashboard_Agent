@@ -21,6 +21,8 @@ from db.database import (  # noqa: E402
 from services.fib_roles import fib_bet_direction, fib_bet_label  # noqa: E402
 from services.track_record_service import (  # noqa: E402
     TrackRecordService,
+    conflict_bucket_label,
+    confluence_outcome_meta,
     fit_band_label,
     strength_from_proposal,
     _direction_adjusted_return,
@@ -113,6 +115,47 @@ class StrengthHelperTests(unittest.TestCase):
         self.assertEqual(out["hitRate"], 50.0)
         self.assertGreater(out["calibratedHitRate"], out["hitRate"])
         self.assertEqual(out["avgReturnAdj"], 0.0)
+
+
+class ConfluenceMetaTests(unittest.TestCase):
+    def test_lean_vs_strong_band(self) -> None:
+        lean = confluence_outcome_meta(
+            {
+                "bias": "Lean Bearish",
+                "score": -0.22,
+                "agreeCount": 2,
+                "conflictCount": 1,
+                "strength": "moderate",
+            }
+        )
+        self.assertEqual(lean["confluenceBand"], "lean")
+        self.assertEqual(lean["confluenceScore"], -0.22)
+        self.assertEqual(lean["agreeCount"], 2)
+        self.assertEqual(lean["conflictCount"], 1)
+        self.assertEqual(lean["signalStrength"], "moderate")
+
+        strong = confluence_outcome_meta(
+            {
+                "bias": "Bullish",
+                "score": 0.61,
+                "agreeCount": 4,
+                "conflictCount": 0,
+                "strength": "strong",
+            }
+        )
+        self.assertEqual(strong["confluenceBand"], "strong")
+        self.assertEqual(strong["conflictCount"], 0)
+
+    def test_mixed_or_empty_is_empty_meta(self) -> None:
+        empty = confluence_outcome_meta({"bias": "Mixed", "score": 0.05})
+        self.assertIsNone(empty["confluenceBand"])
+        none_meta = confluence_outcome_meta(None)
+        self.assertIsNone(none_meta["confluenceBand"])
+
+    def test_conflict_bucket_label(self) -> None:
+        self.assertEqual(conflict_bucket_label(0), "clean")
+        self.assertEqual(conflict_bucket_label(2), "contested")
+        self.assertEqual(conflict_bucket_label(None), "unknown")
 
 
 def _reset_schema() -> None:
