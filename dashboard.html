@@ -2819,60 +2819,195 @@
     .tr-status {
       margin: 0;
       color: var(--muted);
-      font-size: 0.86rem;
-      line-height: 1.45;
+      font-size: 0.82rem;
+      line-height: 1.4;
     }
-    .tr-overall {
-      display: flex;
+    .tr-summary {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.75rem 1.25rem;
       align-items: center;
-      gap: 1.5rem;
-      flex-wrap: wrap;
-      padding: 0.6rem 0 1rem 0;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 1rem;
+      padding: 0.65rem 0.85rem;
+      margin: 0 0 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel-2);
     }
-    .tr-overall-rate {
+    .tr-summary-rate {
+      font-size: 1.75rem;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+    .tr-summary-rate .tr-overall-label {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .tr-summary-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.35rem 0.75rem;
+    }
+    @media (max-width: 900px) {
+      .tr-summary { grid-template-columns: 1fr; }
+      .tr-summary-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .tr-metric {
       display: flex;
-      align-items: baseline;
-      gap: 0.5rem;
-      font-size: 1.9rem;
-      font-weight: 700;
+      flex-direction: column;
+      gap: 0.1rem;
+      min-width: 0;
     }
-    .tr-overall-label {
-      font-size: 0.75rem;
-      font-weight: 500;
+    .tr-metric .tr-metric-label {
+      font-size: 0.65rem;
+      font-weight: 600;
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
-    .tr-overall-stats {
-      display: flex;
-      gap: 1.2rem;
-      flex-wrap: wrap;
-      color: var(--muted);
-      font-size: 0.9rem;
+    .tr-metric .tr-metric-value {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
     }
-    .tr-section { margin-top: 1rem; }
-    .tr-section h3 { margin: 0 0 0.5rem 0; font-size: 0.95rem; }
-    .tr-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .tr-insight {
+      margin: 0 0 0.85rem;
+      padding: 0.55rem 0.75rem;
+      border-left: 3px solid #f59e0b;
+      background: rgba(245, 158, 11, 0.08);
+      color: var(--text);
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+    .tr-insight.tr-insight-ok {
+      border-left-color: #22c55e;
+      background: rgba(34, 197, 94, 0.08);
+    }
+    .tr-insight.tr-insight-warn {
+      border-left-color: #ef4444;
+      background: rgba(239, 68, 68, 0.08);
+    }
+    .tr-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      min-width: 0;
+    }
+    .tr-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .tr-section {
+      margin: 0;
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel, #121a24) 88%, transparent);
+    }
+    .tr-section.tr-span-2 { grid-column: 1 / -1; }
+    .tr-section > summary.tr-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.55rem;
+      margin: 0;
+      padding: 0.55rem 0.7rem;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+    .tr-section > summary.tr-section-head::-webkit-details-marker { display: none; }
+    .tr-section > summary.tr-section-head::marker { content: ""; }
+    .tr-section-chevron {
+      flex: 0 0 auto;
+      width: 0.55rem;
+      height: 0.55rem;
+      margin-top: -0.1rem;
+      border-right: 2px solid var(--muted);
+      border-bottom: 2px solid var(--muted);
+      transform: rotate(-45deg);
+      transition: transform 0.15s ease;
+      opacity: 0.85;
+    }
+    .tr-section[open] > summary .tr-section-chevron {
+      margin-top: 0.05rem;
+      transform: rotate(45deg);
+    }
+    .tr-section-title {
+      flex: 1 1 auto;
+      min-width: 0;
+      margin: 0;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    .tr-section-meta {
+      font-size: 0.72rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .tr-section-body {
+      padding: 0 0.55rem 0.55rem;
+      border-top: 1px solid var(--border);
+    }
+    .tr-note {
+      margin: 0.15rem 0 0;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .tr-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      table-layout: fixed;
+    }
     .tr-table th {
       text-align: left;
       color: var(--muted);
-      font-weight: 500;
-      font-size: 0.78rem;
+      font-weight: 600;
+      font-size: 0.65rem;
       text-transform: uppercase;
       letter-spacing: 0.03em;
-      padding: 0.3rem 0.6rem;
+      padding: 0.2rem 0.35rem;
       border-bottom: 1px solid var(--border);
     }
-    .tr-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
-    .tr-table .tr-num { text-align: right; }
-    .tr-muted { color: var(--muted); }
+    .tr-table td {
+      padding: 0.22rem 0.35rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .tr-table .tr-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .tr-table th.tr-num { text-align: right; }
+    .tr-table .tr-signal {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+    .tr-col-signal { width: 26%; }
+    .tr-col-n { width: 8%; }
+    .tr-col-wl { width: 15%; }
+    .tr-col-hit { width: 11%; }
+    .tr-col-avg { width: 12%; }
+    .tr-col-adj { width: 12%; }
+    .tr-col-cal { width: 16%; }
+    .tr-muted { color: var(--muted); font-weight: 500; }
     .tr-rate { font-weight: 700; }
-    .tr-rate.tr-good { color: #22c55e; }
-    .tr-rate.tr-mid { color: #f59e0b; }
-    .tr-rate.tr-bad { color: #ef4444; }
+    .tr-rate.tr-good { color: #34d399; }
+    .tr-rate.tr-mid { color: #fbbf24; }
+    .tr-rate.tr-bad { color: #f87171; }
     .tr-rate.tr-rate-na { color: var(--muted); font-weight: 500; }
+    .tr-section-meta .tr-rate { font-size: inherit; }
+    .tr-metric-value .tr-rate { font-size: inherit; }
     .tr-table td .pos { color: #22c55e; }
     .tr-table td .neg { color: #ef4444; }
     .tr-table tr[onclick] { cursor: pointer; }
@@ -4547,16 +4682,76 @@
         <button type="button" class="help-modal-close" onclick="closeSignalRecordHelp()" aria-label="Close">&times;</button>
       </div>
       <div class="help-modal-body">
-        <p>After each assessment run, agent signals are captured as forward bets: SAI action, chart patterns, and confluence bias. Each bet waits the evaluation horizon (default <strong>21 days</strong>), then is scored against a <strong>±2% win/loss band</strong> (configurable via <code>TRACK_RECORD_BAND_PCT</code>).</p>
-        <p>Hit rates <strong>accumulate</strong> across all matured bets — there is no rolling window. Scores are read-only and do not yet change future runs.</p>
-        <h4>Scoring rules (±2% band)</h4>
+        <p>The Agent Signal Record measures how forward-looking agent calls played out. It is <strong>measurement only</strong> — scores do not yet change future assessments.</p>
+
+        <h4>What is captured</h4>
         <table class="help-table">
-          <tr><th>Signal</th><th>Win</th><th>Loss</th><th>Neutral</th></tr>
+          <tr><th>Kind</th><th>Source</th><th>How it is timed</th></tr>
+          <tr><td>SAI actions</td><td>Published buy / sell / hold / watch</td><td><strong>Episode</strong>: scored when the action flips, or after the horizon if it never flips</td></tr>
+          <tr><td>Chart patterns</td><td>Detected patterns (veto/stale skipped)</td><td>Fixed horizon (default 21 days)</td></tr>
+          <tr><td>Fib levels</td><td>New Fib proximity alerts</td><td>Fixed horizon; bounce hypothesis from side of level</td></tr>
+          <tr><td>Confluence bias</td><td>Bullish / Bearish fuse</td><td>Fixed horizon</td></tr>
+        </table>
+
+        <h4>Win / loss band (±2%)</h4>
+        <table class="help-table">
+          <tr><th>Direction</th><th>Win</th><th>Loss</th><th>Neutral</th></tr>
           <tr><td>Bullish</td><td>Price rises more than <strong>+2%</strong></td><td>Price falls more than <strong>−2%</strong></td><td>Move inside ±2%</td></tr>
           <tr><td>Bearish</td><td>Price falls more than <strong>−2%</strong></td><td>Price rises more than <strong>+2%</strong></td><td>Move inside ±2%</td></tr>
-          <tr><td>Hold / watch</td><td colspan="3">Always neutral — move is stored but not win/loss</td></tr>
+          <tr><td>Hold / watch</td><td colspan="3">Always neutral — move is stored but never win/loss</td></tr>
         </table>
-        <p><strong>Hit rate</strong> = wins ÷ (wins + losses). Neutrals are shown as <code>n</code> in the W–L column.</p>
+        <p><strong>Hit</strong> (plain bet hit) = wins ÷ (wins + losses). Neutrals appear as <code>n</code> in W–L and are excluded from Hit.</p>
+
+        <h4>Hit vs Bet-S-Hit</h4>
+        <p>Same decisive bets, two readings:</p>
+        <table class="help-table">
+          <tr><th>Column</th><th>What it is</th><th>When they differ</th></tr>
+          <tr>
+            <td><strong>Hit</strong></td>
+            <td>Unweighted “how often was the bet right?” — every win/loss counts equally.</td>
+            <td rowspan="2">Only when SAI bets carry <strong>confidence</strong> and/or <strong>Fit</strong>. Until then every weight is 1, so <strong>Hit = Bet-S-Hit</strong> (they look identical — that is expected, not a bug).</td>
+          </tr>
+          <tr>
+            <td><strong>Bet-S-Hit</strong><br><span style="font-weight:500;color:var(--muted,#9aa8bc)">(Bet Strength Hit)</span></td>
+            <td>Strength-weighted hit rate — not a return. Stronger calls (high confidence × higher Fit) count more than weak ones.</td>
+          </tr>
+        </table>
+        <p><strong>Patterns</strong> and <strong>Confluence</strong> do not store confidence/Fit today, so Hit and Bet-S-Hit stay equal there. On <strong>SAI</strong>, new assessments fill strength; as that populates, Bet-S-Hit will pull away from Hit. If Bet-S-Hit ≫ Hit → prefer stronger signals; if ≪ Hit → stronger calls are underperforming.</p>
+        <p>Color on Hit / Bet-S-Hit: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>.</p>
+
+        <h4>Reading Price · Follow · Bet Strength Hit</h4>
+        <p>All use the <em>same episodes</em>. They answer different questions — and <strong>Bet-S-Hit is not a return</strong>, so it can look “very positive” while Follow is still negative.</p>
+        <p><strong>Price</strong> = raw price move (“did the stock go up or down?”).</p>
+        <p><strong>Follow</strong> = “did following the buy/sell call help?” (sell flips the sign).</p>
+        <table class="help-table">
+          <tr><th>Call</th><th>Price move</th><th>Price</th><th>Follow</th><th>Meaning</th></tr>
+          <tr><td>Buy</td><td>+10%</td><td>+10%</td><td>+10%</td><td>Stock rose — buy helped</td></tr>
+          <tr><td>Buy</td><td>−10%</td><td>−10%</td><td>−10%</td><td>Stock fell — buy hurt</td></tr>
+          <tr><td>Sell</td><td>−10%</td><td><strong>−10%</strong></td><td><strong>+10%</strong></td><td>Stock fell — sell helped</td></tr>
+          <tr><td>Sell</td><td>+10%</td><td>+10%</td><td>−10%</td><td>Stock rose — sell hurt</td></tr>
+        </table>
+
+        <h4>How Bet-S-Hit is calculated</h4>
+        <p>Only <strong>decisive</strong> bets (win or loss). Neutrals are ignored — same denominator idea as Hit.</p>
+        <p>Each decisive bet gets a weight:</p>
+        <ul style="margin:0.4rem 0 0.6rem 1.1rem;padding:0;font-size:0.9rem;line-height:1.45;">
+          <li>Confidence: <code>high = 3</code>, <code>medium = 2</code>, <code>low = 1</code> (missing → 1)</li>
+          <li>Fit: <code>1 + Fit_total/100</code> (e.g. Fit 80 → 1.8; missing → 1)</li>
+          <li>Weight = confidence × Fit scale</li>
+        </ul>
+        <p><strong>Bet-S-Hit</strong> = (sum of weights on wins) ÷ (sum of weights on wins+losses) × 100.</p>
+        <p>When strength is missing, weights are all 1 → Bet-S-Hit collapses to Hit. As SAI confidence / Fit fill in, the column becomes the useful “look at signal strength” lens. Confidence / Fit breakdown tables appear under the scorecard once enough non-unknown rows exist.</p>
+
+        <h4>SAI episodes</h4>
+        <p>If the agent says <strong>buy</strong> at T1 and later flips to <strong>sell</strong> at T2, the buy episode is scored on the move <strong>T1→T2</strong>. Price, Follow, Hit, and Bet-S-Hit all use that same episode window for SAI.</p>
+
+        <h4>Summary card</h4>
+        <p><strong>Overall hit</strong> uses decisive bets only. The insight line is a <strong>Bet-S-Hit scorecard</strong>: it calls out where strength-weighted hit is outstanding or good (often SAI Sell, SAI overall, Patterns) versus soft spots (often Confluence Bias — especially Bearish). It may also note Price vs Follow gaps and whether overall Bet-S-Hit says to prefer strong signals.</p>
+        <p>Category tables (SAI, Patterns, Confluence, …) stay <strong>collapsed</strong> — expand a row to see per-signal detail.</p>
+
+        <h4>Accumulation</h4>
+        <p>Hit rates still accumulate across all matured bets (no rolling window in the UI yet). A deferred era cutoff is planned for end of August 2026 so older measurement eras can be trimmed later.</p>
+
         <p style="margin-top:1rem;font-size:0.82rem;color:var(--muted,#9aa8bc);">Full guide: <code>docs/signal_track_record.md</code>.</p>
       </div>
     </div>
@@ -8965,34 +9160,335 @@
       }
     }
 
+    function trackRecordRateClass(rate) {
+      if (rate == null || !Number.isFinite(Number(rate))) return "tr-rate-na";
+      const n = Number(rate);
+      if (n >= 60) return "tr-good";
+      if (n >= 40) return "tr-mid";
+      return "tr-bad";
+    }
+
+    function trackRecordRateHtml(rate, { digits = 1 } = {}) {
+      if (rate == null || !Number.isFinite(Number(rate))) {
+        return `<span class="tr-rate tr-rate-na">—</span>`;
+      }
+      return `<span class="tr-rate ${trackRecordRateClass(rate)}">${Number(rate).toFixed(digits)}%</span>`;
+    }
+
     function trackRecordRate(bucket) {
-      if (bucket.hitRate == null) return `<span class="tr-rate tr-rate-na">—</span>`;
-      const cls = bucket.hitRate >= 60 ? "tr-good" : bucket.hitRate >= 40 ? "tr-mid" : "tr-bad";
-      return `<span class="tr-rate ${cls}">${bucket.hitRate}%</span>`;
+      return trackRecordRateHtml(bucket?.hitRate);
     }
 
-    function trackRecordReturn(bucket) {
-      if (bucket.avgReturn == null) return "—";
-      const cls = bucket.avgReturn > 0 ? "pos" : bucket.avgReturn < 0 ? "neg" : "";
-      const sign = bucket.avgReturn > 0 ? "+" : "";
-      return `<span class="${cls}">${sign}${bucket.avgReturn}%</span>`;
+    function trackRecordReturn(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      const cls = amount > 0 ? "pos" : amount < 0 ? "neg" : "";
+      const sign = amount > 0 ? "+" : "";
+      return `<span class="${cls}">${sign}${amount.toFixed(2)}%</span>`;
     }
 
-    function trackRecordRows(buckets) {
+    function trackRecordWL(bucket) {
+      const neutrals = bucket.neutrals
+        ? ` <span class="tr-muted">(${bucket.neutrals}n)</span>`
+        : "";
+      return `${bucket.wins || 0}–${bucket.losses || 0}${neutrals}`;
+    }
+
+    function trackRecordRollup(buckets) {
+      const roll = {
+        count: 0, wins: 0, losses: 0, neutrals: 0,
+        _ret: 0, _adj: 0, _nRet: 0, _cal: 0, _nCal: 0,
+      };
+      (buckets || []).forEach((b) => {
+        roll.count += Number(b.count) || 0;
+        roll.wins += Number(b.wins) || 0;
+        roll.losses += Number(b.losses) || 0;
+        roll.neutrals += Number(b.neutrals) || 0;
+        if (b.avgReturn != null && b.count) {
+          roll._ret += Number(b.avgReturn) * Number(b.count);
+          roll._nRet += Number(b.count);
+        }
+        if (b.avgReturnAdj != null && b.count) {
+          roll._adj += Number(b.avgReturnAdj) * Number(b.count);
+        }
+        const decided = (Number(b.wins) || 0) + (Number(b.losses) || 0);
+        if (b.calibratedHitRate != null && decided) {
+          roll._cal += Number(b.calibratedHitRate) * decided;
+          roll._nCal += decided;
+        }
+      });
+      const decided = roll.wins + roll.losses;
+      return {
+        count: roll.count,
+        wins: roll.wins,
+        losses: roll.losses,
+        neutrals: roll.neutrals,
+        hitRate: decided ? Math.round((roll.wins / decided) * 1000) / 10 : null,
+        avgReturn: roll._nRet ? Math.round((roll._ret / roll._nRet) * 100) / 100 : null,
+        avgReturnAdj: roll._nRet ? Math.round((roll._adj / roll._nRet) * 100) / 100 : null,
+        calibratedHitRate: roll._nCal ? Math.round((roll._cal / roll._nCal) * 10) / 10 : null,
+      };
+    }
+
+    function trackRecordStrength(bucket) {
+      if (!bucket) return null;
+      if (bucket.calibratedHitRate != null) return Number(bucket.calibratedHitRate);
+      return bucket.hitRate != null ? Number(bucket.hitRate) : null;
+    }
+
+    function trackRecordDecided(bucket) {
+      return (bucket?.wins || 0) + (bucket?.losses || 0);
+    }
+
+    /** Grade Bet-S-Hit / hit for scorecard copy. */
+    function trackRecordGrade(rate) {
+      if (rate == null) return null;
+      if (rate >= 70) return "outstanding";
+      if (rate >= 55) return "good";
+      if (rate < 45) return "weak";
+      return "mixed";
+    }
+
+    const TR_TABLE_HEAD = `
+      <thead><tr>
+        <th class="tr-col-signal">Signal</th>
+        <th class="tr-num tr-col-n">N</th>
+        <th class="tr-num tr-col-wl">W–L</th>
+        <th class="tr-num tr-col-hit">Hit</th>
+        <th class="tr-num tr-col-avg" title="Raw price move over the same episode">Price</th>
+        <th class="tr-num tr-col-adj" title="Did following the call help? Sell/bearish flips the sign">Follow</th>
+        <th class="tr-num tr-col-cal" title="Bet Strength Hit: win rate weighted by confidence × Fit — not a return">Bet-S-Hit</th>
+      </tr></thead>`;
+
+    function trackRecordRows(buckets, labelKey = "label") {
       if (!buckets.length) return "";
       return buckets
         .map((b) => {
-          const decided = b.wins + b.losses;
+          const decided = (b.wins || 0) + (b.losses || 0);
+          const cal = b.calibratedHitRate != null
+            ? trackRecordRateHtml(b.calibratedHitRate)
+            : `<span class="tr-rate tr-rate-na">—</span>`;
           return `
             <tr>
-              <td>${escapeHtml(b.label)}</td>
-              <td class="tr-num">${b.count}</td>
-              <td class="tr-num">${b.wins}–${b.losses}${b.neutrals ? ` <span class="tr-muted">(${b.neutrals}n)</span>` : ""}</td>
+              <td class="tr-signal" title="${escapeHtml(String(b[labelKey] || ""))}">${escapeHtml(String(b[labelKey] || ""))}</td>
+              <td class="tr-num">${b.count || 0}</td>
+              <td class="tr-num">${trackRecordWL(b)}</td>
               <td class="tr-num">${decided ? trackRecordRate(b) : `<span class="tr-rate tr-rate-na">—</span>`}</td>
-              <td class="tr-num">${trackRecordReturn(b)}</td>
+              <td class="tr-num">${trackRecordReturn(b.avgReturn)}</td>
+              <td class="tr-num">${trackRecordReturn(b.avgReturnAdj)}</td>
+              <td class="tr-num">${cal}</td>
             </tr>`;
         })
         .join("");
+    }
+
+    let trackRecordOpenSections = new Set();
+
+    function rememberTrackRecordOpenSections() {
+      const body = document.getElementById("trackRecordBody");
+      if (!body) return;
+      trackRecordOpenSections = new Set(
+        [...body.querySelectorAll("details.tr-section[data-tr-key][open]")]
+          .map((el) => el.getAttribute("data-tr-key"))
+          .filter(Boolean)
+      );
+    }
+
+    function trackRecordSection(title, buckets, options = {}) {
+      if (!buckets.length) return "";
+      const labelKey = options.labelKey || "label";
+      const key = options.key || title;
+      const span = options.span2 ? " tr-span-2" : "";
+      const openAttr = trackRecordOpenSections.has(key) || options.open ? " open" : "";
+      const roll = trackRecordRollup(buckets);
+      const metaParts = [];
+      if (roll.hitRate != null) metaParts.push(`hit ${trackRecordRateHtml(roll.hitRate)}`);
+      if (roll.calibratedHitRate != null) {
+        metaParts.push(`Bet-S-Hit ${trackRecordRateHtml(roll.calibratedHitRate)}`);
+      }
+      if (roll.avgReturnAdj != null) {
+        metaParts.push(`follow ${roll.avgReturnAdj > 0 ? "+" : ""}${roll.avgReturnAdj}%`);
+      }
+      const n = roll.count || buckets.length;
+      metaParts.push(`${n} bets`);
+      const meta = metaParts.length ? `<span class="tr-section-meta">${metaParts.join(" · ")}</span>` : "";
+      return `
+        <details class="tr-section${span}" data-tr-key="${escapeHtml(key)}"${openAttr}>
+          <summary class="tr-section-head">
+            <span class="tr-section-chevron" aria-hidden="true"></span>
+            <span class="tr-section-title">${title}</span>
+            ${meta}
+          </summary>
+          <div class="tr-section-body">
+            <table class="tr-table">
+              ${TR_TABLE_HEAD}
+              <tbody>${trackRecordRows(buckets, labelKey)}</tbody>
+            </table>
+          </div>
+        </details>`;
+    }
+
+    function trackRecordHasRealStrength(buckets, keyField) {
+      return (buckets || []).some((b) => {
+        const key = String(b[keyField] || "unknown").toLowerCase();
+        return key && key !== "unknown";
+      });
+    }
+
+    function trackRecordInsightHtml(data, recos, patterns, confluence, fibs, byConf) {
+      const overall = data.overall || {};
+      const parts = [];
+      const decided = (overall.wins || 0) + (overall.losses || 0);
+      const hit = overall.hitRate;
+      const raw = overall.avgReturn;
+      const adj = overall.avgReturnAdj;
+      const strHit = overall.calibratedHitRate;
+
+      const sell = (recos || []).find((b) => String(b.label).toLowerCase() === "sell");
+      const buy = (recos || []).find((b) => String(b.label).toLowerCase() === "buy");
+      const bearishConf = (confluence || []).find((b) => String(b.label).toLowerCase() === "bearish");
+      const bullishConf = (confluence || []).find((b) => String(b.label).toLowerCase() === "bullish");
+      const saiRoll = trackRecordRollup(recos || []);
+      const patRoll = trackRecordRollup(patterns || []);
+      const confRoll = trackRecordRollup(confluence || []);
+
+      const sellStr = trackRecordStrength(sell);
+      const saiStr = trackRecordStrength(saiRoll);
+      const patStr = trackRecordStrength(patRoll);
+      const confStr = trackRecordStrength(confRoll);
+      const bearStr = trackRecordStrength(bearishConf);
+      const bullStr = trackRecordStrength(bullishConf);
+
+      // Lead with Bet-S-Hit scorecard: what’s working vs what needs improvement
+      const strengths = [];
+      if (sell && trackRecordDecided(sell) >= 5 && sellStr != null) {
+        const g = trackRecordGrade(sellStr);
+        if (g === "outstanding" || g === "good") {
+          strengths.push(`SAI Sell ${g} (${sellStr.toFixed(1)}%)`);
+        }
+      }
+      if (trackRecordDecided(saiRoll) >= 10 && saiStr != null && trackRecordGrade(saiStr) === "good") {
+        strengths.push(`SAI overall good (${saiStr.toFixed(1)}%)`);
+      } else if (trackRecordDecided(saiRoll) >= 10 && saiStr != null && trackRecordGrade(saiStr) === "outstanding") {
+        strengths.push(`SAI overall outstanding (${saiStr.toFixed(1)}%)`);
+      }
+      if (trackRecordDecided(patRoll) >= 8 && patStr != null) {
+        const g = trackRecordGrade(patStr);
+        if (g === "outstanding" || g === "good") {
+          strengths.push(`Patterns ${g} (${patStr.toFixed(1)}%)`);
+        }
+      }
+
+      const softSpots = [];
+      if (bearishConf && trackRecordDecided(bearishConf) >= 5 && bearStr != null) {
+        const g = trackRecordGrade(bearStr);
+        if (g === "weak" || g === "mixed") {
+          softSpots.push(
+            `Confluence Bias Bearish is the soft spot (${bearStr.toFixed(1)}% Bet-S-Hit) — bearish confluence reading needs work`
+          );
+        }
+      }
+      if (
+        !softSpots.length &&
+        trackRecordDecided(confRoll) >= 8 &&
+        confStr != null &&
+        (trackRecordGrade(confStr) === "weak" ||
+          (patStr != null && confStr <= patStr - 8) ||
+          (saiStr != null && confStr <= saiStr - 8))
+      ) {
+        softSpots.push(
+          `Confluence Bias lags (${confStr.toFixed(1)}% Bet-S-Hit vs SAI ${saiStr != null ? saiStr.toFixed(1) : "—"}% / Patterns ${patStr != null ? patStr.toFixed(1) : "—"}%) — priority improvement area`
+        );
+      }
+      if (buy && trackRecordDecided(buy) >= 10 && buy.hitRate != null && buy.hitRate < 45) {
+        softSpots.push(`SAI Buy is soft on plain Hit (${buy.hitRate}%)`);
+      }
+
+      if (strengths.length || softSpots.length) {
+        const bits = [];
+        if (strengths.length) bits.push(`Bet-S-Hit strengths: ${strengths.join("; ")}.`);
+        if (softSpots.length) bits.push(softSpots.join(". ") + ".");
+        parts.push(bits.join(" "));
+      }
+
+      if (raw != null && adj != null && Math.abs(raw - adj) >= 1.5) {
+        if (adj > raw) {
+          parts.push(
+            `Follow (${adj > 0 ? "+" : ""}${Number(adj).toFixed(2)}%) beats Price (${Number(raw).toFixed(2)}%) — often because correct sells fall in price.`
+          );
+        } else {
+          parts.push(
+            `Follow (${Number(adj).toFixed(2)}%) is worse than Price — directional calls are not helping after sign-flip.`
+          );
+        }
+      }
+
+      if (sell && sell.avgReturnAdj != null && sell.avgReturn != null && sell.avgReturnAdj > 0 && sell.avgReturn < 0) {
+        parts.push(
+          `Sell Follow +${Math.abs(sell.avgReturnAdj)}% with Price ${sell.avgReturn}% — sells work; Price alone understates them.`
+        );
+      }
+
+      if (strHit != null && hit != null && decided >= 15) {
+        const gap = strHit - hit;
+        if (gap >= 5) {
+          parts.push(
+            `Overall Bet Strength Hit (${Number(strHit).toFixed(1)}%) ≫ plain Hit (${hit}%) — prefer stronger (high confidence / Fit) signals.`
+          );
+        } else if (gap <= -5) {
+          parts.push(
+            `Overall Bet Strength Hit (${Number(strHit).toFixed(1)}%) ≪ plain Hit (${hit}%) — stronger bets are underperforming; treat high-confidence cautiously.`
+          );
+        }
+      }
+
+      const high = (byConf || []).find((b) => String(b.confidence || b.label || "").toLowerCase() === "high");
+      const low = (byConf || []).find((b) => String(b.confidence || b.label || "").toLowerCase() === "low");
+      if (high && low && high.hitRate != null && low.hitRate != null) {
+        const highN = trackRecordDecided(high);
+        const lowN = trackRecordDecided(low);
+        if (highN >= 5 && lowN >= 5 && high.hitRate - low.hitRate >= 10) {
+          parts.push(
+            `High-confidence SAI (${high.hitRate}% hit) beats low (${low.hitRate}%) — lean on stronger SAI calls.`
+          );
+        }
+      }
+
+      if (
+        bullishConf &&
+        bearishConf &&
+        bullStr != null &&
+        bearStr != null &&
+        trackRecordDecided(bullishConf) >= 5 &&
+        trackRecordDecided(bearishConf) >= 5 &&
+        bullStr - bearStr >= 10
+      ) {
+        parts.push(
+          `Bullish confluence (${bullStr.toFixed(1)}% Bet-S-Hit) far outruns Bearish (${bearStr.toFixed(1)}%) — fix bearish bias reading first.`
+        );
+      }
+
+      if ((fibs || []).length === 0) {
+        parts.push("Fib bets appear after new Fib proximity alerts fire.");
+      }
+
+      if (!parts.length) return "";
+      const hasSoft = softSpots.length > 0;
+      const hasStrength = strengths.length > 0;
+      const tone =
+        hasSoft && hasStrength
+          ? "tr-insight-warn"
+          : hasSoft
+            ? "tr-insight-warn"
+            : (hit != null && hit >= 55 && adj != null && adj > 0) ||
+                (strHit != null && hit != null && strHit - hit >= 5) ||
+                hasStrength
+              ? "tr-insight-ok"
+              : hit != null && hit < 40
+                ? "tr-insight-warn"
+                : "";
+      return `<p class="tr-insight ${tone}">${parts.join(" ")}</p>`;
     }
 
     function trackRecordStatusHtml(horizonDays, pending) {
@@ -9007,9 +9503,15 @@
       const body = document.getElementById("trackRecordBody");
       const metaEl = document.getElementById("trackRecordMeta");
       if (!body) return;
+      rememberTrackRecordOpenSections();
       const overall = data.overall || { count: 0 };
       const horizonDays = data.horizonDays || 21;
-      if (metaEl) metaEl.textContent = "";
+      if (metaEl) {
+        const pending = data.pending || 0;
+        metaEl.textContent = pending
+          ? `±${data.horizonBandPct ?? 2}% band · ${pending} pending · ${horizonDays}d horizon`
+          : `±${data.horizonBandPct ?? 2}% band · ${horizonDays}d horizon`;
+      }
       if (!overall.count) {
         body.innerHTML = trackRecordStatusHtml(horizonDays, data.pending);
         return;
@@ -9017,29 +9519,34 @@
       const recos = (data.byLabel || []).filter((b) => b.kind === "recommendation");
       const patterns = (data.byLabel || []).filter((b) => b.kind === "pattern");
       const confluence = (data.byLabel || []).filter((b) => b.kind === "confluence");
-      const section = (title, buckets) =>
-        buckets.length
-          ? `
-            <div class="tr-section">
-              <h3>${title}</h3>
-              <table class="tr-table">
-                <thead><tr><th>Signal</th><th class="tr-num">N</th><th class="tr-num">W–L</th><th class="tr-num">Hit</th><th class="tr-num">Avg ret</th></tr></thead>
-                <tbody>${trackRecordRows(buckets)}</tbody>
-              </table>
-            </div>`
-          : "";
+      const fibs = (data.byLabel || []).filter((b) => b.kind === "fib");
+      const byConf = data.byConfidence || [];
+      const byFit = data.byFitBand || [];
+      const showConf = trackRecordHasRealStrength(byConf, "confidence");
+      const showFit = trackRecordHasRealStrength(byFit, "fitBand");
+
+      const decided = (overall.wins || 0) + (overall.losses || 0);
       body.innerHTML = `
-        <div class="tr-overall">
-          <div class="tr-overall-rate">${trackRecordRate(overall)}<span class="tr-overall-label">overall hit rate</span></div>
-          <div class="tr-overall-stats">
-            <span><strong>${overall.count}</strong> evaluated</span>
-            <span><strong>${overall.wins}</strong> wins · <strong>${overall.losses}</strong> losses</span>
-            <span>avg return ${trackRecordReturn(overall)}</span>
+        <div class="tr-summary">
+          <div class="tr-summary-rate">${trackRecordRate(overall)}<span class="tr-overall-label">Overall hit</span></div>
+          <div class="tr-summary-metrics">
+            <div class="tr-metric"><span class="tr-metric-label">Evaluated</span><span class="tr-metric-value">${overall.count}</span></div>
+            <div class="tr-metric"><span class="tr-metric-label">W–L</span><span class="tr-metric-value">${overall.wins || 0}–${overall.losses || 0}${overall.neutrals ? ` (${overall.neutrals}n)` : ""}</span></div>
+            <div class="tr-metric"><span class="tr-metric-label">Price / Follow</span><span class="tr-metric-value">${trackRecordReturn(overall.avgReturn)} <span class="tr-muted">/</span> ${trackRecordReturn(overall.avgReturnAdj)}</span></div>
+            <div class="tr-metric"><span class="tr-metric-label">Bet Strength Hit</span><span class="tr-metric-value">${trackRecordRateHtml(overall.calibratedHitRate)}</span></div>
           </div>
         </div>
-        ${section("SAI actions", recos)}
-        ${section("Chart patterns", patterns)}
-        ${section("Confluence bias", confluence)}`;
+        ${trackRecordInsightHtml(data, recos, patterns, confluence, fibs, byConf)}
+        <div class="tr-grid">
+          ${trackRecordSection("SAI actions", recos, { key: "sai" })}
+          ${trackRecordSection("Chart patterns", patterns, { key: "patterns" })}
+          ${trackRecordSection("Confluence bias", confluence, { key: "confluence" })}
+          ${fibs.length ? trackRecordSection("Fib levels", fibs, { key: "fib" }) : ""}
+          ${showConf ? trackRecordSection("SAI by confidence", byConf.map((b) => ({ ...b, label: b.confidence })), { labelKey: "label", key: "by-confidence" }) : ""}
+          ${showFit ? trackRecordSection("SAI by Fit band", byFit.map((b) => ({ ...b, label: b.fitBand })), { labelKey: "label", key: "by-fit" }) : ""}
+        </div>
+        ${!showConf && !showFit ? `<p class="tr-note">Confidence / Fit slices appear once new assessments store strength on SAI bets (older rows may still show as unknown until backfill links assessments).</p>` : ""}
+        <p class="tr-note"><strong>Price</strong> = episode price move. <strong>Follow</strong> = did the buy/sell call help? <strong>Hit</strong> = unweighted bet hit. <strong>Bet-S-Hit</strong> = strength-weighted Hit (same as Hit until SAI confidence/Fit populate). Color: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>. Decisive sample: ${decided}.</p>`;
     }
 
     async function loadTrackRecord() {

@@ -201,6 +201,11 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         return_pct DOUBLE PRECISION,
         outcome TEXT,
         evaluated_at TEXT,
+        confidence TEXT,
+        fit_total DOUBLE PRECISION,
+        band_code TEXT,
+        sentiment TEXT,
+        alert_id BIGINT,
         FOREIGN KEY (user_id, symbol) REFERENCES symbols(user_id, symbol) ON DELETE CASCADE
     )
     """,
@@ -305,6 +310,11 @@ MIGRATION_STATEMENTS: tuple[str, ...] = (
     "ALTER TABLE user_daily_usage ADD COLUMN IF NOT EXISTS manual_ai_actions INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE symbols ADD COLUMN IF NOT EXISTS is_starred BOOLEAN NOT NULL DEFAULT FALSE",
     "ALTER TABLE symbol_market ADD COLUMN IF NOT EXISTS news_json JSONB",
+    "ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS confidence TEXT",
+    "ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS fit_total DOUBLE PRECISION",
+    "ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS band_code TEXT",
+    "ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS sentiment TEXT",
+    "ALTER TABLE signal_outcomes ADD COLUMN IF NOT EXISTS alert_id BIGINT",
     """
     CREATE TABLE IF NOT EXISTS mobile_sessions (
         id BIGSERIAL PRIMARY KEY,

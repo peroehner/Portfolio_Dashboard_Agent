@@ -116,6 +116,28 @@ def fib_side(price: float | None, level_price: float | None) -> str | None:
     return "below"
 
 
+def fib_bet_direction(side: str | None) -> str:
+    """Map geometric side-of-level to a directional bounce hypothesis.
+
+    Price above the level → expect support to hold / constructive (bullish).
+    Price below the level → expect resistance / caution (bearish).
+    """
+    if side == "above":
+        return "bullish"
+    if side == "below":
+        return "bearish"
+    return "neutral"
+
+
+def fib_bet_label(context: dict[str, Any]) -> str:
+    """Stable Signal Record label for a Fib proximity bet."""
+    role_name = str(context.get("roleName") or "").strip()
+    label = str(context.get("label") or "").strip()
+    if role_name and label and label not in role_name:
+        return f"{label} {role_name}"
+    return role_name or label or "Fibonacci"
+
+
 def stance_hint_for_context(
     *,
     role: str | None,

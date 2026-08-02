@@ -55,6 +55,11 @@ export const ALERT_TYPE_CHIP_ORDER = [
  */
 export const ALERT_FILTER_GROUPS = [
   {
+    key: "harvest",
+    label: "Harvest",
+    types: ["tax_loss_candidate", "winner_trim_candidate", "harvest_imbalance"],
+  },
+  {
     key: "trade_below",
     label: "Trade Below",
     types: ["trade_below", "trade_below_near"],
@@ -79,11 +84,6 @@ export const ALERT_FILTER_GROUPS = [
       "one_yt_stretch",
       "screener_upside",
     ],
-  },
-  {
-    key: "harvest",
-    label: "Harvest",
-    types: ["tax_loss_candidate", "winner_trim_candidate", "harvest_imbalance"],
   },
 ] as const;
 

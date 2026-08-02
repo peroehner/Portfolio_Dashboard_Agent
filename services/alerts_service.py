@@ -4,6 +4,8 @@ from typing import Any
 from db.database import get_connection, get_current_user_id
 from services.fib_roles import (
     build_fib_context,
+    fib_bet_direction,
+    fib_bet_label,
     fib_context_from_alert,
     format_fib_proximity_message,
 )
@@ -497,7 +499,36 @@ class AlertsService:
             fib_level=level["label"],
             true_signatures=true_signatures,
         )
+        if alert is not None:
+            self._capture_fib_signal_bet(alert, fib_ctx, price)
         return [alert] if alert is not None else []
+
+    def _capture_fib_signal_bet(
+        self, alert: dict[str, Any], fib_ctx: dict[str, Any], price: float
+    ) -> None:
+        """Record a Fib proximity alert as a Signal Record bet (kind=fib)."""
+        track_on = os.environ.get("TRACK_RECORD", "1").lower() not in (
+            "0",
+            "false",
+            "no",
+            "off",
+        )
+        if not track_on:
+            return
+        try:
+            from services.track_record_service import TrackRecordService
+
+            TrackRecordService().capture_fib_proximity_bet(
+                user_id=get_current_user_id(),
+                symbol=alert["symbol"],
+                entry_price=float(price),
+                label=fib_bet_label(fib_ctx),
+                direction=fib_bet_direction(fib_ctx.get("side")),
+                alert_id=alert.get("id"),
+            )
+        except Exception:
+            # Track record must not break alert delivery.
+            pass
 
     def _should_emit_fib_alert(
         self,

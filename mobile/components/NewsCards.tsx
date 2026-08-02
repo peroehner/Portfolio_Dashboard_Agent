@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { SaiBadge } from "@/components/SaiBadge";
 import { SymbolStarPressable } from "@/components/SymbolStarPressable";
@@ -10,6 +10,16 @@ import { openSymbol } from "@/lib/symbolBrowseSession";
 import { useSymbolRowStar } from "@/lib/useSymbolRowStar";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { NewsItem, RecommendationChange } from "@/lib/types";
+
+/** Phone split columns only — iPad / expanded keep full “low confidence”. */
+const NARROW_CHANGES_COLUMN_MAX_WIDTH = 700;
+
+function changeConfidenceLabel(confidence: string | null | undefined, shortLow: boolean): string {
+  const c = String(confidence || "").trim().toLowerCase();
+  if (!c) return "";
+  if (shortLow && c === "low") return "low";
+  return `${c} confidence`;
+}
 
 interface CompactProps {
   compact?: boolean;
@@ -180,9 +190,11 @@ export function NewsSymbolGroupCard({
 export function SaiChangeCard({ change, compact, onOpenPortfolio, browseSymbols }: SaiChangeCardProps) {
   const ts = changeTimestamp(change);
   const rowStar = useSymbolRowStar(change.symbol);
+  const { width: windowWidth } = useWindowDimensions();
+  const shortLowConfidence = Boolean(compact) && windowWidth < NARROW_CHANGES_COLUMN_MAX_WIDTH;
   const metaParts = [
     ts ? formatShortDateTime(ts) : "",
-    change.newConfidence ? `${change.newConfidence} confidence` : "",
+    changeConfidenceLabel(change.newConfidence, shortLowConfidence),
   ].filter(Boolean);
   const meta = metaParts.join(" · ");
 
@@ -195,8 +207,17 @@ export function SaiChangeCard({ change, compact, onOpenPortfolio, browseSymbols 
         {...rowStar}
       >
         <View style={styles.metaRow}>
-          <SymbolLink symbol={change.symbol} compact browseSymbols={browseSymbols} />
-          {meta ? <Text style={styles.date}>{meta}</Text> : null}
+          <SymbolStarPressable
+            style={styles.symbolPressFixed}
+            symbol={change.symbol}
+            compact
+            onPress={() => openSymbol(change.symbol, browseSymbols, "news")}
+          />
+          {meta ? (
+            <Text style={[styles.date, styles.dateFlex]} numberOfLines={1}>
+              {meta}
+            </Text>
+          ) : null}
         </View>
         <View style={styles.changeRow}>
           <SaiBadge action={change.oldAction} compact />
@@ -264,6 +285,9 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     minWidth: 0,
   },
+  symbolPressFixed: {
+    flexShrink: 0,
+  },
   symbol: {
     color: colors.link,
     fontWeight: "700",
@@ -275,6 +299,12 @@ const styles = StyleSheet.create({
   date: {
     color: colors.textMuted,
     fontSize: 11,
+  },
+  dateFlex: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    textAlign: "right",
   },
   title: {
     color: colors.text,

@@ -506,7 +506,9 @@ class AssessmentService:
             stored_result = {**result, "action": stored_action, "confidence": stored_confidence}
             self._record_recommendation_change(conn, user_id, symbol, previous, stored_result)
             if TRACK_RECORD:
-                self._capture_signal_outcomes(conn, user_id, symbol, new_id, stored_result, context)
+                self._capture_signal_outcomes(
+                    conn, user_id, symbol, new_id, stored_result, context, proposal=proposal
+                )
             self._trim_assessment_history(conn, user_id, symbol)
             conn.commit()
             row = conn.execute(
@@ -574,13 +576,17 @@ class AssessmentService:
         assessment_id: int,
         result: dict[str, Any],
         context: dict[str, Any],
+        proposal: dict[str, Any] | None = None,
     ) -> None:
         """Snapshot the recommendation + detected patterns as forward-looking bets.
 
         Entry price is the price at assessment time; the evaluator later compares it
         to the price once the horizon elapses. To avoid flooding on repeated
         re-assessments, we keep at most one *pending* capture per (symbol, kind,
-        label)."""
+        label). Recommendation rows also store confidence / Fit / band strength.
+        """
+        from services.track_record_service import strength_from_proposal
+
         entry_price = context.get("currentPrice")
         if not entry_price or entry_price <= 0:
             return
@@ -611,6 +617,23 @@ class AssessmentService:
         if conf_dir in ("bullish", "bearish"):
             captures.append(("confluence", conf_dir.title(), conf_dir))
 
+        # SAI episode boundary: closing a prior pending recommendation at this
+        # capture's price so Buy@T1 → Sell@T2 is scored on T1→T2, not a full
+        # overlapping horizon. Same-action pending rows are left open (dedup).
+        rec_labels = [label for kind, label, _direction in captures if kind == "recommendation"]
+        if rec_labels:
+            self.track_record_service.early_close_conflicting_recommendations(
+                conn,
+                user_id,
+                symbol,
+                new_label=rec_labels[0],
+                eval_price=float(entry_price),
+            )
+
+        confidence, fit_total, band_code = strength_from_proposal(
+            proposal, result.get("confidence")
+        )
+
         for kind, label, direction in captures:
             pending = conn.execute(
                 """
@@ -623,32 +646,65 @@ class AssessmentService:
             ).fetchone()
             if pending is not None:
                 continue
-            conn.execute(
-                """
-                INSERT INTO signal_outcomes (
-                    user_id, symbol, assessment_id, kind, label, direction,
-                    entry_price, horizon_days, eval_due_at
-                )
-                VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s,
-                    to_char(
-                        timezone('UTC', now()) + (%s || ' days')::interval,
-                        'YYYY-MM-DD HH24:MI:SS'
+            if kind == "recommendation":
+                conn.execute(
+                    """
+                    INSERT INTO signal_outcomes (
+                        user_id, symbol, assessment_id, kind, label, direction,
+                        entry_price, horizon_days, eval_due_at,
+                        confidence, fit_total, band_code
                     )
+                    VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s,
+                        to_char(
+                            timezone('UTC', now()) + (%s || ' days')::interval,
+                            'YYYY-MM-DD HH24:MI:SS'
+                        ),
+                        %s, %s, %s
+                    )
+                    """,
+                    (
+                        user_id,
+                        symbol,
+                        assessment_id,
+                        kind,
+                        label,
+                        direction,
+                        float(entry_price),
+                        TRACK_RECORD_HORIZON_DAYS,
+                        TRACK_RECORD_HORIZON_DAYS,
+                        confidence,
+                        fit_total,
+                        band_code,
+                    ),
                 )
-                """,
-                (
-                    user_id,
-                    symbol,
-                    assessment_id,
-                    kind,
-                    label,
-                    direction,
-                    float(entry_price),
-                    TRACK_RECORD_HORIZON_DAYS,
-                    TRACK_RECORD_HORIZON_DAYS,
-                ),
-            )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO signal_outcomes (
+                        user_id, symbol, assessment_id, kind, label, direction,
+                        entry_price, horizon_days, eval_due_at
+                    )
+                    VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s,
+                        to_char(
+                            timezone('UTC', now()) + (%s || ' days')::interval,
+                            'YYYY-MM-DD HH24:MI:SS'
+                        )
+                    )
+                    """,
+                    (
+                        user_id,
+                        symbol,
+                        assessment_id,
+                        kind,
+                        label,
+                        direction,
+                        float(entry_price),
+                        TRACK_RECORD_HORIZON_DAYS,
+                        TRACK_RECORD_HORIZON_DAYS,
+                    ),
+                )
 
     def count_recommendation_changes(self) -> int:
         """Total number of logged recommendation changes (for the Summary header)."""
