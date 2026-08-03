@@ -1,6 +1,8 @@
+import * as AuthSession from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, type ComponentType } from "react";
+import { Platform } from "react-native";
 
 import { api } from "@/lib/api";
 import type { AuthUser } from "@/lib/AuthContext";
@@ -24,6 +26,47 @@ function googleClientIds() {
   };
 }
 
+function platformClientId(clients: ReturnType<typeof googleClientIds>): string | undefined {
+  if (Platform.OS === "ios") return clients.iosClientId || clients.webClientId;
+  return clients.webClientId || clients.iosClientId;
+}
+
+/**
+ * On native iOS/Android, Google returns an auth `code` from the browser sheet.
+ * `promptAsync()` resolves with that raw result *before* Expo's hook finishes
+ * exchanging the code for tokens — so `params.id_token` is often empty there.
+ * Exchange the code ourselves when needed.
+ */
+async function resolveGoogleIdToken(
+  result: AuthSession.AuthSessionResult,
+  request: AuthSession.AuthRequest | null,
+  clientId: string,
+): Promise<string | null> {
+  if (result.type !== "success") return null;
+
+  const direct =
+    (result.params as { id_token?: string } | undefined)?.id_token ||
+    result.authentication?.idToken ||
+    null;
+  if (direct) return direct;
+
+  const code = (result.params as { code?: string } | undefined)?.code;
+  if (!code || !request?.redirectUri) return null;
+
+  const token = await AuthSession.exchangeCodeAsync(
+    {
+      clientId,
+      code,
+      redirectUri: request.redirectUri,
+      extraParams: {
+        code_verifier: request.codeVerifier || "",
+      },
+    },
+    Google.discovery,
+  );
+  return token.idToken ?? null;
+}
+
 /**
  * Loaded only when Google client IDs are configured. Keeping expo-auth-session
  * out of the default AuthContext import path avoids ExpoCryptoAES crashes in
@@ -35,14 +78,16 @@ export function GoogleSignInBridge({
   onReady: (prompt: PromptGoogleSession | null, requestReady: boolean) => void;
 }) {
   const clients = googleClientIds();
+  const clientId = platformClientId(clients);
   const [request, , promptAsync] = Google.useIdTokenAuthRequest({
     iosClientId: clients.iosClientId,
     webClientId: clients.webClientId,
     clientId: clients.webClientId || clients.iosClientId,
+    selectAccount: true,
   });
 
   useEffect(() => {
-    if (!request) {
+    if (!request || !clientId) {
       onReady(null, false);
       return;
     }
@@ -54,12 +99,22 @@ export function GoogleSignInBridge({
         }
         throw new Error("Google sign-in did not complete.");
       }
-      const idToken =
-        (result.params as { id_token?: string }).id_token ||
-        (result as { authentication?: { idToken?: string | null } }).authentication?.idToken;
-      if (!idToken) {
-        throw new Error("Google did not return an ID token.");
+
+      let idToken: string | null = null;
+      try {
+        idToken = await resolveGoogleIdToken(result, request, clientId);
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        throw new Error(`Google token exchange failed: ${detail}`);
       }
+
+      if (!idToken) {
+        const keys = Object.keys(result.params || {}).join(", ") || "(none)";
+        throw new Error(
+          `Google did not return an ID token (response keys: ${keys}). Rebuild the app after Google client IDs are set in EAS.`,
+        );
+      }
+
       const session = await api.exchangeGoogleIdToken(idToken);
       return {
         accessToken: session.accessToken,
@@ -73,7 +128,7 @@ export function GoogleSignInBridge({
       };
     };
     onReady(prompt, true);
-  }, [onReady, promptAsync, request]);
+  }, [onReady, promptAsync, request, clientId]);
 
   return null;
 }
