@@ -83,7 +83,8 @@ export default function OverviewScreen() {
   const subtitle = useMemo(() => {
     const parts: string[] = [];
     if (user?.email) parts.push(user.email);
-    if (data?.pricesAsOf) parts.push(`Prices ${formatShortDateTime(data.pricesAsOf)}`);
+    // pricesAsOf is a market session date (YYYY-MM-DD), not a clock time.
+    if (data?.pricesAsOf) parts.push(`Quote ${formatShortDateTime(data.pricesAsOf)}`);
     if (showApiHostInDev()) parts.push(getApiHostLabel());
     return parts.join(" · ");
   }, [data?.pricesAsOf, user?.email]);

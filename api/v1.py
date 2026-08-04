@@ -348,6 +348,20 @@ def list_symbols():
     return jsonify({"symbols": portfolio_service.list_symbols()})
 
 
+@v1_bp.route("/symbols/search", methods=["GET"])
+def search_symbols():
+    """Ticker autocomplete for Add Ticker (Finnhub). Must be registered before
+    ``/symbols/<symbol>`` so ``search`` is not treated as a ticker."""
+    from services.symbol_search_service import search_tickers
+
+    query = request.args.get("q") or request.args.get("query") or ""
+    try:
+        limit = int(request.args.get("limit") or 12)
+    except (TypeError, ValueError):
+        limit = 12
+    return jsonify(search_tickers(query, limit=limit))
+
+
 @v1_bp.route("/patterns", methods=["GET"])
 def list_patterns():
     """Top detected chart pattern per portfolio symbol, for badging the list.

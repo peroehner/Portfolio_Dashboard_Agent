@@ -1,4 +1,4 @@
-import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Pressable,
@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AddTickerModal } from "@/components/AddTickerModal";
 import { PortfolioTable } from "@/components/PortfolioTable";
 import { RecallFilterButton } from "@/components/RecallFilterButton";
 import { Screen } from "@/components/Screen";
@@ -37,12 +38,16 @@ function pillActiveStyle(active: boolean) {
 }
 
 export default function PortfolioScreen() {
+  const router = useRouter();
   const { width, height } = useWindowDimensions();
   const { symbol: symbolParam } = useLocalSearchParams<{ symbol?: string }>();
   const isLandscape = width > height;
   const { filter, setFilter, lastFilter, applyLast, canRecall } = usePersistedSymbolFilter();
   const [mode, setMode] = useState<PortfolioMode>("all");
   const [sort, setSort] = useState<PortfolioSortState>({ key: null, direction: null });
+  const [addOpen, setAddOpen] = useState(false);
+  const [addHint, setAddHint] = useState<string | null>(null);
+  const [addedSymbol, setAddedSymbol] = useState<string | null>(null);
   const { data, loading, error, refresh } = useApiQuery(
     async () => {
       const [portfolio, assessments, holdings] = await Promise.all([
@@ -99,6 +104,14 @@ export default function PortfolioScreen() {
     return sortPortfolioRows(built, sort);
   }, [data?.portfolio?.symbols, filter, mode, sort, holdingBySymbol, assessmentBySymbol, matchesSymbol]);
 
+  function handleAdded(symbol: string) {
+    setMode("watch");
+    setFilter(symbol);
+    setAddedSymbol(symbol);
+    setAddHint(`Added ${symbol} — set Target thresholds to get the most out of PDA.`);
+    void refresh();
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <Screen
@@ -143,7 +156,28 @@ export default function PortfolioScreen() {
           >
             <Text style={styles.pillText}>Watch</Text>
           </Pressable>
+          <Pressable style={styles.addBtn} onPress={() => setAddOpen(true)} hitSlop={6}>
+            <Text style={styles.addBtnText}>Add</Text>
+          </Pressable>
         </View>
+
+        {addHint && addedSymbol ? (
+          <View style={styles.hintBar}>
+            <Text style={styles.hintText}>{addHint}</Text>
+            <Pressable
+              onPress={() => {
+                setAddHint(null);
+                router.push(`/symbol/${encodeURIComponent(addedSymbol)}`);
+              }}
+              hitSlop={8}
+            >
+              <Text style={styles.hintAction}>Open Target</Text>
+            </Pressable>
+            <Pressable onPress={() => setAddHint(null)} hitSlop={8}>
+              <Text style={styles.hintDismiss}>Dismiss</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {rows.length === 0 && data ? (
           <Text style={styles.empty}>No symbols match the filter.</Text>
@@ -163,6 +197,12 @@ export default function PortfolioScreen() {
           />
         )}
       </Screen>
+
+      <AddTickerModal
+        visible={addOpen}
+        onClose={() => setAddOpen(false)}
+        onAdded={handleAdded}
+      />
     </SafeAreaView>
   );
 }
@@ -197,6 +237,44 @@ const styles = StyleSheet.create({
   },
   pillText: {
     color: colors.text,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  addBtn: {
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentMuted,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  addBtnText: {
+    color: colors.text,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  hintBar: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: "rgba(34,197,94,0.35)",
+    backgroundColor: "rgba(34,197,94,0.1)",
+    gap: 6,
+  },
+  hintText: {
+    color: colors.text,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  hintAction: {
+    color: colors.link,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  hintDismiss: {
+    color: colors.textMuted,
     fontSize: 11,
     fontWeight: "600",
   },

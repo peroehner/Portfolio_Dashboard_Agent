@@ -43,6 +43,7 @@ Runtime settings for clients (no secrets).
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/symbols` | List all tracked symbols |
+| GET | `/symbols/search?q=schaef` | Ticker autocomplete (Finnhub); optional `limit` (default 12). Returns `{ query, results: [{ symbol, displaySymbol, description, type }], providerUnavailable }` |
 | GET | `/symbols/{symbol}` | Symbol + notes |
 | POST | `/symbols` | Add symbol `{ "symbol": "AAPL" }` |
 | PUT | `/symbols/{symbol}` | Update thresholds |
@@ -151,7 +152,7 @@ Set `NOTE_SYNTHESIS_GUIDANCE` in env to append custom instructions to the synthe
 | POST | `/alerts/evaluate` | Sync prices + generate new alerts |
 | POST | `/alerts/{id}/dismiss` | Dismiss alert |
 
-**Alert types:** `buy_below`, `sell_above`, `fib_proximity`, `screener_upside`
+**Alert types:** trade thresholds (`trade_below` / `trade_above` and near variants), `fib_proximity`, 1YT family (`one_yt_chance` / `one_yt_lean` / `one_yt_watch` / `one_yt_stretch`; legacy `screener_upside`), harvest chips. **Stretch** = risk stance + at least 2 of 3 extremes (≥2.5× portfolio median upside, ≥80% upside, ≥20× ATR). Tunables: `ONE_YT_STRETCH_MEDIAN_MULT`, `ONE_YT_STRETCH_UPSIDE_PCT`, `ONE_YT_STRETCH_ATR_UNITS`, `ONE_YT_STRETCH_MIN_EXTREMES`.
 
 ---
 

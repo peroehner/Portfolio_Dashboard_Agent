@@ -1,6 +1,6 @@
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { formatRelativeDate } from "@/lib/format";
+import { formatShortDateTime } from "@/lib/format";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { NewsItem } from "@/lib/types";
 
@@ -11,7 +11,7 @@ interface NewsArticleModalProps {
 }
 
 export function NewsArticleModal({ visible, item, onClose }: NewsArticleModalProps) {
-  const meta = [item?.publisher, item?.published ? formatRelativeDate(item.published) : ""]
+  const meta = [item?.publisher, item?.published ? formatShortDateTime(item.published) : ""]
     .filter(Boolean)
     .join(" · ");
 

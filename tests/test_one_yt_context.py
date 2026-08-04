@@ -64,13 +64,35 @@ class OneYtMathTests(unittest.TestCase):
     def test_categorize_maps_to_chips(self):
         self.assertEqual(categorize_one_yt(stance="chance"), "chance")
         self.assertEqual(categorize_one_yt(stance="lean_chance"), "lean")
+        # Two extremes (median + upside) → stretch
         self.assertEqual(
             categorize_one_yt(stance="risk", vs_median=3.0, upside=90),
             "stretch",
         )
+        # No extremes → watch
         self.assertEqual(
             categorize_one_yt(stance="risk", vs_median=1.2, atr_units_val=8, upside=40),
             "watch",
+        )
+        # Single extreme only (median alone) → watch under 2-of-3 rule
+        self.assertEqual(
+            categorize_one_yt(stance="risk", vs_median=2.6, atr_units_val=8, upside=55),
+            "watch",
+        )
+        # Upside alone → watch
+        self.assertEqual(
+            categorize_one_yt(stance="risk", vs_median=1.5, atr_units_val=8, upside=95),
+            "watch",
+        )
+        # ATR alone → watch
+        self.assertEqual(
+            categorize_one_yt(stance="risk", vs_median=1.5, atr_units_val=25, upside=50),
+            "watch",
+        )
+        # Median + ATR → stretch
+        self.assertEqual(
+            categorize_one_yt(stance="risk", vs_median=2.6, atr_units_val=25, upside=50),
+            "stretch",
         )
         self.assertEqual(categorize_one_yt(stance="watch"), "watch")
 

@@ -41,6 +41,14 @@ export function HoldingsCompactCard({ data }: HoldingsCompactCardProps) {
     pos.gain != null
       ? `${formatMoney(pos.gain)} (${formatPct(pos.gainPct)})`
       : formatPct(pos.gainPct);
+  const tgtTxt =
+    pos.personalTargetValue != null
+      ? `${formatMoney(pos.personalTargetValue)}${
+          pos.personalUpsidePct != null ? ` (${formatPct(pos.personalUpsidePct)})` : ""
+        }`
+      : pos.personalUpsidePct != null
+        ? formatPct(pos.personalUpsidePct)
+        : "—";
 
   return (
     <View style={styles.card}>
@@ -57,7 +65,11 @@ export function HoldingsCompactCard({ data }: HoldingsCompactCardProps) {
           <View style={styles.col}>
             <ColCell label="Value" value={formatMoney(pos.currentValue)} />
             <ColCell label="Gain" value={gainTxt} valueColor={pctColor(pos.gainPct)} />
-            <ColCell label="Tgt" value={formatMoney(pos.personalTargetValue)} />
+            <ColCell
+              label="Tgt"
+              value={tgtTxt}
+              valueColor={pos.personalUpsidePct != null ? pctColor(pos.personalUpsidePct) : undefined}
+            />
           </View>
           <View style={styles.col}>
             <ColCell

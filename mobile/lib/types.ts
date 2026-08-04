@@ -144,6 +144,7 @@ export interface Alert {
   price?: number | null;
   reference_value?: number | null;
   status?: string;
+  createdAt?: string;
 }
 
 export interface Assessment {
@@ -362,10 +363,32 @@ export interface ImportedFibLevel {
   color?: string;
 }
 
+export interface NoteSynthesis {
+  summary?: string;
+  sentiment?: string;
+  growthTrajectory?: Array<{ metric?: string; growth?: string; period?: string }>;
+  revenueProjections?: Array<{ target?: string; timeline?: string }>;
+  catalystsToWatch?: Array<{ period?: string; metric?: string; threshold?: string }>;
+  llmFallback?: boolean;
+  llmError?: string;
+  integratedSummary?: string;
+}
+
 export interface Note {
   id?: number;
   symbol?: string;
   date?: string;
   source?: string;
   text?: string;
+  synthesis?: NoteSynthesis | null;
+  synthesisProvider?: string | null;
+  synthesizedAt?: string | null;
+  createdAt?: string;
+}
+
+export interface TickerSearchHit {
+  symbol: string;
+  displaySymbol?: string;
+  description?: string;
+  type?: string;
 }

@@ -228,6 +228,18 @@ export const api = {
   overview: () => apiFetch<import("./types").Overview>("/overview"),
   portfolio: () => apiFetch<{ symbols: import("./types").PortfolioSymbol[] }>("/portfolio"),
   holdings: () => apiFetch<{ holdings: import("./types").Holding[] }>("/holdings"),
+  searchSymbols: (q: string, limit = 12) =>
+    apiFetch<{
+      query: string;
+      results: import("./types").TickerSearchHit[];
+      providerUnavailable?: boolean;
+      error?: string;
+    }>(`/symbols/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  addSymbol: (symbol: string) =>
+    apiFetch<import("./types").PortfolioSymbol>("/symbols", {
+      method: "POST",
+      body: JSON.stringify({ symbol }),
+    }),
   fundamentals: () =>
     apiFetch<import("./types").FundamentalsFeed>("/fundamentals?includeNews=0", {
       timeoutMs: FUNDAMENTALS_TIMEOUT_MS,
@@ -257,6 +269,15 @@ export const api = {
       body: JSON.stringify(data),
       timeoutMs: NOTE_SAVE_TIMEOUT_MS,
     }),
+  updateNote: (symbol: string, noteId: number, data: import("./types").Note) =>
+    apiFetch<import("./types").Note>(
+      `/symbols/${encodeURIComponent(symbol)}/notes/${noteId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+        timeoutMs: NOTE_SAVE_TIMEOUT_MS,
+      },
+    ),
   deleteNote: (symbol: string, noteId: number) =>
     apiFetch<{ status: string; id: number }>(
       `/symbols/${encodeURIComponent(symbol)}/notes/${noteId}`,

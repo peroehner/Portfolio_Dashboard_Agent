@@ -5,8 +5,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+import ssl
 import urllib.parse
 import urllib.request
+
+import certifi
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +42,8 @@ def company_name_from_finnhub(symbol: str) -> str | None:
         qsym = urllib.parse.quote(symbol)
         token = urllib.parse.quote(api_key)
         url = f"https://finnhub.io/api/v1/stock/profile2?symbol={qsym}&token={token}"
-        with urllib.request.urlopen(url, timeout=12) as resp:
+        ctx = ssl.create_default_context(cafile=certifi.where())
+        with urllib.request.urlopen(url, timeout=12, context=ctx) as resp:
             data = json.loads(resp.read().decode())
         name = data.get("name") if isinstance(data, dict) else None
         result = str(name).strip() if name else None

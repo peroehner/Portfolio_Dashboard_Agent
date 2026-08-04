@@ -90,39 +90,71 @@ export function formatColoredRatioPercent(value: number | null | undefined, digi
   };
 }
 
+function isDateOnlyIso(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value.trim());
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/** e.g. Aug-04 — short calendar dates without year. */
 export function formatRelativeDate(value?: string | null): string {
   if (!value) return "";
   const date = parseDateInput(value);
   if (!date) return value;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const month = date.toLocaleDateString("en-US", { month: "short" });
+  return `${month}-${pad2(date.getDate())}`;
 }
 
-/** Holdings entry date — include year for disambiguation. */
+/**
+ * Holdings purchase / note dates — include year (lifetime can exceed 12 months).
+ * e.g. Aug-04 2024
+ */
 export function formatEntryDate(value?: string | null): string {
   if (!value) return "";
   const date = parseDateInput(value);
   if (!date) return value;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const month = date.toLocaleDateString("en-US", { month: "short" });
+  return `${month}-${pad2(date.getDate())} ${date.getFullYear()}`;
 }
 
-/** e.g. Jul 12 23:24 — for quote/news timestamps in subtitles. */
+/** Alias for note dates (same year-aware rule as purchase/entry). */
+export function formatNoteDate(value?: string | null): string {
+  return formatEntryDate(value);
+}
+
+/**
+ * e.g. Aug-04 11:37 — for event timestamps.
+ * Date-only values (YYYY-MM-DD, e.g. quote session) never invent a clock time.
+ */
 export function formatShortDateTime(value?: string | null): string {
   if (!value) return "";
-  const date = parseDateInput(value);
+  const raw = String(value).trim();
+  if (isDateOnlyIso(raw)) return formatRelativeDate(raw);
+  const date = parseDateInput(raw);
   if (!date) return value;
-  const datePart = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const timePart = date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return `${datePart} ${timePart}`;
+  const datePart = formatRelativeDate(raw);
+  return `${datePart} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
 function parseDateInput(value: string): Date | null {
-  const date = new Date(value);
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  // Date-only ISO must be local calendar date — `new Date("YYYY-MM-DD")` is UTC
+  // midnight and shows a misleading local clock (e.g. 02:00 in CEST).
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (dateOnly) {
+    const [, y, mo, d] = dateOnly;
+    const parsed = new Date(Number(y), Number(mo) - 1, Number(d));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const date = new Date(raw);
   if (!Number.isNaN(date.getTime())) return date;
-  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
   if (!m) return null;
   const [, y, mo, d, h = "0", mi = "0"] = m;
   const parsed = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi));

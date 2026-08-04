@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SymbolStarPressable } from "@/components/SymbolStarPressable";
 import { colors, radii, spacing } from "@/lib/theme";
 import { alertTypeKey, alertTypeLabel } from "@/lib/alertTypes";
+import { formatShortDateTime } from "@/lib/format";
 import { openSymbol } from "@/lib/symbolBrowseSession";
 import { useSymbolRowStar } from "@/lib/useSymbolRowStar";
 import type { Alert } from "@/lib/types";
@@ -59,6 +60,7 @@ export function AlertRow({ alert, onDismiss, dismissing, browseSymbols }: AlertR
   const symbol = String(alert.symbol || "").trim().toUpperCase();
   const isPortfolioWide = symbol === "PORTFOLIO";
   const rowStar = useSymbolRowStar(isPortfolioWide ? "" : symbol);
+  const createdAt = formatShortDateTime(alert.createdAt);
 
   return (
     <Pressable style={styles.card} {...(isPortfolioWide ? {} : rowStar)}>
@@ -74,6 +76,7 @@ export function AlertRow({ alert, onDismiss, dismissing, browseSymbols }: AlertR
         )}
         <View style={styles.typeRow}>
           <Text style={styles.type}>{type}</Text>
+          {createdAt ? <Text style={styles.createdAt}>{createdAt}</Text> : null}
           {onDismiss ? (
             <Pressable
               style={[styles.dismissBtn, dismissing && styles.dismissDisabled]}
@@ -135,6 +138,12 @@ const styles = StyleSheet.create({
     textTransform: "none",
     textAlign: "right",
     flexShrink: 1,
+  },
+  createdAt: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontVariant: ["tabular-nums"],
+    flexShrink: 0,
   },
   message: {
     color: colors.textMuted,

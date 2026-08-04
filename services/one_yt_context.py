@@ -38,10 +38,11 @@ ONE_YT_TYPE_TO_CATEGORY: dict[str, str] = {
 }
 ONE_YT_ALERT_FAMILY: frozenset[str] = frozenset(ONE_YT_TYPE_TO_CATEGORY)
 
-# Stretch = risk stance AND at least one of these extremes.
-STRETCH_MEDIAN_MULT = float(os.environ.get("ONE_YT_STRETCH_MEDIAN_MULT", "2.0"))
+# Stretch = risk stance AND at least N of these extremes (default 2 of 3).
+STRETCH_MEDIAN_MULT = float(os.environ.get("ONE_YT_STRETCH_MEDIAN_MULT", "2.5"))
 STRETCH_ATR_UNITS = float(os.environ.get("ONE_YT_STRETCH_ATR_UNITS", "20"))
 STRETCH_UPSIDE_PCT = float(os.environ.get("ONE_YT_STRETCH_UPSIDE_PCT", "80"))
+STRETCH_MIN_EXTREMES = max(1, int(os.environ.get("ONE_YT_STRETCH_MIN_EXTREMES", "2")))
 
 
 def is_one_yt_alert_type(alert_type: str | None) -> bool:
@@ -63,19 +64,23 @@ def categorize_one_yt(
     atr_units_val: float | None = None,
     upside: float | None = None,
 ) -> str:
-    """Map stance + extremity → chance | lean | stretch | watch."""
+    """Map stance + extremity → chance | lean | stretch | watch.
+
+    Stretch needs a risk stance plus at least ``STRETCH_MIN_EXTREMES`` of:
+    median multiple, absolute upside %, ATR-units to close the Street gap.
+    """
     if stance == "chance":
         return "chance"
     if stance == "lean_chance":
         return "lean"
-    stretchy = False
+    extremes = 0
     if isinstance(vs_median, (int, float)) and vs_median >= STRETCH_MEDIAN_MULT:
-        stretchy = True
+        extremes += 1
     if isinstance(atr_units_val, (int, float)) and atr_units_val >= STRETCH_ATR_UNITS:
-        stretchy = True
+        extremes += 1
     if isinstance(upside, (int, float)) and upside >= STRETCH_UPSIDE_PCT:
-        stretchy = True
-    if stance == "risk" and stretchy:
+        extremes += 1
+    if stance == "risk" and extremes >= STRETCH_MIN_EXTREMES:
         return "stretch"
     return "watch"
 

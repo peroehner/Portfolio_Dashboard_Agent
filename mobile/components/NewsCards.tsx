@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-na
 
 import { SaiBadge } from "@/components/SaiBadge";
 import { SymbolStarPressable } from "@/components/SymbolStarPressable";
-import { formatRelativeDate, formatShortDateTime } from "@/lib/format";
+import { formatShortDateTime } from "@/lib/format";
 import { headlineForAction } from "@/lib/inspectorHelpers";
 import { changeTimestamp } from "@/lib/newsFilters";
 import { openSymbol } from "@/lib/symbolBrowseSession";
@@ -79,7 +79,7 @@ export function NewsCard({
         <SymbolLink symbol={item.symbol} compact={compact} browseSymbols={browseSymbols} />
         <View style={styles.metaRight}>
           {item.published ? (
-            <Text style={styles.date}>{formatRelativeDate(item.published)}</Text>
+            <Text style={styles.date}>{formatShortDateTime(item.published)}</Text>
           ) : null}
           {onAddNote ? (
             <Pressable

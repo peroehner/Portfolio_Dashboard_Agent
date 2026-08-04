@@ -22,11 +22,12 @@ import { QuoteHeader } from "@/components/inspector/QuoteHeader";
 import { TechnicalPanel } from "@/components/inspector/TechnicalPanel";
 import { SaiSummaryCard } from "@/components/inspector/SaiSummaryCard";
 import { SymbolTabBar, type SymbolTab } from "@/components/inspector/SymbolTabBar";
+import { NoteSynthesisView, noteHasSynthesis } from "@/components/NoteSynthesisView";
 import { SaiBadge } from "@/components/SaiBadge";
 import { Screen } from "@/components/Screen";
 import { api, isTimeoutApiError } from "@/lib/api";
 import { getRecommendationDrivers, headlineForAction } from "@/lib/inspectorHelpers";
-import { formatPrice, formatQty } from "@/lib/format";
+import { formatNoteDate, formatPrice, formatQty, formatShortDateTime } from "@/lib/format";
 import {
   getBrowseScrollY,
   getBrowseUi,
@@ -179,6 +180,11 @@ export default function SymbolDetailScreen() {
   const [composingNote, setComposingNote] = useState(false);
   const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
   const [deletingNoteId, setDeletingNoteId] = useState<number | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [editNoteDate, setEditNoteDate] = useState(todayIso());
+  const [editNoteTitle, setEditNoteTitle] = useState("");
+  const [editNoteText, setEditNoteText] = useState("");
+  const [expandedAssessmentKey, setExpandedAssessmentKey] = useState<string | null>(null);
 
   useEffect(() => {
     setFullData(null);
@@ -186,6 +192,8 @@ export default function SymbolDetailScreen() {
     setNewsSentiment(null);
     setComposingNote(false);
     setExpandedNoteKey(null);
+    setEditingNoteId(null);
+    setExpandedAssessmentKey(null);
     setEditOpen(false);
     restoredScrollSym.current = null;
     // Restore persisted tab after replace remounts this screen.
@@ -437,11 +445,57 @@ export default function SymbolDetailScreen() {
     try {
       await api.deleteNote(sym, noteId);
       if (expandedNoteKey === String(note.id ?? "")) setExpandedNoteKey(null);
+      if (editingNoteId === noteId) setEditingNoteId(null);
       await refreshAll();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to delete note");
     } finally {
       setDeletingNoteId(null);
+    }
+  }
+
+  function startEditNote(note: Note) {
+    const noteId = Number(note.id);
+    if (!Number.isFinite(noteId)) {
+      setSaveError("This note cannot be edited because it has no id.");
+      return;
+    }
+    setComposingNote(false);
+    setExpandedNoteKey(null);
+    setEditingNoteId(noteId);
+    setEditNoteDate((note.date || "").trim() || todayIso());
+    setEditNoteTitle((note.source || "").trim());
+    setEditNoteText(note.text || "");
+    setSaveError(null);
+  }
+
+  function cancelEditNote() {
+    setEditingNoteId(null);
+    setSaveError(null);
+  }
+
+  async function saveEditedNote() {
+    if (editingNoteId == null) return;
+    const text = editNoteText.trim();
+    if (!text) {
+      setSaveError("Note text is required.");
+      return;
+    }
+    const payload: Note = {
+      date: editNoteDate.trim() || todayIso(),
+      source: editNoteTitle.trim() || undefined,
+      text,
+    };
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await api.updateNote(sym, editingNoteId, payload);
+      setEditingNoteId(null);
+      await refreshAll();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to update note");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -693,7 +747,66 @@ export default function SymbolDetailScreen() {
                 <View style={styles.notesList}>
                   {notes.slice(0, 10).map((note) => {
                     const noteKey = String(note.id ?? `${note.date}-${note.source}-${note.text}`);
+                    const noteId = Number(note.id);
+                    const isEditing = Number.isFinite(noteId) && editingNoteId === noteId;
                     const expanded = expandedNoteKey === noteKey;
+                    const hasSynthesis = noteHasSynthesis(note);
+
+                    if (isEditing) {
+                      return (
+                        <View key={noteKey} style={styles.noteItem}>
+                          <View style={styles.noteForm}>
+                            <View style={styles.noteRow}>
+                              <TextInput
+                                style={[styles.input, styles.noteDateInput]}
+                                value={editNoteDate}
+                                onChangeText={setEditNoteDate}
+                                placeholder="YYYY-MM-DD"
+                                placeholderTextColor={colors.textMuted}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                              />
+                              <TextInput
+                                style={[styles.input, styles.noteTitleInput]}
+                                value={editNoteTitle}
+                                onChangeText={setEditNoteTitle}
+                                placeholder="Title"
+                                placeholderTextColor={colors.textMuted}
+                              />
+                            </View>
+                            <TextInput
+                              style={[styles.input, styles.noteText]}
+                              value={editNoteText}
+                              onChangeText={setEditNoteText}
+                              placeholder="Note text…"
+                              placeholderTextColor={colors.textMuted}
+                              multiline
+                              autoFocus
+                            />
+                            <View style={styles.noteFormActions}>
+                              <Pressable style={styles.secondaryBtn} onPress={cancelEditNote}>
+                                <Text style={styles.secondaryBtnText}>Cancel</Text>
+                              </Pressable>
+                              <Pressable
+                                style={[
+                                  styles.primaryBtn,
+                                  styles.primaryBtnFlex,
+                                  (!editNoteText.trim() || saving) && styles.primaryBtnDisabled,
+                                ]}
+                                onPress={() => void saveEditedNote()}
+                                disabled={!editNoteText.trim() || saving}
+                              >
+                                <Text style={styles.primaryBtnText}>
+                                  {saving ? "Saving…" : "Save"}
+                                </Text>
+                              </Pressable>
+                            </View>
+                            {saveError ? <Text style={styles.modalError}>{saveError}</Text> : null}
+                          </View>
+                        </View>
+                      );
+                    }
+
                     return (
                       <Pressable
                         key={noteKey}
@@ -702,10 +815,30 @@ export default function SymbolDetailScreen() {
                       >
                         <View style={styles.noteMetaRow}>
                           <Text style={styles.noteMeta} numberOfLines={1}>
-                            {(note.date || "—") + (note.source ? ` · ${note.source}` : "")}
+                            {(note.date ? formatNoteDate(note.date) : "—")
+                              + (note.source ? ` · ${note.source}` : "")}
                           </Text>
                           <View style={styles.noteMetaActions}>
                             <Text style={styles.noteExpandHint}>{expanded ? "Less" : "More"}</Text>
+                            <Pressable
+                              style={styles.noteEditBtn}
+                              onPress={(event) => {
+                                event.stopPropagation();
+                                startEditNote(note);
+                              }}
+                              disabled={note.id == null}
+                              hitSlop={8}
+                              accessibilityLabel="Edit note"
+                            >
+                              <Text
+                                style={[
+                                  styles.noteEditText,
+                                  note.id == null && styles.noteDeleteTextDisabled,
+                                ]}
+                              >
+                                Edit
+                              </Text>
+                            </Pressable>
                             <Pressable
                               style={[
                                 styles.noteDeleteBtn,
@@ -739,11 +872,15 @@ export default function SymbolDetailScreen() {
                             </Pressable>
                           </View>
                         </View>
-                        {note.text ? (
+                        {hasSynthesis && note.synthesis ? (
+                          <NoteSynthesisView synthesis={note.synthesis} expanded={expanded} />
+                        ) : note.text ? (
                           <Text style={styles.noteBody} numberOfLines={expanded ? undefined : 4}>
                             {note.text}
                           </Text>
-                        ) : null}
+                        ) : (
+                          <Text style={styles.emptyInline}>Not synthesized yet.</Text>
+                        )}
                       </Pressable>
                     );
                   })}
@@ -776,19 +913,39 @@ export default function SymbolDetailScreen() {
             {(data?.assessments?.length ?? 0) > 0 ? (
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Recent assessments</Text>
-                {data?.assessments?.slice(0, 3).map((item) => (
-                  <View key={item.id ?? item.createdAt} style={styles.assessment}>
-                    <View style={styles.assessmentHead}>
-                      <SaiBadge action={item.action} confidence={item.confidence} compact />
-                      <Text style={styles.assessmentDate}>{item.createdAt}</Text>
-                    </View>
-                    {item.rationale ? (
-                      <Text style={styles.reason} numberOfLines={4}>
-                        {item.rationale}
-                      </Text>
-                    ) : null}
-                  </View>
-                ))}
+                {data?.assessments?.slice(0, 3).map((item, idx) => {
+                  const key = String(item.id ?? item.createdAt ?? idx);
+                  const isLatest = idx === 0;
+                  const expanded = isLatest || expandedAssessmentKey === key;
+                  return (
+                    <Pressable
+                      key={key}
+                      style={styles.assessment}
+                      onPress={() => {
+                        if (isLatest) return;
+                        setExpandedAssessmentKey(expanded ? null : key);
+                      }}
+                      disabled={isLatest}
+                    >
+                      <View style={styles.assessmentHead}>
+                        <SaiBadge action={item.action} confidence={item.confidence} compact />
+                        <Text style={styles.assessmentDate}>
+                          {formatShortDateTime(item.createdAt) || item.createdAt}
+                        </Text>
+                      </View>
+                      {item.rationale ? (
+                        <Text style={styles.reason} numberOfLines={expanded ? undefined : 2}>
+                          {item.rationale}
+                        </Text>
+                      ) : null}
+                      {!isLatest ? (
+                        <Text style={styles.assessmentMore}>
+                          {expanded ? "Less" : "More (…)"}
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
               </View>
             ) : null}
           </>
@@ -1044,6 +1201,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
   },
+  noteEditBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    backgroundColor: colors.surfaceAlt,
+  },
+  noteEditText: {
+    color: colors.link,
+    fontSize: 11,
+    fontWeight: "700",
+  },
   noteDeleteBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1086,6 +1256,12 @@ const styles = StyleSheet.create({
   assessmentDate: {
     color: colors.textMuted,
     fontSize: 11,
+  },
+  assessmentMore: {
+    color: colors.link,
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 2,
   },
   modalRoot: {
     flex: 1,

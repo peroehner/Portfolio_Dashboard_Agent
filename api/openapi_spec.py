@@ -18,6 +18,9 @@ OPENAPI_SPEC = {
             "get": {"summary": "List symbols"},
             "post": {"summary": "Create symbol"},
         },
+        "/symbols/search": {
+            "get": {"summary": "Ticker autocomplete search (Finnhub)"},
+        },
         "/symbols/{symbol}": {
             "get": {"summary": "Symbol detail with notes"},
             "put": {"summary": "Update thresholds/prices"},
