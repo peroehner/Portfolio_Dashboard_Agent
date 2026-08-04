@@ -20,15 +20,22 @@ function ColCell({
   label,
   value,
   valueColor,
+  singleLine,
 }: {
   label: string;
   value: string;
   valueColor?: string;
+  singleLine?: boolean;
 }) {
   return (
     <View style={styles.cell}>
       <Text style={styles.cellLabel}>{label}</Text>
-      <Text style={[styles.cellValue, valueColor ? { color: valueColor } : null]} numberOfLines={2}>
+      <Text
+        style={[styles.cellValue, valueColor ? { color: valueColor } : null]}
+        numberOfLines={singleLine ? 1 : 2}
+        adjustsFontSizeToFit={singleLine}
+        minimumFontScale={0.85}
+      >
         {value}
       </Text>
     </View>
@@ -57,21 +64,22 @@ export function HoldingsCompactCard({ data }: HoldingsCompactCardProps) {
         <Text style={styles.muted}>No holding recorded.</Text>
       ) : (
         <View style={styles.grid}>
-          <View style={styles.col}>
+          <View style={styles.colLeft}>
             <ColCell label="Entry" value={pos.entryDate ? formatEntryDate(pos.entryDate) : "—"} />
             <ColCell label="Sh" value={formatShares(pos.shares)} />
             <ColCell label="Inv" value={formatMoney(pos.investment)} />
           </View>
-          <View style={styles.col}>
-            <ColCell label="Value" value={formatMoney(pos.currentValue)} />
-            <ColCell label="Gain" value={gainTxt} valueColor={pctColor(pos.gainPct)} />
+          <View style={styles.colMid}>
+            <ColCell label="Value" value={formatMoney(pos.currentValue)} singleLine />
+            <ColCell label="Gain" value={gainTxt} valueColor={pctColor(pos.gainPct)} singleLine />
             <ColCell
               label="Tgt"
               value={tgtTxt}
               valueColor={pos.personalUpsidePct != null ? pctColor(pos.personalUpsidePct) : undefined}
+              singleLine
             />
           </View>
-          <View style={styles.col}>
+          <View style={styles.colRight}>
             <ColCell
               label="Est. Div"
               value={pos.estDividend != null && pos.estDividend > 0 ? formatMoney(pos.estDividend) : "—"}
@@ -108,8 +116,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.xs,
   },
-  col: {
-    flex: 1,
+  colLeft: {
+    flex: 0.9,
+    gap: spacing.sm,
+    minWidth: 0,
+  },
+  colMid: {
+    flex: 1.85,
+    gap: spacing.sm,
+    minWidth: 0,
+  },
+  colRight: {
+    flex: 0.7,
     gap: spacing.sm,
     minWidth: 0,
   },

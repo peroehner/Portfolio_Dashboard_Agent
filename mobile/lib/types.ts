@@ -142,7 +142,9 @@ export interface Alert {
   alert_type?: string;
   message?: string;
   price?: number | null;
+  referenceValue?: number | null;
   reference_value?: number | null;
+  fibLevel?: string | null;
   status?: string;
   createdAt?: string;
 }

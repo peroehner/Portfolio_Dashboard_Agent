@@ -16,7 +16,7 @@ import {
   View,
 } from "react-native";
 
-import { AlertRow } from "@/components/AlertRow";
+import { AlertMessageText, AlertRow } from "@/components/AlertRow";
 import { HoldingsCompactCard } from "@/components/inspector/HoldingsCompactCard";
 import { QuoteHeader } from "@/components/inspector/QuoteHeader";
 import { TechnicalPanel } from "@/components/inspector/TechnicalPanel";
@@ -26,8 +26,11 @@ import { NoteSynthesisView, noteHasSynthesis } from "@/components/NoteSynthesisV
 import { SaiBadge } from "@/components/SaiBadge";
 import { Screen } from "@/components/Screen";
 import { api, isTimeoutApiError } from "@/lib/api";
+import { dedupeActiveAlerts } from "@/lib/alertDedup";
+import { emphasizeDriverText } from "@/lib/driverHighlight";
 import { getRecommendationDrivers, headlineForAction } from "@/lib/inspectorHelpers";
 import { formatNoteDate, formatPrice, formatQty, formatShortDateTime } from "@/lib/format";
+import { proposeThresholds } from "@/lib/thresholdProposals";
 import {
   getBrowseScrollY,
   getBrowseUi,
@@ -50,6 +53,14 @@ function toInput(value: number | null | undefined): string {
 function toShareInput(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value) || value === 0) return "";
   return String(Math.abs(value));
+}
+
+function tradeDirFromShares(
+  shares: number | null | undefined,
+  fallback: "buy" | "sell",
+): "buy" | "sell" {
+  if (shares == null || shares === 0 || Number.isNaN(shares)) return fallback;
+  return shares < 0 ? "sell" : "buy";
 }
 
 function parseNullableQuantity(text: string): number | null {
@@ -151,6 +162,11 @@ export default function SymbolDetailScreen() {
   const effectiveBuyBelow = quote?.tradeBelowPrice ?? quote?.buyBelow;
   const effectiveSellAbove = quote?.tradeAbovePrice ?? quote?.sellAbove;
   const drivers = useMemo(() => getRecommendationDrivers(data), [data]);
+  const activeAlerts = useMemo(() => dedupeActiveAlerts(data?.alerts), [data?.alerts]);
+  const thresholdSuggestions = useMemo(
+    () => proposeThresholds(quote, data),
+    [quote, data],
+  );
 
   const loadFull = useCallback(async () => {
     if (fullData || fullLoading) return;
@@ -171,8 +187,10 @@ export default function SymbolDetailScreen() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [buyBelow, setBuyBelow] = useState("");
   const [buyBelowShares, setBuyBelowShares] = useState("");
+  const [buyBelowDir, setBuyBelowDir] = useState<"buy" | "sell">("buy");
   const [sellAbove, setSellAbove] = useState("");
   const [sellAboveShares, setSellAboveShares] = useState("");
+  const [sellAboveDir, setSellAboveDir] = useState<"buy" | "sell">("sell");
   const [targetPrice, setTargetPrice] = useState("");
   const [noteDate, setNoteDate] = useState(todayIso());
   const [noteTitle, setNoteTitle] = useState("");
@@ -320,10 +338,13 @@ export default function SymbolDetailScreen() {
             setSaveError(null);
             setBuyBelow(toInput(effectiveBuyBelow));
             setBuyBelowShares(toShareInput(quote?.tradeBelowShares));
+            setBuyBelowDir(tradeDirFromShares(quote?.tradeBelowShares, "buy"));
             setSellAbove(toInput(effectiveSellAbove));
             setSellAboveShares(toShareInput(quote?.tradeAboveShares));
+            setSellAboveDir(tradeDirFromShares(quote?.tradeAboveShares, "sell"));
             setTargetPrice(toInput(quote?.targetPrice));
             setEditOpen(true);
+            void loadFull();
           }}
           hitSlop={8}
         >
@@ -331,7 +352,16 @@ export default function SymbolDetailScreen() {
         </Pressable>
       ),
     });
-  }, [navigation, sym, effectiveBuyBelow, effectiveSellAbove, quote?.targetPrice]);
+  }, [
+    navigation,
+    sym,
+    effectiveBuyBelow,
+    effectiveSellAbove,
+    quote?.targetPrice,
+    quote?.tradeBelowShares,
+    quote?.tradeAboveShares,
+    loadFull,
+  ]);
 
   async function refreshAll() {
     setFullData(null);
@@ -367,10 +397,10 @@ export default function SymbolDetailScreen() {
         // Keep legacy and planned-trade threshold fields in sync.
         buyBelow: buyBelowValue,
         tradeBelowPrice: buyBelowValue,
-        tradeBelowShares: signedTradeShares(buyBelowShares, "buy"),
+        tradeBelowShares: signedTradeShares(buyBelowShares, buyBelowDir),
         sellAbove: sellAboveValue,
         tradeAbovePrice: sellAboveValue,
-        tradeAboveShares: signedTradeShares(sellAboveShares, "sell"),
+        tradeAboveShares: signedTradeShares(sellAboveShares, sellAboveDir),
         targetPrice: parseNullableNumber(targetPrice),
       };
       await api.updateSymbol(sym, payload);
@@ -556,8 +586,10 @@ export default function SymbolDetailScreen() {
             </Pressable>
           </View>
           <View style={styles.modalBody}>
-            <Text style={styles.modalHint}>Leave blank to clear a threshold.</Text>
-            <Text style={styles.inputLabel}>Buy below</Text>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalScroll}>
+            <Text style={styles.modalHint}>Leave blank to clear a threshold. Use suggestions from Fib / assessment when available.</Text>
+
+            <Text style={styles.inputLabel}>Trade @ Below</Text>
             <View style={styles.thresholdInputRow}>
               <TextInput
                 style={[styles.input, styles.thresholdPriceInput]}
@@ -576,7 +608,39 @@ export default function SymbolDetailScreen() {
                 placeholderTextColor={colors.textMuted}
               />
             </View>
-            <Text style={styles.inputLabel}>Sell above</Text>
+            <View style={styles.dirRow}>
+              <Pressable
+                style={[styles.dirBtn, buyBelowDir === "buy" && styles.dirBtnBuy]}
+                onPress={() => setBuyBelowDir("buy")}
+              >
+                <Text style={[styles.dirBtnText, buyBelowDir === "buy" && styles.dirBtnTextActive]}>Buy</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.dirBtn, buyBelowDir === "sell" && styles.dirBtnSell]}
+                onPress={() => setBuyBelowDir("sell")}
+              >
+                <Text style={[styles.dirBtnText, buyBelowDir === "sell" && styles.dirBtnTextActive]}>Sell</Text>
+              </Pressable>
+            </View>
+            {thresholdSuggestions.buy != null ? (
+              <Pressable
+                style={styles.suggestBtn}
+                onPress={() => setBuyBelow(toInput(thresholdSuggestions.buy))}
+              >
+                <Text style={styles.suggestBtnText}>
+                  Use {formatPrice(thresholdSuggestions.buy)}
+                  {thresholdSuggestions.buyNote ? ` · ${thresholdSuggestions.buyNote}` : ""}
+                </Text>
+              </Pressable>
+            ) : (
+              <Text style={styles.suggestHint}>
+                {fullLoading
+                  ? "Loading Fib suggestions…"
+                  : "No Fib/assessment proposal yet — open Technical or wait for levels."}
+              </Text>
+            )}
+
+            <Text style={styles.inputLabel}>Trade @ Above</Text>
             <View style={styles.thresholdInputRow}>
               <TextInput
                 style={[styles.input, styles.thresholdPriceInput]}
@@ -595,6 +659,38 @@ export default function SymbolDetailScreen() {
                 placeholderTextColor={colors.textMuted}
               />
             </View>
+            <View style={styles.dirRow}>
+              <Pressable
+                style={[styles.dirBtn, sellAboveDir === "buy" && styles.dirBtnBuy]}
+                onPress={() => setSellAboveDir("buy")}
+              >
+                <Text style={[styles.dirBtnText, sellAboveDir === "buy" && styles.dirBtnTextActive]}>Buy</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.dirBtn, sellAboveDir === "sell" && styles.dirBtnSell]}
+                onPress={() => setSellAboveDir("sell")}
+              >
+                <Text style={[styles.dirBtnText, sellAboveDir === "sell" && styles.dirBtnTextActive]}>Sell</Text>
+              </Pressable>
+            </View>
+            {thresholdSuggestions.sell != null ? (
+              <Pressable
+                style={styles.suggestBtn}
+                onPress={() => setSellAbove(toInput(thresholdSuggestions.sell))}
+              >
+                <Text style={styles.suggestBtnText}>
+                  Use {formatPrice(thresholdSuggestions.sell)}
+                  {thresholdSuggestions.sellNote ? ` · ${thresholdSuggestions.sellNote}` : ""}
+                </Text>
+              </Pressable>
+            ) : (
+              <Text style={styles.suggestHint}>
+                {fullLoading
+                  ? "Loading Fib suggestions…"
+                  : "No Fib/assessment proposal yet — open Technical or wait for levels."}
+              </Text>
+            )}
+
             <Text style={styles.inputLabel}>Personal target</Text>
             <TextInput
               style={styles.input}
@@ -605,6 +701,7 @@ export default function SymbolDetailScreen() {
               placeholderTextColor={colors.textMuted}
             />
             {saveError ? <Text style={styles.modalError}>{saveError}</Text> : null}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -649,13 +746,13 @@ export default function SymbolDetailScreen() {
               <Text style={styles.cardTitle}>Thresholds</Text>
               <View style={styles.thresholdGrid}>
                 <View style={styles.thresholdCell}>
-                  <Text style={styles.statLabel}>Buy below</Text>
+                  <Text style={styles.statLabel}>Trade @ Below</Text>
                   <Text style={styles.statValue}>
                     {thresholdValueText(effectiveBuyBelow, quote?.tradeBelowShares)}
                   </Text>
                 </View>
                 <View style={styles.thresholdCell}>
-                  <Text style={styles.statLabel}>Sell above</Text>
+                  <Text style={styles.statLabel}>Trade @ Above</Text>
                   <Text style={styles.statValue}>
                     {thresholdValueText(effectiveSellAbove, quote?.tradeAboveShares)}
                   </Text>
@@ -891,20 +988,27 @@ export default function SymbolDetailScreen() {
             </View>
 
             {drivers.length > 0 ? (
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>Drivers</Text>
+              <View style={[styles.card, styles.driversCard]}>
+                <Text style={styles.driversTitle}>Drivers</Text>
                 {drivers.map((reason, idx) => (
-                  <Text key={idx} style={styles.reason}>
-                    · {reason}
-                  </Text>
+                  <View key={idx} style={styles.driverRow}>
+                    <Text style={styles.driverBullet}>·</Text>
+                    <View style={styles.driverTextWrap}>
+                      <AlertMessageText
+                        message={emphasizeDriverText(reason)}
+                        style={styles.driverText}
+                        boldStyle={styles.driverBold}
+                      />
+                    </View>
+                  </View>
                 ))}
               </View>
             ) : null}
 
-            {(data?.alerts?.length ?? 0) > 0 ? (
+            {activeAlerts.length > 0 ? (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Active alerts</Text>
-                {data?.alerts?.map((alert) => (
+                {activeAlerts.map((alert) => (
                   <AlertRow key={alert.id} alert={alert} />
                 ))}
               </View>
@@ -1103,6 +1207,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  driversCard: {
+    borderColor: "rgba(96,165,250,0.45)",
+    backgroundColor: "rgba(30,58,138,0.22)",
+  },
+  driversTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+    marginBottom: spacing.xs,
+  },
+  driverRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+  },
+  driverBullet: {
+    color: colors.link,
+    fontSize: 14,
+    fontWeight: "800",
+    lineHeight: 20,
+  },
+  driverTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  driverText: {
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  driverBold: {
+    color: colors.text,
+    fontWeight: "800",
+  },
   noteForm: {
     gap: spacing.sm,
   },
@@ -1121,6 +1260,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     marginBottom: 4,
+    marginTop: spacing.sm,
   },
   input: {
     backgroundColor: colors.surfaceAlt,
@@ -1141,7 +1281,56 @@ const styles = StyleSheet.create({
   },
   thresholdShareInput: {
     flex: 1,
-    minWidth: 72,
+  },
+  dirRow: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    marginTop: 6,
+  },
+  dirBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colors.surfaceAlt,
+  },
+  dirBtnBuy: {
+    borderColor: colors.buy,
+    backgroundColor: "rgba(34,197,94,0.16)",
+  },
+  dirBtnSell: {
+    borderColor: colors.sell,
+    backgroundColor: "rgba(248,113,113,0.16)",
+  },
+  dirBtnText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  dirBtnTextActive: {
+    color: colors.text,
+  },
+  suggestBtn: {
+    marginTop: 6,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: colors.link,
+    backgroundColor: "rgba(147,197,253,0.12)",
+    borderRadius: radii.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  suggestBtnText: {
+    color: colors.link,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  suggestHint: {
+    marginTop: 6,
+    color: colors.textMuted,
+    fontSize: 11,
+    lineHeight: 15,
   },
   noteText: {
     minHeight: 72,
@@ -1289,8 +1478,13 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   modalBody: {
-    padding: spacing.lg,
-    gap: spacing.sm,
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+  },
+  modalScroll: {
+    gap: spacing.xs,
+    paddingBottom: spacing.xl,
   },
   modalHint: {
     color: colors.textMuted,
