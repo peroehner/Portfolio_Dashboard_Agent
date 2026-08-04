@@ -1,6 +1,8 @@
 import { StyleSheet, Text, View } from "react-native";
 
+import { AlertMessageText } from "@/components/AlertRow";
 import { SaiBadge } from "@/components/SaiBadge";
+import { emphasizeDriverText } from "@/lib/driverHighlight";
 import {
   getRecommendationText,
   headlineForAction,
@@ -56,7 +58,13 @@ export function SaiSummaryCard({ data }: SaiSummaryCardProps) {
         </View>
       </View>
       {headline ? <Text style={styles.headline}>{headline}</Text> : null}
-      {body ? <Text style={styles.body}>{body}</Text> : null}
+      {body ? (
+        <AlertMessageText
+          message={emphasizeDriverText(body)}
+          style={styles.body}
+          boldStyle={styles.bodyBold}
+        />
+      ) : null}
     </View>
   );
 }
@@ -110,13 +118,17 @@ const styles = StyleSheet.create({
   headline: {
     color: colors.text,
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     lineHeight: 19,
   },
   body: {
     color: colors.textMuted,
     fontSize: 13,
     lineHeight: 18,
+  },
+  bodyBold: {
+    color: colors.text,
+    fontWeight: "800",
   },
   empty: {
     color: colors.textMuted,

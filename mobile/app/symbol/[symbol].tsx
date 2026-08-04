@@ -192,6 +192,9 @@ export default function SymbolDetailScreen() {
   const [sellAboveShares, setSellAboveShares] = useState("");
   const [sellAboveDir, setSellAboveDir] = useState<"buy" | "sell">("sell");
   const [targetPrice, setTargetPrice] = useState("");
+  const [holdingShares, setHoldingShares] = useState("");
+  const [holdingPurchaseDate, setHoldingPurchaseDate] = useState("");
+  const [holdingAvgCost, setHoldingAvgCost] = useState("");
   const [noteDate, setNoteDate] = useState(todayIso());
   const [noteTitle, setNoteTitle] = useState("");
   const [noteText, setNoteText] = useState("");
@@ -343,6 +346,23 @@ export default function SymbolDetailScreen() {
             setSellAboveShares(toShareInput(quote?.tradeAboveShares));
             setSellAboveDir(tradeDirFromShares(quote?.tradeAboveShares, "sell"));
             setTargetPrice(toInput(quote?.targetPrice));
+            const holding = data?.holding;
+            const posShares =
+              holding?.quantity ??
+              (data?.positionMechanics as { sharesOwned?: number; quantity?: number } | undefined)
+                ?.sharesOwned ??
+              (data?.positionMechanics as { quantity?: number } | undefined)?.quantity;
+            const posDate =
+              holding?.purchaseDate ??
+              (data?.positionMechanics as { purchaseDate?: string; entryDate?: string } | undefined)
+                ?.purchaseDate ??
+              (data?.positionMechanics as { entryDate?: string } | undefined)?.entryDate;
+            const posCost = holding?.costBasis;
+            setHoldingShares(
+              posShares != null && Number(posShares) > 0 ? String(Number(posShares)) : "",
+            );
+            setHoldingPurchaseDate(posDate ? String(posDate).slice(0, 10) : "");
+            setHoldingAvgCost(toInput(posCost));
             setEditOpen(true);
             void loadFull();
           }}
@@ -360,6 +380,8 @@ export default function SymbolDetailScreen() {
     quote?.targetPrice,
     quote?.tradeBelowShares,
     quote?.tradeAboveShares,
+    data?.holding,
+    data?.positionMechanics,
     loadFull,
   ]);
 
@@ -387,7 +409,7 @@ export default function SymbolDetailScreen() {
     }
   }
 
-  async function saveThresholds() {
+  async function saveTargetsAndThresholds() {
     setSaving(true);
     setSaveError(null);
     try {
@@ -404,10 +426,23 @@ export default function SymbolDetailScreen() {
         targetPrice: parseNullableNumber(targetPrice),
       };
       await api.updateSymbol(sym, payload);
+
+      const shares = parseNullableNumber(holdingShares);
+      if (shares != null && shares > 0) {
+        await api.updateHolding(sym, {
+          quantity: shares,
+          costBasis: parseNullableNumber(holdingAvgCost),
+          purchaseDate: holdingPurchaseDate.trim() || null,
+        });
+      } else {
+        // 0 / empty shares = watch only: drop any existing position, keep the symbol.
+        await api.deleteHolding(sym).catch(() => undefined);
+      }
+
       setEditOpen(false);
       await refreshAll();
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Failed to save thresholds");
+      setSaveError(err instanceof Error ? err.message : "Failed to save targets & thresholds");
     } finally {
       setSaving(false);
     }
@@ -578,8 +613,10 @@ export default function SymbolDetailScreen() {
             <Pressable onPress={() => setEditOpen(false)} hitSlop={8}>
               <Text style={styles.modalBtn}>Cancel</Text>
             </Pressable>
-            <Text style={styles.modalTitle}>Edit thresholds</Text>
-            <Pressable onPress={() => void saveThresholds()} disabled={saving} hitSlop={8}>
+            <Text style={styles.modalTitle} numberOfLines={1}>
+              Targets & Thresholds
+            </Text>
+            <Pressable onPress={() => void saveTargetsAndThresholds()} disabled={saving} hitSlop={8}>
               <Text style={[styles.modalBtn, saving && styles.modalBtnDisabled]}>
                 {saving ? "Saving…" : "Save"}
               </Text>
@@ -587,8 +624,41 @@ export default function SymbolDetailScreen() {
           </View>
           <View style={styles.modalBody}>
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalScroll}>
-            <Text style={styles.modalHint}>Leave blank to clear a threshold. Use suggestions from Fib / assessment when available.</Text>
+            <Text style={styles.modalHint}>
+              Your position: 0 / blank shares = watch only. Leave threshold fields blank to clear them. Use Fib suggestions when available.
+            </Text>
 
+            <Text style={styles.sectionLabel}>Your position</Text>
+            <Text style={styles.inputLabel}>Shares</Text>
+            <TextInput
+              style={styles.input}
+              value={holdingShares}
+              onChangeText={setHoldingShares}
+              keyboardType="decimal-pad"
+              placeholder="Amount held"
+              placeholderTextColor={colors.textMuted}
+            />
+            <Text style={styles.inputLabel}>Purchase date</Text>
+            <TextInput
+              style={styles.input}
+              value={holdingPurchaseDate}
+              onChangeText={setHoldingPurchaseDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Text style={styles.inputLabel}>Avg cost / share</Text>
+            <TextInput
+              style={styles.input}
+              value={holdingAvgCost}
+              onChangeText={setHoldingAvgCost}
+              keyboardType="decimal-pad"
+              placeholder="Cost per share"
+              placeholderTextColor={colors.textMuted}
+            />
+
+            <Text style={styles.sectionLabel}>Planned trades & target</Text>
             <Text style={styles.inputLabel}>Trade @ Below</Text>
             <View style={styles.thresholdInputRow}>
               <TextInput
@@ -1466,13 +1536,17 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
+    flex: 1,
+    textAlign: "center",
+    marginHorizontal: spacing.xs,
   },
   modalBtn: {
     color: colors.link,
     fontSize: 15,
     fontWeight: "700",
+    minWidth: 56,
   },
   modalBtnDisabled: {
     opacity: 0.6,
@@ -1490,6 +1564,15 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 12,
     marginBottom: spacing.sm,
+  },
+  sectionLabel: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    marginTop: spacing.md,
+    marginBottom: 2,
   },
   modalError: {
     color: colors.danger,

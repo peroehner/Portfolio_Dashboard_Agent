@@ -228,6 +228,25 @@ export const api = {
   overview: () => apiFetch<import("./types").Overview>("/overview"),
   portfolio: () => apiFetch<{ symbols: import("./types").PortfolioSymbol[] }>("/portfolio"),
   holdings: () => apiFetch<{ holdings: import("./types").Holding[] }>("/holdings"),
+  updateHolding: (
+    symbol: string,
+    data: {
+      quantity?: number | null;
+      costBasis?: number | null;
+      purchaseDate?: string | null;
+    },
+  ) =>
+    apiFetch<import("./types").Holding | { status: string; symbol: string }>(
+      `/holdings/${encodeURIComponent(symbol)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      },
+    ),
+  deleteHolding: (symbol: string) =>
+    apiFetch<{ status?: string; symbol?: string }>(`/holdings/${encodeURIComponent(symbol)}`, {
+      method: "DELETE",
+    }),
   searchSymbols: (q: string, limit = 12) =>
     apiFetch<{
       query: string;
