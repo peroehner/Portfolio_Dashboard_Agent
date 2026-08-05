@@ -13,7 +13,7 @@ OPENAPI_SPEC = {
             "get": {"summary": "User preferences (Portfolio Fit targets)"},
             "patch": {"summary": "Update user preferences"},
         },
-        "/overview": {"get": {"summary": "Portfolio KPIs and holdings summary"}},
+        "/overview": {"get": {"summary": "Portfolio KPIs, holdings summary, and pastProgress (1M/3M/ATH)"}},
         "/symbols": {
             "get": {"summary": "List symbols"},
             "post": {"summary": "Create symbol"},

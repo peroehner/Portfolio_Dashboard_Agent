@@ -841,6 +841,16 @@
       font-size: 0.82rem;
       margin-top: 0.3rem;
     }
+    .summary-strip .metric.metric-clickable {
+      cursor: pointer;
+      border-radius: 8px;
+      transition: background 0.15s ease;
+    }
+    .summary-strip .metric.metric-clickable:hover,
+    .summary-strip .metric.metric-clickable:focus-visible {
+      background: rgba(59, 130, 246, 0.12);
+      outline: none;
+    }
     table.data th.sortable { cursor: pointer; user-select: none; }
     table.data th.sortable:hover { color: var(--text); }
     table.data th.sortable.active { color: var(--accent); }
@@ -908,7 +918,7 @@
     table.data th .th-help-list li:last-child { margin-bottom: 0; }
     .overview-visuals-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
       gap: 1.25rem;
       align-items: stretch;
     }
@@ -950,8 +960,63 @@
       max-width: 100%;
       margin: 0;
       padding: 0.25rem 0 0;
+      min-height: 260px;
+      display: grid;
+      grid-template-columns: minmax(200px, 1fr) minmax(220px, 0.95fr);
+      align-items: center;
+      gap: 0.9rem;
     }
-    .allocation-chart-wrap canvas { max-height: 300px; }
+    .allocation-chart-wrap canvas { max-height: 300px; justify-self: center; }
+    .allocation-legend {
+      display: flex;
+      flex-direction: column;
+      gap: 0.28rem;
+      max-height: 320px;
+      overflow: hidden;
+    }
+    .allocation-legend-row {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      min-width: 0;
+      color: #cbd5e1;
+      font-size: 0.86rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .allocation-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+    }
+    .allocation-legend-empty {
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    @media (max-width: 1180px) {
+      .allocation-chart-wrap {
+        grid-template-columns: 1fr;
+        justify-items: center;
+      }
+      .allocation-legend {
+        width: 100%;
+        max-height: none;
+      }
+    }
+    .allocation-source-pill {
+      display: inline-block;
+      margin-top: 0.35rem;
+      padding: 0.2rem 0.55rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      color: #93c5fd;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(96, 165, 250, 0.45);
+      border-radius: 999px;
+    }
     .projection-row {
       background: var(--bg);
       border: 1px solid var(--border);
@@ -1007,6 +1072,26 @@
     .progress-fill.personal { background: #a78bfa; }
     .progress-fill.roc { background: var(--warn); }
     .progress-fill.simulation { background: var(--accent); }
+    .progress-fill.past { background: #94a3b8; }
+    .progress-fill.ath { background: #f59e0b; }
+    .projection-row.past {
+      background: rgba(148, 163, 184, 0.06);
+    }
+    .projection-row.ath {
+      background: rgba(245, 158, 11, 0.08);
+      border-color: rgba(245, 158, 11, 0.28);
+    }
+    .projection-row.past .projection-label { color: #cbd5e1; }
+    .projection-row.ath .projection-label { color: #fbbf24; }
+    .projection-band-label {
+      margin: 0.85rem 0 0.4rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .projection-band-label:first-child { margin-top: 0; }
     .projection-row.simulation {
       background: rgba(59, 130, 246, 0.08);
       border-color: rgba(59, 130, 246, 0.28);
@@ -1020,6 +1105,10 @@
       border-color: rgba(255, 255, 255, 0.22);
       box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
       outline: none;
+    }
+    .projection-row.allocation-active {
+      box-shadow: inset 0 0 0 2px rgba(96, 165, 250, 0.65);
+      border-radius: 8px;
     }
     .projection-row.simulation .projection-label { color: var(--accent); }
     .projection-row.simulation.projection-row-clickable:hover,
@@ -1894,6 +1983,10 @@
       gap: 1rem;
       align-items: stretch;
     }
+    /* Main Inspector: SAI dominates the top row; holdings sit in a slim right rail. */
+    .inspector-top-row.inspector-top-row-sai {
+      grid-template-columns: minmax(0, 2.7fr) minmax(0, 1fr);
+    }
     /* Holdings mini-inspector has no second top-row card, so the Recommendation
        block spans the full inspector width (flush with the panels below). */
     .inspector-top-row.inspector-top-row-single {
@@ -1901,8 +1994,10 @@
     }
     .inspector-top-row .inspector-side-card,
     .inspector-top-row .inspector-holdings-card,
-    .inspector-top-row .valuation-scoring {
+    .inspector-top-row .valuation-scoring,
+    .inspector-top-row .recommendation-card {
       margin-bottom: 0;
+      min-width: 0;
     }
     @media (max-width: 960px) {
       .inspector-top-row {
@@ -2917,6 +3012,49 @@
       color: var(--muted);
       font-size: 0.8rem;
     }
+    .track-record-details {
+      margin-top: 0.35rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.24);
+      overflow: hidden;
+    }
+    .track-record-details > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 0.55rem 0.75rem;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      border-bottom: 1px solid transparent;
+    }
+    .track-record-details > summary::-webkit-details-marker { display: none; }
+    .track-record-details > summary::before {
+      content: "▸";
+      color: #93c5fd;
+      transition: transform 0.14s ease;
+      transform-origin: 40% 50%;
+    }
+    .track-record-details[open] > summary::before { transform: rotate(90deg); }
+    .track-record-details[open] > summary {
+      border-bottom-color: var(--border);
+      color: var(--text);
+      background: rgba(30, 41, 59, 0.45);
+    }
+    .track-record-details-body {
+      padding: 0.65rem 0.75rem 0.8rem;
+    }
+    #trackRecordSummary {
+      margin-bottom: 0.45rem;
+    }
+    #trackRecordSummary .tr-summary {
+      margin: 0;
+    }
     .tr-status {
       margin: 0;
       color: var(--muted);
@@ -3402,11 +3540,9 @@
     }
     .inspector-lower-grid {
       display: grid;
-      /* SAI is the dominant block; Active Alerts are short one-liners that sit in
-         a slim right rail (~2.7:1). Collapses to one column on narrow screens. */
+      /* Technical Confluence left; alerts in the same slim right rail as holdings. */
       grid-template-columns: minmax(0, 2.7fr) minmax(0, 1fr);
       gap: 1rem;
-      margin-top: 1rem;
       align-items: start;
     }
     .inspector-lower-col-side,
@@ -3416,9 +3552,11 @@
       gap: 1rem;
     }
     .inspector-lower-col-side .inspector-section,
-    .inspector-lower-col-main .inspector-section {
+    .inspector-lower-col-main .inspector-section,
+    .inspector-lower-grid > .inspector-section {
       margin-top: 0;
     }
+    .inspector-top-row .recommendation-card,
     .inspector-lower-col-main .recommendation-card {
       margin-bottom: 0;
     }
@@ -3438,6 +3576,7 @@
       padding-right: 0.25rem;
     }
     @media (max-width: 960px) {
+      .inspector-top-row.inspector-top-row-sai,
       .inspector-lower-grid {
         grid-template-columns: 1fr;
       }
@@ -5023,7 +5162,10 @@
       <div class="overview-visuals-grid">
         <section class="visual-card" id="allocationSection">
           <div class="visual-card-head">
-            <h2>Portfolio Allocation Weight</h2>
+            <div>
+              <h2>Portfolio Allocation Weight</h2>
+              <span class="allocation-source-pill" id="allocationSourcePill">Current holdings</span>
+            </div>
             <div class="fund-news-sort" id="allocationModeToggle" role="group" aria-label="Allocation grouping">
               <button type="button" data-alloc-mode="top5" class="active" onclick="setAllocationMode('top5')">Top 5</button>
               <button type="button" data-alloc-mode="top75" onclick="setAllocationMode('top75')">Top 75%</button>
@@ -5032,12 +5174,18 @@
           <p class="visual-subtitle" id="allocationSubtitle">Top 5 assets shown individually</p>
           <div class="allocation-chart-wrap">
             <canvas id="allocationChart" aria-label="Portfolio allocation donut chart"></canvas>
+            <div class="allocation-legend" id="allocationLegend"></div>
           </div>
         </section>
-        <section class="visual-card" id="projectionSection">
-          <h2>Portfolio Progress and Projection</h2>
-          <p class="visual-subtitle">Current portfolio value vs projected valuations at analyst 1Y mean targets and your personal targets.</p>
-          <div id="projectionCard"></div>
+        <section class="visual-card" id="projectionPastSection">
+          <h2>Looking Back</h2>
+          <p class="visual-subtitle">Current holdings buy &amp; hold vs S&amp;P</p>
+          <div id="projectionPastCard"></div>
+        </section>
+        <section class="visual-card" id="projectionFutureSection">
+          <h2>Looking Forward</h2>
+          <p class="visual-subtitle">Targets &amp; planned-trade projection</p>
+          <div id="projectionFutureCard"></div>
         </section>
       </div>
     </div>
@@ -5048,7 +5196,7 @@
       </div>
       <div class="news-changes-grid">
         <div class="news-changes-col">
-          <section class="nc-area">
+          <section class="nc-area" id="summaryInsightsSection">
             <div class="nc-head">
               <div class="nc-head-title">
                 <div class="fund-news-sort" id="leftInsightsToggle" role="group" aria-label="Show SAI changes or alerts">
@@ -5104,31 +5252,37 @@
         <button type="button" class="help-btn" onclick="openSignalRecordHelp()" title="How Agent Signal Record works" aria-label="How Agent Signal Record works">?</button>
         <span class="track-record-sub" id="trackRecordMeta"></span>
       </div>
-      <div id="trackRecordBody"><div class="empty">Loading…</div></div>
-      <div class="proposal-prefs-panel" id="proposalPrefsPanel">
-        <h3 style="margin:0.85rem 0 0;font-size:0.95rem;">Portfolio Fit preferences</h3>
-        <p class="import-note" style="margin-top:0.35rem;">Used by the Inspector proposal scorecard (dividend target, volatility appetite, concentration). Mobile comes later.</p>
-        <div class="proposal-prefs-grid">
-          <label>Target annual dividend ($)
-            <input type="number" id="prefTargetDividend" min="0" step="100" placeholder="e.g. 5000">
-          </label>
-          <label>Volatility preference
-            <select id="prefVolatility">
-              <option value="">— unset —</option>
-              <option value="low">Low (β ≤ 1.0)</option>
-              <option value="moderate">Moderate (β ≤ 1.4)</option>
-              <option value="high">High (β ≤ 2.5)</option>
-            </select>
-          </label>
-          <label>Max single-name weight (%)
-            <input type="number" id="prefMaxWeight" min="1" max="100" step="1" placeholder="e.g. 15">
-          </label>
+      <div id="trackRecordSummary"><div class="empty">Loading…</div></div>
+      <details class="track-record-details" id="trackRecordDetails">
+        <summary>Details</summary>
+        <div class="track-record-details-body">
+          <div id="trackRecordBody"><div class="empty">Loading…</div></div>
+          <div class="proposal-prefs-panel" id="proposalPrefsPanel">
+            <h3 style="margin:0.85rem 0 0;font-size:0.95rem;">Portfolio Fit preferences</h3>
+            <p class="import-note" style="margin-top:0.35rem;">Used by the Inspector proposal scorecard (dividend target, volatility appetite, concentration). Mobile comes later.</p>
+            <div class="proposal-prefs-grid">
+              <label>Target annual dividend ($)
+                <input type="number" id="prefTargetDividend" min="0" step="100" placeholder="e.g. 5000">
+              </label>
+              <label>Volatility preference
+                <select id="prefVolatility">
+                  <option value="">— unset —</option>
+                  <option value="low">Low (β ≤ 1.0)</option>
+                  <option value="moderate">Moderate (β ≤ 1.4)</option>
+                  <option value="high">High (β ≤ 2.5)</option>
+                </select>
+              </label>
+              <label>Max single-name weight (%)
+                <input type="number" id="prefMaxWeight" min="1" max="100" step="1" placeholder="e.g. 15">
+              </label>
+            </div>
+            <div class="proposal-prefs-actions">
+              <button type="button" onclick="saveProposalPrefs()">Save preferences</button>
+              <span class="proposal-prefs-status" id="proposalPrefsStatus"></span>
+            </div>
+          </div>
         </div>
-        <div class="proposal-prefs-actions">
-          <button type="button" onclick="saveProposalPrefs()">Save preferences</button>
-          <span class="proposal-prefs-status" id="proposalPrefsStatus"></span>
-        </div>
-      </div>
+      </details>
     </div>
     <div class="wide-panel import-bar">
       <h2>Import / Export</h2>
@@ -5522,7 +5676,9 @@
     let portfolioMarketValue = null;
     let allocationChart = null;
     let allocationMode = "top5"; // "top5" | "top75"
-    let allocationHoldings = null; // cached so the toggle re-renders without a server round-trip
+    let allocationSource = "current";
+    let allocationSourceLabel = "Current holdings";
+    let overviewAllocationContext = { holdings: null, past: null };
     const ALLOCATION_COLORS = ["#3b82f6", "#22c55e", "#60a5fa", "#f97316", "#a78bfa", "#64748b"];
 
     async function api(path, options = {}) {
@@ -8734,8 +8890,6 @@
 
       let individual;
       if (mode === "top75") {
-        // Show the fewest top assets whose cumulative weight reaches 75% of total
-        // value (including the asset that crosses the mark); roll the rest up.
         const grandTotal = sorted.reduce((sum, holding) => sum + holding.marketValue, 0);
         const target = grandTotal * 0.75;
         individual = [];
@@ -8759,7 +8913,125 @@
         values.push(othersValue);
       }
 
+      const MAX_ROWS = 15;
+      if (labels.length > MAX_ROWS) {
+        const keep = MAX_ROWS - 1;
+        const headLabels = labels.slice(0, keep);
+        const headValues = values.slice(0, keep);
+        const tailValues = values.slice(keep);
+        const tailValue = tailValues.reduce((sum, value) => sum + value, 0);
+        const tailCount = Math.max(1, labels.length - keep);
+        labels.length = 0;
+        values.length = 0;
+        labels.push(...headLabels, `Others (${tailCount})`);
+        values.push(...headValues, tailValue);
+      }
+
       return { labels, values };
+    }
+
+    function formatCompactMoney(value) {
+      if (value == null || value === "") return "—";
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "—";
+      const abs = Math.abs(amount);
+      const sign = amount < 0 ? "-" : "";
+      if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
+      if (abs >= 10_000) return `${sign}$${(abs / 1_000).toFixed(1)}k`;
+      return `${sign}$${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+    }
+
+    function currentHoldingsTotal(holdings) {
+      return (holdings || []).reduce((sum, holding) => sum + (Number(holding.marketValue) || 0), 0);
+    }
+
+    function normalizeAllocationRows(rows) {
+      return (rows || [])
+        .map((row) => {
+          const symbol = row?.symbol;
+          const marketValue = Number(row?.marketValue ?? row?.market_value ?? row?.value);
+          if (!symbol || !Number.isFinite(marketValue) || marketValue <= 0) return null;
+          return { symbol, marketValue };
+        })
+        .filter(Boolean);
+    }
+
+    function scaledHoldingsRows(holdings, targetTotal) {
+      const currentTotal = currentHoldingsTotal(holdings);
+      if (!targetTotal || !currentTotal) return [];
+      const scale = Number(targetTotal) / currentTotal;
+      return (holdings || [])
+        .filter((holding) => Number(holding.marketValue) > 0)
+        .map((holding) => ({
+          symbol: holding.symbol,
+          marketValue: Number(holding.marketValue) * scale,
+        }));
+    }
+
+    function pastAllocationRows(context, source) {
+      const holdings = context?.holdings || [];
+      const window = context?.past?.windows?.[source];
+      let rows = normalizeAllocationRows(window?.holdings);
+      if (!rows.length && window?.valueThen) {
+        rows = scaledHoldingsRows(holdings, window.valueThen);
+      }
+      return rows;
+    }
+
+    function athAllocationRows(context) {
+      const holdings = context?.holdings || [];
+      const ath = context?.past?.ath;
+      let rows = normalizeAllocationRows(ath?.holdings);
+      if (!rows.length && ath?.value) {
+        rows = scaledHoldingsRows(holdings, ath.value);
+      }
+      return rows;
+    }
+
+    function allocationRowsForSource(context, source) {
+      const holdings = context?.holdings || [];
+      if (source === "current") {
+        return normalizeAllocationRows(
+          holdings.map((holding) => ({ symbol: holding.symbol, marketValue: holding.marketValue }))
+        );
+      }
+      if (source === "analyst") {
+        return normalizeAllocationRows(
+          holdings.map((holding) => ({ symbol: holding.symbol, marketValue: holding.analystTargetValue }))
+        );
+      }
+      if (source === "personal") {
+        return normalizeAllocationRows(
+          holdings.map((holding) => ({ symbol: holding.symbol, marketValue: holding.personalTargetValue }))
+        );
+      }
+      if (source === "simulation") {
+        return normalizeAllocationRows(
+          holdings.map((holding) => ({ symbol: holding.symbol, marketValue: holding.marketValue }))
+        );
+      }
+      if (source === "1M" || source === "3M") {
+        return pastAllocationRows(context, source);
+      }
+      if (source === "ath") {
+        return athAllocationRows(context);
+      }
+      return [];
+    }
+
+    function selectAllocationSource(source, label) {
+      allocationSource = source;
+      allocationSourceLabel = label || allocationSourceLabel;
+      document.querySelectorAll(".projection-row[data-alloc-key]").forEach((row) => {
+        row.classList.toggle("allocation-active", row.dataset.allocKey === source);
+      });
+      updateAllocationSubtitle();
+      refreshAllocationChart();
+    }
+
+    function refreshAllocationChart() {
+      if (!overviewAllocationContext.holdings) return;
+      renderAllocationChart();
     }
 
     function setAllocationMode(mode) {
@@ -8768,15 +9040,42 @@
         btn.classList.toggle("active", btn.dataset.allocMode === allocationMode);
       });
       updateAllocationSubtitle();
-      if (allocationHoldings) renderAllocationChart(allocationHoldings);
+      refreshAllocationChart();
     }
 
     function updateAllocationSubtitle() {
       const el = document.getElementById("allocationSubtitle");
-      if (!el) return;
-      el.textContent = allocationMode === "top75"
-        ? 'Assets making up the top 75% of value'
-        : 'Top 5 assets shown individually';
+      const pill = document.getElementById("allocationSourcePill");
+      if (el) {
+        el.textContent = allocationMode === "top75"
+          ? "Assets making up the top 75% of value"
+          : "Top 5 assets shown individually";
+      }
+      if (pill) {
+        let label = allocationSourceLabel || "Current holdings";
+        if (allocationSource === "simulation") label += " · current weights";
+        pill.textContent = label;
+      }
+    }
+
+    function scrollToSummaryAlerts() {
+      setLeftInsightsPanel("alerts");
+      const target = document.getElementById("newsChangesPanel");
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+
+    function renderAllocationLegend(payload, colors) {
+      const legend = document.getElementById("allocationLegend");
+      if (!legend || !payload?.labels?.length) return;
+      const total = payload.values.reduce((sum, value) => sum + (Number(value) || 0), 0);
+      legend.innerHTML = payload.labels.map((label, i) => {
+        const value = Number(payload.values[i]) || 0;
+        const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0.0";
+        const color = colors[i] || "#64748b";
+        return `<div class="allocation-legend-row"><span class="allocation-legend-dot" style="background:${color};"></span>${escapeHtml(label)} ${formatCompactMoney(value)} · ${pct}%</div>`;
+      }).join("");
     }
 
     function formatInlinePct(value) {
@@ -8806,19 +9105,37 @@
             ? " roc"
             : barClass === "simulation"
               ? " simulation"
-              : "";
-      const clickClass = options.interactive ? " projection-row-clickable" : "";
-      const clickAttrs = options.interactive
-        ? ` role="button" tabindex="0" title="${escapeHtml(options.title || "")}" onclick="${options.onClick || ""}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${options.onClick || ""}}"`
+              : barClass === "past"
+                ? " past"
+                : barClass === "ath"
+                  ? " ath"
+                  : "";
+      const allocKey = options.allocKey || "";
+      const interactive = options.interactive || !!allocKey;
+      const clickClass = interactive ? " projection-row-clickable" : "";
+      const activeClass = allocKey && allocationSource === allocKey ? " allocation-active" : "";
+      let onClick = options.onClick || "";
+      let title = options.title || "";
+      if (allocKey) {
+        const safeLabel = String(options.allocLabel || label).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        onClick = `selectAllocationSource('${allocKey}', '${safeLabel}')`;
+        title = title || "Show this scenario in the allocation pie chart";
+      }
+      const clickAttrs = interactive
+        ? ` role="button" tabindex="0" title="${escapeHtml(title)}" onclick="${onClick}"${options.onDblClick ? ` ondblclick="${options.onDblClick}"` : ""} onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${onClick}}"`
         : "";
       const labelTitleAttr = options.labelTitle
         ? ` title="${escapeHtml(options.labelTitle)}"`
         : "";
+      const valueHtml = options.valueHtml != null
+        ? options.valueHtml
+        : projectionValueLine(value, pct);
+      const allocAttr = allocKey ? ` data-alloc-key="${allocKey}"` : "";
       return `
-        <div class="projection-row${rowClass}${clickClass}"${clickAttrs}>
+        <div class="projection-row${rowClass}${clickClass}${activeClass}"${allocAttr}${clickAttrs}>
           <div class="projection-row-header">
             <div class="projection-label"${labelTitleAttr}>${label}</div>
-            <div class="projection-value">${projectionValueLine(value, pct)}</div>
+            <div class="projection-value">${valueHtml}</div>
           </div>
           <div class="progress-track">
             <div class="progress-fill ${barClass}" style="width:${barWidth.toFixed(1)}%;"></div>
@@ -8826,6 +9143,32 @@
           ${subnote ? `<div class="projection-subnote">${subnote}</div>` : ""}
         </div>
       `;
+    }
+
+    function formatPastProgressDate(iso) {
+      if (!iso) return "";
+      const d = new Date(`${String(iso).slice(0, 10)}T12:00:00`);
+      if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return `${months[d.getMonth()]}-${String(d.getDate()).padStart(2, "0")} ${d.getFullYear()}`;
+    }
+
+    function pastWindowSubnote(window) {
+      if (!window) return "";
+      const parts = [];
+      if (window.spyReturnPct != null) {
+        const s = Number(window.spyReturnPct);
+        parts.push(`S&P 500 ${s > 0 ? "+" : ""}${s.toFixed(1)}%`);
+      }
+      if (window.relativePct != null) {
+        const r = Number(window.relativePct);
+        parts.push(`Holdings vs S&P 500 ${r > 0 ? "+" : ""}${r.toFixed(1)} pp`);
+      }
+      const cov = window.coverage;
+      if (cov && cov.heldTotal != null && cov.heldWithPrices != null && cov.heldWithPrices < cov.heldTotal) {
+        parts.push(`coverage ${cov.heldWithPrices}/${cov.heldTotal}`);
+      }
+      return parts.join(" · ");
     }
 
     // Last saved simulation snapshot (includes filter/legs/selection criteria).
@@ -8905,63 +9248,122 @@
     }
 
     function renderProjectionCard(data) {
-      const container = document.getElementById("projectionCard");
+      const pastContainer = document.getElementById("projectionPastCard");
+      const futureContainer = document.getElementById("projectionFutureCard");
       const current = data.totalMarketValue;
-      const analyst = data.totalAnalystTargetValue;
-      const personal = data.totalPersonalTargetValue;
-      const holdingsLink = {
-        interactive: true,
-        onClick: "showView('holdings')",
-        title: "Open Holdings",
-      };
 
       if (current == null) {
-        container.innerHTML = `<div class="empty">No valued positions yet.</div>`;
+        const empty = `<div class="empty">No valued positions yet.</div>`;
+        if (pastContainer) pastContainer.innerHTML = empty;
+        if (futureContainer) futureContainer.innerHTML = "";
         return;
       }
 
+      const past = data.pastProgress || null;
+      const windows = past?.windows || {};
+      const ath = past?.ath || null;
       const simulation = data.simulation && data.simulation.projectedValuation != null
         ? data.simulation
         : null;
-      const maxValue = Math.max(
+      const analyst = data.totalAnalystTargetValue;
+      const personal = data.totalPersonalTargetValue;
+
+      const pastMax = Math.max(
+        current,
+        ath?.value || 0,
+        windows["1M"]?.valueThen || 0,
+        windows["3M"]?.valueThen || 0,
+        1,
+      );
+      const futureMax = Math.max(
         current,
         analyst || 0,
         personal || 0,
-        simulation ? simulation.projectedValuation : 0
+        simulation ? simulation.projectedValuation : 0,
+        1,
       );
-      const rows = [
-        renderProjectionRow(
-          "Current Aggregated Valuation",
-          current,
-          data.unrealizedGainPct,
-          "current",
-          projectionBarWidth(current, maxValue),
-          "",
-          holdingsLink
-        ),
-      ];
+
+      const pastChunks = [];
+      const futureChunks = [];
+
+      ["1M", "3M"].forEach((key) => {
+        const w = windows[key];
+        if (!w || w.valueThen == null) return;
+        pastChunks.push(renderProjectionRow(
+          `<strong>${key}</strong> ago`,
+          w.valueThen,
+          w.returnPct,
+          "past",
+          projectionBarWidth(w.valueThen, pastMax),
+          pastWindowSubnote(w),
+          {
+            allocKey: key,
+            allocLabel: `${key} ago holdings`,
+            labelTitle: "Buy & hold mark-to-market of today’s share counts (ignores past adds/sells).",
+            valueHtml: `${formatMoney(w.valueThen)}${formatInlinePct(w.returnPct)}`,
+          }
+        ));
+      });
+      if (ath && ath.value != null) {
+        const atAth = ath.deltaPct != null && Math.abs(Number(ath.deltaPct)) < 0.05;
+        pastChunks.push(renderProjectionRow(
+          `Portfolio ATH · ${formatPastProgressDate(ath.date)}`,
+          ath.value,
+          atAth ? 0 : ath.deltaPct,
+          "ath",
+          projectionBarWidth(ath.value, pastMax),
+          atAth
+            ? "At all-time high (current holdings basket)."
+            : "Peak of current-holdings buy & hold series vs today.",
+          {
+            allocKey: "ath",
+            allocLabel: "Portfolio ATH",
+            labelTitle: "Peak reconstructed basket value (today’s shares × historical closes).",
+            valueHtml: atAth
+              ? `${formatMoney(ath.value)} · at ATH`
+              : `${formatMoney(ath.value)}${formatInlinePct(ath.deltaPct)}${ath.deltaValue != null ? ` · ${formatMoney(ath.deltaValue)}` : ""}`,
+          }
+        ));
+      }
+      if (pastContainer) {
+        pastContainer.innerHTML = pastChunks.length
+          ? pastChunks.join("")
+          : (past == null
+            ? `<div class="empty">Past progress unavailable yet — will populate after price history loads.</div>`
+            : `<div class="empty">No past windows yet.</div>`);
+      }
+
+      futureChunks.push(renderProjectionRow(
+        "Current Aggregated Valuation",
+        current,
+        data.unrealizedGainPct,
+        "current",
+        projectionBarWidth(current, futureMax),
+        "",
+        { allocKey: "current", allocLabel: "Current holdings" }
+      ));
 
       if (analyst != null) {
-        rows.push(renderProjectionRow(
+        futureChunks.push(renderProjectionRow(
           "Projected 1Y Mean Target Valuation",
           analyst,
           data.totalAnalystUpsidePct,
           "projected",
-          projectionBarWidth(analyst, maxValue),
+          projectionBarWidth(analyst, futureMax),
           "",
-          holdingsLink
+          { allocKey: "analyst", allocLabel: "1Y mean targets" }
         ));
       }
 
       if (personal != null) {
-        rows.push(renderProjectionRow(
+        futureChunks.push(renderProjectionRow(
           "Projected Personal Target Valuation",
           personal,
           data.totalPersonalUpsidePct,
           "personal",
-          projectionBarWidth(personal, maxValue),
+          projectionBarWidth(personal, futureMax),
           "",
-          holdingsLink
+          { allocKey: "personal", allocLabel: "Personal targets" }
         ));
       }
 
@@ -8970,7 +9372,7 @@
           100,
           Math.max(0, Math.abs(Number(data.totalProjectedRocPct) || 0))
         );
-        rows.push(renderProjectionRow(
+        futureChunks.push(renderProjectionRow(
           "Projected Annual Return on Capital (ROC)",
           data.totalProjectedRoc,
           data.totalProjectedRocPct,
@@ -8978,7 +9380,6 @@
           rocBarWidth,
           "",
           {
-            ...holdingsLink,
             labelTitle: "ROC = Return on Capital (operating return on invested capital). Unlike ROE, ROC includes both debt and equity capital.",
           }
         ));
@@ -8986,17 +9387,18 @@
 
       if (simulation) {
         savedSimulationSnapshot = simulation;
-        rows.push(renderProjectionRow(
+        futureChunks.push(renderProjectionRow(
           "Projected Valuation if Planned Trades Execute",
           simulation.projectedValuation,
           simulation.projectedUpsidePct,
           "simulation",
-          projectionBarWidth(simulation.projectedValuation, maxValue),
+          projectionBarWidth(simulation.projectedValuation, futureMax),
           simulationSnapshotMetaline(simulation),
           {
-            interactive: true,
-            onClick: "openSimulationFromSavedSnapshot()",
-            title: "Re-open Simulation with the same filters and symbol selection",
+            allocKey: "simulation",
+            allocLabel: "Planned trades (current weights)",
+            title: "Show current weights in pie chart · double-click to re-open Simulation",
+            onDblClick: "openSimulationFromSavedSnapshot(); event.stopPropagation();",
           }
         ));
       } else {
@@ -9007,7 +9409,9 @@
       if (analyst == null) hints.push("Sync or import for 1Y mean target estimates.");
       if (personal == null) hints.push("Set personal targets in Portfolio or import a Personal Target line.");
 
-      container.innerHTML = `${rows.join("")}${hints.length ? `<div class="empty" style="margin-top:0.5rem;">${hints.join(" ")}</div>` : ""}`;
+      if (futureContainer) {
+        futureContainer.innerHTML = `${futureChunks.join("")}${hints.length ? `<div class="empty" style="margin-top:0.5rem;">${hints.join(" ")}</div>` : ""}`;
+      }
     }
 
     function renderOverviewVisuals(data) {
@@ -9020,25 +9424,36 @@
           allocationChart.destroy();
           allocationChart = null;
         }
+        overviewAllocationContext = { holdings: null, past: null };
         return;
       }
 
       panel.hidden = false;
-      renderAllocationChart(data.holdings);
+      overviewAllocationContext = {
+        holdings: data.holdings || [],
+        past: data.pastProgress || null,
+      };
       renderProjectionCard(data);
+      if (!document.querySelector(`.projection-row[data-alloc-key="${allocationSource}"]`)) {
+        allocationSource = "current";
+        allocationSourceLabel = "Current holdings";
+      }
+      selectAllocationSource(allocationSource, allocationSourceLabel);
     }
 
-    function renderAllocationChart(holdings) {
-      allocationHoldings = holdings; // cache for toggle-driven re-renders
+    function renderAllocationChart() {
       updateAllocationSubtitle();
       const canvas = document.getElementById("allocationChart");
-      const payload = buildAllocationData(holdings, allocationMode);
+      const legend = document.getElementById("allocationLegend");
+      const rows = allocationRowsForSource(overviewAllocationContext, allocationSource);
+      const payload = buildAllocationData(rows, allocationMode);
 
       if (!payload || typeof Chart === "undefined") {
         if (allocationChart) {
           allocationChart.destroy();
           allocationChart = null;
         }
+        if (legend) legend.innerHTML = `<div class="allocation-legend-empty">No allocation data for this selection.</div>`;
         return;
       }
 
@@ -9051,6 +9466,7 @@
           ? ALLOCATION_COLORS[ALLOCATION_COLORS.length - 1]
           : ALLOCATION_COLORS[i % (ALLOCATION_COLORS.length - 1)]
       );
+      renderAllocationLegend(payload, colors);
 
       allocationChart = new Chart(canvas, {
         type: "doughnut",
@@ -9068,22 +9484,14 @@
           maintainAspectRatio: true,
           cutout: "58%",
           plugins: {
-            legend: {
-              position: "bottom",
-              labels: {
-                color: "#9aa8bc",
-                usePointStyle: true,
-                pointStyle: "rect",
-                boxWidth: 12,
-                padding: 14,
-              },
-            },
+            legend: { display: false },
             tooltip: {
               callbacks: {
+                title() { return ""; },
                 label(context) {
                   const total = context.dataset.data.reduce((sum, value) => sum + value, 0);
                   const pct = total ? ((context.raw / total) * 100).toFixed(1) : "0.0";
-                  return `${context.label}: ${formatMoney(context.raw)} (${pct}%)`;
+                  return `${context.label} ${formatCompactMoney(context.raw)} · ${pct}%`;
                 },
               },
             },
@@ -9142,7 +9550,7 @@
           <div class="label">Best Perform YTD</div>
           ${renderPerformerMetric(data.bestYtdPerformer)}
         </div>
-        <div class="metric">
+        <div class="metric metric-clickable" role="button" tabindex="0" title="Jump to Alerts" onclick="scrollToSummaryAlerts()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();scrollToSummaryAlerts();}">
           <div class="label">Alerts</div>
           <div class="value">${data.activeAlerts}</div>
         </div>
@@ -9957,8 +10365,9 @@
 
     function renderTrackRecord(data) {
       const body = document.getElementById("trackRecordBody");
+      const summaryEl = document.getElementById("trackRecordSummary");
       const metaEl = document.getElementById("trackRecordMeta");
-      if (!body) return;
+      if (!body || !summaryEl) return;
       rememberTrackRecordOpenSections();
       const overall = data.overall || { count: 0 };
       const horizonDays = data.horizonDays || 21;
@@ -9969,7 +10378,8 @@
           : `±${data.horizonBandPct ?? 2}% band · ${horizonDays}d horizon`;
       }
       if (!overall.count) {
-        body.innerHTML = trackRecordStatusHtml(horizonDays, data.pending);
+        summaryEl.innerHTML = trackRecordStatusHtml(horizonDays, data.pending);
+        body.innerHTML = `<div class="empty">Open Details to inspect sections once bets mature.</div>`;
         return;
       }
       const recos = (data.byLabel || []).filter((b) => b.kind === "recommendation");
@@ -9986,7 +10396,7 @@
       const showConfConflict = trackRecordHasRealStrength(byConfConflict, "conflictBucket");
 
       const decided = (overall.wins || 0) + (overall.losses || 0);
-      body.innerHTML = `
+      summaryEl.innerHTML = `
         <div class="tr-summary">
           <div class="tr-summary-rate">${trackRecordRate(overall)}<span class="tr-overall-label">Overall hit</span></div>
           <div class="tr-summary-metrics">
@@ -9995,7 +10405,8 @@
             <div class="tr-metric"><span class="tr-metric-label">Price / Follow</span><span class="tr-metric-value">${trackRecordReturn(overall.avgReturn)} <span class="tr-muted">/</span> ${trackRecordReturn(overall.avgReturnAdj)}</span></div>
             <div class="tr-metric"><span class="tr-metric-label">Bet Strength Hit</span><span class="tr-metric-value">${trackRecordRateHtml(overall.calibratedHitRate)}</span></div>
           </div>
-        </div>
+        </div>`;
+      body.innerHTML = `
         ${trackRecordInsightHtml(data, recos, patterns, confluence, fibs, byConf)}
         <div class="tr-grid">
           ${trackRecordSection("SAI actions", recos, { key: "sai" })}
@@ -10014,11 +10425,13 @@
 
     async function loadTrackRecord() {
       const body = document.getElementById("trackRecordBody");
-      if (!body) return;
+      const summaryEl = document.getElementById("trackRecordSummary");
+      if (!body || !summaryEl) return;
       try {
         const data = await api("/track-record");
         renderTrackRecord(data);
       } catch (err) {
+        summaryEl.innerHTML = `<div class="empty">Could not load agent signal record: ${escapeHtml(err.message)}</div>`;
         body.innerHTML = `<div class="empty">Could not load agent signal record: ${escapeHtml(err.message)}</div>`;
       }
       loadProposalPrefs();
@@ -10401,6 +10814,15 @@
       renderHoldingsView();
       if (selectedSymbol && present.has(selectedSymbol)) {
         await openHoldingsInspector(selectedSymbol, false);
+      } else if (!selectedSymbol) {
+        // First-time Holdings open: auto-pick the top visible row so the mini
+        // Inspector is populated instead of showing an empty right rail.
+        const firstVisible = currentHoldingsOrder()[0];
+        if (firstVisible) {
+          selectedSymbol = firstVisible;
+          await openHoldingsInspector(firstVisible, false);
+          renderHoldingsView();
+        }
       }
       markRefreshed("Holdings table");
     }
@@ -14915,22 +15337,12 @@
         : "";
       const confluenceHtml = (!isHoldingsPreview) ? renderInspectorConfluence(data.confluence, advisory) : "";
       const stanceClass = String(advisory.stance || "neutral").toLowerCase();
-      // The Confluence card subsumes the Fib-only Technical Risk Advisory, so it
-      // takes the top slot. The Advisory is the fallback only when there isn't
-      // enough history to fuse a confluence verdict.
       const advisoryCard = `
             <section class="inspector-side-card advisory ${stanceClass}">
               <h3>Technical Risk Advisory</h3>
               <div class="advisory-stance">Technical Stance: ${advisory.stance || "Unknown"}</div>
               <p>${advisory.message || "Insufficient technical data to assess support positioning."}</p>
             </section>`;
-      // Holdings mini-inspector shows a compressed Recommendation summary in the
-      // top slot instead of the Fib-only Technical Risk Advisory chip.
-      const topLeftCard = isHoldingsPreview
-        ? renderInspectorRecSummary(data)
-        : (confluenceHtml || advisoryCard);
-      // Valuation metrics now fill the empty space inside the Holdings card (upper
-      // row) rather than living in their own section below. P-Score was dropped.
       const valuationMetricsHtml = [
         renderValuationMetric("Est. Dividend", formatMoney(val.estDividend), (val.estDividend ?? 0) > 0 ? "gain-pos" : ""),
         renderValuationMetric("Trailing P/E", formatInspectorMetric(val.trailingPe)),
@@ -14943,19 +15355,7 @@
         ? `<div class="alert" style="margin-bottom:0.85rem;">Inspector analytics are partial. Restart the server from <code>Portfolio_Dashboard_Agent</code> with <code>python3 main.py</code>, then use <strong>Sync Prices</strong> so Fib levels, valuation metrics, and trend waves can load.</div>`
         : "";
 
-      return `
-        ${setupHint}
-        <div class="inspector-dashboard">
-          <div class="inspector-top-row${isHoldingsPreview ? " inspector-top-row-single" : ""}">
-            ${topLeftCard}
-            ${isHoldingsPreview ? "" : renderInspectorHoldingsCard(data, valuationMetricsHtml)}
-          </div>
-          ${isHoldingsPreview
-            ? `<section class="valuation-scoring">
-                <h3>Valuation & Scoring</h3>
-                <div class="valuation-grid valuation-inline">${valuationMetricsHtml}</div>
-              </section>`
-            : ""}
+      const chartSection = `
           <section class="inspector-chart-card">
             <div class="inspector-chart-head">
               <div class="inspector-chart-title-row">
@@ -15011,8 +15411,6 @@
                         moveText,
                         dateRange,
                       ].filter(Boolean).join(" · ");
-                      // Show the price arrow in the leg's actual direction: bearish
-                      // (Peak → Low) reads high → low, bullish (Low → Peak) low → high.
                       const isDownLeg = wave.direction === "down"
                         || (wave.movePct != null && Number(wave.movePct) < 0);
                       const legPrices = wave.displayLow != null && wave.displayHigh != null
@@ -15040,7 +15438,44 @@
                   : `<span class="empty">No imported trend waves. Use <strong>Import</strong> with your Portfolio-App TA export for this symbol.</span>`}
               </details>
             </div>`}
+          </section>`;
+
+      if (isHoldingsPreview) {
+        return `
+        ${setupHint}
+        <div class="inspector-dashboard">
+          <div class="inspector-top-row inspector-top-row-single">
+            ${renderInspectorRecSummary(data)}
+          </div>
+          <section class="valuation-scoring">
+            <h3>Valuation & Scoring</h3>
+            <div class="valuation-grid valuation-inline">${valuationMetricsHtml}</div>
           </section>
+          ${chartSection}
+        </div>
+      `;
+      }
+
+      const saiCard = renderRecommendationCard(data.recommendation || {});
+      const holdingsCard = renderInspectorHoldingsCard(data, valuationMetricsHtml);
+      const alertsSection = `
+            <div class="inspector-section" id="inspector-alerts">
+              <h3 class="card-headline-accent">Alerts</h3>
+              ${renderInspectorAlertsList(data.alerts)}
+            </div>`;
+
+      return `
+        ${setupHint}
+        <div class="inspector-dashboard">
+          <div class="inspector-top-row inspector-top-row-sai">
+            ${saiCard}
+            ${holdingsCard}
+          </div>
+          ${chartSection}
+          <div class="inspector-lower-grid">
+            ${confluenceHtml || advisoryCard}
+            ${alertsSection}
+          </div>
         </div>
       `;
     }
@@ -15708,26 +16143,7 @@
     }
 
     function renderInspectorHtml(data, panelId = "inspectorPanel") {
-      if (isHoldingsInspectorPanel(panelId)) {
-        return renderInspectorDashboard(data, panelId);
-      }
-      const rec = data.recommendation || {};
-      // Notes & Assessments now live in the Target tab; the Inspector keeps the
-      // analytical read view: Synthesized Agent Insight (SAI) + Active Alerts.
-      return `
-        ${renderInspectorDashboard(data, panelId)}
-        <div class="inspector-lower-grid">
-          <div class="inspector-lower-col inspector-lower-col-main">
-            ${renderRecommendationCard(rec)}
-          </div>
-          <div class="inspector-lower-col inspector-lower-col-side">
-            <div class="inspector-section" id="inspector-alerts">
-              <h3 class="card-headline-accent">Alerts</h3>
-              ${renderInspectorAlertsList(data.alerts)}
-            </div>
-          </div>
-        </div>
-      `;
+      return renderInspectorDashboard(data, panelId);
     }
 
     function focusInspectorSection(panelId, section) {
@@ -15909,9 +16325,12 @@
       gap: 0.3rem;
       align-items: stretch;
     }
+    .inspector-top-row.inspector-top-row-sai {
+      grid-template-columns: minmax(0, 2.7fr) minmax(0, 1fr);
+    }
     .inspector-lower-grid {
       display: grid;
-      grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 2.7fr) minmax(0, 1fr);
       gap: 0.3rem;
       align-items: start;
     }
@@ -16266,8 +16685,8 @@
           <p class="snap-export-meta">Exported ${escapeHtml(exportTs)}</p>
         </header>
         <div class="inspector-dashboard">
-          <div class="inspector-top-row">
-            ${confluenceHtml || `<section class="valuation-scoring"><h3 class="card-headline-accent">Technical Confluence</h3><div class="empty">Insufficient data.</div></section>`}
+          <div class="inspector-top-row inspector-top-row-sai">
+            ${saiHtml}
             ${holdingsHtml}
           </div>
           <section class="inspector-chart-card">
@@ -16280,8 +16699,8 @@
             ${trendWavesHtml}
           </section>
           <div class="inspector-lower-grid snap-insights-section">
-            <div class="inspector-lower-col inspector-lower-col-main">${saiHtml}</div>
-            <div class="inspector-lower-col inspector-lower-col-side">${alertsHtml}</div>
+            ${confluenceHtml || `<section class="valuation-scoring"><h3 class="card-headline-accent">Technical Confluence</h3><div class="empty">Insufficient data.</div></section>`}
+            ${alertsHtml}
           </div>
         </div>
         </div>

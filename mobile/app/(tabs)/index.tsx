@@ -18,9 +18,10 @@ import { Screen } from "@/components/Screen";
 import type { AllocationMode } from "@/lib/allocationChart";
 import { api, getApiHostLabel, showApiHostInDev } from "@/lib/api";
 import { useAuth } from "@/lib/AuthContext";
-import { formatMoney, formatPct, formatShortDateTime, pctColor } from "@/lib/format";
+import { formatEntryDate, formatMoney, formatPct, formatShortDateTime, pctColor } from "@/lib/format";
 import { openSymbol } from "@/lib/symbolBrowseSession";
 import { colors, spacing } from "@/lib/theme";
+import type { PastProgressWindow } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
 
 const PRIVACY_MASK = "••••";
@@ -32,6 +33,25 @@ function privacyMoney(
 ): string {
   if (hide) return PRIVACY_MASK;
   return formatMoney(value, compact);
+}
+
+function pastWindowNote(window: PastProgressWindow): string {
+  const parts: string[] = [];
+  if (window.spyReturnPct != null) {
+    parts.push(`S&P ${formatPct(window.spyReturnPct, 1)}`);
+  }
+  if (window.relativePct != null) {
+    parts.push(`rel ${formatPct(window.relativePct, 1)} pp`);
+  }
+  const cov = window.coverage;
+  if (
+    cov?.heldTotal != null &&
+    cov.heldWithPrices != null &&
+    cov.heldWithPrices < cov.heldTotal
+  ) {
+    parts.push(`cov ${cov.heldWithPrices}/${cov.heldTotal}`);
+  }
+  return parts.join(" · ");
 }
 
 function performerHint(
@@ -163,6 +183,21 @@ export default function OverviewScreen() {
     ...projectedRows.map((row) => row.value ?? 0),
     1,
   );
+  const past = data?.pastProgress;
+  const pastWindows = (["1M", "3M"] as const)
+    .map((key) => {
+      const w = past?.windows?.[key];
+      if (!w || w.valueThen == null) return null;
+      return { key, window: w };
+    })
+    .filter(Boolean) as Array<{ key: "1M" | "3M"; window: PastProgressWindow }>;
+  const ath = past?.ath;
+  const pastMax = Math.max(
+    data?.totalMarketValue ?? 0,
+    ath?.value ?? 0,
+    ...pastWindows.map((row) => row.window.valueThen ?? 0),
+    1,
+  );
   const plannedMeta =
     data?.simulation && data.simulation.projectedValuation != null
       ? [
@@ -178,6 +213,9 @@ export default function OverviewScreen() {
           .join(" · ")
       : null;
 
+  const athAtPeak =
+    ath?.deltaPct != null && Math.abs(Number(ath.deltaPct)) < 0.05;
+
   const progressSection = (
     <View style={[styles.section, isWide && styles.sectionFlex]}>
       <View style={styles.sectionHead}>
@@ -187,10 +225,76 @@ export default function OverviewScreen() {
         </Pressable>
       </View>
       <View style={styles.progressCard}>
-        <Text style={styles.progressSubhead}>
-          Current portfolio value vs projected valuations at analyst 1Y mean targets and your
-          personal targets.
-        </Text>
+        <Text style={styles.progressBand}>Looking back · Current holdings</Text>
+        {pastWindows.length === 0 && !ath ? (
+          <Text style={styles.progressMeta}>
+            Past progress unavailable yet — populates after price history loads.
+          </Text>
+        ) : null}
+        {pastWindows.map(({ key, window }) => (
+          <View style={styles.progressRow} key={key}>
+            <View style={styles.progressLabelLine}>
+              <Text style={styles.progressLabel}>{key} ago</Text>
+              <Text style={[styles.progressValue, { color: pctColor(window.returnPct) }]}>
+                {privacyMoney(window.valueThen, hideAmounts)} →{" "}
+                {privacyMoney(window.valueNow, hideAmounts)}{" "}
+                {window.returnPct != null ? `(${formatPct(window.returnPct, 1)})` : ""}
+              </Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${Math.max(4, ((window.valueThen ?? 0) / pastMax) * 100)}%`,
+                    backgroundColor: colors.textMuted,
+                  },
+                ]}
+              />
+            </View>
+            {pastWindowNote(window) ? (
+              <Text style={styles.progressMeta}>{pastWindowNote(window)}</Text>
+            ) : null}
+          </View>
+        ))}
+        {ath?.value != null ? (
+          <View style={styles.progressRow}>
+            <View style={styles.progressLabelLine}>
+              <Text style={styles.progressLabel}>
+                ATH · {formatEntryDate(ath.date) || ath.date || "—"}
+              </Text>
+              <Text
+                style={[
+                  styles.progressValue,
+                  { color: athAtPeak ? colors.buy : pctColor(ath.deltaPct) },
+                ]}
+              >
+                {privacyMoney(ath.value, hideAmounts)}
+                {athAtPeak
+                  ? " · at ATH"
+                  : ath.deltaPct != null
+                    ? ` (${formatPct(ath.deltaPct, 1)})`
+                    : ""}
+                {!athAtPeak && ath.deltaValue != null
+                  ? ` · ${privacyMoney(ath.deltaValue, hideAmounts)}`
+                  : ""}
+              </Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${Math.max(4, ((ath.value ?? 0) / pastMax) * 100)}%`,
+                    backgroundColor: colors.warning,
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        ) : null}
+
+        <Text style={styles.progressBand}>Looking forward · Targets</Text>
         <View style={styles.progressRow}>
           <View style={styles.progressLabelLine}>
             <Text style={styles.progressLabel}>Current aggregated valuation</Text>
@@ -395,10 +499,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     gap: spacing.sm,
   },
-  progressSubhead: {
+  progressBand: {
     color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   progressRow: {
     gap: 6,

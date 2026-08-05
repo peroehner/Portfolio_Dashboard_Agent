@@ -125,9 +125,19 @@ class LLMClient:
         projections = []
         catalysts = []
         sentiments = []
-        summaries = []
+        summaries: list[str] = []
+        summary_keys: set[str] = set()
+        low_signal_seen = False
         for item in valid:
-            summaries.append(item.get("summary", ""))
+            summary = self._normalize_summary_text(item.get("summary", ""))
+            if summary:
+                if self._is_low_signal_summary(summary):
+                    low_signal_seen = True
+                else:
+                    key = re.sub(r"[^a-z0-9]+", " ", summary.lower()).strip()
+                    if key and key not in summary_keys:
+                        summary_keys.add(key)
+                        summaries.append(summary)
             growth.extend(item.get("growthTrajectory") or [])
             projections.extend(item.get("revenueProjections") or [])
             catalysts.extend(item.get("catalystsToWatch") or [])
@@ -143,6 +153,9 @@ class LLMClient:
             elif bearish > bullish:
                 sentiment = "bearish"
 
+        if not summaries and low_signal_seen:
+            summaries = ["Notes reviewed; no specific financial thesis extracted yet."]
+
         return {
             "summary": " | ".join(summaries[:4]),
             "growthTrajectory": growth[:10],
@@ -152,6 +165,25 @@ class LLMClient:
             "sourceNoteCount": len(valid),
             "provider": valid[0].get("provider", "mixed"),
         }
+
+    @staticmethod
+    def _normalize_summary_text(summary: str) -> str:
+        text = " ".join(str(summary or "").strip().split())
+        if not text:
+            return ""
+        # De-duplicate near-identical summaries that only differ by punctuation/casing.
+        return text
+
+    @staticmethod
+    def _is_low_signal_summary(summary: str) -> bool:
+        text = summary.lower()
+        return (
+            ("no actionable" in text and "insight" in text)
+            or ("no discernible" in text and "information" in text)
+            or ("could be extracted" in text and "note" in text)
+            or ("no quantified growth extracted" in text)
+            or ("no financial thesis" in text)
+        )
 
     @staticmethod
     def hard_trigger(context: dict[str, Any]) -> dict[str, Any] | None:

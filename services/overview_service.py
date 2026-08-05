@@ -8,6 +8,7 @@ from services.alerts_service import AlertsService
 from services.market_cache import TtlCache, yf_throttle
 from services.assessment_service import AssessmentService
 from services.holdings_service import HoldingsService
+from services.portfolio_history_service import build_past_progress
 from services.portfolio_service import PortfolioService
 
 
@@ -256,11 +257,19 @@ class OverviewService:
         ]
         prices_as_of = max(as_of_dates) if as_of_dates else None
 
+        total_mv = round(total_market_value, 2) if valued_holdings else None
+        past_progress = None
+        try:
+            past_progress = build_past_progress(holdings, value_now=total_mv)
+        except Exception:
+            # Past Progress is additive — never fail the Overview payload.
+            past_progress = None
+
         return {
             "symbolCount": len(symbols),
             "holdingCount": len(held_with_shares),
             "watchlistOnlyCount": watchlist_only_count(symbols, holdings),
-            "totalMarketValue": round(total_market_value, 2) if valued_holdings else None,
+            "totalMarketValue": total_mv,
             "totalDayChange": round(total_day_change, 2) if day_weight_base else None,
             "totalDayChangePct": total_day_change_pct,
             "pricesAsOf": prices_as_of,
@@ -276,6 +285,7 @@ class OverviewService:
             "totalPersonalUpsidePct": total_personal_upside_pct,
             "totalProjectedRoc": total_projected_roc,
             "totalProjectedRocPct": total_projected_roc_pct,
+            "pastProgress": past_progress,
             "activeAlerts": len(alerts),
             "bestPerformer": self._best_performer(overall_candidates),
             "bestYtdPerformer": self._best_performer(ytd_candidates),

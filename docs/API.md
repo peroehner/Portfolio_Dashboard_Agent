@@ -71,6 +71,14 @@ Runtime settings for clients (no secrets).
 
 Portfolio KPIs: tracked symbols, open positions, watchlist-only count, total market value, cost basis, unrealized gain, unrealized gain %, total 1YT value, total 1YT upside %, total personal target value, total personal upside %, projected annual ROC (dividend + 1YT appreciation), total annual dividend, active alerts, and holdings table.
 
+**`pastProgress`** (optional): buy-and-hold mark-to-market of *today’s* share counts (ignores past adds/sells). Includes:
+
+- `definition`: `"current_holdings_buy_hold"`
+- `windows.1M` / `windows.3M`: `{ valueThen, valueNow, returnPct, spyReturnPct, relativePct, coverage }`
+- `ath`: `{ date, value, deltaValue, deltaPct }` — peak of the reconstructed basket series vs current
+
+S&P comparison uses **SPY** price return over the same windows. Cached ~1h.
+
 ---
 
 ## Import

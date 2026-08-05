@@ -23,6 +23,7 @@ export interface Overview {
   totalPersonalUpsidePct?: number | null;
   totalProjectedRoc?: number | null;
   totalProjectedRocPct?: number | null;
+  pastProgress?: PastProgress | null;
   activeAlerts?: number;
   bestPerformer?: { symbol: string; gainPct?: number; gain?: number } | null;
   bestYtdPerformer?: { symbol: string; gainPct?: number; gain?: number } | null;
@@ -40,6 +41,34 @@ export interface Overview {
   } | null;
   alerts?: Alert[];
   latestAssessments?: Assessment[];
+}
+
+export interface PastProgressWindow {
+  valueThen?: number | null;
+  valueNow?: number | null;
+  returnPct?: number | null;
+  spyReturnPct?: number | null;
+  relativePct?: number | null;
+  coverage?: {
+    heldWithPrices?: number;
+    heldTotal?: number;
+    pct?: number;
+  };
+}
+
+export interface PastProgress {
+  asOf?: string;
+  definition?: string;
+  windows?: {
+    "1M"?: PastProgressWindow;
+    "3M"?: PastProgressWindow;
+  };
+  ath?: {
+    date?: string;
+    value?: number | null;
+    deltaValue?: number | null;
+    deltaPct?: number | null;
+  } | null;
 }
 
 export interface FundamentalsGroups {
