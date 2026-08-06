@@ -320,6 +320,28 @@ export const api = {
   assessmentsOverview: () =>
     apiFetch<{ assessments: import("./types").Assessment[] }>("/assessments/overview"),
   sync: () => apiFetch("/sync", { method: "POST" }),
+  taxTrimProposal: (params: {
+    pricingMode?: import("./types").TaxTrimPricingMode;
+    lossScoreThreshold?: number;
+    trimScoreThreshold?: number;
+    matchLossPool?: boolean;
+    selectedSymbols?: string[];
+  }) =>
+    apiFetch<import("./types").TaxTrimProposal>("/tax-trim/proposal", {
+      method: "POST",
+      body: JSON.stringify(params),
+    }),
+  taxTrimOrderBook: (params: {
+    pricingMode?: import("./types").TaxTrimPricingMode;
+    lossScoreThreshold?: number;
+    trimScoreThreshold?: number;
+    matchLossPool?: boolean;
+    selectedSymbols?: string[];
+  }) =>
+    apiFetch<import("./types").TaxTrimOrderBook>("/tax-trim/order-book", {
+      method: "POST",
+      body: JSON.stringify(params),
+    }),
 };
 
 export function showApiHostInDev(): boolean {

@@ -43,6 +43,13 @@ function RootNavigator() {
               presentation: "card",
             }}
           />
+          <Stack.Screen
+            name="tax-trim"
+            options={{
+              title: "Tax & Trim",
+              presentation: "card",
+            }}
+          />
         </Stack>
       </SymbolFilterProvider>
     </StarredSymbolsProvider>

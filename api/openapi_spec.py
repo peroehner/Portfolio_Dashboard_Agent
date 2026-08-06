@@ -55,6 +55,13 @@ OPENAPI_SPEC = {
         },
         "/import": {"post": {"summary": "Import JSON payload"}},
         "/import/file": {"post": {"summary": "Upload JSON, CSV, or TXT file"}},
+        "/tax-trim/proposal": {
+            "get": {"summary": "Tax-loss + winner-trim proposal (scores, pools, Match Loss)"},
+            "post": {"summary": "Tax-loss + winner-trim proposal (scores, pools, Match Loss)"},
+        },
+        "/tax-trim/order-book": {
+            "post": {"summary": "Capture qualified tax & trim sells as an order book"},
+        },
         "/screen": {"get": {"summary": "Multi-factor screening (query: minUpside, nearFib, belowBuy, hasAlerts)"}},
         "/fib-proximity": {"get": {"summary": "Fibonacci proximity map for all symbols"}},
         "/alerts": {"get": {"summary": "List alerts (query: symbol, status)"}},

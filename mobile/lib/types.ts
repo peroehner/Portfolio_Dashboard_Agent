@@ -426,3 +426,113 @@ export interface TickerSearchHit {
   description?: string;
   type?: string;
 }
+
+export type TaxTrimPricingMode = "current" | "threshold";
+
+export interface TaxTrimLossCandidate {
+  symbol: string;
+  held?: number;
+  sellQtyMax?: number;
+  sellPlanCap?: number | null;
+  netLossMax?: number;
+  cashGenerated?: number;
+  execPrice?: number;
+  execSource?: string | null;
+  gainPct?: number;
+  residualLossPct?: number | null;
+  analystUpsidePct?: number | null;
+  lossScore?: number;
+  score?: number;
+  saiAction?: string;
+  saiConfidence?: string;
+  hasSellPlan?: boolean;
+  isTrim?: boolean;
+}
+
+export interface TaxTrimWinnerCandidate {
+  symbol: string;
+  held?: number;
+  sellQtyMax?: number;
+  sellPlanCap?: number | null;
+  netGainsMax?: number;
+  cashGenerated?: number;
+  execPrice?: number;
+  execSource?: string | null;
+  gainPct?: number | null;
+  weightPct?: number | null;
+  analystUpsidePct?: number | null;
+  personalUpsidePct?: number | null;
+  headroomPct?: number;
+  trimScore?: number;
+  score?: number;
+  saiAction?: string;
+  saiConfidence?: string;
+  hasSellPlan?: boolean;
+  isTrim?: boolean;
+  suggestShares?: number;
+  suggestGain?: number;
+  suggestCash?: number;
+}
+
+export interface TaxTrimProposal {
+  pricingMode: TaxTrimPricingMode;
+  lossScoreThreshold: number;
+  trimScoreThreshold: number;
+  matchLossPool: boolean;
+  lossPool: number;
+  allCandidatePool: number;
+  allTrimCandidatePool: number;
+  selectedTrimPool: number;
+  offsetGain: number;
+  remainingLoss: number;
+  allocTarget: number;
+  lossSells: {
+    candidates: TaxTrimLossCandidate[];
+    selectedCount: number;
+    candidateCount: number;
+  };
+  winnerTrims: {
+    candidates: TaxTrimWinnerCandidate[];
+    selectedCount: number;
+    candidateCount: number;
+  };
+  picks: TaxTrimWinnerCandidate[];
+  scopedSymbols?: string[] | null;
+}
+
+export interface TaxTrimOrderBook {
+  v: number;
+  type: string;
+  capturedAt: string;
+  settings: {
+    pricingMode?: TaxTrimPricingMode;
+    lossScoreThreshold?: number;
+    trimScoreThreshold?: number;
+    matchLossPool?: boolean;
+    selectedSymbols?: string[];
+  };
+  summary: {
+    lossPool?: number;
+    offsetGain?: number;
+    remainingLoss?: number;
+    selectedLossCount?: number;
+    proposedTrimCount?: number;
+    orderCount?: number;
+    estSellCash?: number;
+  };
+  orders: Array<{
+    side: string;
+    kind: string;
+    symbol: string;
+    shares: number;
+    limit?: number;
+    execSource?: string | null;
+    estLoss?: number;
+    estGain?: number;
+    estCash?: number;
+    lossScore?: number;
+    trimScore?: number;
+  }>;
+  proposal?: TaxTrimProposal;
+}
+

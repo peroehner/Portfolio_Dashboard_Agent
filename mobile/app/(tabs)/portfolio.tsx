@@ -121,6 +121,15 @@ export default function PortfolioScreen() {
         error={error}
         onRetry={() => void refresh()}
         contentStyle={styles.screenContent}
+        rightAction={
+          <Pressable
+            style={styles.taxTrimBtn}
+            onPress={() => router.push("/tax-trim")}
+            hitSlop={8}
+          >
+            <Text style={styles.taxTrimBtnText}>Tax & Trim</Text>
+          </Pressable>
+        }
       >
         <View style={styles.toolbar}>
           <TextInput
@@ -251,6 +260,19 @@ const styles = StyleSheet.create({
   addBtnText: {
     color: colors.text,
     fontSize: 11,
+    fontWeight: "700",
+  },
+  taxTrimBtn: {
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentMuted,
+    borderRadius: radii.md,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  taxTrimBtnText: {
+    color: colors.accent,
+    fontSize: 12,
     fontWeight: "700",
   },
   hintBar: {

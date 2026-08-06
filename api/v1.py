@@ -23,6 +23,7 @@ from services.screening_service import ScreeningService
 from services.simulation_service import SimulationService
 from services.technical_service import TechnicalService
 from services.track_record_service import TrackRecordService
+from services.tax_trim_service import TaxTrimService
 from services.llm_client import LLMClient
 from services.plan_service import normalize_plan, plan_override
 
@@ -139,6 +140,7 @@ inspector_service = InspectorService()
 fundamentals_service = FundamentalsService()
 technical_service = TechnicalService()
 track_record_service = TrackRecordService()
+tax_trim_service = TaxTrimService()
 
 
 def _engine():
@@ -581,6 +583,50 @@ def get_simulation_snapshot():
 def save_simulation_snapshot():
     data = request.get_json(silent=True) or {}
     return jsonify({"simulation": simulation_service.save_snapshot(data)})
+
+
+@v1_bp.route("/tax-trim/proposal", methods=["GET", "POST"])
+def tax_trim_proposal():
+    """Tax-loss + winner-trim candidates with score thresholds and Match Loss allocation."""
+    body = request.get_json(silent=True) or {}
+    args = request.args
+    pricing_mode = body.get("pricingMode") or args.get("pricingMode") or "current"
+    loss_score_threshold = body.get("lossScoreThreshold", args.get("lossScoreThreshold", 0))
+    trim_score_threshold = body.get("trimScoreThreshold", args.get("trimScoreThreshold", 0))
+    match_raw = body.get("matchLossPool", args.get("matchLossPool", True))
+    if isinstance(match_raw, str):
+        match_loss_pool = match_raw.strip().lower() not in ("0", "false", "no", "off")
+    else:
+        match_loss_pool = bool(match_raw)
+    selected = body.get("selectedSymbols") or args.getlist("symbol") or None
+    proposal = tax_trim_service.build_proposal(
+        pricing_mode=str(pricing_mode),
+        loss_score_threshold=float(loss_score_threshold or 0),
+        trim_score_threshold=float(trim_score_threshold or 0),
+        match_loss_pool=match_loss_pool,
+        selected_symbols=selected,
+    )
+    return jsonify(proposal)
+
+
+@v1_bp.route("/tax-trim/order-book", methods=["POST"])
+def tax_trim_order_book():
+    """Capture qualified tax-loss sells + proposed trims as a portable order book."""
+    body = request.get_json(silent=True) or {}
+    pricing_mode = body.get("pricingMode") or "current"
+    book = tax_trim_service.build_order_book(
+        pricing_mode=str(pricing_mode),
+        loss_score_threshold=float(body.get("lossScoreThreshold") or 0),
+        trim_score_threshold=float(body.get("trimScoreThreshold") or 0),
+        match_loss_pool=bool(body.get("matchLossPool", True)),
+        selected_symbols=body.get("selectedSymbols"),
+    )
+    if not book.get("orders"):
+        return jsonify({
+            "error": "Nothing to capture — adjust score thresholds until sells qualify.",
+            "book": book,
+        }), 400
+    return jsonify(book)
 
 
 @v1_bp.route("/sample-portfolio", methods=["GET"])
