@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -46,61 +47,91 @@ function pillStyle(active: boolean) {
     : { backgroundColor: colors.surface, borderColor: colors.border };
 }
 
+function qtyLabel(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value) || !Number.isFinite(Number(value))) return "—";
+  const n = Number(value);
+  return n % 1 === 0 ? String(n) : n.toFixed(2);
+}
+
+/** proposal (of held) — or proposal (of planCap / held) when a sell-plan cap exists. */
+function formatProposedQty(
+  proposed: number | null | undefined,
+  held: number | null | undefined,
+  planCap: number | null | undefined,
+): string {
+  const p = qtyLabel(proposed ?? 0);
+  const h = qtyLabel(held);
+  if (planCap != null && Number.isFinite(Number(planCap)) && Number(planCap) > 0) {
+    return `${p} (of ${qtyLabel(planCap)} / ${h})`;
+  }
+  return `${p} (of ${h})`;
+}
+
 function MetricCell({
   label,
   value,
   valueColor,
-  align = "left",
+  flex = 1,
 }: {
   label: string;
   value: string;
   valueColor?: string;
-  align?: "left" | "right" | "center";
+  flex?: number;
 }) {
   return (
-    <View style={[styles.metricCell, align === "right" && styles.metricRight, align === "center" && styles.metricCenter]}>
+    <View style={[styles.metricCell, { flex }]}>
       <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={[styles.metricValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>
+      <Text style={[styles.metricValue, valueColor ? { color: valueColor } : null]} numberOfLines={2}>
         {value}
       </Text>
     </View>
   );
 }
 
-function ScoreSlider({
-  label,
-  value,
-  max,
-  onChange,
-  poolLabel,
+function PoolSliderCard({
+  title,
+  amount,
+  amountColor,
   countLabel,
+  matchNote,
+  scoreLabel,
+  scoreValue,
+  scoreMax,
+  onScoreChange,
+  trackColor,
 }: {
-  label: string;
-  value: number;
-  max: number;
-  onChange: (next: number) => void;
-  poolLabel: string;
+  title: string;
+  amount: string;
+  amountColor: string;
   countLabel: string;
+  matchNote?: string | null;
+  scoreLabel: string;
+  scoreValue: number;
+  scoreMax: number;
+  onScoreChange: (next: number) => void;
+  trackColor: string;
 }) {
   return (
-    <View style={styles.sliderBlock}>
-      <View style={styles.sliderHeader}>
-        <Text style={styles.sliderLabel}>{label}</Text>
-        <Text style={styles.sliderValue}>{Math.round(value)}</Text>
+    <View style={styles.poolCard}>
+      <Text style={styles.poolCardTitle}>{title}</Text>
+      <Text style={[styles.poolCardAmount, { color: amountColor }]}>{amount}</Text>
+      <Text style={styles.poolCardCount}>{countLabel}</Text>
+      {matchNote ? <Text style={styles.poolCardMatch}>{matchNote}</Text> : null}
+      <View style={styles.poolSliderHeader}>
+        <Text style={styles.poolSliderLabel}>{scoreLabel}</Text>
+        <Text style={[styles.poolSliderValue, { color: trackColor }]}>{Math.round(scoreValue)}</Text>
       </View>
       <Slider
         style={styles.slider}
         minimumValue={0}
-        maximumValue={max}
+        maximumValue={scoreMax}
         step={1}
-        value={Math.max(0, Math.min(max, value))}
-        onValueChange={(v) => onChange(Math.round(v))}
-        minimumTrackTintColor={colors.accent}
+        value={Math.max(0, Math.min(scoreMax, scoreValue))}
+        onValueChange={(v) => onScoreChange(Math.round(v))}
+        minimumTrackTintColor={trackColor}
         maximumTrackTintColor={colors.surfaceAlt}
-        thumbTintColor={colors.accent}
+        thumbTintColor={trackColor}
       />
-      <Text style={styles.sliderPool}>{poolLabel}</Text>
-      <Text style={styles.sliderCount}>{countLabel}</Text>
     </View>
   );
 }
@@ -114,6 +145,7 @@ function LossCard({
   qualifies: boolean;
   onPress: () => void;
 }) {
+  const proposed = qualifies ? (row.sellQtyMax ?? 0) : 0;
   return (
     <Pressable
       style={[styles.card, qualifies ? styles.cardLossQualified : styles.cardMuted]}
@@ -129,7 +161,15 @@ function LossCard({
         </Text>
       </View>
       <View style={styles.metricsRow}>
-        <MetricCell label="Max Sell" value={formatQty(row.sellQtyMax)} />
+        <MetricCell
+          label="Proposed Sell"
+          value={formatProposedQty(
+            proposed,
+            row.held,
+            row.hasSellPlan ? row.sellPlanCap : null,
+          )}
+          flex={1.4}
+        />
         <MetricCell
           label="Max Loss"
           value={formatMoney(row.netLossMax, true)}
@@ -140,7 +180,7 @@ function LossCard({
           label="Score"
           value={String(Math.round(row.lossScore ?? 0))}
           valueColor={qualifies ? colors.sell : colors.textMuted}
-          align="right"
+          flex={0.7}
         />
       </View>
     </Pressable>
@@ -158,8 +198,10 @@ function TrimCard({
   pick?: TaxTrimWinnerCandidate;
   onPress: () => void;
 }) {
-  const proposed = pick != null && (pick.suggestShares ?? 0) > 0;
-  const gain = proposed ? pick.suggestGain : row.netGainsMax;
+  const proposedShares =
+    pick != null && (pick.suggestShares ?? 0) > 0 ? (pick.suggestShares ?? 0) : 0;
+  const proposed = proposedShares > 0;
+  const gain = proposed ? pick?.suggestGain : row.netGainsMax;
   return (
     <Pressable
       style={[styles.card, qualifies ? styles.cardTrimQualified : styles.cardMuted]}
@@ -180,12 +222,13 @@ function TrimCard({
       </View>
       <View style={styles.metricsRow}>
         <MetricCell
-          label="Max Trim"
-          value={
-            proposed
-              ? `${formatQty(pick.suggestShares)} / ${formatQty(row.sellQtyMax)}`
-              : formatQty(row.sellQtyMax)
-          }
+          label="Proposed Trim"
+          value={formatProposedQty(
+            proposedShares,
+            row.held,
+            row.hasSellPlan ? row.sellPlanCap : null,
+          )}
+          flex={1.5}
         />
         <MetricCell
           label={proposed ? "Proposed Gain" : "Max Gain"}
@@ -196,7 +239,7 @@ function TrimCard({
           label="Score"
           value={String(Math.round(row.trimScore ?? 0))}
           valueColor={qualifies ? colors.buy : colors.textMuted}
-          align="right"
+          flex={0.7}
         />
       </View>
     </Pressable>
@@ -205,6 +248,8 @@ function TrimCard({
 
 export default function TaxTrimScreen() {
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
   const [pricingMode, setPricingMode] = useState<TaxTrimPricingMode>("current");
   const [lossScoreThreshold, setLossScoreThreshold] = useState(0);
   const [trimScoreThreshold, setTrimScoreThreshold] = useState(0);
@@ -249,7 +294,7 @@ export default function TaxTrimScreen() {
           }
         }
       } catch {
-        /* defaults remain — web prefs unavailable */
+        /* defaults remain */
       } finally {
         setReady(true);
       }
@@ -314,7 +359,7 @@ export default function TaxTrimScreen() {
           },
         })
         .catch(() => {
-          /* keep working offline */
+          /* offline ok */
         });
     }, 500);
     return () => {
@@ -446,6 +491,49 @@ export default function TaxTrimScreen() {
   const trimSelected = proposal?.winnerTrims?.selectedCount ?? 0;
   const trimTotal = proposal?.winnerTrims?.candidateCount ?? 0;
 
+  const refreshControl = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={() => void load({ soft: true })}
+      tintColor={colors.accent}
+    />
+  );
+
+  function renderLossList() {
+    if (!lossCandidates.length) {
+      return <Text style={styles.empty}>No tax-loss candidates.</Text>;
+    }
+    return lossCandidates.map((row) => {
+      const qualifies = (row.lossScore ?? 0) >= lossScoreThreshold;
+      return (
+        <LossCard
+          key={row.symbol}
+          row={row}
+          qualifies={qualifies}
+          onPress={() => router.push(`/symbol/${encodeURIComponent(row.symbol)}`)}
+        />
+      );
+    });
+  }
+
+  function renderTrimList() {
+    if (!trimCandidates.length) {
+      return <Text style={styles.empty}>No winner-trim candidates.</Text>;
+    }
+    return trimCandidates.map((row) => {
+      const qualifies = (row.trimScore ?? 0) >= trimScoreThreshold;
+      return (
+        <TrimCard
+          key={row.symbol}
+          row={row}
+          qualifies={qualifies}
+          pick={pickBySymbol.get(row.symbol)}
+          onPress={() => router.push(`/symbol/${encodeURIComponent(row.symbol)}`)}
+        />
+      );
+    });
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <View style={styles.controls}>
@@ -473,61 +561,52 @@ export default function TaxTrimScreen() {
           </View>
         </View>
 
-        <View style={styles.poolTotals}>
-          <View style={styles.poolBox}>
-            <Text style={styles.poolBoxLabel}>Loss pool</Text>
-            <Text style={[styles.poolBoxValue, { color: colors.sell }]}>
-              {formatMoney(proposal?.lossPool, true)}
-            </Text>
-            <Text style={styles.poolBoxSub}>
-              {lossSelected} of {lossTotal} qualified
-            </Text>
-          </View>
-          <View style={styles.poolBox}>
-            <Text style={styles.poolBoxLabel}>Trim pool</Text>
-            <Text style={[styles.poolBoxValue, { color: colors.buy }]}>
-              {formatMoney(proposal?.selectedTrimPool, true)}
-            </Text>
-            <Text style={styles.poolBoxSub}>
-              {trimSelected} of {trimTotal} qualified
-              {matchLossPool
-                ? ` · matched ${formatMoney(proposal?.offsetGain, true)}`
-                : ` · offset ${formatMoney(proposal?.offsetGain, true)}`}
-            </Text>
-          </View>
+        <View style={styles.poolRow}>
+          <PoolSliderCard
+            title="Loss pool"
+            amount={formatMoney(proposal?.lossPool, true)}
+            amountColor={colors.sell}
+            countLabel={`${lossSelected} of ${lossTotal} qualified`}
+            scoreLabel="Loss-score ≥"
+            scoreValue={lossScoreThreshold}
+            scoreMax={LOSS_SCORE_MAX}
+            onScoreChange={setLossScoreThreshold}
+            trackColor={colors.sell}
+          />
+          <PoolSliderCard
+            title="Trim pool"
+            amount={formatMoney(proposal?.selectedTrimPool, true)}
+            amountColor={colors.buy}
+            countLabel={`${trimSelected} of ${trimTotal} qualified`}
+            matchNote={
+              matchLossPool
+                ? `Matched ${formatMoney(proposal?.offsetGain, true)}`
+                : `Offset ${formatMoney(proposal?.offsetGain, true)}`
+            }
+            scoreLabel="Trim-score ≥"
+            scoreValue={trimScoreThreshold}
+            scoreMax={TRIM_SCORE_MAX}
+            onScoreChange={setTrimScoreThreshold}
+            trackColor={colors.buy}
+          />
         </View>
 
-        <ScoreSlider
-          label="Loss-score ≥"
-          value={lossScoreThreshold}
-          max={LOSS_SCORE_MAX}
-          onChange={setLossScoreThreshold}
-          poolLabel={`Loss pool ${formatMoney(proposal?.lossPool, true)}`}
-          countLabel={`${lossSelected} of ${lossTotal} qualified`}
-        />
-        <ScoreSlider
-          label="Trim-score ≥"
-          value={trimScoreThreshold}
-          max={TRIM_SCORE_MAX}
-          onChange={setTrimScoreThreshold}
-          poolLabel={`Trim pool ${formatMoney(proposal?.selectedTrimPool, true)}`}
-          countLabel={`${trimSelected} of ${trimTotal} qualified`}
-        />
-
-        <View style={styles.segRow}>
-          <Pressable
-            style={[styles.pill, styles.flexPill, pillStyle(listMode === "tax_loss")]}
-            onPress={() => setListMode("tax_loss")}
-          >
-            <Text style={styles.pillText}>Tax-loss</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.pill, styles.flexPill, pillStyle(listMode === "winner_trim")]}
-            onPress={() => setListMode("winner_trim")}
-          >
-            <Text style={styles.pillText}>Winner-trim</Text>
-          </Pressable>
-        </View>
+        {!landscape ? (
+          <View style={styles.segRow}>
+            <Pressable
+              style={[styles.pill, styles.flexPill, pillStyle(listMode === "tax_loss")]}
+              onPress={() => setListMode("tax_loss")}
+            >
+              <Text style={styles.pillText}>Tax-loss</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.pill, styles.flexPill, pillStyle(listMode === "winner_trim")]}
+              onPress={() => setListMode("winner_trim")}
+            >
+              <Text style={styles.pillText}>Winner-trim</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View style={styles.actionRow}>
           <Pressable
@@ -561,48 +640,24 @@ export default function TaxTrimScreen() {
             <Text style={styles.actionText}>Retry</Text>
           </Pressable>
         </View>
+      ) : landscape ? (
+        <View style={styles.dualLists}>
+          <View style={styles.dualCol}>
+            <Text style={styles.dualColTitle}>Tax-loss</Text>
+            <ScrollView contentContainerStyle={styles.list} refreshControl={refreshControl}>
+              {renderLossList()}
+            </ScrollView>
+          </View>
+          <View style={styles.dualCol}>
+            <Text style={styles.dualColTitle}>Winner-trim</Text>
+            <ScrollView contentContainerStyle={styles.list} refreshControl={refreshControl}>
+              {renderTrimList()}
+            </ScrollView>
+          </View>
+        </View>
       ) : (
-        <ScrollView
-          contentContainerStyle={styles.list}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => void load({ soft: true })}
-              tintColor={colors.accent}
-            />
-          }
-        >
-          {listMode === "tax_loss"
-            ? lossCandidates.map((row) => {
-                const qualifies = (row.lossScore ?? 0) >= lossScoreThreshold;
-                return (
-                  <LossCard
-                    key={row.symbol}
-                    row={row}
-                    qualifies={qualifies}
-                    onPress={() =>
-                      router.push(`/symbol/${encodeURIComponent(row.symbol)}`)
-                    }
-                  />
-                );
-              })
-            : trimCandidates.map((row) => {
-                const qualifies = (row.trimScore ?? 0) >= trimScoreThreshold;
-                return (
-                  <TrimCard
-                    key={row.symbol}
-                    row={row}
-                    qualifies={qualifies}
-                    pick={pickBySymbol.get(row.symbol)}
-                    onPress={() =>
-                      router.push(`/symbol/${encodeURIComponent(row.symbol)}`)
-                    }
-                  />
-                );
-              })}
-          {(listMode === "tax_loss" ? lossCandidates : trimCandidates).length === 0 ? (
-            <Text style={styles.empty}>No candidates for this pricing mode.</Text>
-          ) : null}
+        <ScrollView contentContainerStyle={styles.list} refreshControl={refreshControl}>
+          {listMode === "tax_loss" ? renderLossList() : renderTrimList()}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -640,37 +695,37 @@ const styles = StyleSheet.create({
     marginLeft: "auto",
   },
   matchLabel: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
-  poolTotals: { flexDirection: "row", gap: spacing.sm },
-  poolBox: {
+  poolRow: { flexDirection: "row", gap: spacing.sm },
+  poolCard: {
     flex: 1,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
     gap: 2,
   },
-  poolBoxLabel: {
+  poolCardTitle: {
     color: colors.textMuted,
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
-  poolBoxValue: { color: colors.text, fontSize: 18, fontWeight: "700" },
-  poolBoxSub: { color: colors.textMuted, fontSize: 11 },
-  sliderBlock: { gap: 2 },
-  sliderHeader: {
+  poolCardAmount: { fontSize: 20, fontWeight: "800" },
+  poolCardCount: { color: colors.textMuted, fontSize: 11 },
+  poolCardMatch: { color: colors.textMuted, fontSize: 11, marginBottom: 2 },
+  poolSliderHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "baseline",
+    marginTop: 4,
   },
-  sliderLabel: { color: colors.text, fontSize: 13, fontWeight: "600" },
-  sliderValue: { color: colors.accent, fontSize: 15, fontWeight: "700" },
-  slider: { width: "100%", height: 36 },
-  sliderPool: { color: colors.text, fontSize: 12, fontWeight: "600" },
-  sliderCount: { color: colors.textMuted, fontSize: 11 },
+  poolSliderLabel: { color: colors.text, fontSize: 12, fontWeight: "600" },
+  poolSliderValue: { fontSize: 14, fontWeight: "800" },
+  slider: { width: "100%", height: 32 },
   actionRow: { flexDirection: "row", gap: spacing.sm },
   actionBtn: {
     borderWidth: 1,
@@ -690,7 +745,19 @@ const styles = StyleSheet.create({
   actionText: { color: colors.text, fontWeight: "600", fontSize: 13 },
   actionPrimaryText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
   status: { color: colors.textMuted, fontSize: 12 },
-  list: { padding: spacing.lg, gap: spacing.sm, paddingBottom: spacing.xl * 2 },
+  dualLists: { flex: 1, flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.sm },
+  dualCol: { flex: 1, minWidth: 0 },
+  dualColTitle: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: 4,
+  },
+  list: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xl * 2 },
   card: {
     borderWidth: 1,
     borderRadius: radii.md,
@@ -753,9 +820,7 @@ const styles = StyleSheet.create({
   },
   execHint: { color: colors.textMuted, fontSize: 11 },
   metricsRow: { flexDirection: "row", gap: spacing.sm },
-  metricCell: { flex: 1, gap: 2 },
-  metricRight: { alignItems: "flex-end" },
-  metricCenter: { alignItems: "center" },
+  metricCell: { gap: 2, minWidth: 0 },
   metricLabel: {
     color: colors.textMuted,
     fontSize: 10,
@@ -763,7 +828,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.3,
   },
-  metricValue: { color: colors.text, fontSize: 14, fontWeight: "700" },
+  metricValue: { color: colors.text, fontSize: 13, fontWeight: "700" },
   centered: {
     flex: 1,
     alignItems: "center",

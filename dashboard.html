@@ -14071,15 +14071,23 @@
 
     function renderTaxProposalTrimCell(cand) {
       const maxNum = Number(cand.sellQtyMax) || 0;
-      const base = `${simQty(cand.sellQtyMax)} of ${simQty(cand.held)}`;
-      if (!cand.hasSellPlan) return base;
+      const held = Number(cand.held) || 0;
       const planCap = Number(cand.sellPlanCap);
-      // Max trim already applies the plan cap — only note it when they differ.
-      if (cand.isTrim && Number.isFinite(planCap) && Math.abs(planCap - maxNum) > 1e-9) {
-        return `${base} · plan ${simQty(planCap)}`;
+      const hasPlan = cand.hasSellPlan && Number.isFinite(planCap) && planCap > 0;
+      // Capacity line (legacy helper) — prefer formatProposedQty for proposal columns.
+      if (hasPlan) return `${simQty(maxNum)} (of ${simQty(planCap)} / ${simQty(held)})`;
+      return `${simQty(maxNum)} (of ${simQty(held)})`;
+    }
+
+    /** proposal (of held) — or proposal (of planCap / held) when a sell-plan cap exists. */
+    function formatProposedQty(proposed, held, planCap) {
+      const p = simQty(Number(proposed) || 0);
+      const h = simQty(Number(held) || 0);
+      const cap = Number(planCap);
+      if (Number.isFinite(cap) && cap > 0) {
+        return `${p} (of ${simQty(cap)} / ${h})`;
       }
-      if (!cand.isTrim) return `${base} · plan`;
-      return base;
+      return `${p} (of ${h})`;
     }
 
     function renderTaxProposalCandidateRows(candidates, picks, trimScoreThreshold = 0) {
@@ -14088,6 +14096,7 @@
       return candidates.map((cand) => {
         const pick = pickBySymbol.get(cand.symbol);
         const qualifies = (Number(cand.trimScore) || 0) >= threshold;
+        const proposedShares = pick ? (Number(pick.suggestShares) || 0) : 0;
         const fmtUpside = (v) => {
           if (!Number.isFinite(v)) return "—";
           return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
@@ -14113,8 +14122,7 @@
         return `
           <tr class="${rowClass}" title="${escapeHtml(rowHover)}">
             <td><a class="sim-tax-symbol-link" href="#" onclick="selectSymbol('${cand.symbol}'); showView('portfolio'); return false;">${escapeHtml(cand.symbol)}</a>${pick ? `<span class="sim-tax-pick-badge">Proposed</span>` : ""}</td>
-            <td>${pick ? `${simQty(pick.suggestShares)} of ${simQty(cand.held)}` : "—"}</td>
-            <td>${renderTaxProposalTrimCell(cand)}</td>
+            <td title="Calculated proposal vs plan cap / held">${formatProposedQty(proposedShares, cand.held, cand.hasSellPlan ? cand.sellPlanCap : null)}</td>
             ${taxProposalExecPriceCell(cand)}
             <td style="text-align:right;">${pick ? renderColoredSummaryMoneyCell(pick.suggestGain) : "—"}</td>
             <td style="text-align:right;">${renderColoredSummaryMoneyCell(cand.netGainsMax)}</td>
@@ -14132,6 +14140,7 @@
       const threshold = Math.max(0, Number(lossScoreThreshold) || 0);
       return candidates.map((cand) => {
         const qualifies = (Number(cand.lossScore) || 0) >= threshold;
+        const proposedShares = qualifies ? (Number(cand.sellQtyMax) || 0) : 0;
         const oneYtTxt = Number.isFinite(cand.analystUpsidePct)
           ? `${cand.analystUpsidePct >= 0 ? "+" : ""}${cand.analystUpsidePct.toFixed(1)}%`
           : "missing→0%";
@@ -14148,7 +14157,7 @@
         return `
         <tr class="${qualifies ? "sim-tax-loss-selected" : "sim-tax-loss-muted"}" title="${escapeHtml(rowHover)}">
           <td><a class="sim-tax-symbol-link" href="#" onclick="selectSymbol('${cand.symbol}'); showView('portfolio'); return false;">${escapeHtml(cand.symbol)}</a></td>
-          <td>${renderTaxProposalTrimCell(cand)}</td>
+          <td title="Calculated proposal vs plan cap / held">${formatProposedQty(proposedShares, cand.held, cand.hasSellPlan ? cand.sellPlanCap : null)}</td>
           ${taxProposalExecPriceCell(cand)}
           <td style="text-align:right;">${renderColoredSummaryMoneyCell(-cand.netLossMax)}</td>
           <td style="text-align:right;">${formatSummaryMoney(cand.cashGenerated)}</td>
@@ -14275,7 +14284,7 @@
               <thead>
                 <tr>
                   <th>Symbol</th>
-                  <th>Max sell</th>
+                  <th title="Calculated proposal vs plan cap / held">Proposed Sell</th>
                   <th style="text-align:right;" title="Price used for Cash / Max loss (Thresholds → sell plan when set, else spot)">Exec</th>
                   <th style="text-align:right;">Max loss</th>
                   <th style="text-align:right;">Cash</th>
@@ -14375,8 +14384,7 @@
               <thead>
                 <tr>
                   <th>Symbol</th>
-                  <th>Proposed sell</th>
-                  <th>Max trim</th>
+                  <th title="Calculated proposal vs plan cap / held">Proposed Trim</th>
                   <th style="text-align:right;" title="Price used for Proposed / Max gain (Thresholds → sell plan when set, else spot)">Exec</th>
                   <th style="text-align:right;">Proposed gain</th>
                   <th style="text-align:right;">Max gain</th>
@@ -14462,7 +14470,7 @@
         <h4>Selected trim pool (G) vs loss pool (L)</h4>
         <p>Compare G and L after both thresholds. <strong>Match Loss Pool</strong> (default on) sizes proposed sells so total proposed gain ≈ L via proportional Trim Score among selected winners (max ${TAX_PROPOSAL_MAX_POSITIONS} lines). Turn it off to propose the full qualified trim capacity G.</p>
         <h4>Trim cap</h4>
-        <p>If a sell threshold qty exists, proposed sell never exceeds it; otherwise trim from held shares. Dollar figures use <strong>Current Price</strong> or <strong>sell-threshold prices</strong> when Simulation pricing is Thresholds.</p>
+        <p>If a sell threshold qty exists, proposed trim never exceeds it; otherwise trim from held shares. Qty shows as <strong>proposal (of held)</strong>, or <strong>proposal (of plan / held)</strong> when a plan cap is set. Dollar figures use <strong>Current Price</strong> or <strong>sell-threshold prices</strong> when Simulation pricing is Thresholds.</p>
         <p class="help-caveat">Est. tax uses ${taxPct}% on paired gains (Abgeltungssteuer + Soli).</p>`;
     }
 
