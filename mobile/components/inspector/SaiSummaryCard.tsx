@@ -8,7 +8,7 @@ import {
   headlineForAction,
   sentimentStyle,
 } from "@/lib/inspectorHelpers";
-import { titleCaseAction } from "@/lib/format";
+import { formatShortDateTime, titleCaseAction } from "@/lib/format";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { InspectorPayload } from "@/lib/types";
 
@@ -21,6 +21,7 @@ export function SaiSummaryCard({ data }: SaiSummaryCardProps) {
   const body = getRecommendationText(data);
   const sentiment = rec?.sentiment ?? "neutral";
   const headline = rec?.headline?.trim() || headlineForAction(rec?.action, sentiment);
+  const assessedAt = rec?.assessedAt ? formatShortDateTime(rec.assessedAt) : "";
 
   if (!rec?.action && !headline && !body) {
     return (
@@ -36,26 +37,29 @@ export function SaiSummaryCard({ data }: SaiSummaryCardProps) {
   return (
     <View style={styles.card}>
       <View style={styles.headRow}>
-        <Text style={styles.title}>SAI</Text>
-        <View style={styles.chips}>
-          <SaiBadge action={rec?.action} compact />
-          {rec?.confidence ? (
-            <Text style={styles.confidence}>{rec.confidence}</Text>
-          ) : null}
-          <View
-            style={[
-              styles.sentimentChip,
-              {
-                backgroundColor: sentStyle.backgroundColor,
-                borderColor: sentStyle.borderColor,
-              },
-            ]}
-          >
-            <Text style={[styles.sentimentText, { color: sentStyle.color }]}>
-              {titleCaseAction(sentiment)}
-            </Text>
+        <View style={styles.headMain}>
+          <Text style={styles.title}>SAI</Text>
+          <View style={styles.chips}>
+            <SaiBadge action={rec?.action} compact />
+            {rec?.confidence ? (
+              <Text style={styles.confidence}>{rec.confidence}</Text>
+            ) : null}
+            <View
+              style={[
+                styles.sentimentChip,
+                {
+                  backgroundColor: sentStyle.backgroundColor,
+                  borderColor: sentStyle.borderColor,
+                },
+              ]}
+            >
+              <Text style={[styles.sentimentText, { color: sentStyle.color }]}>
+                {titleCaseAction(sentiment)}
+              </Text>
+            </View>
           </View>
         </View>
+        {assessedAt ? <Text style={styles.assessedAt}>{assessedAt}</Text> : null}
       </View>
       {headline ? <Text style={styles.headline}>{headline}</Text> : null}
       {body ? (
@@ -82,8 +86,16 @@ const styles = StyleSheet.create({
   },
   headRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  headMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    flex: 1,
+    minWidth: 0,
     gap: spacing.sm,
   },
   title: {
@@ -97,7 +109,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     flexShrink: 1,
     flexWrap: "wrap",
-    justifyContent: "flex-end",
+    justifyContent: "flex-start",
+  },
+  assessedAt: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+    lineHeight: 15,
+    marginTop: 1,
   },
   confidence: {
     color: colors.textMuted,

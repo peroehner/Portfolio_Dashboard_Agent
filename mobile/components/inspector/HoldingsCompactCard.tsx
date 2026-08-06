@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, type ViewStyle } from "react-native";
 
 import { getPositionDisplay } from "@/lib/inspectorHelpers";
 import { formatEntryDate, formatMoney, formatPct, pctColor } from "@/lib/format";
@@ -7,6 +7,7 @@ import type { InspectorPayload } from "@/lib/types";
 
 interface HoldingsCompactCardProps {
   data?: InspectorPayload | null;
+  style?: ViewStyle | ViewStyle[];
 }
 
 function formatShares(value: number | null): string {
@@ -42,7 +43,7 @@ function ColCell({
   );
 }
 
-export function HoldingsCompactCard({ data }: HoldingsCompactCardProps) {
+export function HoldingsCompactCard({ data, style }: HoldingsCompactCardProps) {
   const pos = getPositionDisplay(data, data?.quote, data?.holding);
   const gainTxt =
     pos.gain != null
@@ -58,7 +59,7 @@ export function HoldingsCompactCard({ data }: HoldingsCompactCardProps) {
         : "—";
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, style]}>
       <Text style={styles.title}>Holdings</Text>
       {!pos.hasPosition ? (
         <Text style={styles.muted}>No holding recorded.</Text>

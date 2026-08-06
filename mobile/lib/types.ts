@@ -54,6 +54,8 @@ export interface PastProgressWindow {
     heldTotal?: number;
     pct?: number;
   };
+  /** Buy-and-hold market values at the window date (when API provides them). */
+  holdings?: Array<{ symbol: string; marketValue?: number | null; value?: number | null }> | null;
 }
 
 export interface PastProgress {
@@ -68,6 +70,7 @@ export interface PastProgress {
     value?: number | null;
     deltaValue?: number | null;
     deltaPct?: number | null;
+    holdings?: Array<{ symbol: string; marketValue?: number | null; value?: number | null }> | null;
   } | null;
 }
 

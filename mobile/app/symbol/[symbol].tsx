@@ -13,6 +13,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -206,6 +207,8 @@ export default function SymbolDetailScreen() {
   const [editNoteTitle, setEditNoteTitle] = useState("");
   const [editNoteText, setEditNoteText] = useState("");
   const [expandedAssessmentKey, setExpandedAssessmentKey] = useState<string | null>(null);
+  const { width, height } = useWindowDimensions();
+  const isWideSummaryLayout = width >= 980 || (width >= 760 && width > height);
 
   useEffect(() => {
     setFullData(null);
@@ -810,30 +813,38 @@ export default function SymbolDetailScreen() {
               dayChangePct={quote?.dayChangePct}
             />
             <SaiSummaryCard data={data} />
-            <HoldingsCompactCard data={data} />
-
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Thresholds</Text>
-              <View style={styles.thresholdGrid}>
-                <View style={styles.thresholdCell}>
-                  <Text style={styles.statLabel}>Trade @ Below</Text>
-                  <Text style={styles.statValue}>
-                    {thresholdValueText(effectiveBuyBelow, quote?.tradeBelowShares)}
-                  </Text>
-                </View>
-                <View style={styles.thresholdCell}>
-                  <Text style={styles.statLabel}>Trade @ Above</Text>
-                  <Text style={styles.statValue}>
-                    {thresholdValueText(effectiveSellAbove, quote?.tradeAboveShares)}
-                  </Text>
-                </View>
-                <View style={styles.thresholdCell}>
-                  <Text style={styles.statLabel}>Personal target</Text>
-                  <Text style={styles.statValue}>{formatPrice(quote?.targetPrice)}</Text>
-                </View>
-                <View style={styles.thresholdCell}>
-                  <Text style={styles.statLabel}>Analyst 1Y</Text>
-                  <Text style={styles.statValue}>{formatPrice(quote?.analystTarget1y)}</Text>
+            <View style={isWideSummaryLayout ? styles.summaryTwoColRow : undefined}>
+              <View style={isWideSummaryLayout ? styles.summaryCol : undefined}>
+                <HoldingsCompactCard
+                  data={data}
+                  style={isWideSummaryLayout ? styles.summaryCardInRow : undefined}
+                />
+              </View>
+              <View style={isWideSummaryLayout ? styles.summaryCol : undefined}>
+                <View style={[styles.card, isWideSummaryLayout ? styles.summaryCardInRow : undefined]}>
+                  <Text style={styles.cardTitle}>Thresholds</Text>
+                  <View style={styles.thresholdGrid}>
+                    <View style={styles.thresholdCell}>
+                      <Text style={styles.statLabel}>Trade @ Below</Text>
+                      <Text style={styles.statValue}>
+                        {thresholdValueText(effectiveBuyBelow, quote?.tradeBelowShares)}
+                      </Text>
+                    </View>
+                    <View style={styles.thresholdCell}>
+                      <Text style={styles.statLabel}>Trade @ Above</Text>
+                      <Text style={styles.statValue}>
+                        {thresholdValueText(effectiveSellAbove, quote?.tradeAboveShares)}
+                      </Text>
+                    </View>
+                    <View style={styles.thresholdCell}>
+                      <Text style={styles.statLabel}>Personal target</Text>
+                      <Text style={styles.statValue}>{formatPrice(quote?.targetPrice)}</Text>
+                    </View>
+                    <View style={styles.thresholdCell}>
+                      <Text style={styles.statLabel}>Analyst 1Y</Text>
+                      <Text style={styles.statValue}>{formatPrice(quote?.analystTarget1y)}</Text>
+                    </View>
+                  </View>
                 </View>
               </View>
             </View>
@@ -1195,6 +1206,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     gap: spacing.sm,
+  },
+  summaryTwoColRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  summaryCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  summaryCardInRow: {
+    marginHorizontal: 0,
+    marginBottom: 0,
+    height: "100%",
   },
   cardTitle: {
     color: colors.text,

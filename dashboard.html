@@ -226,9 +226,6 @@
     .inspector-detail-toolbar .panel-symbol-head {
       margin-bottom: 0.2rem;
     }
-    .inspector-detail-toolbar .inspector-sai-head {
-      margin: 0;
-    }
     .inspector-export-pdf {
       flex: 0 0 auto;
       display: inline-flex;
@@ -466,19 +463,11 @@
       background: rgba(15, 23, 42, 0.35);
     }
     .target-analyst-block,
-    .target-recommendation-block,
-    .inspector-sai-head {
+    .target-recommendation-block {
       display: inline-flex;
       flex-wrap: wrap;
       align-items: center;
       gap: 0.35rem 0.5rem;
-    }
-    .inspector-sai-head {
-      margin: -0.35rem 0 0.65rem;
-      padding: 0.45rem 0.6rem;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: rgba(15, 23, 42, 0.35);
     }
     .target-analyst-value {
       font-weight: 600;
@@ -960,29 +949,50 @@
       max-width: 100%;
       margin: 0;
       padding: 0.25rem 0 0;
-      min-height: 260px;
+      min-height: 240px;
       display: grid;
-      grid-template-columns: minmax(200px, 1fr) minmax(220px, 0.95fr);
-      align-items: center;
-      gap: 0.9rem;
+      grid-template-columns: minmax(0, 210px) minmax(0, 1fr);
+      align-items: start;
+      gap: 1.35rem;
     }
-    .allocation-chart-wrap canvas { max-height: 300px; justify-self: center; }
+    .allocation-chart-canvas-wrap {
+      width: 100%;
+      max-width: 210px;
+      aspect-ratio: 1;
+      position: relative;
+      justify-self: center;
+    }
+    .allocation-chart-canvas-wrap canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      max-height: none;
+    }
     .allocation-legend {
       display: flex;
       flex-direction: column;
-      gap: 0.28rem;
-      max-height: 320px;
-      overflow: hidden;
+      gap: 0.32rem;
+      max-height: 280px;
+      overflow-y: auto;
+      padding-left: 0.15rem;
     }
     .allocation-legend-row {
       display: flex;
       align-items: center;
       gap: 0.45rem;
       min-width: 0;
-      color: #cbd5e1;
-      font-size: 0.86rem;
-      font-weight: 600;
+      line-height: 1.35;
       white-space: nowrap;
+    }
+    .allocation-legend-symbol {
+      font-weight: 700;
+      font-size: 0.82rem;
+      color: #e2e8f0;
+    }
+    .allocation-legend-value {
+      font-weight: 400;
+      font-size: 0.72rem;
+      color: #94a3b8;
     }
     .allocation-legend-dot {
       width: 10px;
@@ -1847,10 +1857,31 @@
       padding: 1rem 1.1rem;
       margin-bottom: 1rem;
     }
+    .recommendation-card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.65rem;
+      margin-bottom: 0.3rem;
+    }
+    .recommendation-card-head-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+    .recommendation-card .rec-assessed-at {
+      color: var(--muted);
+      font-size: 0.76rem;
+      line-height: 1.25;
+      white-space: nowrap;
+      margin-top: 0.05rem;
+    }
     .recommendation-card .rec-headline {
       font-size: 1.05rem;
       font-weight: 600;
-      margin: 0.5rem 0 0.65rem;
+      margin: 0.35rem 0 0.65rem;
       line-height: 1.35;
     }
     .recommendation-card .rec-rationale {
@@ -5173,7 +5204,9 @@
           </div>
           <p class="visual-subtitle" id="allocationSubtitle">Top 5 assets shown individually</p>
           <div class="allocation-chart-wrap">
-            <canvas id="allocationChart" aria-label="Portfolio allocation donut chart"></canvas>
+            <div class="allocation-chart-canvas-wrap">
+              <canvas id="allocationChart" aria-label="Portfolio allocation donut chart"></canvas>
+            </div>
             <div class="allocation-legend" id="allocationLegend"></div>
           </div>
         </section>
@@ -5596,10 +5629,6 @@
               <span class="symbol-head-company" id="inspectorCompanyName" hidden></span>
             </span>
           </h2>
-          <div class="inspector-sai-head target-recommendation-block" id="inspectorSaiHead" hidden>
-            <span class="target-rec-label">SAI</span>
-            <span id="inspectorRecommendationChips"></span>
-          </div>
         </div>
         <button type="button" class="inspector-export-pdf" id="btnInspectorPdf" title="Export Inspector snapshot as PDF" onclick="exportInspectorPdf()" hidden aria-label="Export PDF">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
@@ -6641,13 +6670,14 @@
       const mm = String(now.getMinutes()).padStart(2, "0");
       const ss = String(now.getSeconds()).padStart(2, "0");
       const scope = what || "Dashboard";
-      let html = `<span class="refresh-what">${escapeHtml(scope)}</span> · <span class="refresh-time">${hh}:${mm}:${ss}</span>`;
+      let html = `<span class="refresh-time">Refreshed ${hh}:${mm}:${ss}</span>`;
       if (pricesAsOfIso) {
         const staleClass = priceDaysBehind(pricesAsOfIso) > 1 ? " price-asof-stale" : "";
-        html += ` · <span class="price-asof${staleClass}">quote session ${escapeHtml(formatAsOf(pricesAsOfIso))}</span>`;
+        html = `<span class="price-asof${staleClass}">Data session ${escapeHtml(formatAsOf(pricesAsOfIso))}</span> · ${html}`;
       }
+      html += ` · <span class="refresh-what">${escapeHtml(scope)}</span>`;
       badge.innerHTML = html;
-      badge.title = `${scope} refreshed at ${hh}:${mm}:${ss}. Quote session is the market date the displayed prices reflect.`;
+      badge.title = `${scope}. Data session is the market date the displayed prices reflect; refreshed time is when the UI last fetched.`;
     }
 
     function userIsInteracting() {
@@ -7557,20 +7587,7 @@
       }
     }
 
-    function renderInspectorHeaderSai(recommendation) {
-      const row = document.getElementById("inspectorSaiHead");
-      const chips = document.getElementById("inspectorRecommendationChips");
-      if (!row || !chips) return;
-      if (recommendation) {
-        row.hidden = false;
-        chips.innerHTML = renderRecommendationChipRow(recommendation, { bare: true });
-      } else {
-        row.hidden = true;
-        chips.innerHTML = "";
-      }
-    }
-
-    function setInspectorSymbolHead(symbol, quote = null, companyName = null, recommendation = null) {
+    function setInspectorSymbolHead(symbol, quote = null, companyName = null) {
       const el = document.getElementById("inspectorSymbol");
       const head = document.getElementById("inspectorTitleHead");
       const quoteEl = document.getElementById("inspectorSymbolQuote");
@@ -7614,7 +7631,6 @@
           companyEl.hidden = true;
         }
       }
-      renderInspectorHeaderSai(symbol ? recommendation : null);
       const pdfBtn = document.getElementById("btnInspectorPdf");
       if (pdfBtn) pdfBtn.hidden = !symbol;
     }
@@ -7875,9 +7891,6 @@
       renderThresholdProposal("tradeBelowProposal", "tradeBelowPrice", proposals.buy, proposals.buyNote);
       renderThresholdProposal("tradeAboveProposal", "tradeAbovePrice", proposals.sell, proposals.sellNote);
       renderTargetMeta(item);
-      if (currentView === "inspector" && inspector) {
-        renderInspectorHeaderSai(inspector.recommendation || null);
-      }
     }
 
     function updateAssessSymbolButton() {
@@ -9074,7 +9087,7 @@
         const value = Number(payload.values[i]) || 0;
         const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0.0";
         const color = colors[i] || "#64748b";
-        return `<div class="allocation-legend-row"><span class="allocation-legend-dot" style="background:${color};"></span>${escapeHtml(label)} ${formatCompactMoney(value)} · ${pct}%</div>`;
+        return `<div class="allocation-legend-row"><span class="allocation-legend-dot" style="background:${color};"></span><span class="allocation-legend-symbol">${escapeHtml(label)}</span> <span class="allocation-legend-value">${formatCompactMoney(value)} · ${pct}%</span></div>`;
       }).join("");
     }
 
@@ -9087,8 +9100,30 @@
       return `<span class="projection-pct${negativeClass}"> (${sign}${amount.toFixed(1)}%)</span>`;
     }
 
+    function formatSignedSummaryMoney(value) {
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) return "";
+      const formatted = formatSummaryMoney(Math.abs(amount));
+      if (amount > 0) return `+${formatted}`;
+      if (amount < 0) return `-${formatted}`;
+      return formatted;
+    }
+
+    function formatAthDeltaSuffix(deltaPct, deltaValue) {
+      const pct = Number(deltaPct);
+      if (!Number.isFinite(pct)) return "";
+      const negativeClass = pct < 0 ? " negative" : "";
+      const pctStr = `(${pct > 0 ? "+" : ""}${pct.toFixed(1)}%)`;
+      let tail = pctStr;
+      if (deltaValue != null) {
+        const moneyStr = formatSignedSummaryMoney(deltaValue);
+        if (moneyStr) tail = `${pctStr} ${moneyStr}`;
+      }
+      return `<span class="projection-pct${negativeClass}"> ${tail}</span>`;
+    }
+
     function projectionValueLine(value, pct) {
-      return `${formatMoney(value)}${pct == null ? "" : formatInlinePct(pct)}`;
+      return `${formatSummaryMoney(value)}${pct == null ? "" : formatInlinePct(pct)}`;
     }
 
     function projectionBarWidth(value, maxValue) {
@@ -9300,7 +9335,7 @@
             allocKey: key,
             allocLabel: `${key} ago holdings`,
             labelTitle: "Buy & hold mark-to-market of today’s share counts (ignores past adds/sells).",
-            valueHtml: `${formatMoney(w.valueThen)}${formatInlinePct(w.returnPct)}`,
+            valueHtml: `${formatSummaryMoney(w.valueThen)}${formatInlinePct(w.returnPct)}`,
           }
         ));
       });
@@ -9320,8 +9355,8 @@
             allocLabel: "Portfolio ATH",
             labelTitle: "Peak reconstructed basket value (today’s shares × historical closes).",
             valueHtml: atAth
-              ? `${formatMoney(ath.value)} · at ATH`
-              : `${formatMoney(ath.value)}${formatInlinePct(ath.deltaPct)}${ath.deltaValue != null ? ` · ${formatMoney(ath.deltaValue)}` : ""}`,
+              ? `${formatSummaryMoney(ath.value)} · at ATH`
+              : `${formatSummaryMoney(ath.value)}${formatAthDeltaSuffix(ath.deltaPct, ath.deltaValue)}`,
           }
         ));
       }
@@ -14634,8 +14669,9 @@
       const watch = (rec.watchItems || [])
         .map((w) => `<li>${w}</li>`)
         .join("");
+      const chips = renderRecommendationChipRow(rec, { bare: true });
+      const assessedAt = formatInspectorAssessedAt(rec.assessedAt);
       const meta = [
-        rec.assessedAt ? `Read ${rec.assessedAt}` : null,
         rec.provider || null,
         rec.upsidePct != null ? `${rec.upsidePct}% upside to target` : null,
       ].filter(Boolean).join(" · ");
@@ -14645,7 +14681,13 @@
         : "";
       return `
         <div class="recommendation-card" id="inspector-recommendation">
-          <h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3>
+          <div class="recommendation-card-head">
+            <div class="recommendation-card-head-left">
+              <h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3>
+              ${chips}
+            </div>
+            ${assessedAt ? `<div class="rec-assessed-at">${escapeHtml(assessedAt)}</div>` : ""}
+          </div>
           <div class="rec-headline">${rec.headline || ""}</div>
           ${scorecard}
           <div class="rec-rationale">${rec.rationale || ""}</div>
@@ -14654,6 +14696,27 @@
           ${watch ? `<div style="margin-top:0.75rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;">What to watch</div><ul class="watch-list">${watch}</ul>` : ""}
           ${meta ? `<div class="empty" style="margin-top:0.6rem;">${meta}</div>` : ""}
         </div>`;
+    }
+
+    function formatInspectorAssessedAt(raw) {
+      if (!raw) return "";
+      const dt = new Date(raw);
+      if (Number.isFinite(dt.getTime())) {
+        const month = dt.toLocaleDateString("en-US", { month: "short" });
+        const day = String(dt.getDate()).padStart(2, "0");
+        const hours = String(dt.getHours()).padStart(2, "0");
+        const mins = String(dt.getMinutes()).padStart(2, "0");
+        return `${month} ${day} ${hours}:${mins}`;
+      }
+      const s = String(raw).trim().replace("T", " ");
+      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+      if (m) {
+        const [, y, mo, d, h, mi] = m;
+        const monthIdx = Math.max(0, Number(mo) - 1);
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        return `${months[monthIdx] || mo} ${d} ${h}:${mi}`;
+      }
+      return s;
     }
 
     function renderOverallSynthesis(rec, latestAssessment) {
@@ -16300,17 +16363,6 @@
     .symbol-head-quote { font-size: 0.88rem; font-weight: 600; color: var(--text); }
     .symbol-head-company { font-size: 0.82rem; font-weight: 600; color: var(--muted); }
     .symbol-head-company::before { content: "·"; margin-right: 0.35rem; }
-    .inspector-sai-head {
-      display: inline-flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.2rem 0.35rem;
-      padding: 0.2rem 0.4rem;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: rgba(15, 23, 42, 0.35);
-      margin-bottom: 0.15rem;
-    }
     .target-rec-label {
       font-size: 0.62rem;
       color: var(--muted);
@@ -16663,10 +16715,6 @@
       const patternVolumeHtml = buildInspectorSnapshotPatternVolume(data);
       const importedFibHtml = renderInspectorSnapshotImportedFib(data);
       const trendWavesHtml = renderInspectorSnapshotTrendWaves(data);
-      const saiChips = hasRec
-        ? renderRecommendationChipRow(rec, { bare: true })
-        : `<span class="empty">No SAI yet</span>`;
-
       const body = `
         <div class="snap-sheet">
         <header class="snap-page-head">
@@ -16677,10 +16725,6 @@
               ? `<span class="symbol-head-quote">(${formatMoney(price)}${dayPct != null ? ` ${formatDayChangePercent(dayPct)}` : ""})</span>`
               : ""}
             ${company ? `<span class="symbol-head-company">${escapeHtml(company)}</span>` : ""}
-          </div>
-          <div class="inspector-sai-head">
-            <span class="target-rec-label">SAI</span>
-            ${saiChips}
           </div>
           <p class="snap-export-meta">Exported ${escapeHtml(exportTs)}</p>
         </header>
@@ -16811,7 +16855,7 @@
       if (panelId === "inspectorPanel") {
         document.getElementById("inspectorEmpty").hidden = true;
         document.getElementById("inspectorPanel").hidden = false;
-        setInspectorSymbolHead(symbol, data.quote, data.companyName, data.recommendation || null);
+        setInspectorSymbolHead(symbol, data.quote, data.companyName);
       }
       if (focusSection) {
         window.requestAnimationFrame(() => focusInspectorSection(panelId, focusSection));

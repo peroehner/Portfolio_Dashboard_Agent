@@ -91,6 +91,11 @@ class PortfolioEngine:
         if missing:
             self._fill_quotes_from_history(missing, prices, price_as_of, day_changes)
 
+        # Daily bars often lag the open by a long time. During US RTH, when history
+        # is still prior session, pull a short intraday print so Sync isn't stuck
+        # on yesterday's close for ~an hour.
+        self._apply_intraday_session_catchup(tickers, prices, price_as_of, day_changes)
+
         quotes = {}
         for ticker in tickers:
             info = self._fetch_ticker_info(ticker)
@@ -106,7 +111,7 @@ class PortfolioEngine:
             # Datacenter Yahoo chart feeds sometimes omit the latest US session
             # (history ends prior day) while quoteSummary already has that close.
             # Prefer the newer info quote so Sync cannot rewrite stale closes.
-            if self._info_quote_is_newer(as_of, info_as_of, price, info_price):
+            if self._should_prefer_info_quote(info, as_of, info_as_of, price, info_price):
                 logging.info(
                     "Using newer quoteSummary for %s (history asOf=%s → info asOf=%s)",
                     ticker,
@@ -114,7 +119,7 @@ class PortfolioEngine:
                     info_as_of,
                 )
                 price = info_price
-                as_of = info_as_of
+                as_of = info_as_of or self._ny_session_date_today()
                 day_pct = self._day_change_pct_from_info(info, price)
             elif price is None:
                 price, as_of = info_price, info_as_of
@@ -137,16 +142,168 @@ class PortfolioEngine:
         return quotes
 
     @staticmethod
+    def _ny_now():
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        return datetime.now(ZoneInfo("America/New_York"))
+
+    @classmethod
+    def _ny_session_date_today(cls) -> str:
+        return cls._ny_now().strftime("%Y-%m-%d")
+
+    @classmethod
+    def _in_us_regular_hours(cls) -> bool:
+        """True during the US cash session (Mon–Fri 09:30–16:00 America/New_York)."""
+        now = cls._ny_now()
+        if now.weekday() >= 5:
+            return False
+        minutes = now.hour * 60 + now.minute
+        return (9 * 60 + 30) <= minutes <= (16 * 60)
+
+    @classmethod
+    def _intraday_catchup_enabled(cls) -> bool:
+        return os.environ.get("YF_INTRADAY_CATCHUP", "1").lower() not in (
+            "0",
+            "false",
+            "no",
+            "off",
+        )
+
+    def _apply_intraday_session_catchup(self, tickers, prices, price_as_of, day_changes):
+        """During RTH, replace lagging daily closes with today's intraday last print."""
+        if not self._intraday_catchup_enabled() or not self._in_us_regular_hours():
+            return
+        today = self._ny_session_date_today()
+        lagging = [
+            ticker
+            for ticker in tickers
+            if (price_as_of.get(ticker) or "") < today
+        ]
+        if not lagging:
+            return
+
+        from services.market_cache import make_ticker, yf_pool
+
+        interval = os.environ.get("YF_INTRADAY_CATCHUP_INTERVAL", "5m") or "5m"
+        logging.info(
+            "Intraday catch-up for %s symbols still on prior daily session (%s)",
+            len(lagging),
+            today,
+        )
+
+        def _one(symbol: str):
+            try:
+                hist = make_ticker(symbol).history(
+                    period="1d",
+                    interval=interval,
+                    auto_adjust=True,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logging.warning("Intraday catch-up failed for %s: %s", symbol, exc)
+                return symbol, None
+            if hist is None or getattr(hist, "empty", True) or "Close" not in hist.columns:
+                return symbol, None
+            closes = hist["Close"].dropna()
+            if closes.empty:
+                return symbol, None
+            as_of = self._session_date_from_index(closes.index[-1]) or today
+            # Reject bars that still don't reach today's session.
+            if as_of < today:
+                return symbol, None
+            return symbol, {
+                "price": float(closes.iloc[-1]),
+                "priceAsOf": as_of,
+            }
+
+        updated = 0
+        for symbol, parsed in yf_pool.map(_one, lagging):
+            if not parsed:
+                continue
+            prior = prices.get(symbol)
+            live = parsed["price"]
+            prices[symbol] = live
+            price_as_of[symbol] = parsed["priceAsOf"]
+            if prior is not None and float(prior):
+                day_changes[symbol] = round((live - float(prior)) / float(prior) * 100, 2)
+            updated += 1
+        if updated:
+            logging.info("Intraday catch-up updated %s / %s symbols", updated, len(lagging))
+
+    @staticmethod
+    def _info_has_live_rth_print(info: dict, info_price: float | None, info_as_of: str | None) -> bool:
+        """True when quoteSummary looks like a real cash-session print (not idle stamp)."""
+        if info_price is None or not info:
+            return False
+        state = str(info.get("marketState") or "").upper()
+        if state not in ("REGULAR", "POST", "POSTPOST"):
+            return False
+        today = PortfolioEngine._ny_session_date_today()
+        if info_as_of and info_as_of < today:
+            return False
+        try:
+            prev = info.get("previousClose") or info.get("regularMarketPreviousClose")
+            if prev is not None and abs(float(info_price) - float(prev)) > 0.05:
+                return True
+        except (TypeError, ValueError):
+            pass
+        try:
+            volume = info.get("regularMarketVolume")
+            if volume is not None and int(volume) > 0 and (info_as_of is None or info_as_of >= today):
+                # Volume alone is weak evidence; require today's stamp when present.
+                if info_as_of is None or info_as_of == today:
+                    change = info.get("regularMarketChange")
+                    if change is not None and abs(float(change)) > 0.01:
+                        return True
+        except (TypeError, ValueError):
+            pass
+        return False
+
+    @classmethod
+    def _should_prefer_info_quote(
+        cls,
+        info: dict,
+        hist_as_of: str | None,
+        info_as_of: str | None,
+        hist_price: float | None,
+        info_price: float | None,
+    ) -> bool:
+        if cls._info_quote_is_newer(hist_as_of, info_as_of, hist_price, info_price):
+            return True
+        # After the open, daily history may still be prior close while quoteSummary
+        # already has a live RTH print vs previousClose.
+        if not cls._in_us_regular_hours():
+            return False
+        today = cls._ny_session_date_today()
+        if hist_as_of and hist_as_of >= today:
+            return False
+        return cls._info_has_live_rth_print(info, info_price, info_as_of)
+
+    @staticmethod
+    def _session_date_from_index(ts) -> str | None:
+        """Calendar date of a history bar in America/New_York (US equity session)."""
+        try:
+            from zoneinfo import ZoneInfo
+
+            # pandas Timestamp / datetime — normalize tz-aware bars to NY so a
+            # UTC midnight label cannot drift the displayed session date.
+            if hasattr(ts, "tz_convert"):
+                if getattr(ts, "tz", None) is not None or getattr(ts, "tzinfo", None) is not None:
+                    ts = ts.tz_convert(ZoneInfo("America/New_York"))
+                return ts.strftime("%Y-%m-%d")
+            if hasattr(ts, "astimezone") and getattr(ts, "tzinfo", None) is not None:
+                return ts.astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+            return ts.strftime("%Y-%m-%d")
+        except (AttributeError, ValueError, TypeError):
+            return None
+
+    @staticmethod
     def _quotes_from_closes(closes):
         """Map a Close series to price / as-of / day%."""
         if closes is None or getattr(closes, "empty", True):
             return None
         price = float(closes.iloc[-1])
-        as_of = None
-        try:
-            as_of = closes.index[-1].strftime("%Y-%m-%d")
-        except (AttributeError, ValueError, TypeError):
-            as_of = None
+        as_of = PortfolioEngine._session_date_from_index(closes.index[-1])
         day_pct = None
         if len(closes) >= 2:
             previous = float(closes.iloc[-2])
@@ -208,17 +365,20 @@ class PortfolioEngine:
         hist_price: float | None,
         info_price: float | None,
     ) -> bool:
-        """True when quoteSummary reflects a newer session than daily history."""
+        """True when quoteSummary reflects a newer traded session than daily history.
+
+        Yahoo often advances ``regularMarketTime`` to "today" while
+        ``regularMarketPrice`` is still the prior close (premarket / idle stamp).
+        Advancing ``priceAsOf`` in that case makes the UI promise a newer data
+        session than the numbers can live up to — only prefer info when the
+        price print itself moved (or history has no price yet).
+        """
         if info_price is None:
             return False
+        price_moved = hist_price is None or abs(float(info_price) - float(hist_price)) > 0.05
         if info_as_of and (hist_as_of is None or info_as_of > hist_as_of):
-            return True
-        if (
-            info_as_of
-            and hist_as_of == info_as_of
-            and hist_price is not None
-            and abs(float(info_price) - float(hist_price)) > 0.05
-        ):
+            return price_moved
+        if info_as_of and hist_as_of == info_as_of and price_moved:
             # Same calendar label but history bar disagrees with the live quote.
             return True
         return False

@@ -1,4 +1,5 @@
 import os
+from collections import Counter
 from datetime import datetime
 from typing import Any
 
@@ -34,6 +35,22 @@ def watchlist_only_count(symbols: list[dict[str, Any]], holdings: list[dict[str,
     """Tracked symbols with no shares — matches the Holdings Watch-only filter."""
     held = held_symbols_with_shares(holdings)
     return sum(1 for symbol in symbols if symbol["symbol"] not in held)
+
+
+def representative_price_session(price_as_of_dates: list[str]) -> str | None:
+    """Representative market session across symbols.
+
+    Uses the most common date (mode) so a single symbol with a newer quote cannot
+    advance the global as-of date. If multiple dates tie for most common, pick
+    the older date (conservative display).
+    """
+    dates = [str(d) for d in price_as_of_dates if d]
+    if not dates:
+        return None
+    counts = Counter(dates)
+    top = max(counts.values())
+    candidates = [d for d, c in counts.items() if c == top]
+    return min(candidates)
 
 
 class OverviewService:
@@ -255,7 +272,7 @@ class OverviewService:
             for symbol in symbols
             if symbol.get("priceAsOf")
         ]
-        prices_as_of = max(as_of_dates) if as_of_dates else None
+        prices_as_of = representative_price_session(as_of_dates)
 
         total_mv = round(total_market_value, 2) if valued_holdings else None
         past_progress = None

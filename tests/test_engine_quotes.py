@@ -51,6 +51,21 @@ class InfoQuoteNewerTests(unittest.TestCase):
             )
         )
 
+    def test_keeps_history_when_info_date_advances_but_price_unchanged(self) -> None:
+        """Yahoo often stamps regularMarketTime=today while price is still prior close."""
+        self.assertFalse(
+            PortfolioEngine._info_quote_is_newer(
+                "2026-08-05", "2026-08-06", 204.89, 204.89
+            )
+        )
+
+    def test_prefers_info_when_date_and_price_both_advance(self) -> None:
+        self.assertTrue(
+            PortfolioEngine._info_quote_is_newer(
+                "2026-08-05", "2026-08-06", 204.89, 210.00
+            )
+        )
+
 
 class FetchMarketQuotesTests(unittest.TestCase):
     @patch("engine.yf.download")
@@ -63,6 +78,8 @@ class FetchMarketQuotesTests(unittest.TestCase):
         fake_session = object()
         with patch("services.market_cache.get_yf_session", return_value=fake_session), patch.object(
             engine, "_fetch_ticker_info", return_value={}
+        ), patch.object(
+            PortfolioEngine, "_apply_intraday_session_catchup"
         ), patch(
             "services.company_name.resolve_company_name", return_value="HubSpot"
         ):
@@ -92,6 +109,8 @@ class FetchMarketQuotesTests(unittest.TestCase):
             "services.market_cache.yf_pool.map", side_effect=lambda fn, items: [fn(x) for x in items]
         ), patch.object(
             engine, "_fetch_ticker_info", return_value={}
+        ), patch.object(
+            PortfolioEngine, "_apply_intraday_session_catchup"
         ), patch(
             "services.company_name.resolve_company_name", return_value="HubSpot"
         ):
@@ -115,6 +134,8 @@ class FetchMarketQuotesTests(unittest.TestCase):
             "services.market_cache.make_ticker"
         ) as make_ticker, patch.object(
             engine, "_fetch_ticker_info", return_value=info
+        ), patch.object(
+            PortfolioEngine, "_apply_intraday_session_catchup"
         ), patch(
             "services.company_name.resolve_company_name", return_value="HubSpot"
         ):
@@ -146,6 +167,8 @@ class FetchMarketQuotesTests(unittest.TestCase):
         engine = PortfolioEngine()
         with patch("services.market_cache.get_yf_session", return_value=object()), patch.object(
             engine, "_fetch_ticker_info", return_value=info
+        ), patch.object(
+            PortfolioEngine, "_apply_intraday_session_catchup"
         ), patch(
             "services.company_name.resolve_company_name", return_value="HubSpot"
         ):
@@ -154,6 +177,100 @@ class FetchMarketQuotesTests(unittest.TestCase):
         self.assertEqual(quotes["HUBS"]["currentPrice"], 204.89)
         self.assertEqual(quotes["HUBS"]["priceAsOf"], "2026-07-24")
         self.assertEqual(quotes["HUBS"]["dayChangePct"], 7.83)
+
+    @patch("engine.yf.download")
+    def test_does_not_advance_asof_when_info_time_newer_but_price_flat(self, download) -> None:
+        """Stale regularMarketTime must not advertise a session the closes don't have."""
+        idx = pd.to_datetime(["2026-08-04", "2026-08-05"])
+        frame = pd.DataFrame({"Close": [200.00, 204.89]}, index=idx)
+        download.return_value = frame
+        ts = int(datetime(2026, 8, 6, 10, 15, tzinfo=ZoneInfo("America/New_York")).timestamp())
+        info = {
+            "regularMarketPrice": 204.89,
+            "previousClose": 204.89,
+            "regularMarketChangePercent": 0.0,
+            "regularMarketTime": ts,
+            "marketState": "PRE",
+        }
+
+        engine = PortfolioEngine()
+        with patch("services.market_cache.get_yf_session", return_value=object()), patch.object(
+            engine, "_fetch_ticker_info", return_value=info
+        ), patch.object(
+            PortfolioEngine, "_in_us_regular_hours", return_value=False
+        ), patch.object(
+            PortfolioEngine, "_apply_intraday_session_catchup"
+        ), patch(
+            "services.company_name.resolve_company_name", return_value="HubSpot"
+        ):
+            quotes = engine.fetch_market_quotes(["HUBS"], include_analyst_targets=False)
+
+        self.assertEqual(quotes["HUBS"]["currentPrice"], 204.89)
+        self.assertEqual(quotes["HUBS"]["priceAsOf"], "2026-08-05")
+
+    @patch("engine.yf.download")
+    def test_intraday_catchup_replaces_prior_daily_during_rth(self, download) -> None:
+        idx = pd.to_datetime(["2026-08-04", "2026-08-05"])
+        frame = pd.DataFrame({"Close": [200.00, 204.89]}, index=idx)
+        download.return_value = frame
+        intra_idx = pd.to_datetime(
+            ["2026-08-06 09:35:00", "2026-08-06 09:40:00"]
+        ).tz_localize("America/New_York")
+        intraday = pd.DataFrame({"Close": [205.10, 206.50]}, index=intra_idx)
+
+        engine = PortfolioEngine()
+        ticker = MagicMock()
+        ticker.history.return_value = intraday
+
+        with patch("services.market_cache.get_yf_session", return_value=object()), patch(
+            "services.market_cache.make_ticker", return_value=ticker
+        ), patch(
+            "services.market_cache.yf_pool.map", side_effect=lambda fn, items: [fn(x) for x in items]
+        ), patch.object(
+            engine, "_fetch_ticker_info", return_value={}
+        ), patch.object(
+            PortfolioEngine, "_in_us_regular_hours", return_value=True
+        ), patch.object(
+            PortfolioEngine, "_ny_session_date_today", return_value="2026-08-06"
+        ), patch(
+            "services.company_name.resolve_company_name", return_value="HubSpot"
+        ):
+            quotes = engine.fetch_market_quotes(["HUBS"], include_analyst_targets=False)
+
+        self.assertEqual(quotes["HUBS"]["currentPrice"], 206.50)
+        self.assertEqual(quotes["HUBS"]["priceAsOf"], "2026-08-06")
+        self.assertEqual(quotes["HUBS"]["dayChangePct"], 0.79)
+
+    @patch("engine.yf.download")
+    def test_rth_info_vs_previous_close_preferred_when_daily_lags(self, download) -> None:
+        idx = pd.to_datetime(["2026-08-04", "2026-08-05"])
+        frame = pd.DataFrame({"Close": [200.00, 204.89]}, index=idx)
+        download.return_value = frame
+        ts = int(datetime(2026, 8, 6, 10, 15, tzinfo=ZoneInfo("America/New_York")).timestamp())
+        info = {
+            "regularMarketPrice": 208.00,
+            "previousClose": 204.89,
+            "regularMarketChangePercent": 1.52,
+            "regularMarketTime": ts,
+            "marketState": "REGULAR",
+        }
+
+        engine = PortfolioEngine()
+        with patch("services.market_cache.get_yf_session", return_value=object()), patch.object(
+            engine, "_fetch_ticker_info", return_value=info
+        ), patch.object(
+            PortfolioEngine, "_in_us_regular_hours", return_value=True
+        ), patch.object(
+            PortfolioEngine, "_ny_session_date_today", return_value="2026-08-06"
+        ), patch.object(
+            PortfolioEngine, "_apply_intraday_session_catchup"
+        ), patch(
+            "services.company_name.resolve_company_name", return_value="HubSpot"
+        ):
+            quotes = engine.fetch_market_quotes(["HUBS"], include_analyst_targets=False)
+
+        self.assertEqual(quotes["HUBS"]["currentPrice"], 208.00)
+        self.assertEqual(quotes["HUBS"]["priceAsOf"], "2026-08-06")
 
 
 class SyncQuotesAtomicityTests(unittest.TestCase):

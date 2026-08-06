@@ -12,7 +12,7 @@ Companion docs: [DATA.md](./DATA.md) (persistence), [auto_run_overview.md](./aut
 
 | Layer | What | Typical freshness |
 |-------|------|-------------------|
-| **Server schedule** | Background price sync → Postgres `symbol_market` | Every **5 min** (`background_sync_loop`). Sync uses the browser-impersonating Yahoo session (`YF_IMPERSONATE` / curl_cffi). When daily history lags the latest US session (common from datacenter IPs), Sync prefers newer `regularMarketPrice` / `regularMarketTime` from quoteSummary over the stale history bar. |
+| **Server schedule** | Background price sync → Postgres `symbol_market` | Every **5 min** (`background_sync_loop`). Sync uses the browser-impersonating Yahoo session (`YF_IMPERSONATE` / curl_cffi). Daily `period=5d` bars often lag after the US open; during RTH, when history is still prior session, Sync runs an **intraday catch-up** (`period=1d`, `interval=5m`, toggle `YF_INTRADAY_CATCHUP`) and may prefer quoteSummary when `marketState` is REGULAR/POST and the live print differs from `previousClose`. A newer `regularMarketTime` alone with an unchanged prior close does **not** advance `price_as_of`. |
 | **Server schedule** | Background enrichment warmer → Postgres `symbol_market` fundamentals + news | Every **5 min** by default (`background_enrichment_warmer_loop`). Warms a small chunk per cycle with pauses; **starred symbols first** when `symbols.is_starred` is set (synced from mobile/web). |
 | **Server TTL caches** | Yahoo/Finnhub fundamentals, news, ticker info (in-process + optional DB blob) | **~6h / 1h / 15m** (env-tunable) |
 | **Client memory** | Browser view caches; mobile React state | Web: **~60s** on some views; mobile: until remount / refresh |

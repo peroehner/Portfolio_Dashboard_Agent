@@ -48,6 +48,8 @@ interface AllocationChartProps {
   onModeChange: (mode: AllocationMode) => void;
   /** Mask legend dollar amounts for Summary privacy demos. */
   hideAmounts?: boolean;
+  /** Active portfolio variant shown in the pie (e.g. "1Y mean targets"). */
+  sourceLabel?: string;
 }
 
 export function AllocationChart({
@@ -55,6 +57,7 @@ export function AllocationChart({
   mode,
   onModeChange,
   hideAmounts = false,
+  sourceLabel,
 }: AllocationChartProps) {
   const slices = useMemo(() => buildAllocationSlices(holdings, mode), [holdings, mode]);
   const total = useMemo(
@@ -76,7 +79,16 @@ export function AllocationChart({
   }, [slices, total]);
 
   if (!slices?.length) {
-    return <Text style={styles.empty}>No holdings with market value yet.</Text>;
+    return (
+      <View style={styles.wrap}>
+        {sourceLabel ? (
+          <View style={styles.sourcePill}>
+            <Text style={styles.sourcePillText}>{sourceLabel}</Text>
+          </View>
+        ) : null}
+        <Text style={styles.empty}>No allocation data for this selection.</Text>
+      </View>
+    );
   }
 
   return (
@@ -95,6 +107,11 @@ export function AllocationChart({
           <Text style={[styles.modeText, mode === "top75" && styles.modeTextActive]}>Top 75%</Text>
         </Pressable>
       </View>
+      {sourceLabel ? (
+        <View style={styles.sourcePill}>
+          <Text style={styles.sourcePillText}>{sourceLabel}</Text>
+        </View>
+      ) : null}
       <Text style={styles.subtitle}>{allocationSubtitle(mode)}</Text>
 
       <View style={styles.chartRow}>
@@ -137,6 +154,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.xs,
     marginBottom: spacing.xs,
+  },
+  sourcePill: {
+    alignSelf: "flex-start",
+    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: "rgba(59,130,246,0.45)",
+    backgroundColor: "rgba(59,130,246,0.12)",
+  },
+  sourcePillText: {
+    color: colors.link,
+    fontSize: 11,
+    fontWeight: "700",
   },
   modeBtn: {
     borderWidth: 1,
@@ -199,7 +231,6 @@ const styles = StyleSheet.create({
   empty: {
     color: colors.textMuted,
     fontSize: 13,
-    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
 });

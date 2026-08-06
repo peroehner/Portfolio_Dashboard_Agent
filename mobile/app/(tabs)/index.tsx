@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -15,12 +15,19 @@ import { AlertRow } from "@/components/AlertRow";
 import { AllocationChart } from "@/components/AllocationChart";
 import { KpiCard } from "@/components/KpiCard";
 import { Screen } from "@/components/Screen";
-import type { AllocationMode } from "@/lib/allocationChart";
+import {
+  allocationSourceLabel,
+  holdingsForAllocationSource,
+  sourceBelongsToDirection,
+  type AllocationMode,
+  type AllocationSource,
+  type ProgressDirection,
+} from "@/lib/allocationChart";
 import { api, getApiHostLabel, showApiHostInDev } from "@/lib/api";
 import { useAuth } from "@/lib/AuthContext";
 import { formatEntryDate, formatMoney, formatPct, formatShortDateTime, pctColor } from "@/lib/format";
 import { openSymbol } from "@/lib/symbolBrowseSession";
-import { colors, spacing } from "@/lib/theme";
+import { colors, radii, spacing } from "@/lib/theme";
 import type { PastProgressWindow } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
 
@@ -90,9 +97,21 @@ export default function OverviewScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const [allocationMode, setAllocationMode] = useState<AllocationMode>("top5");
+  const [allocationSource, setAllocationSource] = useState<AllocationSource>("current");
+  const [progressDirection, setProgressDirection] = useState<ProgressDirection>("forward");
   const [hideAmounts, setHideAmounts] = useState(false);
   const { data, loading, error, refresh } = useApiQuery(() => api.overview(), []);
   const { user, authEnabled, signOut } = useAuth();
+  const [refreshedAt, setRefreshedAt] = useState("");
+
+  useEffect(() => {
+    if (loading || !data) return;
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    setRefreshedAt(`${hh}:${mm}:${ss}`);
+  }, [loading, data]);
 
   const cellWidth = useMemo(() => {
     const pad = spacing.lg * 2;
@@ -104,10 +123,11 @@ export default function OverviewScreen() {
     const parts: string[] = [];
     if (user?.email) parts.push(user.email);
     // pricesAsOf is a market session date (YYYY-MM-DD), not a clock time.
-    if (data?.pricesAsOf) parts.push(`Quote ${formatShortDateTime(data.pricesAsOf)}`);
+    if (data?.pricesAsOf) parts.push(`Data session ${formatShortDateTime(data.pricesAsOf)}`);
+    if (refreshedAt) parts.push(`Refreshed ${refreshedAt}`);
     if (showApiHostInDev()) parts.push(getApiHostLabel());
     return parts.join(" · ");
-  }, [data?.pricesAsOf, user?.email]);
+  }, [data?.pricesAsOf, refreshedAt, user?.email]);
 
   const recentAlerts = (data?.alerts ?? []).slice(0, isWide ? 5 : 3);
   const hasAlerts = recentAlerts.length > 0;
@@ -130,6 +150,26 @@ export default function OverviewScreen() {
     </View>
   ) : null;
 
+  const allocationHoldings = useMemo(
+    () => holdingsForAllocationSource(data?.holdings, data?.pastProgress, allocationSource),
+    [data?.holdings, data?.pastProgress, allocationSource],
+  );
+  const allocationLabel = useMemo(() => {
+    const label = allocationSourceLabel(allocationSource);
+    return allocationSource === "simulation" ? `${label}` : label;
+  }, [allocationSource]);
+
+  const selectAllocation = (source: AllocationSource) => {
+    setAllocationSource(source);
+  };
+
+  const setDirection = (direction: ProgressDirection) => {
+    setProgressDirection(direction);
+    if (!sourceBelongsToDirection(allocationSource, direction) && direction === "forward") {
+      setAllocationSource("current");
+    }
+  };
+
   const allocationSection = (
     <View style={[styles.section, isWide && styles.sectionFlex]}>
       <View style={styles.sectionHead}>
@@ -139,42 +179,55 @@ export default function OverviewScreen() {
         </Pressable>
       </View>
       <AllocationChart
-        holdings={data?.holdings}
+        holdings={allocationHoldings}
         mode={allocationMode}
         onModeChange={setAllocationMode}
         hideAmounts={hideAmounts}
+        sourceLabel={allocationLabel}
       />
     </View>
   );
 
   const projectedRows = [
     {
-      key: "analyst",
+      key: "current" as const,
+      label: "Current aggregated valuation",
+      value: data?.totalMarketValue,
+      pct: data?.unrealizedGainPct,
+      color: colors.hold,
+      allocKey: "current" as AllocationSource,
+    },
+    {
+      key: "analyst" as const,
       label: "Projected 1Y mean target valuation",
       value: data?.totalAnalystTargetValue,
       pct: data?.totalAnalystUpsidePct,
       color: colors.buy,
+      allocKey: "analyst" as AllocationSource,
     },
     {
-      key: "personal",
+      key: "personal" as const,
       label: "Projected personal target valuation",
       value: data?.totalPersonalTargetValue,
       pct: data?.totalPersonalUpsidePct,
       color: "#a78bfa",
+      allocKey: "personal" as AllocationSource,
     },
     {
-      key: "roc",
+      key: "roc" as const,
       label: "Projected annual return on capital (ROC)",
       value: data?.totalProjectedRoc,
       pct: data?.totalProjectedRocPct,
       color: colors.warning,
+      allocKey: null as AllocationSource | null,
     },
     {
-      key: "planned",
+      key: "planned" as const,
       label: "Projected valuation if planned trades execute",
       value: data?.simulation?.projectedValuation,
       pct: data?.simulation?.projectedUpsidePct,
       color: colors.link,
+      allocKey: "simulation" as AllocationSource,
     },
   ].filter((row) => row.value != null);
 
@@ -225,118 +278,173 @@ export default function OverviewScreen() {
         </Pressable>
       </View>
       <View style={styles.progressCard}>
-        <Text style={styles.progressBand}>Looking back · Current holdings</Text>
-        {pastWindows.length === 0 && !ath ? (
-          <Text style={styles.progressMeta}>
-            Past progress unavailable yet — populates after price history loads.
-          </Text>
-        ) : null}
-        {pastWindows.map(({ key, window }) => (
-          <View style={styles.progressRow} key={key}>
-            <View style={styles.progressLabelLine}>
-              <Text style={styles.progressLabel}>{key} ago</Text>
-              <Text style={[styles.progressValue, { color: pctColor(window.returnPct) }]}>
-                {privacyMoney(window.valueThen, hideAmounts)} →{" "}
-                {privacyMoney(window.valueNow, hideAmounts)}{" "}
-                {window.returnPct != null ? `(${formatPct(window.returnPct, 1)})` : ""}
-              </Text>
-            </View>
-            <View style={styles.progressTrack}>
-              <View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: `${Math.max(4, ((window.valueThen ?? 0) / pastMax) * 100)}%`,
-                    backgroundColor: colors.textMuted,
-                  },
-                ]}
-              />
-            </View>
-            {pastWindowNote(window) ? (
-              <Text style={styles.progressMeta}>{pastWindowNote(window)}</Text>
-            ) : null}
-          </View>
-        ))}
-        {ath?.value != null ? (
-          <View style={styles.progressRow}>
-            <View style={styles.progressLabelLine}>
-              <Text style={styles.progressLabel}>
-                ATH · {formatEntryDate(ath.date) || ath.date || "—"}
-              </Text>
-              <Text
-                style={[
-                  styles.progressValue,
-                  { color: athAtPeak ? colors.buy : pctColor(ath.deltaPct) },
-                ]}
-              >
-                {privacyMoney(ath.value, hideAmounts)}
-                {athAtPeak
-                  ? " · at ATH"
-                  : ath.deltaPct != null
-                    ? ` (${formatPct(ath.deltaPct, 1)})`
-                    : ""}
-                {!athAtPeak && ath.deltaValue != null
-                  ? ` · ${privacyMoney(ath.deltaValue, hideAmounts)}`
-                  : ""}
-              </Text>
-            </View>
-            <View style={styles.progressTrack}>
-              <View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: `${Math.max(4, ((ath.value ?? 0) / pastMax) * 100)}%`,
-                    backgroundColor: colors.warning,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-        ) : null}
-
-        <Text style={styles.progressBand}>Looking forward · Targets</Text>
-        <View style={styles.progressRow}>
-          <View style={styles.progressLabelLine}>
-            <Text style={styles.progressLabel}>Current aggregated valuation</Text>
-            <Text style={styles.progressValue}>
-              {privacyMoney(data?.totalMarketValue, hideAmounts)}
-            </Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View
+        <View style={styles.directionRow}>
+          <Pressable
+            style={[
+              styles.directionBtn,
+              progressDirection === "back" && styles.directionBtnActive,
+            ]}
+            onPress={() => setDirection("back")}
+          >
+            <Text
               style={[
-                styles.progressFill,
-                {
-                  width: `${Math.max(4, ((data?.totalMarketValue ?? 0) / projectionMax) * 100)}%`,
-                  backgroundColor: colors.hold,
-                },
+                styles.directionText,
+                progressDirection === "back" && styles.directionTextActive,
               ]}
-            />
-          </View>
+            >
+              Looking back
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.directionBtn,
+              progressDirection === "forward" && styles.directionBtnActive,
+            ]}
+            onPress={() => setDirection("forward")}
+          >
+            <Text
+              style={[
+                styles.directionText,
+                progressDirection === "forward" && styles.directionTextActive,
+              ]}
+            >
+              Looking forward
+            </Text>
+          </Pressable>
         </View>
-        {projectedRows.map((row) => (
-          <View style={styles.progressRow} key={row.key}>
-            <View style={styles.progressLabelLine}>
-              <Text style={styles.progressLabel}>{row.label}</Text>
-              <Text style={[styles.progressValue, { color: pctColor(row.pct) }]}>
-                {privacyMoney(row.value, hideAmounts)}{" "}
-                {row.pct != null ? `(${formatPct(row.pct, 1)})` : ""}
+        <Text style={styles.progressHint}>
+          Tap a row to show that portfolio in the allocation pie
+        </Text>
+
+        {progressDirection === "back" ? (
+          <>
+            <Text style={styles.progressBand}>Current holdings buy & hold vs S&P</Text>
+            {pastWindows.length === 0 && !ath ? (
+              <Text style={styles.progressMeta}>
+                Past progress unavailable yet — populates after price history loads.
               </Text>
-            </View>
-            <View style={styles.progressTrack}>
-              <View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: `${Math.max(4, (((row.value ?? 0) / projectionMax) * 100))}%`,
-                    backgroundColor: row.color,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-        ))}
-        {plannedMeta ? <Text style={styles.progressMeta}>{plannedMeta}</Text> : null}
+            ) : null}
+            {pastWindows.map(({ key, window }) => {
+              const active = allocationSource === key;
+              return (
+                <Pressable
+                  key={key}
+                  style={[styles.progressRow, active && styles.progressRowActive]}
+                  onPress={() => selectAllocation(key)}
+                >
+                  <View style={styles.progressLabelLine}>
+                    <Text style={styles.progressLabel}>
+                      <Text style={styles.progressLabelStrong}>{key}</Text> ago
+                    </Text>
+                    <Text style={[styles.progressValue, { color: pctColor(window.returnPct) }]}>
+                      {privacyMoney(window.valueThen, hideAmounts)}{" "}
+                      {window.returnPct != null ? `(${formatPct(window.returnPct, 1)})` : ""}
+                    </Text>
+                  </View>
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: `${Math.max(4, ((window.valueThen ?? 0) / pastMax) * 100)}%`,
+                          backgroundColor: colors.textMuted,
+                        },
+                      ]}
+                    />
+                  </View>
+                  {pastWindowNote(window) ? (
+                    <Text style={styles.progressMeta}>{pastWindowNote(window)}</Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+            {ath?.value != null ? (
+              <Pressable
+                style={[styles.progressRow, allocationSource === "ath" && styles.progressRowActive]}
+                onPress={() => selectAllocation("ath")}
+              >
+                <View style={styles.progressLabelLine}>
+                  <Text style={[styles.progressLabel, styles.progressLabelAth]}>
+                    ATH · {formatEntryDate(ath.date) || ath.date || "—"}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.progressValue,
+                      { color: athAtPeak ? colors.buy : pctColor(ath.deltaPct) },
+                    ]}
+                  >
+                    {privacyMoney(ath.value, hideAmounts)}
+                    {athAtPeak
+                      ? " · at ATH"
+                      : ath.deltaPct != null
+                        ? ` (${formatPct(ath.deltaPct, 1)})${ath.deltaValue != null ? ` ${signedMoney(ath.deltaValue, hideAmounts)}` : ""}`
+                        : ""}
+                  </Text>
+                </View>
+                <View style={styles.progressTrack}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: `${Math.max(4, ((ath.value ?? 0) / pastMax) * 100)}%`,
+                        backgroundColor: colors.warning,
+                      },
+                    ]}
+                  />
+                </View>
+              </Pressable>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Text style={styles.progressBand}>Targets & planned-trade projection</Text>
+            {projectedRows.map((row) => {
+              const interactive = row.allocKey != null;
+              const active = row.allocKey != null && allocationSource === row.allocKey;
+              const body = (
+                <>
+                  <View style={styles.progressLabelLine}>
+                    <Text style={styles.progressLabel}>{row.label}</Text>
+                    <Text style={[styles.progressValue, { color: pctColor(row.pct) }]}>
+                      {privacyMoney(row.value, hideAmounts)}{" "}
+                      {row.pct != null ? `(${formatPct(row.pct, 1)})` : ""}
+                    </Text>
+                  </View>
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: `${Math.max(4, (((row.value ?? 0) / projectionMax) * 100))}%`,
+                          backgroundColor: row.color,
+                        },
+                      ]}
+                    />
+                  </View>
+                  {row.key === "planned" && plannedMeta ? (
+                    <Text style={styles.progressMeta}>{plannedMeta}</Text>
+                  ) : null}
+                </>
+              );
+              if (!interactive || !row.allocKey) {
+                return (
+                  <View style={styles.progressRow} key={row.key}>
+                    {body}
+                  </View>
+                );
+              }
+              return (
+                <Pressable
+                  key={row.key}
+                  style={[styles.progressRow, active && styles.progressRowActive]}
+                  onPress={() => selectAllocation(row.allocKey!)}
+                >
+                  {body}
+                </Pressable>
+              );
+            })}
+          </>
+        )}
       </View>
     </View>
   );
@@ -460,8 +568,8 @@ export default function OverviewScreen() {
             </View>
           ) : (
             <>
-              {alertsSection}
               {allocationSection}
+              {alertsSection}
             </>
           )}
         </ScrollView>
@@ -499,6 +607,36 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     gap: spacing.sm,
   },
+  directionRow: {
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  directionBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingVertical: 8,
+    alignItems: "center",
+    backgroundColor: colors.bg,
+  },
+  directionBtnActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentMuted,
+  },
+  directionText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  directionTextActive: {
+    color: colors.text,
+  },
+  progressHint: {
+    color: colors.textMuted,
+    fontSize: 11,
+    marginBottom: 2,
+  },
   progressBand: {
     color: colors.textMuted,
     fontSize: 10,
@@ -508,6 +646,15 @@ const styles = StyleSheet.create({
   },
   progressRow: {
     gap: 6,
+    padding: spacing.sm,
+    marginHorizontal: -spacing.sm / 2,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  progressRowActive: {
+    borderColor: "rgba(59,130,246,0.55)",
+    backgroundColor: "rgba(59,130,246,0.08)",
   },
   progressLabelLine: {
     flexDirection: "row",
@@ -521,6 +668,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textTransform: "uppercase",
     letterSpacing: 0.4,
+  },
+  progressLabelStrong: {
+    color: colors.text,
+    fontWeight: "800",
+  },
+  progressLabelAth: {
+    color: colors.warning,
+    fontWeight: "700",
   },
   progressValue: {
     color: colors.text,
