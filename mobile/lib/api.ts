@@ -96,7 +96,16 @@ async function parseJson<T>(res: Response): Promise<T> {
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new ApiError(text || res.statusText, res.status);
+    const trimmed = text.trim();
+    if (trimmed.startsWith("<!") || trimmed.toLowerCase().startsWith("<html")) {
+      throw new ApiError(
+        res.status === 405
+          ? "API method not available — restart/redeploy the server with the latest build."
+          : `Server returned HTML (${res.status}). Check API host / deploy.`,
+        res.status,
+      );
+    }
+    throw new ApiError(text.slice(0, 200) || res.statusText, res.status);
   }
 }
 

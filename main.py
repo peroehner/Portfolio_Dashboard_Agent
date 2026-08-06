@@ -363,11 +363,14 @@ def serve_replit_docs():
     return send_file(docs_path, mimetype="text/markdown; charset=utf-8")
 
 
-@app.route("/<path:asset_path>")
+@app.route("/<path:asset_path>", methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"])
 def serve_assets(asset_path):
     """Serve supporting static assets such as the saved-page _files folder."""
     if asset_path.startswith("api/"):
         return jsonify({"status": "error", "message": "API route not found"}), 404
+
+    if request.method not in ("GET", "HEAD"):
+        return jsonify({"status": "error", "message": "Method not allowed"}), 405
 
     file_path = (BASE_DIR / asset_path).resolve()
     if not file_path.is_file() or BASE_DIR not in file_path.parents:
