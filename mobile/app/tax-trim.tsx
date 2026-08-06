@@ -559,6 +559,24 @@ export default function TaxTrimScreen() {
               thumbColor={matchLossPool ? colors.accent : colors.textMuted}
             />
           </View>
+          <View style={styles.topActions}>
+            <Pressable
+              style={[styles.actionBtn, styles.actionPrimary, capturing && styles.actionDisabled]}
+              onPress={() => void onCapture()}
+              disabled={capturing}
+            >
+              <Text style={styles.actionPrimaryText}>
+                {capturing ? "Capturing…" : "Capture"}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionBtn, !canRestore && styles.actionDisabled]}
+              onPress={() => void onRestore()}
+              disabled={!canRestore}
+            >
+              <Text style={styles.actionText}>Restore</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.poolRow}>
@@ -608,24 +626,6 @@ export default function TaxTrimScreen() {
           </View>
         ) : null}
 
-        <View style={styles.actionRow}>
-          <Pressable
-            style={[styles.actionBtn, styles.actionPrimary, capturing && styles.actionDisabled]}
-            onPress={() => void onCapture()}
-            disabled={capturing}
-          >
-            <Text style={styles.actionPrimaryText}>
-              {capturing ? "Capturing…" : "Capture"}
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.actionBtn, !canRestore && styles.actionDisabled]}
-            onPress={() => void onRestore()}
-            disabled={!canRestore}
-          >
-            <Text style={styles.actionText}>Restore</Text>
-          </Pressable>
-        </View>
         {status ? <Text style={styles.status}>{status}</Text> : null}
       </View>
 
@@ -692,9 +692,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    marginLeft: "auto",
   },
   matchLabel: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
+  topActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginLeft: "auto",
+  },
   poolRow: { flexDirection: "row", gap: spacing.sm },
   poolCard: {
     flex: 1,
@@ -726,7 +731,6 @@ const styles = StyleSheet.create({
   poolSliderLabel: { color: colors.text, fontSize: 12, fontWeight: "600" },
   poolSliderValue: { fontSize: 14, fontWeight: "800" },
   slider: { width: "100%", height: 32 },
-  actionRow: { flexDirection: "row", gap: spacing.sm },
   actionBtn: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -738,7 +742,6 @@ const styles = StyleSheet.create({
   actionPrimary: {
     backgroundColor: colors.accentMuted,
     borderColor: colors.accent,
-    flex: 1,
     alignItems: "center",
   },
   actionDisabled: { opacity: 0.45 },
