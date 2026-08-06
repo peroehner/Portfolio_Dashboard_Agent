@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Slider from "@react-native-community/slider";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -15,7 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError, api } from "@/lib/api";
-import { formatMoney, formatPct, formatPrice, formatQty } from "@/lib/format";
+import { formatMoney, formatPrice, formatQty } from "@/lib/format";
 import { colors, radii, spacing } from "@/lib/theme";
 import type {
   TaxTrimLossCandidate,
@@ -45,64 +46,61 @@ function pillStyle(active: boolean) {
     : { backgroundColor: colors.surface, borderColor: colors.border };
 }
 
-function ScoreStepper({
+function MetricCell({
+  label,
+  value,
+  valueColor,
+  align = "left",
+}: {
+  label: string;
+  value: string;
+  valueColor?: string;
+  align?: "left" | "right" | "center";
+}) {
+  return (
+    <View style={[styles.metricCell, align === "right" && styles.metricRight, align === "center" && styles.metricCenter]}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={[styles.metricValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function ScoreSlider({
   label,
   value,
   max,
   onChange,
-  summary,
+  poolLabel,
+  countLabel,
 }: {
   label: string;
   value: number;
   max: number;
   onChange: (next: number) => void;
-  summary: string;
+  poolLabel: string;
+  countLabel: string;
 }) {
   return (
-    <View style={styles.stepperBlock}>
-      <View style={styles.stepperHeader}>
-        <Text style={styles.stepperLabel}>{label}</Text>
-        <Text style={styles.stepperValue}>{Math.round(value)}</Text>
+    <View style={styles.sliderBlock}>
+      <View style={styles.sliderHeader}>
+        <Text style={styles.sliderLabel}>{label}</Text>
+        <Text style={styles.sliderValue}>{Math.round(value)}</Text>
       </View>
-      <View style={styles.stepperRow}>
-        <Pressable
-          style={styles.stepBtn}
-          onPress={() => onChange(Math.max(0, value - 5))}
-          hitSlop={6}
-        >
-          <Text style={styles.stepBtnText}>−5</Text>
-        </Pressable>
-        <Pressable
-          style={styles.stepBtn}
-          onPress={() => onChange(Math.max(0, value - 1))}
-          hitSlop={6}
-        >
-          <Text style={styles.stepBtnText}>−</Text>
-        </Pressable>
-        <View style={styles.stepTrack}>
-          <View
-            style={[
-              styles.stepFill,
-              { width: `${Math.max(0, Math.min(100, (value / max) * 100))}%` },
-            ]}
-          />
-        </View>
-        <Pressable
-          style={styles.stepBtn}
-          onPress={() => onChange(Math.min(max, value + 1))}
-          hitSlop={6}
-        >
-          <Text style={styles.stepBtnText}>+</Text>
-        </Pressable>
-        <Pressable
-          style={styles.stepBtn}
-          onPress={() => onChange(Math.min(max, value + 5))}
-          hitSlop={6}
-        >
-          <Text style={styles.stepBtnText}>+5</Text>
-        </Pressable>
-      </View>
-      <Text style={styles.stepperSummary}>{summary}</Text>
+      <Slider
+        style={styles.slider}
+        minimumValue={0}
+        maximumValue={max}
+        step={1}
+        value={Math.max(0, Math.min(max, value))}
+        onValueChange={(v) => onChange(Math.round(v))}
+        minimumTrackTintColor={colors.accent}
+        maximumTrackTintColor={colors.surfaceAlt}
+        thumbTintColor={colors.accent}
+      />
+      <Text style={styles.sliderPool}>{poolLabel}</Text>
+      <Text style={styles.sliderCount}>{countLabel}</Text>
     </View>
   );
 }
@@ -118,29 +116,33 @@ function LossCard({
 }) {
   return (
     <Pressable
-      style={[styles.card, !qualifies && styles.cardMuted]}
+      style={[styles.card, qualifies ? styles.cardLossQualified : styles.cardMuted]}
       onPress={onPress}
     >
       <View style={styles.cardTop}>
-        <Text style={styles.symbol}>{row.symbol}</Text>
-        <Text style={styles.scoreChip}>L {Math.round(row.lossScore ?? 0)}</Text>
+        <View style={styles.symbolCol}>
+          <Text style={styles.symbol}>{row.symbol}</Text>
+          {qualifies ? <Text style={styles.badgeLoss}>QUALIFIED</Text> : null}
+        </View>
+        <Text style={styles.execHint}>
+          @ {row.execSource === "threshold" ? "Thr" : "Cur"} {formatPrice(row.execPrice)}
+        </Text>
       </View>
-      <Text style={styles.meta}>
-        {(row.saiAction || "—").toUpperCase()}
-        {row.saiConfidence && row.saiConfidence !== "—"
-          ? ` · ${String(row.saiConfidence).toUpperCase()}`
-          : ""}
-        {" · "}
-        @ {row.execSource === "threshold" ? "Threshold" : "Current"}{" "}
-        {formatPrice(row.execPrice)}
-      </Text>
-      <Text style={styles.meta}>
-        Sell {formatQty(row.sellQtyMax)} · Loss {formatMoney(row.netLossMax, true)} · Cash{" "}
-        {formatMoney(row.cashGenerated, true)}
-      </Text>
-      <Text style={styles.meta}>
-        Residual {formatPct(row.residualLossPct)} · 1YT {formatPct(row.analystUpsidePct)}
-      </Text>
+      <View style={styles.metricsRow}>
+        <MetricCell label="Max Sell" value={formatQty(row.sellQtyMax)} />
+        <MetricCell
+          label="Max Loss"
+          value={formatMoney(row.netLossMax, true)}
+          valueColor={colors.sell}
+        />
+        <MetricCell label="Cash" value={formatMoney(row.cashGenerated, true)} />
+        <MetricCell
+          label="Score"
+          value={String(Math.round(row.lossScore ?? 0))}
+          valueColor={qualifies ? colors.sell : colors.textMuted}
+          align="right"
+        />
+      </View>
     </Pressable>
   );
 }
@@ -156,33 +158,47 @@ function TrimCard({
   pick?: TaxTrimWinnerCandidate;
   onPress: () => void;
 }) {
+  const proposed = pick != null && (pick.suggestShares ?? 0) > 0;
+  const gain = proposed ? pick.suggestGain : row.netGainsMax;
   return (
     <Pressable
-      style={[styles.card, !qualifies && styles.cardMuted]}
+      style={[styles.card, qualifies ? styles.cardTrimQualified : styles.cardMuted]}
       onPress={onPress}
     >
       <View style={styles.cardTop}>
-        <Text style={styles.symbol}>{row.symbol}</Text>
-        <Text style={styles.scoreChip}>T {Math.round(row.trimScore ?? 0)}</Text>
+        <View style={styles.symbolCol}>
+          <Text style={styles.symbol}>{row.symbol}</Text>
+          {proposed ? (
+            <Text style={styles.badgeProposed}>PROPOSED</Text>
+          ) : qualifies ? (
+            <Text style={styles.badgeTrim}>QUALIFIED</Text>
+          ) : null}
+        </View>
+        <Text style={styles.execHint}>
+          @ {row.execSource === "threshold" ? "Thr" : "Cur"} {formatPrice(row.execPrice)}
+        </Text>
       </View>
-      <Text style={styles.meta}>
-        {(row.saiAction || "—").toUpperCase()}
-        {row.saiConfidence && row.saiConfidence !== "—"
-          ? ` · ${String(row.saiConfidence).toUpperCase()}`
-          : ""}
-        {" · "}
-        @ {row.execSource === "threshold" ? "Threshold" : "Current"}{" "}
-        {formatPrice(row.execPrice)}
-      </Text>
-      <Text style={styles.meta}>
-        {pick
-          ? `Propose ${formatQty(pick.suggestShares)} · Gain ${formatMoney(pick.suggestGain, true)}`
-          : `Max trim ${formatQty(row.sellQtyMax)} · Gain ${formatMoney(row.netGainsMax, true)}`}
-        {" · "}Cash {formatMoney(pick?.suggestCash ?? row.cashGenerated, true)}
-      </Text>
-      <Text style={styles.meta}>
-        Headroom {formatPct(row.headroomPct)} · Wt {formatPct(row.weightPct)}
-      </Text>
+      <View style={styles.metricsRow}>
+        <MetricCell
+          label="Max Trim"
+          value={
+            proposed
+              ? `${formatQty(pick.suggestShares)} / ${formatQty(row.sellQtyMax)}`
+              : formatQty(row.sellQtyMax)
+          }
+        />
+        <MetricCell
+          label={proposed ? "Proposed Gain" : "Max Gain"}
+          value={formatMoney(gain, true)}
+          valueColor={colors.buy}
+        />
+        <MetricCell
+          label="Score"
+          value={String(Math.round(row.trimScore ?? 0))}
+          valueColor={qualifies ? colors.buy : colors.textMuted}
+          align="right"
+        />
+      </View>
     </Pressable>
   );
 }
@@ -314,8 +330,27 @@ export default function TaxTrimScreen() {
     return map;
   }, [proposal?.picks]);
 
-  const lossCandidates = proposal?.lossSells?.candidates ?? [];
-  const trimCandidates = proposal?.winnerTrims?.candidates ?? [];
+  const lossCandidates = useMemo(() => {
+    const rows = [...(proposal?.lossSells?.candidates ?? [])];
+    rows.sort((a, b) => {
+      const aq = (a.lossScore ?? 0) >= lossScoreThreshold ? 1 : 0;
+      const bq = (b.lossScore ?? 0) >= lossScoreThreshold ? 1 : 0;
+      if (aq !== bq) return bq - aq;
+      return (b.lossScore ?? 0) - (a.lossScore ?? 0);
+    });
+    return rows;
+  }, [proposal?.lossSells?.candidates, lossScoreThreshold]);
+
+  const trimCandidates = useMemo(() => {
+    const rows = [...(proposal?.winnerTrims?.candidates ?? [])];
+    rows.sort((a, b) => {
+      const aq = (a.trimScore ?? 0) >= trimScoreThreshold ? 1 : 0;
+      const bq = (b.trimScore ?? 0) >= trimScoreThreshold ? 1 : 0;
+      if (aq !== bq) return bq - aq;
+      return (b.trimScore ?? 0) - (a.trimScore ?? 0);
+    });
+    return rows;
+  }, [proposal?.winnerTrims?.candidates, trimScoreThreshold]);
 
   async function persistBook(book: TaxTrimOrderBook) {
     const payload = {
@@ -406,6 +441,11 @@ export default function TaxTrimScreen() {
     }
   }
 
+  const lossSelected = proposal?.lossSells?.selectedCount ?? 0;
+  const lossTotal = proposal?.lossSells?.candidateCount ?? 0;
+  const trimSelected = proposal?.winnerTrims?.selectedCount ?? 0;
+  const trimTotal = proposal?.winnerTrims?.candidateCount ?? 0;
+
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <View style={styles.controls}>
@@ -433,27 +473,45 @@ export default function TaxTrimScreen() {
           </View>
         </View>
 
-        <Text style={styles.poolReadout}>
-          Loss {formatMoney(proposal?.lossPool, true)}
-          {" · "}Trim {formatMoney(proposal?.selectedTrimPool, true)}
-          {matchLossPool
-            ? ` · Matched ${formatMoney(proposal?.offsetGain, true)}`
-            : ` · Offset ${formatMoney(proposal?.offsetGain, true)}`}
-        </Text>
+        <View style={styles.poolTotals}>
+          <View style={styles.poolBox}>
+            <Text style={styles.poolBoxLabel}>Loss pool</Text>
+            <Text style={[styles.poolBoxValue, { color: colors.sell }]}>
+              {formatMoney(proposal?.lossPool, true)}
+            </Text>
+            <Text style={styles.poolBoxSub}>
+              {lossSelected} of {lossTotal} qualified
+            </Text>
+          </View>
+          <View style={styles.poolBox}>
+            <Text style={styles.poolBoxLabel}>Trim pool</Text>
+            <Text style={[styles.poolBoxValue, { color: colors.buy }]}>
+              {formatMoney(proposal?.selectedTrimPool, true)}
+            </Text>
+            <Text style={styles.poolBoxSub}>
+              {trimSelected} of {trimTotal} qualified
+              {matchLossPool
+                ? ` · matched ${formatMoney(proposal?.offsetGain, true)}`
+                : ` · offset ${formatMoney(proposal?.offsetGain, true)}`}
+            </Text>
+          </View>
+        </View>
 
-        <ScoreStepper
+        <ScoreSlider
           label="Loss-score ≥"
           value={lossScoreThreshold}
           max={LOSS_SCORE_MAX}
           onChange={setLossScoreThreshold}
-          summary={`${proposal?.lossSells?.selectedCount ?? 0} selected / ${proposal?.lossSells?.candidateCount ?? 0} candidates`}
+          poolLabel={`Loss pool ${formatMoney(proposal?.lossPool, true)}`}
+          countLabel={`${lossSelected} of ${lossTotal} qualified`}
         />
-        <ScoreStepper
+        <ScoreSlider
           label="Trim-score ≥"
           value={trimScoreThreshold}
           max={TRIM_SCORE_MAX}
           onChange={setTrimScoreThreshold}
-          summary={`${proposal?.winnerTrims?.selectedCount ?? 0} selected / ${proposal?.winnerTrims?.candidateCount ?? 0} candidates`}
+          poolLabel={`Trim pool ${formatMoney(proposal?.selectedTrimPool, true)}`}
+          countLabel={`${trimSelected} of ${trimTotal} qualified`}
         />
 
         <View style={styles.segRow}>
@@ -582,36 +640,37 @@ const styles = StyleSheet.create({
     marginLeft: "auto",
   },
   matchLabel: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
-  poolReadout: { color: colors.textMuted, fontSize: 12 },
-  stepperBlock: { gap: 4 },
-  stepperHeader: {
+  poolTotals: { flexDirection: "row", gap: spacing.sm },
+  poolBox: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: 2,
+  },
+  poolBoxLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  poolBoxValue: { color: colors.text, fontSize: 18, fontWeight: "700" },
+  poolBoxSub: { color: colors.textMuted, fontSize: 11 },
+  sliderBlock: { gap: 2 },
+  sliderHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "baseline",
   },
-  stepperLabel: { color: colors.text, fontSize: 13, fontWeight: "600" },
-  stepperValue: { color: colors.accent, fontSize: 14, fontWeight: "700" },
-  stepperRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  stepBtn: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    minWidth: 36,
-    alignItems: "center",
-  },
-  stepBtnText: { color: colors.text, fontWeight: "700", fontSize: 12 },
-  stepTrack: {
-    flex: 1,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.surfaceAlt,
-    overflow: "hidden",
-  },
-  stepFill: { height: "100%", backgroundColor: colors.accent },
-  stepperSummary: { color: colors.textMuted, fontSize: 11 },
+  sliderLabel: { color: colors.text, fontSize: 13, fontWeight: "600" },
+  sliderValue: { color: colors.accent, fontSize: 15, fontWeight: "700" },
+  slider: { width: "100%", height: 36 },
+  sliderPool: { color: colors.text, fontSize: 12, fontWeight: "600" },
+  sliderCount: { color: colors.textMuted, fontSize: 11 },
   actionRow: { flexDirection: "row", gap: spacing.sm },
   actionBtn: {
     borderWidth: 1,
@@ -633,31 +692,78 @@ const styles = StyleSheet.create({
   status: { color: colors.textMuted, fontSize: 12 },
   list: { padding: spacing.lg, gap: spacing.sm, paddingBottom: spacing.xl * 2 },
   card: {
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radii.md,
     padding: spacing.md,
-    gap: 4,
+    gap: spacing.sm,
   },
-  cardMuted: { opacity: 0.45 },
+  cardLossQualified: {
+    backgroundColor: "rgba(248,113,113,0.12)",
+    borderColor: "rgba(248,113,113,0.45)",
+  },
+  cardTrimQualified: {
+    backgroundColor: "rgba(74,222,128,0.12)",
+    borderColor: "rgba(74,222,128,0.45)",
+  },
+  cardMuted: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    opacity: 0.55,
+  },
   cardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    gap: spacing.sm,
   },
+  symbolCol: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   symbol: { color: colors.text, fontSize: 16, fontWeight: "700" },
-  scoreChip: {
-    color: colors.accent,
-    fontWeight: "700",
-    fontSize: 13,
-    backgroundColor: colors.accentMuted,
-    paddingHorizontal: 8,
+  badgeLoss: {
+    color: colors.sell,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    backgroundColor: "rgba(248,113,113,0.2)",
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: radii.sm,
+    borderRadius: 4,
     overflow: "hidden",
   },
-  meta: { color: colors.textMuted, fontSize: 12, lineHeight: 16 },
+  badgeTrim: {
+    color: colors.buy,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    backgroundColor: "rgba(74,222,128,0.2)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  badgeProposed: {
+    color: "#052e16",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    backgroundColor: colors.buy,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  execHint: { color: colors.textMuted, fontSize: 11 },
+  metricsRow: { flexDirection: "row", gap: spacing.sm },
+  metricCell: { flex: 1, gap: 2 },
+  metricRight: { alignItems: "flex-end" },
+  metricCenter: { alignItems: "center" },
+  metricLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  metricValue: { color: colors.text, fontSize: 14, fontWeight: "700" },
   centered: {
     flex: 1,
     alignItems: "center",

@@ -47,6 +47,7 @@ function RootNavigator() {
             name="tax-trim"
             options={{
               title: "Tax & Trim",
+              headerBackTitle: "Portfolio",
               presentation: "card",
             }}
           />
