@@ -1,6 +1,6 @@
-"""Per-user preferences — Portfolio Fit targets for the proposal framework.
+"""Per-user preferences — Portfolio Fit + Tax & Trim controls.
 
-Stored as JSONB on ``users.preferences_json``. Additive keys only.
+Stored as JSONB on ``users.preferences_json``. Additive keys only; updates merge.
 See docs/PROPOSAL_FRAMEWORK.md (Slice 3).
 """
 
@@ -21,10 +21,20 @@ PORTFOLIO_FIT_KEYS = (
 )
 
 VOLATILITY_VALUES = frozenset({"low", "moderate", "high"})
+TAX_TRIM_PRICING = frozenset({"current", "threshold"})
 
 
 def _empty_portfolio_fit() -> dict[str, Any]:
     return {key: None for key in PORTFOLIO_FIT_KEYS}
+
+
+def _default_tax_trim() -> dict[str, Any]:
+    return {
+        "pricingMode": "current",
+        "lossScoreThreshold": 0,
+        "trimScoreThreshold": 0,
+        "matchLossPool": True,
+    }
 
 
 class PreferencesService:
@@ -37,48 +47,103 @@ class PreferencesService:
             ).fetchone()
         raw = row["preferences_json"] if row else None
         data = self._parse(raw)
-        fit = _empty_portfolio_fit()
-        stored = data.get("portfolioFit") if isinstance(data.get("portfolioFit"), dict) else {}
-        for key in PORTFOLIO_FIT_KEYS:
-            if key in stored:
-                fit[key] = stored[key]
-        return {"portfolioFit": fit}
+        return {
+            "portfolioFit": self._portfolio_fit_from(data),
+            "taxTrim": self._tax_trim_from(data),
+        }
 
     def get_portfolio_fit(self, user_id: int | None = None) -> dict[str, Any]:
         return self.get(user_id=user_id)["portfolioFit"]
 
     def update(self, payload: dict[str, Any], user_id: int | None = None) -> dict[str, Any]:
         uid = user_id if user_id is not None else get_current_user_id()
-        current = self.get(user_id=uid)
-        fit = dict(current["portfolioFit"])
-        incoming = payload.get("portfolioFit") if isinstance(payload.get("portfolioFit"), dict) else payload
-        if not isinstance(incoming, dict):
-            raise ValueError("preferences payload must be an object")
-
-        if "targetAnnualDividend" in incoming:
-            fit["targetAnnualDividend"] = self._parse_nonneg_number(
-                incoming.get("targetAnnualDividend"), "targetAnnualDividend"
-            )
-        if "volatilityPreference" in incoming:
-            fit["volatilityPreference"] = self._parse_volatility(
-                incoming.get("volatilityPreference")
-            )
-        if "maxSingleNameWeightPct" in incoming:
-            fit["maxSingleNameWeightPct"] = self._parse_pct(
-                incoming.get("maxSingleNameWeightPct"), "maxSingleNameWeightPct"
-            )
-        for key in ("sectorCapPct", "taxLotPreference", "filterSetBias"):
-            if key in incoming:
-                fit[key] = incoming.get(key)
-
-        blob = {"portfolioFit": fit}
         with get_connection() as conn:
+            row = conn.execute(
+                "SELECT preferences_json FROM users WHERE id = %s",
+                (uid,),
+            ).fetchone()
+            data = self._parse(row["preferences_json"] if row else None)
+
+            fit = self._portfolio_fit_from(data)
+            tax_trim = self._tax_trim_from(data)
+
+            if "portfolioFit" in payload or any(k in payload for k in PORTFOLIO_FIT_KEYS):
+                incoming_fit = (
+                    payload.get("portfolioFit")
+                    if isinstance(payload.get("portfolioFit"), dict)
+                    else payload
+                )
+                if not isinstance(incoming_fit, dict):
+                    raise ValueError("preferences payload must be an object")
+                fit = self._merge_portfolio_fit(fit, incoming_fit)
+
+            if "taxTrim" in payload and payload.get("taxTrim") is not None:
+                incoming_tax = payload.get("taxTrim")
+                if not isinstance(incoming_tax, dict):
+                    raise ValueError("taxTrim must be an object")
+                tax_trim = self._merge_tax_trim(tax_trim or _default_tax_trim(), incoming_tax)
+
+            blob = {**data, "portfolioFit": fit}
+            if tax_trim is not None:
+                blob["taxTrim"] = tax_trim
             conn.execute(
                 "UPDATE users SET preferences_json = %s::jsonb WHERE id = %s",
                 (json.dumps(blob), uid),
             )
             conn.commit()
-        return {"portfolioFit": fit}
+        return {"portfolioFit": fit, "taxTrim": tax_trim}
+
+    def _portfolio_fit_from(self, data: dict[str, Any]) -> dict[str, Any]:
+        fit = _empty_portfolio_fit()
+        stored = data.get("portfolioFit") if isinstance(data.get("portfolioFit"), dict) else {}
+        for key in PORTFOLIO_FIT_KEYS:
+            if key in stored:
+                fit[key] = stored[key]
+        return fit
+
+    def _tax_trim_from(self, data: dict[str, Any]) -> dict[str, Any] | None:
+        stored = data.get("taxTrim") if isinstance(data.get("taxTrim"), dict) else None
+        if not stored:
+            return None
+        return self._merge_tax_trim(_default_tax_trim(), stored)
+
+    def _merge_portfolio_fit(self, fit: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+        out = dict(fit)
+        if "targetAnnualDividend" in incoming:
+            out["targetAnnualDividend"] = self._parse_nonneg_number(
+                incoming.get("targetAnnualDividend"), "targetAnnualDividend"
+            )
+        if "volatilityPreference" in incoming:
+            out["volatilityPreference"] = self._parse_volatility(
+                incoming.get("volatilityPreference")
+            )
+        if "maxSingleNameWeightPct" in incoming:
+            out["maxSingleNameWeightPct"] = self._parse_pct(
+                incoming.get("maxSingleNameWeightPct"), "maxSingleNameWeightPct"
+            )
+        for key in ("sectorCapPct", "taxLotPreference", "filterSetBias"):
+            if key in incoming:
+                out[key] = incoming.get(key)
+        return out
+
+    def _merge_tax_trim(self, current: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+        out = dict(current)
+        if "pricingMode" in incoming:
+            mode = str(incoming.get("pricingMode") or "").strip().lower()
+            if mode not in TAX_TRIM_PRICING:
+                raise ValueError("taxTrim.pricingMode must be current or threshold")
+            out["pricingMode"] = mode
+        if "lossScoreThreshold" in incoming:
+            out["lossScoreThreshold"] = self._parse_score_threshold(
+                incoming.get("lossScoreThreshold"), "lossScoreThreshold"
+            )
+        if "trimScoreThreshold" in incoming:
+            out["trimScoreThreshold"] = self._parse_score_threshold(
+                incoming.get("trimScoreThreshold"), "trimScoreThreshold"
+            )
+        if "matchLossPool" in incoming:
+            out["matchLossPool"] = bool(incoming.get("matchLossPool"))
+        return out
 
     @staticmethod
     def _parse(raw: Any) -> dict[str, Any]:
@@ -125,4 +190,16 @@ class PreferencesService:
             raise ValueError(f"{field} must be a number") from exc
         if not 0 < num <= 100:
             raise ValueError(f"{field} must be between 0 and 100")
+        return round(num, 2)
+
+    @staticmethod
+    def _parse_score_threshold(value: Any, field: str) -> float:
+        if value is None or value == "":
+            return 0.0
+        try:
+            num = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"taxTrim.{field} must be a number") from exc
+        if num < 0:
+            raise ValueError(f"taxTrim.{field} must be ≥ 0")
         return round(num, 2)

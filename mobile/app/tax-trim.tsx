@@ -203,34 +203,37 @@ export default function TaxTrimScreen() {
   const [canRestore, setCanRestore] = useState(false);
   const [ready, setReady] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prefsSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasProposal = useRef(false);
+  const skipNextPrefsSync = useRef(true);
 
   useEffect(() => {
     void (async () => {
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as { settings?: SavedControls } & SavedControls;
-          const settings = parsed.settings ?? parsed;
-          if (settings.pricingMode === "threshold" || settings.pricingMode === "current") {
-            setPricingMode(settings.pricingMode);
+        if (raw) setCanRestore(true);
+      } catch {
+        /* ignore */
+      }
+      try {
+        const prefs = await api.preferences();
+        const tt = prefs.taxTrim;
+        if (tt) {
+          if (tt.pricingMode === "threshold" || tt.pricingMode === "current") {
+            setPricingMode(tt.pricingMode);
           }
-          if (typeof settings.lossScoreThreshold === "number") {
-            setLossScoreThreshold(settings.lossScoreThreshold);
+          if (typeof tt.lossScoreThreshold === "number" && Number.isFinite(tt.lossScoreThreshold)) {
+            setLossScoreThreshold(Math.max(0, tt.lossScoreThreshold));
           }
-          if (typeof settings.trimScoreThreshold === "number") {
-            setTrimScoreThreshold(settings.trimScoreThreshold);
+          if (typeof tt.trimScoreThreshold === "number" && Number.isFinite(tt.trimScoreThreshold)) {
+            setTrimScoreThreshold(Math.max(0, tt.trimScoreThreshold));
           }
-          if (typeof settings.matchLossPool === "boolean") {
-            setMatchLossPool(settings.matchLossPool);
+          if (typeof tt.matchLossPool === "boolean") {
+            setMatchLossPool(tt.matchLossPool);
           }
-          if (settings.listMode === "tax_loss" || settings.listMode === "winner_trim") {
-            setListMode(settings.listMode);
-          }
-          setCanRestore(true);
         }
       } catch {
-        /* ignore corrupt restore */
+        /* defaults remain — web prefs unavailable */
       } finally {
         setReady(true);
       }
@@ -276,6 +279,32 @@ export default function TaxTrimScreen() {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [ready, load]);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (skipNextPrefsSync.current) {
+      skipNextPrefsSync.current = false;
+      return;
+    }
+    if (prefsSyncRef.current) clearTimeout(prefsSyncRef.current);
+    prefsSyncRef.current = setTimeout(() => {
+      void api
+        .updatePreferences({
+          taxTrim: {
+            pricingMode,
+            lossScoreThreshold,
+            trimScoreThreshold,
+            matchLossPool,
+          },
+        })
+        .catch(() => {
+          /* keep working offline */
+        });
+    }, 500);
+    return () => {
+      if (prefsSyncRef.current) clearTimeout(prefsSyncRef.current);
+    };
+  }, [ready, pricingMode, lossScoreThreshold, trimScoreThreshold, matchLossPool]);
 
   const pickBySymbol = useMemo(() => {
     const map = new Map<string, TaxTrimWinnerCandidate>();

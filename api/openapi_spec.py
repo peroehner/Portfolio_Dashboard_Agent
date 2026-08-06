@@ -10,7 +10,7 @@ OPENAPI_SPEC = {
         "/health": {"get": {"summary": "API health check"}},
         "/config": {"get": {"summary": "Runtime configuration (provider, sync interval)"}},
         "/preferences": {
-            "get": {"summary": "User preferences (Portfolio Fit targets)"},
+            "get": {"summary": "User preferences (Portfolio Fit + Tax & Trim controls)"},
             "patch": {"summary": "Update user preferences"},
         },
         "/overview": {"get": {"summary": "Portfolio KPIs, holdings summary, and pastProgress (1M/3M/ATH)"}},

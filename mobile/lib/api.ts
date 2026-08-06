@@ -329,6 +329,37 @@ export const api = {
   assessmentsOverview: () =>
     apiFetch<{ assessments: import("./types").Assessment[] }>("/assessments/overview"),
   sync: () => apiFetch("/sync", { method: "POST" }),
+  preferences: () =>
+    apiFetch<{
+      portfolioFit?: Record<string, unknown>;
+      taxTrim?: {
+        pricingMode?: import("./types").TaxTrimPricingMode;
+        lossScoreThreshold?: number;
+        trimScoreThreshold?: number;
+        matchLossPool?: boolean;
+      };
+    }>("/preferences"),
+  updatePreferences: (payload: {
+    portfolioFit?: Record<string, unknown>;
+    taxTrim?: {
+      pricingMode?: import("./types").TaxTrimPricingMode;
+      lossScoreThreshold?: number;
+      trimScoreThreshold?: number;
+      matchLossPool?: boolean;
+    };
+  }) =>
+    apiFetch<{
+      portfolioFit?: Record<string, unknown>;
+      taxTrim?: {
+        pricingMode?: import("./types").TaxTrimPricingMode;
+        lossScoreThreshold?: number;
+        trimScoreThreshold?: number;
+        matchLossPool?: boolean;
+      };
+    }>("/preferences", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
   taxTrimProposal: (params: {
     pricingMode?: import("./types").TaxTrimPricingMode;
     lossScoreThreshold?: number;

@@ -6868,6 +6868,7 @@
       try {
         localStorage.setItem(FILTER_STATE_KEY, JSON.stringify(filterStateSnapshot()));
       } catch (_) { /* quota / private mode */ }
+      if (typeof scheduleTaxTrimPrefsSync === "function") scheduleTaxTrimPrefsSync();
     }
 
     function restoreFilterState() {
@@ -12451,6 +12452,73 @@
     let lastBuiltTaxProposal = null;
     const ORDER_BOOK_SESSION_KEY = "pda.taxTrimOrderBook";
     let sessionOrderBook = loadSessionOrderBook();
+    let taxTrimPrefsSyncTimer = null;
+
+    function taxTrimPrefsPayload() {
+      return {
+        taxTrim: {
+          pricingMode: simulationPricingMode === "threshold" ? "threshold" : "current",
+          lossScoreThreshold: Math.max(0, Number(taxProposalLossScoreThreshold) || 0),
+          trimScoreThreshold: Math.max(0, Number(taxProposalTrimScoreThreshold) || 0),
+          matchLossPool: Boolean(taxProposalMatchLossPool),
+        },
+      };
+    }
+
+    function scheduleTaxTrimPrefsSync() {
+      if (taxTrimPrefsSyncTimer) clearTimeout(taxTrimPrefsSyncTimer);
+      taxTrimPrefsSyncTimer = setTimeout(() => {
+        taxTrimPrefsSyncTimer = null;
+        void syncTaxTrimPrefsToServer();
+      }, 450);
+    }
+
+    async function syncTaxTrimPrefsToServer() {
+      try {
+        await api("/preferences", { method: "PATCH", body: JSON.stringify(taxTrimPrefsPayload()) });
+      } catch (_) { /* offline / auth — localStorage still holds values */ }
+    }
+
+    async function loadTaxTrimPrefsFromServer() {
+      try {
+        const data = await api("/preferences");
+        const tt = data?.taxTrim;
+        if (!tt || typeof tt !== "object") return false;
+        let changed = false;
+        if (tt.pricingMode === "threshold" || tt.pricingMode === "current") {
+          if (simulationPricingMode !== tt.pricingMode) {
+            simulationPricingMode = tt.pricingMode;
+            changed = true;
+          }
+        }
+        if (Number.isFinite(Number(tt.lossScoreThreshold))) {
+          const next = Math.max(0, Number(tt.lossScoreThreshold));
+          if (next !== taxProposalLossScoreThreshold) {
+            taxProposalLossScoreThreshold = next;
+            changed = true;
+          }
+        }
+        if (Number.isFinite(Number(tt.trimScoreThreshold))) {
+          const next = Math.max(0, Number(tt.trimScoreThreshold));
+          if (next !== taxProposalTrimScoreThreshold) {
+            taxProposalTrimScoreThreshold = next;
+            changed = true;
+          }
+        }
+        if (typeof tt.matchLossPool === "boolean" && tt.matchLossPool !== taxProposalMatchLossPool) {
+          taxProposalMatchLossPool = tt.matchLossPool;
+          changed = true;
+        }
+        if (changed) {
+          try {
+            localStorage.setItem(FILTER_STATE_KEY, JSON.stringify(filterStateSnapshot()));
+          } catch (_) { /* ignore */ }
+        }
+        return changed;
+      } catch (_) {
+        return false;
+      }
+    }
 
     function loadSessionOrderBook() {
       try {
@@ -17572,6 +17640,10 @@
     initVpSetFilterHints();
     restoreFilterState();
     applyPersistedFilterUi();
+    void loadTaxTrimPrefsFromServer().then((changed) => {
+      if (changed) applyPersistedFilterUi();
+      else void syncTaxTrimPrefsToServer();
+    });
     document.addEventListener("keydown", handleAuthorShortcut);
     showView("overview");
     startAutoRefresh();
