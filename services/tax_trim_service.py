@@ -280,7 +280,7 @@ class TaxTrimService:
         candidates = []
         for row in rows:
             symbol = str(row["symbol"]).upper()
-            if scoped_symbols and symbol not in scoped_symbols:
+            if scoped_symbols is not None and symbol not in scoped_symbols:
                 continue
             gain_pct = _f(row.get("gainPct"))
             if gain_pct is None or gain_pct >= 0:
@@ -351,9 +351,13 @@ class TaxTrimService:
         self,
         rows: list[dict[str, Any]],
         pricing_mode: str,
+        scoped_symbols: set[str] | None = None,
     ) -> dict[str, Any]:
         candidates = []
         for row in rows:
+            symbol = str(row["symbol"]).upper()
+            if scoped_symbols is not None and symbol not in scoped_symbols:
+                continue
             gain_pct = _f(row.get("gainPct"))
             unrealized = _f(row.get("unrealizedGain"))
             if not (
@@ -392,7 +396,7 @@ class TaxTrimService:
             rec = row.get("recommendation") or {}
             candidates.append(
                 {
-                    "symbol": str(row["symbol"]).upper(),
+                    "symbol": symbol,
                     "held": held,
                     "sellQtyMax": max_shares,
                     "sellPlanCap": sell_qty if has_sell_plan else None,
@@ -440,7 +444,11 @@ class TaxTrimService:
         selected_symbols: list[str] | None = None,
     ) -> dict[str, Any]:
         mode = "threshold" if pricing_mode == "threshold" else "current"
-        scope = {str(s).upper() for s in (selected_symbols or []) if s} or None
+        # None = no client scope (all holdings). [] = explicit empty scope.
+        if selected_symbols is None:
+            scope: set[str] | None = None
+        else:
+            scope = {str(s).upper() for s in selected_symbols if s}
         rows = self._merged_rows()
         loss_sells = self.build_loss_candidates(rows, mode, scope)
         threshold = max(0.0, float(loss_score_threshold or 0))
@@ -449,7 +457,7 @@ class TaxTrimService:
         ]
         selected_loss_pool = sum(max(0.0, float(r.get("netLossMax") or 0)) for r in selected_loss)
 
-        winner_trims = self.build_trim_candidates(rows, mode)
+        winner_trims = self.build_trim_candidates(rows, mode, scope)
         trim_threshold = max(0.0, float(trim_score_threshold or 0))
         selected_trims = [
             row
@@ -491,7 +499,7 @@ class TaxTrimService:
                 "candidateCount": len(winner_trims["candidates"]),
             },
             "picks": alloc["picks"],
-            "scopedSymbols": sorted(scope) if scope else None,
+            "scopedSymbols": sorted(scope) if scope is not None else None,
         }
 
     def build_order_book(self, proposal: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:

@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Slider from "@react-native-community/slider";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError, api } from "@/lib/api";
+import { parseSymbolFilter } from "@/lib/filters";
 import { formatMoney, formatPrice, formatQty } from "@/lib/format";
 import { colors, radii, spacing } from "@/lib/theme";
 import type {
@@ -26,6 +27,8 @@ import type {
   TaxTrimProposal,
   TaxTrimWinnerCandidate,
 } from "@/lib/types";
+import { usePersistedSymbolFilter } from "@/lib/usePersistedSymbolFilter";
+import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 
 const STORAGE_KEY = "pda.taxTrim.lastBook";
 const LOSS_SCORE_MAX = 50;
@@ -250,12 +253,21 @@ export default function TaxTrimScreen() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
+  const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
+  const portfolioMode =
+    modeParam === "holdings" || modeParam === "watch" || modeParam === "all"
+      ? modeParam
+      : "all";
+  const { filter, hydrated: filterHydrated } = usePersistedSymbolFilter();
+  const matchesSymbol = useSymbolFilterMatch(filter);
   const [pricingMode, setPricingMode] = useState<TaxTrimPricingMode>("current");
   const [lossScoreThreshold, setLossScoreThreshold] = useState(0);
   const [trimScoreThreshold, setTrimScoreThreshold] = useState(0);
   const [matchLossPool, setMatchLossPool] = useState(true);
   const [listMode, setListMode] = useState<ListMode>("tax_loss");
   const [proposal, setProposal] = useState<TaxTrimProposal | null>(null);
+  const [scopeSymbols, setScopeSymbols] = useState<string[] | null>(null);
+  const [scopeReady, setScopeReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -267,6 +279,58 @@ export default function TaxTrimScreen() {
   const prefsSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasProposal = useRef(false);
   const skipNextPrefsSync = useRef(true);
+
+  const filterActive = Boolean(filter.trim());
+  const scopeLabel = useMemo(() => {
+    if (!filterActive && portfolioMode === "all") return null;
+    const bits: string[] = [];
+    if (portfolioMode === "holdings") bits.push("Holdings");
+    if (portfolioMode === "watch") bits.push("Watch");
+    if (filterActive) {
+      const parsed = parseSymbolFilter(filter);
+      if (parsed.orTerms.includes("*") || parsed.requireStarred) bits.push("Starred");
+      else bits.push(`Filter “${filter.trim()}”`);
+    }
+    const n = scopeSymbols?.length ?? 0;
+    bits.push(`${n} symbol${n === 1 ? "" : "s"}`);
+    return bits.join(" · ");
+  }, [filter, filterActive, portfolioMode, scopeSymbols]);
+
+  useEffect(() => {
+    if (!filterHydrated) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [portfolio, holdings] = await Promise.all([api.portfolio(), api.holdings()]);
+        if (cancelled) return;
+        const holdingBySymbol = new Map(
+          (holdings.holdings ?? []).map((h) => [h.symbol.toUpperCase(), h]),
+        );
+        const symbols = (portfolio.symbols ?? [])
+          .map((row) => row.symbol.toUpperCase())
+          .filter((symbol) => {
+            if (!matchesSymbol(symbol)) return false;
+            const qty = holdingBySymbol.get(symbol)?.quantity ?? 0;
+            if (portfolioMode === "holdings") return qty > 0;
+            if (portfolioMode === "watch") return !(qty > 0);
+            return true;
+          });
+        // No filter + All → unscoped (full portfolio holdings on server).
+        if (!filterActive && portfolioMode === "all") {
+          setScopeSymbols(null);
+        } else {
+          setScopeSymbols(symbols);
+        }
+      } catch {
+        if (!cancelled) setScopeSymbols(filterActive || portfolioMode !== "all" ? [] : null);
+      } finally {
+        if (!cancelled) setScopeReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [filter, filterActive, filterHydrated, matchesSymbol, portfolioMode]);
 
   useEffect(() => {
     void (async () => {
@@ -312,6 +376,7 @@ export default function TaxTrimScreen() {
           lossScoreThreshold,
           trimScoreThreshold,
           matchLossPool,
+          ...(scopeSymbols != null ? { selectedSymbols: scopeSymbols } : {}),
         });
         setProposal(next);
         hasProposal.current = true;
@@ -324,11 +389,11 @@ export default function TaxTrimScreen() {
         setRefreshing(false);
       }
     },
-    [pricingMode, lossScoreThreshold, trimScoreThreshold, matchLossPool],
+    [pricingMode, lossScoreThreshold, trimScoreThreshold, matchLossPool, scopeSymbols],
   );
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !scopeReady) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(
       () => {
@@ -339,7 +404,7 @@ export default function TaxTrimScreen() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [ready, load]);
+  }, [ready, scopeReady, load]);
 
   useEffect(() => {
     if (!ready) return;
@@ -418,6 +483,7 @@ export default function TaxTrimScreen() {
         lossScoreThreshold,
         trimScoreThreshold,
         matchLossPool,
+        ...(scopeSymbols != null ? { selectedSymbols: scopeSymbols } : {}),
       });
       await persistBook(book);
       const lines = [
@@ -579,6 +645,8 @@ export default function TaxTrimScreen() {
           </View>
         </View>
 
+        {scopeLabel ? <Text style={styles.scopeHint}>Scope: {scopeLabel}</Text> : null}
+
         <View style={styles.poolRow}>
           <PoolSliderCard
             title="Loss pool"
@@ -700,6 +768,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginLeft: "auto",
   },
+  scopeHint: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
   poolRow: { flexDirection: "row", gap: spacing.sm },
   poolCard: {
     flex: 1,

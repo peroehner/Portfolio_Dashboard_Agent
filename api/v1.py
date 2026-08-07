@@ -598,7 +598,12 @@ def tax_trim_proposal():
         match_loss_pool = match_raw.strip().lower() not in ("0", "false", "no", "off")
     else:
         match_loss_pool = bool(match_raw)
-    selected = body.get("selectedSymbols") or args.getlist("symbol") or None
+    if "selectedSymbols" in body:
+        selected = body.get("selectedSymbols")
+        if selected is not None and not isinstance(selected, list):
+            selected = [selected]
+    else:
+        selected = args.getlist("symbol") or None
     proposal = tax_trim_service.build_proposal(
         pricing_mode=str(pricing_mode),
         loss_score_threshold=float(loss_score_threshold or 0),

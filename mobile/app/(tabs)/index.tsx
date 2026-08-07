@@ -174,16 +174,15 @@ export default function OverviewScreen() {
     <View style={[styles.section, isWide && styles.sectionFlex]}>
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>Portfolio allocation</Text>
-        <Pressable onPress={() => router.push("/portfolio")}>
-          <Text style={styles.sectionLink}>Portfolio</Text>
-        </Pressable>
+        <Text style={styles.sectionSource} numberOfLines={1}>
+          {allocationLabel}
+        </Text>
       </View>
       <AllocationChart
         holdings={allocationHoldings}
         mode={allocationMode}
         onModeChange={setAllocationMode}
         hideAmounts={hideAmounts}
-        sourceLabel={allocationLabel}
       />
     </View>
   );
@@ -718,6 +717,15 @@ const styles = StyleSheet.create({
     color: colors.link,
     fontSize: 14,
     fontWeight: "600",
+  },
+  sectionSource: {
+    color: colors.link,
+    fontSize: 13,
+    fontWeight: "700",
+    flexShrink: 1,
+    marginLeft: spacing.md,
+    textAlign: "right",
+    maxWidth: "55%",
   },
   signOut: {
     color: colors.link,

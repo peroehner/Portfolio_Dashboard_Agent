@@ -124,7 +124,12 @@ export default function PortfolioScreen() {
         rightAction={
           <Pressable
             style={styles.taxTrimBtn}
-            onPress={() => router.push("/tax-trim")}
+            onPress={() =>
+              router.push({
+                pathname: "/tax-trim",
+                params: { mode },
+              })
+            }
             hitSlop={8}
           >
             <Text style={styles.taxTrimBtnText}>Tax & Trim</Text>
