@@ -174,9 +174,11 @@ export default function OverviewScreen() {
     <View style={[styles.section, isWide && styles.sectionFlex]}>
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>Portfolio allocation</Text>
-        <Text style={styles.sectionSource} numberOfLines={1}>
-          {allocationLabel}
-        </Text>
+        <View style={styles.sectionSourcePill}>
+          <Text style={styles.sectionSource} numberOfLines={1}>
+            {allocationLabel}
+          </Text>
+        </View>
       </View>
       <AllocationChart
         holdings={allocationHoldings}
@@ -718,14 +720,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+  sectionSourcePill: {
+    flexShrink: 1,
+    marginLeft: spacing.md,
+    maxWidth: "58%",
+    backgroundColor: "rgba(147,197,253,0.18)",
+    borderWidth: 1,
+    borderColor: colors.link,
+    borderRadius: radii.md,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
   sectionSource: {
     color: colors.link,
     fontSize: 13,
     fontWeight: "700",
-    flexShrink: 1,
-    marginLeft: spacing.md,
     textAlign: "right",
-    maxWidth: "55%",
   },
   signOut: {
     color: colors.link,
