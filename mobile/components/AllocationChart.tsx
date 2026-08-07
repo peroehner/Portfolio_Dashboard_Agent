@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
@@ -6,6 +6,7 @@ import {
   allocationSubtitle,
   buildAllocationSlices,
   type AllocationMode,
+  type AllocationSlice,
 } from "@/lib/allocationChart";
 import { formatMoney } from "@/lib/format";
 import { colors, radii, spacing } from "@/lib/theme";
@@ -14,6 +15,8 @@ import type { Holding } from "@/lib/types";
 const CHART_SIZE = 220;
 const OUTER_R = CHART_SIZE / 2 - 8;
 const INNER_R = OUTER_R * 0.58;
+/** Match Chart.js doughnut feel (~1s grow / morph). */
+const ANIM_MS = 750;
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
@@ -28,7 +31,19 @@ function donutPath(
   startAngle: number,
   endAngle: number,
 ): string {
-  const large = endAngle - startAngle > 180 ? 1 : 0;
+  const sweep = endAngle - startAngle;
+  if (sweep < 0.05) return "";
+  // Full circle needs two arcs (SVG can't close a 360° arc on itself).
+  if (sweep >= 359.95) {
+    const mid = startAngle + 180;
+    return [
+      donutPath(cx, cy, outerR, innerR, startAngle, mid),
+      donutPath(cx, cy, outerR, innerR, mid, startAngle + 360),
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+  const large = sweep > 180 ? 1 : 0;
   const outerStart = polar(cx, cy, outerR, startAngle);
   const outerEnd = polar(cx, cy, outerR, endAngle);
   const innerEnd = polar(cx, cy, innerR, endAngle);
@@ -40,6 +55,88 @@ function donutPath(
     `A ${innerR} ${innerR} 0 ${large} 0 ${innerStart.x} ${innerStart.y}`,
     "Z",
   ].join(" ");
+}
+
+function easeOutCubic(t: number) {
+  return 1 - (1 - t) ** 3;
+}
+
+interface ArcFrame {
+  label: string;
+  color: string;
+  value: number;
+  start: number;
+  end: number;
+}
+
+function targetArcs(slices: AllocationSlice[], total: number): ArcFrame[] {
+  let angle = 0;
+  return slices.map((slice) => {
+    const sweep = total > 0 ? (slice.value / total) * 360 : 0;
+    const start = angle;
+    const end = angle + sweep;
+    angle = end;
+    return {
+      label: slice.label,
+      color: slice.color,
+      value: slice.value,
+      start,
+      end,
+    };
+  });
+}
+
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
+}
+
+function interpolateArcs(from: ArcFrame[], to: ArcFrame[], t: number): ArcFrame[] {
+  const fromBy = new Map(from.map((a) => [a.label, a]));
+  const toBy = new Map(to.map((a) => [a.label, a]));
+  const labels = [...new Set([...from.map((a) => a.label), ...to.map((a) => a.label)])];
+
+  return labels
+    .map((label) => {
+      const next = toBy.get(label);
+      const prev = fromBy.get(label);
+      if (next && prev) {
+        return {
+          label,
+          color: next.color,
+          value: lerp(prev.value, next.value, t),
+          start: lerp(prev.start, next.start, t),
+          end: lerp(prev.end, next.end, t),
+        };
+      }
+      if (next) {
+        // Grow from a zero-width wedge at the target start.
+        const mid = next.start;
+        return {
+          label,
+          color: next.color,
+          value: lerp(0, next.value, t),
+          start: lerp(mid, next.start, t),
+          end: lerp(mid, next.end, t),
+        };
+      }
+      if (prev) {
+        const mid = (prev.start + prev.end) / 2;
+        return {
+          label,
+          color: prev.color,
+          value: lerp(prev.value, 0, t),
+          start: lerp(prev.start, mid, t),
+          end: lerp(prev.end, mid, t),
+        };
+      }
+      return null;
+    })
+    .filter(Boolean) as ArcFrame[];
+}
+
+function slicesSignature(slices: AllocationSlice[] | null | undefined, total: number): string {
+  if (!slices?.length) return "empty";
+  return `${total.toFixed(2)}|` + slices.map((s) => `${s.label}:${s.value.toFixed(2)}:${s.color}`).join("|");
 }
 
 interface AllocationChartProps {
@@ -61,21 +158,73 @@ export function AllocationChart({
     () => (slices ?? []).reduce((sum, slice) => sum + slice.value, 0),
     [slices],
   );
+  const target = useMemo(
+    () => (slices?.length && total ? targetArcs(slices, total) : []),
+    [slices, total],
+  );
+  const signature = slicesSignature(slices, total);
+
+  const [displayArcs, setDisplayArcs] = useState<ArcFrame[]>([]);
+  const displayRef = useRef<ArcFrame[]>([]);
+  const animRef = useRef<number | null>(null);
+  const signatureRef = useRef("");
+  const targetRef = useRef(target);
+  targetRef.current = target;
+
+  useEffect(() => {
+    if (signature === signatureRef.current) return;
+    signatureRef.current = signature;
+    const to = targetRef.current;
+    if (animRef.current != null) cancelAnimationFrame(animRef.current);
+
+    if (!to.length) {
+      displayRef.current = [];
+      setDisplayArcs([]);
+      return;
+    }
+
+    const from = displayRef.current;
+    const origin =
+      from.length === 0
+        ? to.map((a) => ({ ...a, value: 0, end: a.start }))
+        : from;
+
+    const started = Date.now();
+    const tick = () => {
+      const u = Math.min(1, (Date.now() - started) / ANIM_MS);
+      const eased = easeOutCubic(u);
+      const next = interpolateArcs(origin, to, eased);
+      displayRef.current = next;
+      setDisplayArcs(next);
+      if (u < 1) {
+        animRef.current = requestAnimationFrame(tick);
+      } else {
+        animRef.current = null;
+        displayRef.current = to;
+        setDisplayArcs(to);
+      }
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (animRef.current != null) cancelAnimationFrame(animRef.current);
+    };
+  }, [signature]);
 
   const arcs = useMemo(() => {
-    if (!slices?.length || !total) return [];
     const cx = CHART_SIZE / 2;
     const cy = CHART_SIZE / 2;
-    let angle = 0;
-    return slices.map((slice) => {
-      const sweep = (slice.value / total) * 360;
-      const path = donutPath(cx, cy, OUTER_R, INNER_R, angle, angle + sweep);
-      angle += sweep;
-      return { ...slice, path, pct: (slice.value / total) * 100 };
-    });
-  }, [slices, total]);
+    const liveTotal = displayArcs.reduce((sum, a) => sum + a.value, 0);
+    return displayArcs
+      .map((arc) => {
+        const path = donutPath(cx, cy, OUTER_R, INNER_R, arc.start, arc.end);
+        if (!path) return null;
+        const pct = liveTotal > 0 ? (arc.value / liveTotal) * 100 : 0;
+        return { ...arc, path, pct };
+      })
+      .filter(Boolean) as Array<ArcFrame & { path: string; pct: number }>;
+  }, [displayArcs]);
 
-  if (!slices?.length) {
+  if (!slices?.length && !displayArcs.length) {
     return (
       <View style={styles.wrap}>
         <Text style={styles.empty}>No allocation data for this selection.</Text>
@@ -114,19 +263,21 @@ export function AllocationChart({
           ))}
         </Svg>
         <View style={styles.legend}>
-          {arcs.map((arc) => (
-            <View key={arc.label} style={styles.legendRow}>
-              <View style={[styles.swatch, { backgroundColor: arc.color }]} />
-              <View style={styles.legendTextWrap}>
-                <Text style={styles.legendLabel} numberOfLines={1}>
-                  {arc.label}
-                </Text>
-                <Text style={styles.legendValue}>
-                  {hideAmounts ? "••••" : formatMoney(arc.value, true)} · {arc.pct.toFixed(1)}%
-                </Text>
+          {arcs
+            .filter((arc) => arc.value > 0.5 || arc.pct > 0.05)
+            .map((arc) => (
+              <View key={arc.label} style={styles.legendRow}>
+                <View style={[styles.swatch, { backgroundColor: arc.color }]} />
+                <View style={styles.legendTextWrap}>
+                  <Text style={styles.legendLabel} numberOfLines={1}>
+                    {arc.label}
+                  </Text>
+                  <Text style={styles.legendValue}>
+                    {hideAmounts ? "••••" : formatMoney(arc.value, true)} · {arc.pct.toFixed(1)}%
+                  </Text>
+                </View>
               </View>
-            </View>
-          ))}
+            ))}
         </View>
       </View>
     </View>

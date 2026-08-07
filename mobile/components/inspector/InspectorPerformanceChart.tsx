@@ -10,6 +10,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 
 import {
   CHART_PAD,
@@ -36,6 +37,8 @@ const CHART_HEIGHT = 280;
 const PAD = 12;
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 4;
+/** Cancel pending long-press scrub if the finger drifts this far (allow H-scroll). */
+const SCRUB_CANCEL_MOVE_PX = 14;
 
 interface InspectorPerformanceChartProps {
   data?: InspectorPayload | null;
@@ -49,9 +52,16 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
   const [hoverPoint, setHoverPoint] = useState<ChartPoint | null>(null);
   const [fsHoverPoint, setFsHoverPoint] = useState<ChartPoint | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [scrubbing, setScrubbing] = useState(false);
   const fsScrollRef = useRef<ScrollView>(null);
   const lastTapRef = useRef(0);
   const pinchRef = useRef<{ dist: number; zoom: number } | null>(null);
+  const scrubbingRef = useRef(false);
+  const scrubStartXRef = useRef(0);
+  const scrubLatestXRef = useRef(0);
+  const scrubTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastScrubKeyRef = useRef<string | null>(null);
+  const fsChartWRef = useRef(320);
   const model = useMemo(() => buildInspectorChartModel(data), [data]);
   const isLandscape = windowWidth > windowHeight;
   const wasLandscapeRef = useRef(isLandscape);
@@ -68,6 +78,7 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
     if (!isLandscape && wasLandscape) {
       setFullscreen(false);
       setFsHoverPoint(null);
+      endScrub();
     }
   }, [isLandscape]);
 
@@ -79,6 +90,7 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
   useEffect(() => {
     if (!fullscreen) {
       setZoom(1);
+      endScrub();
       return;
     }
     const t = setTimeout(() => {
@@ -87,12 +99,30 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
     return () => clearTimeout(t);
   }, [fullscreen, model, fsViewport]);
 
+  useEffect(() => {
+    return () => clearScrubTimer();
+  }, []);
+
+  function clearScrubTimer() {
+    if (scrubTimerRef.current) {
+      clearTimeout(scrubTimerRef.current);
+      scrubTimerRef.current = null;
+    }
+  }
+
+  function endScrub() {
+    clearScrubTimer();
+    scrubbingRef.current = false;
+    setScrubbing(false);
+  }
+
   function enterFullscreen() {
     setFullscreen(true);
     setHoverPoint(null);
   }
 
   function exitFullscreen() {
+    endScrub();
     setFullscreen(false);
     setFsHoverPoint(null);
   }
@@ -113,6 +143,81 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
     setPoint(nearestPricePoint(model, normX));
   }
 
+  function scrubKey(point: ChartPoint | null): string | null {
+    if (!point) return null;
+    if (point.dateMs != null) return `d:${point.dateMs}`;
+    return `x:${point.x.toFixed(4)}`;
+  }
+
+  function applyFsScrub(locationX: number, kind: "start" | "tick") {
+    const chartW = fsChartWRef.current;
+    const plotW = Math.max(1, chartW - CHART_PAD_LEFT - CHART_PAD);
+    const normX = Math.max(0, Math.min(1, (locationX - CHART_PAD_LEFT) / plotW));
+    const point = nearestPricePoint(model, normX);
+    setFsHoverPoint(point);
+    const key = scrubKey(point);
+    if (kind === "start") {
+      lastScrubKeyRef.current = key;
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      return;
+    }
+    if (key != null && key !== lastScrubKeyRef.current) {
+      lastScrubKeyRef.current = key;
+      void Haptics.selectionAsync();
+    }
+  }
+
+  function beginFsScrub(locationX: number) {
+    if (scrubbingRef.current) {
+      applyFsScrub(locationX, "tick");
+      return;
+    }
+    scrubbingRef.current = true;
+    setScrubbing(true);
+    applyFsScrub(locationX, "start");
+  }
+
+  function onFsTouchStart(e: GestureResponderEvent) {
+    if (e.nativeEvent.touches.length !== 1) {
+      clearScrubTimer();
+      return;
+    }
+    const x = e.nativeEvent.locationX;
+    scrubStartXRef.current = x;
+    scrubLatestXRef.current = x;
+    clearScrubTimer();
+    scrubTimerRef.current = setTimeout(() => {
+      scrubTimerRef.current = null;
+      if (!scrubbingRef.current) beginFsScrub(scrubLatestXRef.current);
+    }, 200);
+  }
+
+  function onFsTouchMove(e: GestureResponderEvent) {
+    onPinchTouches(e);
+    if (e.nativeEvent.touches.length !== 1) {
+      clearScrubTimer();
+      return;
+    }
+    const x = e.nativeEvent.locationX;
+    scrubLatestXRef.current = x;
+    if (scrubbingRef.current) {
+      applyFsScrub(x, "tick");
+      return;
+    }
+    if (Math.abs(x - scrubStartXRef.current) > SCRUB_CANCEL_MOVE_PX) {
+      clearScrubTimer();
+    }
+  }
+
+  function onFsTouchEnd() {
+    clearScrubTimer();
+    pinchRef.current = null;
+    if (scrubbingRef.current) {
+      scrubbingRef.current = false;
+      setScrubbing(false);
+    }
+  }
+
   function clampZoom(value: number) {
     return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(value * 20) / 20));
   }
@@ -123,6 +228,8 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
       pinchRef.current = null;
       return;
     }
+    clearScrubTimer();
+    if (scrubbingRef.current) endScrub();
     const a = touches[0];
     const b = touches[1];
     const dist = Math.hypot(b.pageX - a.pageX, b.pageY - a.pageY);
@@ -148,6 +255,7 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
 
   const baseFsW = fullscreenChartWidth(model, Math.max(fsViewport || windowWidth - PAD * 2, 320));
   const fsChartW = Math.round(baseFsW * zoom);
+  fsChartWRef.current = fsChartW;
   const fsChartH = Math.max(windowHeight - 72, 200);
 
   function onInlinePress(locationX: number) {
@@ -162,6 +270,7 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
   }
 
   function onFsPress(locationX: number) {
+    if (scrubbingRef.current) return;
     const now = Date.now();
     if (now - lastTapRef.current < 320) {
       lastTapRef.current = 0;
@@ -275,7 +384,7 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
             </Text>
           ) : (
             <Text style={styles.fsHint}>
-              Scroll · pinch or ± to zoom · hold for details · double-tap to exit
+              Scroll · hold+drag to scrub date · pinch/± zoom · double-tap exit
             </Text>
           )}
           <View
@@ -289,27 +398,17 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
             <ScrollView
               ref={fsScrollRef}
               horizontal
+              scrollEnabled={!scrubbing}
               showsHorizontalScrollIndicator
               style={styles.fsScroll}
               contentContainerStyle={{ width: fsChartW }}
             >
               <Pressable
-                onLongPress={(e) =>
-                  hoverFromTouch(e.nativeEvent.locationX, fsChartW, CHART_PAD_LEFT, setFsHoverPoint)
-                }
                 onPress={(e) => onFsPress(e.nativeEvent.locationX)}
-                onPressOut={() => {
-                  pinchRef.current = null;
-                }}
-                delayLongPress={160}
-                onTouchStart={onPinchTouches}
-                onTouchMove={onPinchTouches}
-                onTouchEnd={() => {
-                  pinchRef.current = null;
-                }}
-                onTouchCancel={() => {
-                  pinchRef.current = null;
-                }}
+                onTouchStart={onFsTouchStart}
+                onTouchMove={onFsTouchMove}
+                onTouchEnd={onFsTouchEnd}
+                onTouchCancel={onFsTouchEnd}
               >
                 <InspectorChartSvg
                   model={model}
