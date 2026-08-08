@@ -38,6 +38,29 @@ They explain structure; they do **not** yet override the overlay/LLM action.
 
 Emitted on every proposal as `bandBias` (`advisory: true`). **Does not change SAI action** until Slice 4. v1 keeps `proposal.action` aligned with the assessment action (`authority: "assessment"`).
 
+## Label vs Score (Screening Conf · Score)
+
+Screening’s **Conf · Score** chip shows **two measures**, not one duplicated field:
+
+| Measure | What it is | Role |
+|---------|------------|------|
+| **Label** (High / Medium / Low) | Published conviction | Bet-S-Hit weight factor (3 / 2 / 1) |
+| **Score** (0–100) | State + Trigger + Fit | Continuous setup quality; scales Bet-S-Hit via `(1 + score/100)` |
+
+**Base Label from Score alone:** ≥75 High, ≥45 Medium, else Low — then Label may be **softened one notch** (stability gate / unconfirmed flip, or warn/block vetoes). **Score does not drop with that soften**, so Score can **lag behind** a lower Label.
+
+**Examples (not bugs):**
+
+| Chip | Reading |
+|------|---------|
+| `High · 83` | Label matches score band; weight ≈ `3 × (1+83/100) = 5.49` |
+| `Medium · 45` | Floor of Medium band; sorts above any Low when Conf · Score is sorted Label-first |
+| `Low · 63` | Score alone → Medium, but Label Low after soften — **Score may lag Label**; hover lists stability/guardrail when known |
+
+Hover (native title) stays compact: Label → Score (State·Trigger·Fit) → Bet-S-Hit weight → Drivers → lag hint only when Label &lt; score-implied band. Sort tip: Label first, then Score.
+
+Agent Signal Record **Bet-S-Hit** uses the same pair: `confidence_weight × (1 + fit_total/100)` where `fit_total` is proposal Score total. See [signal_track_record.md](./signal_track_record.md).
+
 ## Pillar detail
 
 ### A) State (0–50)
@@ -48,6 +71,8 @@ Slow-moving quality of the name and thesis.
 - Screening / fundamentals health (margins, growth, valuation flags)  
 - Note synthesis thesis quality (when present)  
 - Analyst coverage quality (targets, dispersion — later)
+
+**Upside weight (current scaffold):** State takes screening `upsidePct` (analyst **1YT** when present, else **personal Target**) and maps positive upside into up to **+20** of State’s 0–50 (`upside/45 × 20`, capped). Example: ~25.6% upside → about **+11 State**. That is a large share of State, so ambitious targets (especially when personal Target is the only one) lift Score/band quickly even if Label is later softened. **Likely tune:** reduce this cap or split personal vs Street upside so State is less dominated by Target.
 
 ### B) Trigger (0–30)
 
@@ -194,6 +219,7 @@ Mobile compact card is deferred; API fields remain optional for later clients.
 | PEG ≥ 2.5 or trailing P/E ≥ 35 soft State −4/−5 | Valuation caution without flipping SAI |
 | `bandBias` advisory field + scorecard note | Make documented bands usable as a second opinion |
 | Header chip shows proposal total | Scores were easy to miss below the fold in Inspector |
+| *(candidate)* Cap / split Target upside in State | Upside can add up to +20 State; ambitious personal/Street targets dominate Score — reconsider weight |
 
 ### Env flags (Slice 2)
 

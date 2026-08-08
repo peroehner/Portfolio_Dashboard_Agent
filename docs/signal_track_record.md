@@ -150,13 +150,46 @@ neutrals in the average). Sign is **raw** price move.
 `+return_pct`, bearish uses `−return_pct`, neutral contributes `0`. Positive Follow
 means “following the call” would have helped on average.
 
-**Bet Strength Hit** (`calibratedHitRate`, UI column: **Bet-S-Hit**): same decisive bets,
-weighted by confidence (`high=3`, `medium=2`, `low=1`) × Fit scale (`1 + fit_total/100`).
-This is a **hit rate**, not a return. When strength is missing, every weight is 1 →
-**Hit = Bet-S-Hit** (expected until SAI confidence/Fit populate). Patterns and confluence
+**Bet Strength Hit** (`calibratedHitRate`, UI column: **Bet-S-Hit**): same decisive bets
+as Hit (wins+losses only; neutrals ignored), but each bet is **weighted**:
+
+```
+weight = LabelWeight × (1 + Score/100)
+```
+
+| Piece | Meaning | Values |
+|-------|---------|--------|
+| **LabelWeight** | Published confidence Label | high=3, medium=2, low=1 (missing→1) |
+| **Score** | Proposal **total** (State+Trigger+Fit), stored as `fit_total` | 0–100 (missing→ scale 1.0) |
+
+```
+Bet-S-Hit = Σ(weights on wins) / Σ(weights on wins+losses) × 100
+```
+
+**Naming gotcha:** DB/API field `fit_total` is the full **Score**, not the Fit pillar alone.
+
+**Portfolio examples (live Screening chips):**
+
+| Symbol | Conf · Score | Weight |
+|--------|--------------|--------|
+| LRCX | High · 83 | 3 × 1.83 = **5.49** |
+| SRPT | Medium · 56 | 2 × 1.56 = **3.12** |
+| DOCU | Medium · 45 | 2 × 1.45 = **2.90** |
+| TTD | Low · 63 | 1 × 1.63 = **1.63** |
+
+TTD’s Score (63) sits in the Medium band, but Label Low keeps its Bet-S-Hit weight small — so a TTD loss barely offsets an LRCX-strength win.
+
+**Mini-book:** LRCX-like win (5.49) + TTD-like loss (1.63) + SRPT-like win (3.12) → Hit 2/3 = **66.7%**, Bet-S-Hit 8.61/10.24 ≈ **84%**.
+
+When strength is missing, every weight is 1 → **Hit = Bet-S-Hit**. Patterns and confluence
 do not store strength today, so those rows stay equal. Once SAI strength fills in, if
 Bet-S-Hit ≫ Hit prefer stronger signals; if ≪ Hit stronger calls are underperforming.
 Summary insight grades categories by Bet-S-Hit so confluence gaps (e.g. Bearish) surface.
+
+**Label vs Score:** Confidence **Label** and proposal **Score** are separate. Score can stay
+in a higher band while Label is softened (stability / guardrails) — “Score may lag Label.”
+Screening **Conf · Score** hover explains the pair; full model + examples:
+[PROPOSAL_FRAMEWORK.md — Label vs Score](./PROPOSAL_FRAMEWORK.md#label-vs-score-screening-conf--score).
 
 **SAI strength metadata (P1 — implemented):** recommendation bets store
 `confidence`, `fit_total`, and `band_code` at capture (from the published

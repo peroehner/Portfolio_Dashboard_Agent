@@ -325,6 +325,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ symbol }),
     }),
+  deleteSymbol: (symbol: string) =>
+    apiFetch<{ status?: string; symbol?: string }>(`/symbols/${encodeURIComponent(symbol)}`, {
+      method: "DELETE",
+    }),
   fundamentals: () =>
     apiFetch<import("./types").FundamentalsFeed>("/fundamentals?includeNews=0", {
       timeoutMs: FUNDAMENTALS_TIMEOUT_MS,

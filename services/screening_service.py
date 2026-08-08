@@ -63,12 +63,59 @@ class ScreeningService:
                 nearest,
                 news_sentiment=sentiment_by_symbol.get(symbol.upper()),
             )
+            proposal = rec.get("proposal") if isinstance(rec.get("proposal"), dict) else None
+            slim_proposal = None
+            if proposal:
+                scores = proposal.get("scores") or {}
+                if scores.get("total") is not None:
+                    components = proposal.get("components") or {}
+                    stability = proposal.get("stability") or {}
+                    vetoes = proposal.get("vetoes") or []
+                    slim_vetoes = []
+                    for veto in vetoes:
+                        if not isinstance(veto, dict):
+                            continue
+                        sev = str(veto.get("severity") or "").lower()
+                        if sev not in ("warn", "block"):
+                            continue
+                        slim_vetoes.append({
+                            "severity": sev,
+                            "code": veto.get("code"),
+                            "message": veto.get("message") or veto.get("code") or sev,
+                        })
+                        if len(slim_vetoes) >= 3:
+                            break
+                    slim_proposal = {
+                        "scores": {
+                            "total": scores.get("total"),
+                            "state": scores.get("state"),
+                            "trigger": scores.get("trigger"),
+                            "portfolioFit": scores.get("portfolioFit"),
+                        },
+                        "confidence": proposal.get("confidence"),
+                        "bandBias": proposal.get("bandBias"),
+                        "stability": {
+                            "gated": bool(stability.get("gated")),
+                            "confirmed": stability.get("confirmed", True),
+                            "hysteresisHint": stability.get("hysteresisHint"),
+                        },
+                        "vetoes": slim_vetoes,
+                        "components": {
+                            key: {
+                                "score": (components.get(key) or {}).get("score"),
+                                "factors": list((components.get(key) or {}).get("factors") or [])[:2],
+                            }
+                            for key in ("state", "trigger", "portfolioFit")
+                            if isinstance(components.get(key), dict)
+                        },
+                    }
             row["recommendation"] = {
                 "action": rec.get("action") or "hold",
                 "confidence": rec.get("confidence") or "medium",
                 "sentiment": rec.get("sentiment") or "neutral",
                 "sentimentSource": rec.get("sentimentSource"),
                 "sentimentDetail": rec.get("sentimentDetail"),
+                "proposal": slim_proposal,
             }
             latest = assessments[0] if assessments else None
             row["assessedAt"] = latest.get("createdAt") if latest else None

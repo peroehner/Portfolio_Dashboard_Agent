@@ -1719,6 +1719,9 @@
     .chip.sentiment-bullish { background: rgba(34,197,94,0.18); color: #4ade80; }
     .chip.sentiment-bearish { background: rgba(239,68,68,0.18); color: #f87171; }
     .chip.sentiment-neutral { background: rgba(148,163,184,0.16); color: #94a3b8; }
+    .chip.confidence-high { background: rgba(34,197,94,0.18); color: #4ade80; }
+    .chip.confidence-medium { background: rgba(245,158,11,0.2); color: var(--warn); }
+    .chip.confidence-low { background: rgba(239,68,68,0.15); color: #fca5a5; }
     .screening-rec-chips {
       display: inline-flex;
       flex-wrap: nowrap;
@@ -1746,9 +1749,12 @@
     .rec-head-captions span:nth-child(1),
     .screening-rec-chips .chip:nth-child(1) { min-width: 4rem; }
     .rec-head-captions span:nth-child(2),
-    .screening-rec-chips .chip:nth-child(2) { min-width: 5.1rem; }
+    .screening-rec-chips .chip:nth-child(2) { min-width: 6.4rem; }
     .rec-head-captions span:nth-child(3),
     .screening-rec-chips .chip:nth-child(3) { min-width: 5.1rem; }
+    .screening-rec-chips .chip.has-score {
+      font-variant-numeric: tabular-nums;
+    }
     .rec-sort-caption {
       font: inherit;
       font-size: 0.56rem;
@@ -4224,11 +4230,6 @@
       outline: none;
       border-color: var(--accent);
     }
-    .screening-sentiment-filter {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.45rem;
-    }
     /* Cross-tab symbol filter (Set Filter / Filter), pinned to the right
        of each Portfolio-group filter bar — violet accent, distinct from tab filters. */
     .sel-clip-actions {
@@ -5246,15 +5247,41 @@
         </table>
 
         <h4>How Bet-S-Hit is calculated</h4>
-        <p>Only <strong>decisive</strong> bets (win or loss). Neutrals are ignored — same denominator idea as Hit.</p>
-        <p>Each decisive bet gets a weight:</p>
-        <ul style="margin:0.4rem 0 0.6rem 1.1rem;padding:0;font-size:0.9rem;line-height:1.45;">
-          <li>Confidence: <code>high = 3</code>, <code>medium = 2</code>, <code>low = 1</code> (missing → 1)</li>
-          <li>Fit: <code>1 + Fit_total/100</code> (e.g. Fit 80 → 1.8; missing → 1)</li>
-          <li>Weight = confidence × Fit scale</li>
+        <p><strong>Same bets as Hit</strong> — only decisive wins/losses (neutrals ignored). The difference is each bet is <em>weighted</em> by how strong the SAI call was when opened.</p>
+        <p><strong>Weight for one bet</strong></p>
+        <ul style="margin:0.35rem 0 0.55rem 1.1rem;padding:0;font-size:0.9rem;line-height:1.45;">
+          <li><strong>Label</strong> (High / Medium / Low) → <code>3</code> / <code>2</code> / <code>1</code> (missing → 1)</li>
+          <li><strong>Score</strong> (proposal total 0–100 = State+Trigger+Fit — <em>not</em> the Fit pillar alone) → scale <code>1 + Score/100</code> (missing → 1)</li>
+          <li><strong>Weight</strong> = Label × Score-scale</li>
         </ul>
-        <p><strong>Bet-S-Hit</strong> = (sum of weights on wins) ÷ (sum of weights on wins+losses) × 100.</p>
-        <p>When strength is missing, weights are all 1 → Bet-S-Hit collapses to Hit. As SAI confidence / Fit fill in, the column becomes the useful “look at signal strength” lens. Confidence / Fit breakdown tables appear under the scorecard once enough non-unknown rows exist.</p>
+        <p><strong>Bet-S-Hit</strong> = (sum of weights on <em>wins</em>) ÷ (sum of weights on wins+losses) × 100.</p>
+
+        <p><strong>Portfolio examples (your current Screening chips)</strong> — what weight a future matured bet would carry:</p>
+        <table class="help-table">
+          <tr><th>Symbol</th><th>Conf · Score</th><th>Weight</th><th>Arithmetic</th></tr>
+          <tr><td><code>LRCX</code></td><td>High · 83</td><td><strong>5.49</strong></td><td>3 × (1 + 83/100) = 3 × 1.83</td></tr>
+          <tr><td><code>SRPT</code></td><td>Medium · 56</td><td><strong>3.12</strong></td><td>2 × 1.56</td></tr>
+          <tr><td><code>DOCU</code></td><td>Medium · 45</td><td><strong>2.90</strong></td><td>2 × 1.45</td></tr>
+          <tr><td><code>TTD</code></td><td>Low · 63</td><td><strong>1.63</strong></td><td>1 × 1.63 — Score is mid-band, but Label Low keeps weight small</td></tr>
+        </table>
+        <p>So one <strong>LRCX-strength win (~5.5)</strong> counts about as much as <strong>three TTD-strength</strong> decisive bets (~1.6 each). That is why Bet-S-Hit can sit well above plain Hit when strong calls win and weak ones lose.</p>
+
+        <p><strong>Worked mini-book</strong> (illustrative, using those live weights). Suppose three matured SAI bets:</p>
+        <table class="help-table">
+          <tr><th>Bet</th><th>Outcome</th><th>Weight</th></tr>
+          <tr><td>LRCX-like (High·83)</td><td>Win</td><td>5.49</td></tr>
+          <tr><td>TTD-like (Low·63)</td><td>Loss</td><td>1.63</td></tr>
+          <tr><td>SRPT-like (Medium·56)</td><td>Win</td><td>3.12</td></tr>
+        </table>
+        <ul style="margin:0.35rem 0 0.55rem 1.1rem;padding:0;font-size:0.9rem;line-height:1.45;">
+          <li><strong>Hit</strong> = 2 wins / 3 decisive = <strong>66.7%</strong> (each bet counts as 1)</li>
+          <li><strong>Bet-S-Hit</strong> = (5.49 + 3.12) / (5.49 + 1.63 + 3.12) = 8.61 / 10.24 ≈ <strong>84%</strong></li>
+        </ul>
+        <p>Hit treats the TTD loss like the LRCX win. Bet-S-Hit barely lets that weak loss drag the rate — which is the point of the “strength” lens.</p>
+
+        <p><strong>Already matured in your book</strong> (SAI recommendation wins that stored strength): e.g. <code>NBIS</code> Medium·89 → weight 3.78; <code>AMZN</code> Medium·75 → 3.50; <code>MSFT</code> Low·70 → 1.70; <code>INTC</code> Low·65 → 1.65. Same formula — higher Label×Score wins pull Bet-S-Hit up vs plain Hit.</p>
+
+        <p>When strength is missing on older rows, every weight is 1 → Bet-S-Hit equals Hit until new assessments fill Label/Score. Confidence / Score-band tables under the scorecard appear once enough non-unknown rows exist.</p>
 
         <h4>SAI episodes</h4>
         <p>If the agent says <strong>buy</strong> at T1 and later flips to <strong>sell</strong> at T2, the buy episode is scored on the move <strong>T1→T2</strong>. Price, Follow, Hit, and Bet-S-Hit all use that same episode window for SAI.</p>
@@ -5675,16 +5702,6 @@
         <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="close" onclick="setScreeningFilter('close')" title="Nearest planned-trade threshold is within 10% of the current price">Close Trades</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="far" onclick="setScreeningFilter('far')" title="Nearest planned-trade threshold is more than 100% from the current price">Far Trades</button>
-        <span class="filter-sep" aria-hidden="true"></span>
-        <label class="screening-sentiment-filter" title="Filter by SAI Sentiment (combined with the active category filter)">
-          <span class="fib-filter-label">Sentiment</span>
-          <select id="screeningSentimentFilter" class="filter-select" onchange="setScreeningSentimentFilter(this.value)">
-            <option value="all">All</option>
-            <option value="bullish">Bullish</option>
-            <option value="neutral">Neutral</option>
-            <option value="bearish">Bearish</option>
-          </select>
-        </label>
         <span class="sel-clip-actions" data-clip-tab="screening"></span>
       </div>
       <div id="screeningTable" class="portfolio-table-scroll"><div class="empty">Loading screening…</div></div>
@@ -6967,7 +6984,6 @@
         v: FILTER_STATE_VERSION,
         holdingsFilter,
         screeningFilter,
-        screeningSentimentFilter,
         simulationFilter,
         simulationLegs,
         simulationPricingMode,
@@ -7010,11 +7026,6 @@
 
         const screenFilters = new Set(["all", "upside", "close", "far"]);
         if (screenFilters.has(saved.screeningFilter)) screeningFilter = saved.screeningFilter;
-
-        const sentiments = new Set(["all", "bullish", "neutral", "bearish"]);
-        if (sentiments.has(saved.screeningSentimentFilter)) {
-          screeningSentimentFilter = saved.screeningSentimentFilter;
-        }
 
         if (screenFilters.has(saved.simulationFilter)) simulationFilter = saved.simulationFilter;
         if (new Set(["both", "buys", "sells"]).has(saved.simulationLegs)) {
@@ -7180,12 +7191,7 @@
       }
       if (tabId === "screening") {
         const filterLabels = { all: "All", upside: "High Upside", close: "Close Trades", far: "Far Trades" };
-        let label = filterLabels[screeningFilter] || screeningFilter;
-        if (screeningSentimentFilter !== "all") {
-          const sent = screeningSentimentFilter.charAt(0).toUpperCase() + screeningSentimentFilter.slice(1);
-          label += ` · ${sent}`;
-        }
-        return label;
+        return filterLabels[screeningFilter] || screeningFilter;
       }
       if (tabId === "fib") {
         const bandLabels = { all: "All", critical: "Critical", warning: "Near", neutral: "Neutral" };
@@ -11409,25 +11415,130 @@
       const sentClass = sentiment === "bullish" ? "sentiment-bullish"
         : sentiment === "bearish" ? "sentiment-bearish"
         : "sentiment-neutral";
+      const confKey = String(confidence || "medium").toLowerCase();
+      const confClass = confKey === "high" ? "confidence-high"
+        : confKey === "low" ? "confidence-low"
+        : "confidence-medium";
       const scores = rec?.proposal?.scores;
       const total = scores != null ? Number(scores.total) : null;
-      const band = rec?.proposal?.bandBias;
-      const totalTitle = band?.label
-        ? `Proposal total ${total}/100 — band action: ${band.label}`
-        : `Proposal total ${total}/100 (State+Trigger+Fit)`;
-      const totalChip = Number.isFinite(total)
-        ? `<span class="chip proposal-total" title="${escapeHtml(totalTitle)}">${total}</span>`
-        : "";
+      const hasScore = Number.isFinite(total);
+      const confLabel = hasScore
+        ? `${confidence} · ${Math.round(total)}`
+        : confidence;
+      const confTitle = escapeHtml(saiConfidenceStrengthTitle(rec));
       const chips = `
           <span class="chip ${action}" title="Action">${action}</span>
-          <span class="chip hold" title="Confidence Level">${confidence}</span>
-          <span class="chip ${sentClass}" title="${sentimentTitle}">${sentiment}</span>
-          ${totalChip}`;
+          <span class="chip ${confClass}${hasScore ? " has-score" : ""}" title="${confTitle}">${escapeHtml(confLabel)}</span>
+          <span class="chip ${sentClass}" title="${sentimentTitle}">${sentiment}</span>`;
       if (bare) return chips;
       if (wrapperClass) {
         return `<span class="${wrapperClass}">${chips}</span>`;
       }
       return `<div>${chips}</div>`;
+    }
+
+    /** Hover copy: two measures (label vs score), discrepancy hint, this-row math. */
+    function saiScoreImpliedConfidence(total) {
+      const n = Number(total);
+      if (!Number.isFinite(n)) return null;
+      if (n >= 75) return "high";
+      if (n >= 45) return "medium";
+      return "low";
+    }
+
+    function saiConfidenceStrengthTitle(rec) {
+      const confidence = String(rec?.confidence || "medium").toLowerCase();
+      const scores = rec?.proposal?.scores || {};
+      const total = Number(scores.total);
+      const confW = confidence === "high" ? 3 : confidence === "low" ? 1 : 2;
+      const confLabel = confidence ? confidence[0].toUpperCase() + confidence.slice(1) : "Medium";
+      const lines = [];
+
+      lines.push(`Label (${confLabel}) — published conviction for Bet-S-Hit (High=3, Medium=2, Low=1)`);
+
+      if (Number.isFinite(total)) {
+        const state = Number(scores.state);
+        const trigger = Number(scores.trigger);
+        const fit = Number(scores.portfolioFit);
+        const parts = [
+          Number.isFinite(state) ? `State ${Math.round(state)}` : null,
+          Number.isFinite(trigger) ? `Trigger ${Math.round(trigger)}` : null,
+          Number.isFinite(fit) ? `Fit ${Math.round(fit)}` : null,
+        ].filter(Boolean);
+        lines.push(`Score ${Math.round(total)}/100${parts.length ? ` (${parts.join(" · ")})` : ""}`);
+        const band = rec?.proposal?.bandBias;
+        if (band?.label) {
+          lines.push(`Band: ${band.label}${band.range ? ` [${band.range}]` : ""}`);
+        }
+        const weight = confW * (1 + Math.max(0, Math.min(total, 100)) / 100);
+        lines.push(`Bet-S-Hit weight ≈ ${weight.toFixed(2)} (= ${confLabel}×${confW} × (1+${Math.round(total)}/100))`);
+      } else {
+        lines.push("Score — not available yet (run Assess Symbol)");
+      }
+
+      const components = rec?.proposal?.components || {};
+      const drivers = [];
+      ["state", "trigger", "portfolioFit"].forEach((key) => {
+        const factors = components[key]?.factors;
+        if (Array.isArray(factors) && factors.length) {
+          const label = key === "portfolioFit" ? "Fit" : key[0].toUpperCase() + key.slice(1);
+          drivers.push(`${label}: ${String(factors[0])}`);
+        }
+      });
+      if (drivers.length) {
+        lines.push("Drivers");
+        drivers.forEach((d) => lines.push(`• ${d}`));
+      }
+
+      if (Number.isFinite(total)) {
+        const implied = saiScoreImpliedConfidence(total);
+        const publishedRank = saiFieldRank(confidence, SAI_CONFIDENCE_RANK);
+        const impliedRank = saiFieldRank(implied, SAI_CONFIDENCE_RANK);
+        if (implied && publishedRank > 0 && impliedRank > publishedRank) {
+          const impliedLabel = implied[0].toUpperCase() + implied.slice(1);
+          lines.push("");
+          lines.push(
+            `Score may lag the Label: ${Math.round(total)} alone → ${impliedLabel}, but Label is ${confLabel}.`
+          );
+          lines.push("Score can stay high while Label is softened (stability / guardrails).");
+          const stability = rec?.proposal?.stability || {};
+          if (stability.gated || stability.confirmed === false) {
+            lines.push(
+              `• ${stability.hysteresisHint || "Stability: unconfirmed action flip — Label down one notch"}`
+            );
+          }
+          const vetoes = Array.isArray(rec?.proposal?.vetoes) ? rec.proposal.vetoes : [];
+          vetoes.forEach((v) => {
+            const msg = String(v?.message || v?.code || "").trim();
+            if (msg) lines.push(`• Guardrail (${v.severity || "warn"}): ${msg}`);
+          });
+        }
+      }
+
+      return lines.join("\n");
+    }
+
+    function saiScoreSortValue(row) {
+      const total = Number(row.recommendation?.proposal?.scores?.total);
+      return Number.isFinite(total) ? total : -1;
+    }
+
+    function saiConfidenceStrengthSortValue(row) {
+      // Confidence first, then continuous SAI score — closes the loop with Bet-S-Hit ranking.
+      return saiFieldRank(row.recommendation?.confidence, SAI_CONFIDENCE_RANK) * 1000
+        + saiScoreSortValue(row);
+    }
+
+    function saiConfidenceStrengthCompare(left, right, dir) {
+      const a = saiConfidenceStrengthSortValue(left);
+      const b = saiConfidenceStrengthSortValue(right);
+      // Missing score sorts as -1; keep unknown strength at the bottom for both dirs.
+      const aMissing = a < 0;
+      const bMissing = b < 0;
+      if (aMissing && bMissing) return 0;
+      if (aMissing) return 1;
+      if (bMissing) return -1;
+      return dir === "desc" ? b - a : a - b;
     }
 
     function renderRecommendationChips(rec) {
@@ -11462,8 +11573,8 @@
 
     function renderScreeningAssessedCell(row) {
       if (!row.assessedAt) return `<span class="empty">—</span>`;
-      const day = String(row.assessedAt).slice(0, 10);
-      return `<span class="screening-assessed" title="${escapeHtml(row.assessedAt)}"><span class="screening-assessed-date">${day}</span></span>`;
+      const day = formatPanelDate(row.assessedAt);
+      return `<span class="screening-assessed" title="${escapeHtml(row.assessedAt)}"><span class="screening-assessed-date">${escapeHtml(day)}</span></span>`;
     }
 
     function renderScreeningNotesCell(row) {
@@ -11759,7 +11870,7 @@
     }
 
     const TECH_STANCE_HELP = "Confluence agent's purely technical read (independent of the SAI):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 scale (left = bearish, center = neutral, right = bullish)\n• Strength — how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume)";
-    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell\n• CONFIDENCE — High / Medium / Low\n• SENTIMENT — relevance-weighted news reaction; falls back to your notes\n• Sort — click Action, Confidence, or Sentiment below (strongest first → weakest → off)";
+    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell\n• CONF · SCORE — two measures: Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit)\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• SENTIMENT — news reaction (else notes)\n• Sort — Action, Conf · Score (Label then Score), or Sentiment";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
     const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
@@ -11798,9 +11909,9 @@
           },
           {
             key: "recConfidence",
-            label: "Confidence",
-            sortValue: (row) => saiFieldRank(row.recommendation?.confidence, SAI_CONFIDENCE_RANK),
-            compare: saiFieldCompare(SAI_CONFIDENCE_RANK, (row) => row.recommendation?.confidence),
+            label: "Conf · Score",
+            sortValue: (row) => saiConfidenceStrengthSortValue(row),
+            compare: saiConfidenceStrengthCompare,
           },
           {
             key: "recSentiment",
@@ -12605,7 +12716,6 @@
     }
 
     let screeningFilter = "all";
-    let screeningSentimentFilter = "all";
 
     // Client-side row filters (everything they need is already on each row).
     const TRADE_CLOSE_PCT = 10;
@@ -13014,10 +13124,6 @@
     }
     let fundamentalsCacheAt = 0;
 
-    function screeningRowSentiment(row) {
-      return (row.recommendation?.sentiment || "neutral").toLowerCase();
-    }
-
     function applyScreeningFilter(rows) {
       if (!rows) return [];
       let filtered = rows;
@@ -13031,9 +13137,6 @@
           return Number.isFinite(d) && d > TRADE_FAR_PCT;
         });
       }
-      if (screeningSentimentFilter !== "all") {
-        filtered = filtered.filter((r) => screeningRowSentiment(r) === screeningSentimentFilter);
-      }
       return applyVirtualSymbolFilter(filtered, "screening");
     }
 
@@ -13041,15 +13144,6 @@
       document.querySelectorAll("#view-screening .filter-btn").forEach((button) => {
         button.classList.toggle("active", button.dataset.screenFilter === screeningFilter);
       });
-      const sentimentSelect = document.getElementById("screeningSentimentFilter");
-      if (sentimentSelect) sentimentSelect.value = screeningSentimentFilter;
-    }
-
-    function setScreeningSentimentFilter(value) {
-      screeningSentimentFilter = value || "all";
-      saveFilterState();
-      updateScreeningFilterButtons();
-      loadScreening("", false);
     }
 
     function setScreeningFilter(filter) {
@@ -16765,6 +16859,9 @@
     .chip.sentiment-bullish { background: rgba(34,197,94,0.18); color: #4ade80; }
     .chip.sentiment-bearish { background: rgba(239,68,68,0.18); color: #f87171; }
     .chip.sentiment-neutral { background: rgba(148,163,184,0.16); color: #94a3b8; }
+    .chip.confidence-high { background: rgba(34,197,94,0.18); color: #4ade80; }
+    .chip.confidence-medium { background: rgba(245,158,11,0.2); color: var(--warn); }
+    .chip.confidence-low { background: rgba(239,68,68,0.15); color: #fca5a5; }
     .confluence-card .confluence-head { display: flex; align-items: center; gap: 0.35rem; margin: 0 0 0.25rem; }
     .confluence-bias { font-weight: 700; font-size: 0.72rem; padding: 0.05rem 0.35rem; border-radius: 4px; background: rgba(148,163,184,0.12); }
     .confluence-bias.conf-bull { color: var(--accent-2); background: rgba(34,197,94,0.12); }
@@ -17210,7 +17307,6 @@
 
     function clearScreeningFilters() {
       screeningFilter = "all";
-      screeningSentimentFilter = "all";
       virtualPortfolioSymbols.screening = null;
       updateScreeningFilterButtons();
     }

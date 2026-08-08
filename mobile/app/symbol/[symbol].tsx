@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useNavigation } from "expo-router";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Modal,
@@ -42,6 +43,7 @@ import {
   type BrowseDirection,
 } from "@/lib/symbolBrowseSession";
 import { isChartFullscreenActive } from "@/lib/chartFullscreenGate";
+import { useStarredSymbols } from "@/lib/StarredSymbolsContext";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { InspectorPayload, Note, PortfolioSymbol } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
@@ -128,6 +130,8 @@ function mergeInspector(
 
 export default function SymbolDetailScreen() {
   const navigation = useNavigation();
+  const router = useRouter();
+  const { setStarred } = useStarredSymbols();
   const { symbol } = useLocalSearchParams<{ symbol: string }>();
   const sym = String(symbol || "").toUpperCase();
   const [tab, setTab] = useState<SymbolTab>(() => getBrowseUi().tab);
@@ -202,6 +206,7 @@ export default function SymbolDetailScreen() {
   const [composingNote, setComposingNote] = useState(false);
   const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
   const [deletingNoteId, setDeletingNoteId] = useState<number | null>(null);
+  const [removingSymbol, setRemovingSymbol] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editNoteDate, setEditNoteDate] = useState(todayIso());
   const [editNoteTitle, setEditNoteTitle] = useState("");
@@ -519,6 +524,39 @@ export default function SymbolDetailScreen() {
       setSaveError(err instanceof Error ? err.message : "Failed to delete note");
     } finally {
       setDeletingNoteId(null);
+    }
+  }
+
+  function confirmRemoveSymbol() {
+    if (!sym || removingSymbol) return;
+    Alert.alert(
+      `Delete ${sym}?`,
+      `Delete ${sym} from your portfolio? This removes its notes, assessments, alerts, and position.\n\nTo keep the ticker as watch-only, set shares to 0 instead.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void removeSymbol();
+          },
+        },
+      ],
+    );
+  }
+
+  async function removeSymbol() {
+    if (!sym || removingSymbol) return;
+    setRemovingSymbol(true);
+    setSaveError(null);
+    try {
+      await api.deleteSymbol(sym);
+      setStarred(sym, false);
+      if (router.canGoBack()) router.back();
+      else router.replace("/portfolio");
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to delete symbol");
+      setRemovingSymbol(false);
     }
   }
 
@@ -1133,6 +1171,30 @@ export default function SymbolDetailScreen() {
                 })}
               </View>
             ) : null}
+
+            <View style={styles.removeSection}>
+              <Text style={styles.removeHint}>
+                To keep the ticker as watch-only, set shares to 0 in Edit. Remove deletes the ticker
+                entirely.
+              </Text>
+              {saveError ? <Text style={styles.fullError}>{saveError}</Text> : null}
+              <Pressable
+                style={[styles.removeBtn, removingSymbol && styles.removeBtnDisabled]}
+                onPress={confirmRemoveSymbol}
+                disabled={removingSymbol}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${sym} from portfolio`}
+              >
+                {removingSymbol ? (
+                  <ActivityIndicator color="#fecaca" />
+                ) : (
+                  <>
+                    <Ionicons name="trash-outline" size={16} color="#fecaca" />
+                    <Text style={styles.removeBtnText}>Remove from portfolio</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
           </>
         ) : null}
 
@@ -1548,6 +1610,36 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     marginTop: 2,
+  },
+  removeSection: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  removeHint: {
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  removeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: "#7f1d1d",
+    borderRadius: radii.md,
+    paddingVertical: 12,
+    backgroundColor: "#3f151b",
+  },
+  removeBtnDisabled: {
+    opacity: 0.6,
+  },
+  removeBtnText: {
+    color: "#fecaca",
+    fontSize: 14,
+    fontWeight: "700",
   },
   modalRoot: {
     flex: 1,
