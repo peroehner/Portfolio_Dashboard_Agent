@@ -6,7 +6,7 @@ from typing import Any
 import yfinance as yf
 
 from services.alerts_service import AlertsService
-from services.market_cache import TtlCache, yf_throttle
+from services.market_cache import CACHE_MISS, TtlCache, peek_or_schedule, yf_throttle
 from services.assessment_service import AssessmentService
 from services.holdings_service import HoldingsService
 from services.portfolio_history_service import build_past_progress
@@ -121,7 +121,11 @@ class OverviewService:
                 data = None
             return prices
 
-        return _YTD_PRICE_CACHE.get(cache_key, fetch)
+        # Soft: never block Overview on a cold Yahoo YTD download.
+        hit = peek_or_schedule(_YTD_PRICE_CACHE, cache_key, fetch)
+        if hit is CACHE_MISS:
+            return {symbol: None for symbol in symbols}
+        return hit
 
     def _ytd_performers(
         self,
@@ -277,7 +281,10 @@ class OverviewService:
         total_mv = round(total_market_value, 2) if valued_holdings else None
         past_progress = None
         try:
-            past_progress = build_past_progress(holdings, value_now=total_mv)
+            # Soft: past progress Yahoo history warms in the background on miss.
+            past_progress = build_past_progress(
+                holdings, value_now=total_mv, blocking=False
+            )
         except Exception:
             # Past Progress is additive — never fail the Overview payload.
             past_progress = None
@@ -295,6 +302,11 @@ class OverviewService:
             "unrealizedGainPct": unrealized_gain_pct,
             "totalAnnualDividend": (
                 round(total_annual_dividend, 2) if dividend_holdings else None
+            ),
+            "totalAnnualDividendYieldPct": (
+                round(total_annual_dividend / total_market_value * 100, 2)
+                if dividend_holdings and total_market_value
+                else None
             ),
             "totalAnalystTargetValue": total_analyst_target_value,
             "totalAnalystUpsidePct": total_analyst_upside_pct,

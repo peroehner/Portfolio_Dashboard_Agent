@@ -8,15 +8,30 @@ const RENDER_BASE = "https://portfolio-dashboard-agent.onrender.com/api/v1";
 const HEALTH_RETRIES = 3;
 const HEALTH_RETRY_MS = 4000;
 const DEFAULT_TIMEOUT_MS = 12000;
+const OVERVIEW_TIMEOUT_MS = 45000;
 const NEWS_FEED_TIMEOUT_MS = 45000;
 const FUNDAMENTALS_TIMEOUT_MS = 45000;
 const NOTE_SAVE_TIMEOUT_MS = 45000;
+/** Coalesce first authenticated reads after login (Summary + stars race). */
+const PORTFOLIO_WARM_TTL_MS = 20000;
+
+/** Shared in-flight wake so auth + first tab don't stampede /health. */
+let wakeInFlight: Promise<void> | null = null;
+
+type PortfolioPayload = { symbols: import("./types").PortfolioSymbol[] };
+let portfolioWarm:
+  | { at: number; promise: Promise<PortfolioPayload> }
+  | null = null;
 
 /** Per-user Google mobile session token (preferred over shared MOBILE_DEV_TOKEN). */
 let accessToken: string | null = null;
 
 export function setAccessToken(token: string | null): void {
   accessToken = token?.trim() || null;
+  if (!accessToken) {
+    portfolioWarm = null;
+    wakeInFlight = null;
+  }
 }
 
 export function getAccessToken(): string | null {
@@ -179,19 +194,59 @@ export async function apiFetch<T>(
 }
 
 export async function wakeApi(): Promise<void> {
-  let lastError: Error | null = null;
-  for (let attempt = 0; attempt < HEALTH_RETRIES; attempt += 1) {
-    try {
-      await apiFetch<{ status?: string }>("/health");
-      return;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      if (attempt < HEALTH_RETRIES - 1) {
-        await sleep(HEALTH_RETRY_MS);
+  if (wakeInFlight) return wakeInFlight;
+
+  wakeInFlight = (async () => {
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < HEALTH_RETRIES; attempt += 1) {
+      try {
+        await apiFetch<{ status?: string }>("/health");
+        return;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (attempt < HEALTH_RETRIES - 1) {
+          await sleep(HEALTH_RETRY_MS);
+        }
       }
     }
+    throw lastError ?? new Error("Could not reach API");
+  })();
+
+  try {
+    await wakeInFlight;
+  } finally {
+    wakeInFlight = null;
   }
-  throw lastError ?? new Error("Could not reach API");
+}
+
+/**
+ * After login, Summary and StarredSymbols used to race: heavy /overview in
+ * parallel with /portfolio. Overview often aborted mid-Yahoo while Retries
+ * kept failing until the Portfolio tab ran a cheap authenticated read first.
+ * Coalesce wake + /portfolio so that warm path always precedes /overview.
+ */
+export async function ensureSessionReady(): Promise<void> {
+  await wakeApi();
+  try {
+    await fetchPortfolioShared();
+  } catch {
+    // Warm failed — caller still attempts its own endpoint.
+  }
+}
+
+async function fetchPortfolioShared(): Promise<PortfolioPayload> {
+  const now = Date.now();
+  if (portfolioWarm && now - portfolioWarm.at < PORTFOLIO_WARM_TTL_MS) {
+    return portfolioWarm.promise;
+  }
+  const promise = apiFetch<PortfolioPayload>("/portfolio");
+  portfolioWarm = { at: now, promise };
+  try {
+    return await promise;
+  } catch (err) {
+    if (portfolioWarm?.promise === promise) portfolioWarm = null;
+    throw err;
+  }
 }
 
 export async function fetchConfig(): Promise<ApiConfig> {
@@ -200,6 +255,7 @@ export async function fetchConfig(): Promise<ApiConfig> {
 
 export const api = {
   wake: wakeApi,
+  ensureSessionReady,
   config: fetchConfig,
   me: () =>
     apiFetch<{
@@ -234,8 +290,9 @@ export const api = {
       method: "POST",
       absoluteUrl: true,
     }),
-  overview: () => apiFetch<import("./types").Overview>("/overview"),
-  portfolio: () => apiFetch<{ symbols: import("./types").PortfolioSymbol[] }>("/portfolio"),
+  overview: () =>
+    apiFetch<import("./types").Overview>("/overview", { timeoutMs: OVERVIEW_TIMEOUT_MS }),
+  portfolio: () => fetchPortfolioShared(),
   holdings: () => apiFetch<{ holdings: import("./types").Holding[] }>("/holdings"),
   updateHolding: (
     symbol: string,

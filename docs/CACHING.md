@@ -101,9 +101,11 @@ There is **no** client-side TTL like the web `VIEW_CACHE_TTL_MS`. `useApiQuery` 
 | **News & Changes** | Mount + pull-to-refresh | `GET /news-feed` — see cost below |
 | **Alerts** | Mount + pull-to-refresh | DB-backed |
 
-Every query runs `api.wake()` first (`/health`, up to 3 retries × 4s) so a cold Render instance can spin up.
+Every query runs `api.ensureSessionReady()` first: shared `wake()` (`/health`, up to 3 retries × 4s) then a coalesced cheap `GET /portfolio` warm. That matches the manual workaround (open Portfolio, then Summary Retry) and stops Summary’s heavy `/overview` from racing StarredSymbols on a cold instance.
 
-Timeouts: default API **12s**; Fundamentals and News **45s** (`FUNDAMENTALS_TIMEOUT_MS`, `NEWS_FEED_TIMEOUT_MS`).
+Timeouts: default API **12s**; Overview, Fundamentals, and News **45s**.
+
+`GET /overview` does **not** block on cold Yahoo fetches for YTD best-performer or past progress — those use soft cache (`peek_or_schedule`): return KPIs immediately, warm in a background thread, fill on the next request. Mobile Summary does one delayed refetch (~2.8s) when `pastProgress` is still missing.
 
 ---
 

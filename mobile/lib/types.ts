@@ -17,6 +17,7 @@ export interface Overview {
   unrealizedGain?: number | null;
   unrealizedGainPct?: number | null;
   totalAnnualDividend?: number | null;
+  totalAnnualDividendYieldPct?: number | null;
   totalAnalystTargetValue?: number | null;
   totalAnalystUpsidePct?: number | null;
   totalPersonalTargetValue?: number | null;

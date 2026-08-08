@@ -47,15 +47,15 @@ export function HoldingsCompactCard({ data, style }: HoldingsCompactCardProps) {
   const pos = getPositionDisplay(data, data?.quote, data?.holding);
   const gainTxt =
     pos.gain != null
-      ? `${formatMoney(pos.gain)} (${formatPct(pos.gainPct)})`
-      : formatPct(pos.gainPct);
+      ? `${formatMoney(pos.gain)} (${formatPct(pos.gainPct, 0)})`
+      : formatPct(pos.gainPct, 0);
   const tgtTxt =
     pos.personalTargetValue != null
       ? `${formatMoney(pos.personalTargetValue)}${
-          pos.personalUpsidePct != null ? ` (${formatPct(pos.personalUpsidePct)})` : ""
+          pos.personalUpsidePct != null ? ` (${formatPct(pos.personalUpsidePct, 0)})` : ""
         }`
       : pos.personalUpsidePct != null
-        ? formatPct(pos.personalUpsidePct)
+        ? formatPct(pos.personalUpsidePct, 0)
         : "—";
 
   return (
@@ -67,14 +67,14 @@ export function HoldingsCompactCard({ data, style }: HoldingsCompactCardProps) {
         <View style={styles.grid}>
           <View style={styles.colLeft}>
             <ColCell label="Entry" value={pos.entryDate ? formatEntryDate(pos.entryDate) : "—"} />
-            <ColCell label="Sh" value={formatShares(pos.shares)} />
-            <ColCell label="Inv" value={formatMoney(pos.investment)} />
+            <ColCell label="Shares" value={formatShares(pos.shares)} />
+            <ColCell label="Investment" value={formatMoney(pos.investment)} />
           </View>
           <View style={styles.colMid}>
             <ColCell label="Value" value={formatMoney(pos.currentValue)} singleLine />
             <ColCell label="Gain" value={gainTxt} valueColor={pctColor(pos.gainPct)} singleLine />
             <ColCell
-              label="Tgt"
+              label="Target"
               value={tgtTxt}
               valueColor={pos.personalUpsidePct != null ? pctColor(pos.personalUpsidePct) : undefined}
               singleLine

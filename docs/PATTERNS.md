@@ -247,7 +247,8 @@ Inspector's **Volume & Liquidity** card and the table's **Volume** column expose
 |--------|---------|
 | **Rel. Volume (RVOL)** | Latest day's volume ÷ its 20-day average. State labels: `light` (≤0.6×), `normal`, `elevated` (≥1.3×), `surging` (≥2.0×). |
 | **Volume trend** | 20-day vs 50-day average participation — `rising`, `flat`, or `falling` (drying up). |
-| **OBV trend** | On-Balance-Volume slope — rising = **accumulation**, falling = **distribution**. |
+| **OBV trend** | On-Balance-Volume by itself. Chip: Accumulation / Distribution / Neutral + strength (`weak`/`moderate`/`strong`/`extreme`). Hover: **OBV slope** (%), **percentile** vs this symbol's own past \|slopes\| over an **~N-bar range**, and the strength bucket. |
+| **OBV vs Price** | Four-quadrant confirm/divergence between price direction and OBV (Bull/Bear confirm, bullish/bearish divergence). |
 | **POC** | **Point of Control** — the most-traded price over the lookback (strongest support/resistance shelf). |
 | **Value Area (VAH–VAL)** | The band that held ~70% of volume (`VOLUME_VALUE_AREA_PCT`); inside it price is "accepted", outside it is "discovery". |
 | **Price node** | Whether the *current* price sits on a `high` / `medium` / `low`-volume node (thin nodes move fast). |

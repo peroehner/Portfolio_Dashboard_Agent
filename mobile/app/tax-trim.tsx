@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError, api } from "@/lib/api";
 import { parseSymbolFilter } from "@/lib/filters";
 import { formatMoney, formatPrice, formatQty } from "@/lib/format";
+import { orderBookStamp, orderBookToCsv } from "@/lib/orderBookCsv";
 import { colors, radii, spacing } from "@/lib/theme";
 import type {
   TaxTrimLossCandidate,
@@ -486,26 +487,11 @@ export default function TaxTrimScreen() {
         ...(scopeSymbols != null ? { selectedSymbols: scopeSymbols } : {}),
       });
       await persistBook(book);
-      const lines = [
-        `Tax & Trim Order Book · ${book.capturedAt}`,
-        `Pricing: ${book.settings.pricingMode} · Match Loss: ${book.settings.matchLossPool ? "on" : "off"}`,
-        `Loss ≥ ${book.settings.lossScoreThreshold} · Trim ≥ ${book.settings.trimScoreThreshold}`,
-        `Orders: ${book.summary.orderCount} · Loss pool ${formatMoney(book.summary.lossPool)} · Offset ${formatMoney(book.summary.offsetGain)}`,
-        "",
-        ...book.orders.map((o) => {
-          const impact =
-            o.kind === "tax_loss"
-              ? `loss ${formatMoney(o.estLoss)}`
-              : `gain ${formatMoney(o.estGain)}`;
-          return `${o.side.toUpperCase()} ${o.symbol} ${formatQty(o.shares)} @ ${formatPrice(o.limit)} (${o.kind}) · ${impact}`;
-        }),
-        "",
-        "JSON:",
-        JSON.stringify(book, null, 2),
-      ];
+      const stamp = orderBookStamp(book.capturedAt);
+      const csv = orderBookToCsv(book);
       await Share.share({
-        message: lines.join("\n"),
-        title: "Tax & Trim Order Book",
+        message: csv,
+        title: `PDA-OrderBook-${stamp}.csv`,
       });
       setStatus(`Captured ${book.summary.orderCount} orders`);
     } catch (err) {

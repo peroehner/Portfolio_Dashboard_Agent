@@ -450,78 +450,50 @@
     .target-setup-card {
       display: flex;
       flex-direction: column;
-      gap: 0.85rem;
-    }
-    .target-rec-row {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.75rem 1.15rem;
-      padding: 0.55rem 0.65rem;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: rgba(15, 23, 42, 0.35);
-    }
-    .target-analyst-block,
-    .target-recommendation-block {
-      display: inline-flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.35rem 0.5rem;
-    }
-    .target-analyst-value {
-      font-weight: 600;
-      font-size: 0.95rem;
-    }
-    .target-analyst-block .target-field-meta {
-      margin-top: 0;
-    }
-    .target-rec-label {
-      font-size: 0.72rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-right: 0.15rem;
+      gap: 0.55rem;
     }
     .target-fields-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 0.65rem 0.85rem;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0.35rem 0.4rem;
       align-items: start;
     }
-    @media (max-width: 980px) {
+    @media (max-width: 1100px) {
+      .target-fields-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
       .target-fields-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
-    @media (max-width: 560px) {
+    @media (max-width: 480px) {
       .target-fields-grid { grid-template-columns: 1fr; }
     }
     .target-position-group {
-      margin-bottom: 0.85rem;
-      padding-bottom: 0.85rem;
+      margin-bottom: 0.55rem;
+      padding-bottom: 0.55rem;
       border-bottom: 1px solid var(--border);
     }
     .target-group-label {
       display: flex;
       align-items: baseline;
       gap: 0.5rem;
-      margin: 0 0 0.45rem;
+      margin: 0 0 0.35rem;
       font-size: 0.74rem;
       text-transform: uppercase;
       letter-spacing: 0.04em;
       color: var(--muted);
     }
-    .target-planned-group { margin-top: 0.85rem; }
+    .target-planned-group { margin-top: 0.55rem; }
     .planned-trade-pair {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.6rem 1.5rem;
+      gap: 0.45rem 1rem;
     }
     .planned-trade-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.3fr);
       align-items: start;
-      gap: 0.5rem 0.7rem;
-      margin-bottom: 0.6rem;
+      gap: 0.35rem 0.5rem;
+      margin-bottom: 0.35rem;
     }
     .planned-trade-side label { white-space: nowrap; }
     .planned-trade-side .trade-dir-toggle { margin-top: 0.05rem; }
@@ -541,7 +513,7 @@
       align-items: baseline;
       justify-content: space-between;
       gap: 0.5rem;
-      margin: 0 0 0.3rem;
+      margin: 0 0 0.2rem;
       font-size: 0.74rem;
       text-transform: uppercase;
       letter-spacing: 0.04em;
@@ -554,7 +526,74 @@
       font-weight: 400;
     }
     .target-field input {
-      padding: 0.5rem 0.6rem;
+      padding: 0.4rem 0.5rem;
+    }
+    .target-analyst-chip {
+      padding: 0.4rem 0.5rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.45);
+      min-height: 2.35rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.1rem;
+    }
+    .target-analyst-chip .analyst-price {
+      color: var(--text);
+      font-weight: 600;
+      font-size: 0.95rem;
+      line-height: 1.2;
+    }
+    .target-analyst-chip .analyst-upside {
+      font-size: 0.72rem;
+      line-height: 1.2;
+    }
+    .target-analyst-chip .analyst-upside.positive { color: var(--accent-2); }
+    .target-analyst-chip .analyst-upside.negative { color: var(--danger); }
+    .target-analyst-chip .analyst-empty {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .target-personal-chip {
+      padding: 0.2rem 0.4rem 0.3rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.45);
+      min-height: 2.35rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.05rem;
+    }
+    .target-personal-chip input {
+      border: none;
+      background: transparent;
+      padding: 0.15rem 0.1rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      line-height: 1.2;
+      box-shadow: none;
+    }
+    .target-personal-chip input:focus {
+      outline: none;
+    }
+    .target-personal-chip .target-field-meta {
+      margin-top: 0;
+      padding: 0 0.1rem;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      min-height: 0.9rem;
+    }
+    .planned-trade-side {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      /* Match Quantity label height so Buy/Sell lines up with the input. */
+      padding-top: 1.15rem;
+    }
+    .planned-trade-side .trade-dir-toggle {
+      margin-top: 0;
     }
     .target-field-readout {
       padding: 0.5rem 0.6rem;
@@ -612,14 +651,21 @@
       table.data tbody tr.row-updated > td { animation: none; }
     }
     .threshold-proposal {
-      margin-top: 0.35rem;
+      margin-top: 0.25rem;
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       align-items: center;
-      gap: 0.35rem 0.5rem;
-      font-size: 0.72rem;
+      gap: 0.35rem 0.45rem;
+      font-size: 0.7rem;
       color: var(--muted);
-      line-height: 1.35;
+      line-height: 1.25;
+      min-width: 0;
+    }
+    .threshold-proposal .proposal-note {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
     }
     .threshold-proposal button {
       border: 1px solid rgba(139, 92, 246, 0.45);
@@ -630,6 +676,7 @@
       font-size: 0.68rem;
       font-weight: 600;
       cursor: pointer;
+      flex: 0 0 auto;
     }
     .threshold-proposal button:hover {
       background: rgba(139, 92, 246, 0.22);
@@ -918,6 +965,11 @@
       padding: 1rem 1.1rem;
       min-height: 100%;
     }
+    #allocationSection.visual-card {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
     .visual-card h2 {
       margin: 0 0 0.35rem;
       font-size: 1rem;
@@ -926,10 +978,13 @@
       letter-spacing: normal;
     }
     .visual-card .visual-subtitle {
-      margin: 0 0 1rem;
+      margin: 0 0 0.65rem;
       color: var(--muted);
       font-size: 0.85rem;
       line-height: 1.45;
+    }
+    #allocationSection .visual-subtitle {
+      flex: 0 0 auto;
     }
     .panel-hint {
       margin: 0 0 0.55rem;
@@ -945,22 +1000,33 @@
       flex-wrap: wrap;
     }
     .visual-card-head h2 { margin: 0; }
+    .visual-card-title-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
     .allocation-chart-wrap {
+      flex: 1 1 auto;
       max-width: 100%;
       margin: 0;
-      padding: 0.25rem 0 0;
-      min-height: 240px;
+      padding: 0.15rem 0 0;
+      min-height: 260px;
       display: grid;
-      grid-template-columns: minmax(0, 210px) minmax(0, 1fr);
+      grid-template-columns: minmax(200px, 1.2fr) minmax(0, 0.8fr);
       align-items: start;
-      gap: 1.35rem;
+      gap: 0.85rem 1rem;
     }
     .allocation-chart-canvas-wrap {
-      width: 100%;
-      max-width: 210px;
-      aspect-ratio: 1;
+      box-sizing: border-box;
+      height: min(100%, 360px);
+      width: auto;
+      aspect-ratio: 1 / 1;
+      max-width: 100%;
       position: relative;
       justify-self: center;
+      align-self: center;
     }
     .allocation-chart-canvas-wrap canvas {
       display: block;
@@ -971,34 +1037,43 @@
     .allocation-legend {
       display: flex;
       flex-direction: column;
-      gap: 0.32rem;
-      max-height: 280px;
+      gap: 0.28rem;
+      align-content: start;
+      align-self: start;
+      max-height: none;
       overflow-y: auto;
-      padding-left: 0.15rem;
+      padding-left: 0.05rem;
+      min-height: 0;
+      min-width: 0;
     }
     .allocation-legend-row {
       display: flex;
-      align-items: center;
-      gap: 0.45rem;
+      align-items: baseline;
+      gap: 0.35rem;
       min-width: 0;
-      line-height: 1.35;
+      line-height: 1.3;
       white-space: nowrap;
     }
     .allocation-legend-symbol {
       font-weight: 700;
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       color: #e2e8f0;
+      flex: 0 1 auto;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .allocation-legend-value {
       font-weight: 400;
-      font-size: 0.72rem;
+      font-size: 0.7rem;
       color: #94a3b8;
+      flex: 0 0 auto;
     }
     .allocation-legend-dot {
-      width: 10px;
-      height: 10px;
+      width: 9px;
+      height: 9px;
       border-radius: 999px;
       flex: 0 0 auto;
+      align-self: center;
     }
     .allocation-legend-empty {
       color: var(--muted);
@@ -1009,16 +1084,21 @@
       .allocation-chart-wrap {
         grid-template-columns: 1fr;
         justify-items: center;
+        min-height: 0;
+      }
+      .allocation-chart-canvas-wrap {
+        height: min(100%, 260px);
+        max-width: 260px;
       }
       .allocation-legend {
         width: 100%;
-        max-height: none;
       }
     }
     .allocation-source-pill {
-      display: inline-block;
-      margin-top: 0.35rem;
-      padding: 0.2rem 0.55rem;
+      display: inline-flex;
+      align-items: center;
+      margin: 0;
+      padding: 0.18rem 0.55rem;
       font-size: 0.72rem;
       font-weight: 700;
       letter-spacing: 0.03em;
@@ -1026,6 +1106,7 @@
       background: rgba(59, 130, 246, 0.15);
       border: 1px solid rgba(96, 165, 250, 0.45);
       border-radius: 999px;
+      white-space: nowrap;
     }
     .projection-row {
       background: var(--bg);
@@ -1127,22 +1208,30 @@
       border-color: rgba(59, 130, 246, 0.5);
     }
     .projection-subnote { margin-top: 0.45rem; font-size: 0.72rem; color: var(--muted); }
-    .sim-kpis { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
+    .sim-kpis {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 0.45rem;
+      margin-bottom: 0.65rem;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
     .sim-kpi {
       background: var(--bg);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 0.6rem 0.9rem;
+      border-radius: 8px;
+      padding: 0.4rem 0.65rem;
       display: flex;
       flex-direction: column;
-      gap: 0.25rem;
-      min-width: 130px;
+      gap: 0.15rem;
+      min-width: 6.5rem;
+      flex: 1 1 0;
     }
     .sim-kpi.lead { border-color: rgba(59, 130, 246, 0.45); background: rgba(59, 130, 246, 0.1); }
-    .sim-kpi-label { font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+    .sim-kpi-label { font-size: 0.58rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
     .sim-kpi-label sup { text-transform: none; font-size: 0.95em; vertical-align: super; }
-    .sim-kpi-value { font-size: 1.05rem; font-weight: 700; }
-    .sim-kpi.lead .sim-kpi-value { font-size: 1.25rem; }
+    .sim-kpi-value { font-size: 0.95rem; font-weight: 700; white-space: nowrap; }
+    .sim-kpi.lead .sim-kpi-value { font-size: 1.05rem; }
     .sim-caption { margin-top: 0.6rem; font-size: 0.72rem; color: var(--muted); }
     .sim-legs-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 0.35rem; }
     .sim-warn { color: var(--warn); font-weight: 700; }
@@ -2750,22 +2839,33 @@
       }
     }
     .inspector-holdings-card .holdings-condensed {
-      display: flex;
-      flex-direction: column;
-      gap: 0.55rem;
+      display: none;
     }
-    .inspector-holdings-card .holdings-line {
-      margin: 0;
-      font-size: 0.88rem;
-      line-height: 1.5;
-      color: var(--text);
+    .inspector-holdings-card .holdings-position-grid {
+      margin-bottom: 0.55rem;
     }
-    .inspector-holdings-card .holdings-line strong {
-      font-weight: 700;
+    .inspector-holdings-card .holdings-position-grid .valuation-metric {
+      padding: 0.5rem 0.55rem;
     }
-    .inspector-holdings-card .holdings-line .muted {
-      color: var(--muted);
-      font-weight: 500;
+    .inspector-holdings-card .holdings-position-grid .valuation-metric .label {
+      font-size: 0.6rem;
+      margin-bottom: 0.15rem;
+    }
+    .inspector-holdings-card .holdings-position-grid .valuation-metric .value {
+      font-size: 0.84rem;
+      white-space: normal;
+      line-height: 1.2;
+      overflow: visible;
+      text-overflow: unset;
+    }
+    .inspector-holdings-card .holdings-position-grid .valuation-metric .value .chip-pct {
+      display: block;
+      font-size: 0.78em;
+      font-weight: 600;
+      margin-top: 0.1rem;
+    }
+    .inspector-holdings-card .holdings-position-grid + .holdings-valuation {
+      margin-top: 0.15rem;
     }
     .valuation-grid {
       display: grid;
@@ -2832,12 +2932,23 @@
       margin-left: auto;
     }
     .fib-filter-bar .sel-clip-actions {
+      margin-left: 0;
+    }
+    .fib-filter-bar-end {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
       margin-left: auto;
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
     }
     .fib-filter-bar .fib-refresh-btn {
       display: inline-flex;
       align-items: center;
       gap: 0.35rem;
+      flex-shrink: 0;
+    }
+    .fib-filter-bar .fib-help-btn {
       flex-shrink: 0;
     }
     .fund-tab {
@@ -4242,7 +4353,7 @@
     }
     /* GAINS / TAX (and optional Unknown-Wins) presentation in the Simulation
        KPI header card. */
-    .sim-kpi-gaintax { min-width: 175px; }
+    .sim-kpi-gaintax { min-width: 9.5rem; flex: 1.35 1 0; }
     /* UNKNOWN-WINS sub-line inside the GAINS/TAX KPI card. */
     .sim-gaintax-block {
       display: flex;
@@ -5004,12 +5115,27 @@
           <tr><td><span class="screening-tech-stance unknown">Unknown</span></td><td>Not enough technical data.</td></tr>
         </table>
 
-        <h4>9 · OBV and OBV vs Price</h4>
+        <h4 id="patternsHelpObv">9 · OBV and OBV vs Price</h4>
         <p><strong>OBV</strong> (On-Balance Volume) adds volume on up-days and subtracts it on down-days. It is a flow gauge: rising OBV suggests accumulation, falling OBV suggests distribution.</p>
         <table class="help-table">
           <tr><th>Field</th><th>What it means</th></tr>
-          <tr><td><code>OBV Trend</code></td><td>Direction and strength of OBV slope over the recent window (e.g. <em>Accumulation</em>, <em>Distribution</em>). This is OBV by itself.</td></tr>
+          <tr><td><code>OBV Trend</code></td><td>Direction of OBV by itself (chip: <em>Accumulation ° moderate</em>). Hover shows slope, percentile, and strength detail.</td></tr>
           <tr><td><code>OBV vs Price</code></td><td>Four-quadrant confirmation/divergence check between price direction and OBV direction.</td></tr>
+        </table>
+        <p><strong>OBV Trend chip labels</strong></p>
+        <table class="help-table">
+          <tr><th>Label</th><th>Meaning</th></tr>
+          <tr><td><code>Accumulation</code></td><td>OBV slope is rising — buying pressure is adding volume on up-days.</td></tr>
+          <tr><td><code>Distribution</code></td><td>OBV slope is falling — selling pressure is removing volume on down-days.</td></tr>
+          <tr><td><code>Neutral</code></td><td>OBV slope is near flat — no clear accumulation or distribution.</td></tr>
+        </table>
+        <p><strong>Hover text glossary</strong> (example: <code>OBV slope -1.49% · 42nd percentile of its own ~481-bar range (moderate)</code>)</p>
+        <table class="help-table">
+          <tr><th>Term</th><th>What it means</th></tr>
+          <tr><td><code>OBV slope</code></td><td>Recent % change in the OBV line over the slope window. Negative = OBV falling (distribution); positive = rising (accumulation).</td></tr>
+          <tr><td><code>percentile</code></td><td>Where today's |slope| ranks versus <em>this symbol's own</em> past |slopes| (not vs the market). 42nd ≈ middle of its history; 90th+ is unusually steep for that name.</td></tr>
+          <tr><td><code>~N-bar range</code></td><td>How many past daily bars were used to build that ranking (e.g. ~481). More bars → more stable percentile.</td></tr>
+          <tr><td><code>weak</code> / <code>moderate</code> / <code>strong</code> / <code>extreme</code></td><td>Bucketed strength from the percentile: roughly &lt;33 weak, &lt;66 moderate, &lt;90 strong, ≥90 extreme. Flat OBV or too little history → no strength label.</td></tr>
         </table>
         <table class="help-table">
           <tr><th>OBV vs Price state</th><th>Interpretation</th></tr>
@@ -5193,7 +5319,7 @@
       <div class="overview-visuals-grid">
         <section class="visual-card" id="allocationSection">
           <div class="visual-card-head">
-            <div>
+            <div class="visual-card-title-row">
               <h2>Portfolio Allocation Weight</h2>
               <span class="allocation-source-pill" id="allocationSourcePill">Current holdings</span>
             </div>
@@ -5416,16 +5542,9 @@
       <div id="detailEmpty" class="empty">Choose a symbol to view thresholds and notes.</div>
       <div id="detailPanel" hidden>
         <section class="target-setup-card">
-          <div class="target-rec-row" id="targetSummaryRow">
-            <div class="target-analyst-block">
-              <span class="target-rec-label">1YT Analyst</span>
-              <span class="target-analyst-value" id="analystTargetReadout">—</span>
-              <span class="target-field-meta" id="analystUpsideMeta"></span>
-            </div>
-          </div>
           <form id="symbolForm">
             <div class="target-position-group">
-              <div class="target-group-label">Your position <span class="field-hint">0 shares = watch only</span></div>
+              <div class="target-group-label">Your position <span class="field-hint" id="positionWatchHint" hidden>Watch only</span></div>
               <div class="target-fields-grid">
                 <div class="target-field">
                   <label>Shares</label>
@@ -5436,13 +5555,21 @@
                   <input name="purchaseDate" type="date" autocomplete="off">
                 </div>
                 <div class="target-field">
-                  <label>Avg Cost <span class="field-hint">USD / share</span></label>
-                  <input name="avgCost" type="text" inputmode="decimal" autocomplete="off" placeholder="Cost per share">
+                  <label>Avg Cost <span class="field-hint">$ / Share</span></label>
+                  <input name="avgCost" type="text" inputmode="decimal" autocomplete="off" placeholder="$0.00">
                 </div>
                 <div class="target-field">
                   <label>Personal Target</label>
-                  <input name="targetPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="Your price target">
-                  <div class="target-field-meta" id="targetUpsideMeta"></div>
+                  <div class="target-personal-chip">
+                    <input name="targetPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="$0.00">
+                    <div class="target-field-meta" id="targetUpsideMeta"></div>
+                  </div>
+                </div>
+                <div class="target-field">
+                  <label>1YT Analyst</label>
+                  <div class="target-analyst-chip" id="analystTargetInline" aria-live="polite">
+                    <span class="analyst-empty">—</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -5451,11 +5578,10 @@
               <div class="planned-trade-pair">
               <div class="planned-trade-row">
                 <div class="target-field planned-trade-qty">
-                  <label>Quantity <span class="field-hint">shares</span></label>
+                  <label>Quantity</label>
                   <input name="tradeBelowQty" type="text" inputmode="decimal" autocomplete="off" placeholder="Shares">
                 </div>
                 <div class="planned-trade-side">
-                  <label>Direction</label>
                   <div class="fund-news-sort trade-dir-toggle" id="tradeBelowDirToggle" role="group" aria-label="Trade @ Below direction">
                     <button type="button" data-dir="buy" onclick="setTradeDir('Below','buy')">Buy</button>
                     <button type="button" data-dir="sell" onclick="setTradeDir('Below','sell')">Sell</button>
@@ -5464,17 +5590,16 @@
                 </div>
                 <div class="target-field planned-trade-price">
                   <label><span class="trade-bar-marker low"></span>Trade @ Below</label>
-                  <input name="tradeBelowPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="Price level">
+                  <input name="tradeBelowPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="$0.00">
                   <div class="threshold-proposal" id="tradeBelowProposal"></div>
                 </div>
               </div>
               <div class="planned-trade-row">
                 <div class="target-field planned-trade-qty">
-                  <label>Quantity <span class="field-hint">shares</span></label>
+                  <label>Quantity</label>
                   <input name="tradeAboveQty" type="text" inputmode="decimal" autocomplete="off" placeholder="Shares">
                 </div>
                 <div class="planned-trade-side">
-                  <label>Direction</label>
                   <div class="fund-news-sort trade-dir-toggle" id="tradeAboveDirToggle" role="group" aria-label="Trade @ Above direction">
                     <button type="button" data-dir="buy" onclick="setTradeDir('Above','buy')">Buy</button>
                     <button type="button" data-dir="sell" onclick="setTradeDir('Above','sell')">Sell</button>
@@ -5483,7 +5608,7 @@
                 </div>
                 <div class="target-field planned-trade-price">
                   <label><span class="trade-bar-marker high"></span>Trade @ Above</label>
-                  <input name="tradeAbovePrice" type="text" inputmode="decimal" autocomplete="off" placeholder="Price level">
+                  <input name="tradeAbovePrice" type="text" inputmode="decimal" autocomplete="off" placeholder="$0.00">
                   <div class="threshold-proposal" id="tradeAboveProposal"></div>
                 </div>
               </div>
@@ -5604,9 +5729,11 @@
         <button type="button" class="secondary filter-btn" data-fib-band="critical" onclick="setFibMapBand('critical')" title="Critical (&lt;2% from nearest Fib): immediate target retest or breakout setup. High alert required.">Critical</button>
         <button type="button" class="secondary filter-btn" data-fib-band="warning" onclick="setFibMapBand('warning')" title="Near (2%–5% from nearest Fib): localized consolidation building momentum. Primary watching zone.">Near</button>
         <button type="button" class="secondary filter-btn" data-fib-band="neutral" onclick="setFibMapBand('neutral')" title="Neutral (&gt;5% from nearest Fib): stable range operations. Healthy distance from technical boundaries.">Neutral</button>
-        <span class="sel-clip-actions" data-clip-tab="fib"></span>
-        <button type="button" class="secondary fib-refresh-btn" id="fibRefreshBtn" onclick="loadFibMap(true)" title="Refresh pattern and Fib signals for all symbols">Refresh</button>
-        <button type="button" class="help-btn fib-help-btn" onclick="openPatternsHelp()" title="How to read this view" aria-label="How to read this view">?</button>
+        <div class="fib-filter-bar-end">
+          <span class="sel-clip-actions" data-clip-tab="fib"></span>
+          <button type="button" class="secondary fib-refresh-btn" id="fibRefreshBtn" onclick="loadFibMap(true)" title="Refresh pattern and Fib signals for all symbols">Refresh</button>
+          <button type="button" class="help-btn fib-help-btn" onclick="openPatternsHelp()" title="How to read this view" aria-label="How to read this view">?</button>
+        </div>
       </div>
       <div id="fibMapTable" class="portfolio-table-scroll"></div>
     </div>
@@ -7393,7 +7520,7 @@
       if (value == null || value === "") return "";
       const amount = Number(value);
       if (!Number.isFinite(amount)) return "";
-      return priceFormatter.format(amount);
+      return `$${priceFormatter.format(amount)}`;
     }
 
     function parsePrice(value) {
@@ -7764,13 +7891,13 @@
       const container = document.getElementById(containerId);
       if (!container) return;
       if (proposal == null) {
-        container.innerHTML = `<span>No Fib/assessment proposal yet — run Assess or import TA levels.</span>`;
+        container.innerHTML = `<span class="proposal-note">No Fib/assessment proposal yet</span>`;
         return;
       }
       const label = (note || "").split(` · ${formatMoney(proposal)}`).join("").trim();
       container.innerHTML = `
         <button type="button" onclick="applyThresholdProposal('${fieldName}', ${proposal})">Use ${formatMoney(proposal)}</button>
-        ${label ? `<span>${label}</span>` : ""}`;
+        ${label ? `<span class="proposal-note" title="${escapeHtml(label)}">${escapeHtml(label)}</span>` : ""}`;
     }
 
     function applyThresholdProposal(fieldName, value) {
@@ -7817,6 +7944,14 @@
       return Math.round(amount * 10000) / 10000;
     }
 
+    function updatePositionWatchHint() {
+      const form = document.getElementById("symbolForm");
+      const hint = document.getElementById("positionWatchHint");
+      if (!form || !hint) return;
+      const shares = parseQuantity(form.shares.value);
+      hint.hidden = !(shares == null || shares === 0);
+    }
+
     // Save: combine the positive quantity input with the Buy/Sell toggle into a
     // single SIGNED quantity (sell → negative). 0/blank → null.
     function signedTradeShares(side) {
@@ -7849,19 +7984,19 @@
     }
 
     function renderTargetMeta(item) {
-      const analystReadout = document.getElementById("analystTargetReadout");
-      const analystMeta = document.getElementById("analystUpsideMeta");
-      if (analystReadout) {
-        analystReadout.textContent = formatMoney(item.analystTarget1y);
-      }
-      if (analystMeta) {
-        if (item.analystTarget1y != null && item.currentPrice) {
-          const upside = ((item.analystTarget1y - item.currentPrice) / item.currentPrice) * 100;
-          analystMeta.textContent = formatUpside(upside);
-          analystMeta.className = `target-field-meta ${upside < 0 ? "negative" : "positive"}`;
+      const analystInline = document.getElementById("analystTargetInline");
+      if (analystInline) {
+        if (item.analystTarget1y != null) {
+          let upsideHtml = "";
+          if (item.currentPrice) {
+            const upside = ((item.analystTarget1y - item.currentPrice) / item.currentPrice) * 100;
+            const cls = upside < 0 ? "negative" : "positive";
+            upsideHtml = `<span class="analyst-upside ${cls}">${formatUpside(upside)}</span>`;
+          }
+          analystInline.innerHTML =
+            `<span class="analyst-price">${formatMoney(item.analystTarget1y)}</span>${upsideHtml}`;
         } else {
-          analystMeta.textContent = "";
-          analystMeta.className = "target-field-meta";
+          analystInline.innerHTML = `<span class="analyst-empty">—</span>`;
         }
       }
 
@@ -7869,7 +8004,7 @@
       if (targetMeta) {
         if (item.targetPrice != null && item.currentPrice) {
           const upside = ((item.targetPrice - item.currentPrice) / item.currentPrice) * 100;
-          targetMeta.textContent = `${formatUpside(upside)} to personal target`;
+          targetMeta.textContent = formatUpside(upside);
           targetMeta.className = `target-field-meta ${upside < 0 ? "negative" : "positive"}`;
         } else {
           targetMeta.textContent = "";
@@ -7927,6 +8062,7 @@
       form.tradeAbovePrice.value = formatPriceInput(item.tradeAbovePrice);
       applyTradeShareToForm("Below", item.tradeBelowShares, "buy");
       applyTradeShareToForm("Above", item.tradeAboveShares, "sell");
+      updatePositionWatchHint();
       resetNoteForm();
       setComposingNote(false);
       editingNoteId = null;
@@ -9504,6 +9640,27 @@
       );
       renderAllocationLegend(payload, colors);
 
+      const allocationTotal = payload.values.reduce((sum, value) => sum + (Number(value) || 0), 0);
+      const allocationCenterPlugin = {
+        id: "allocationCenterTotal",
+        afterDraw(chart) {
+          const { ctx, chartArea } = chart;
+          if (!chartArea) return;
+          const cx = (chartArea.left + chartArea.right) / 2;
+          const cy = (chartArea.top + chartArea.bottom) / 2;
+          ctx.save();
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "#94a3b8";
+          ctx.font = "600 11px Inter, system-ui, sans-serif";
+          ctx.fillText("Total", cx, cy - 11);
+          ctx.fillStyle = "#e2e8f0";
+          ctx.font = "700 15px Inter, system-ui, sans-serif";
+          ctx.fillText(formatCompactMoney(allocationTotal), cx, cy + 8);
+          ctx.restore();
+        },
+      };
+
       allocationChart = new Chart(canvas, {
         type: "doughnut",
         data: {
@@ -9517,8 +9674,9 @@
         },
         options: {
           responsive: true,
-          maintainAspectRatio: true,
-          cutout: "58%",
+          maintainAspectRatio: false,
+          cutout: "56%",
+          layout: { padding: 2 },
           plugins: {
             legend: { display: false },
             tooltip: {
@@ -9533,6 +9691,7 @@
             },
           },
         },
+        plugins: [allocationCenterPlugin],
       });
     }
 
@@ -9542,6 +9701,17 @@
       pricesAsOfIso = data.pricesAsOf || null;
       const gainYieldClass = (data.unrealizedGainPct ?? 0) < 0 ? "subvalue negative" : "subvalue";
       const analystYieldClass = (data.totalAnalystUpsidePct ?? 0) < 0 ? "subvalue negative" : "subvalue";
+      const dividendYield = data.totalAnnualDividendYieldPct != null
+        ? Number(data.totalAnnualDividendYieldPct)
+        : (
+          data.totalAnnualDividend != null && data.totalMarketValue
+            ? (Number(data.totalAnnualDividend) / Number(data.totalMarketValue)) * 100
+            : null
+        );
+      const dividendYieldClass = (dividendYield ?? 0) < 0 ? "subvalue negative" : "subvalue";
+      const dividendYieldHtml = dividendYield != null && Number.isFinite(dividendYield)
+        ? `<div class="${dividendYieldClass}">${formatYield(dividendYield)}</div>`
+        : "";
       const dayChange = data.totalDayChange;
       const dayChangePct = data.totalDayChangePct;
       const dayClass = (dayChangePct ?? 0) < 0 ? "subvalue negative" : "subvalue";
@@ -9577,6 +9747,7 @@
         <div class="metric">
           <div class="label">Annual Dividend</div>
           <div class="value">${formatSummaryMoney(data.totalAnnualDividend)}</div>
+          ${dividendYieldHtml}
         </div>
         <div class="metric">
           <div class="label">Best Performer</div>
@@ -12027,9 +12198,18 @@
       renderFibMapView();
     }
 
-    function openPatternsHelp() {
+    function openPatternsHelp(sectionId) {
       const modal = document.getElementById("patternsHelp");
-      if (modal) modal.hidden = false;
+      if (!modal) return;
+      modal.hidden = false;
+      if (sectionId) {
+        const target = document.getElementById(sectionId);
+        if (target) {
+          requestAnimationFrame(() => {
+            target.scrollIntoView({ block: "start", behavior: "smooth" });
+          });
+        }
+      }
     }
 
     function closePatternsHelp() {
@@ -12563,33 +12743,105 @@
       return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     }
 
-    function csvNum2(value) {
-      if (value == null || value === "") return "";
+    function csvFinite(value) {
+      if (value == null || value === "") return null;
       const n = Number(value);
-      if (!Number.isFinite(n)) return "";
-      return (Math.round(n * 100) / 100).toFixed(2);
+      return Number.isFinite(n) ? n : null;
     }
 
+    /** Limit / share price: $24.12 */
+    function csvPrice(value) {
+      const n = csvFinite(value);
+      if (n == null) return "";
+      return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    /** Row money: $12,940.50 */
+    function csvMoney2(value) {
+      const n = csvFinite(value);
+      if (n == null) return "";
+      return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    /** Totals: $24,356 */
+    function csvMoney0(value) {
+      const n = csvFinite(value);
+      if (n == null) return "";
+      return `$${Math.round(n).toLocaleString("en-US")}`;
+    }
+
+    /** Score to 1 decimal: 32.1 */
+    function csvScore1(value) {
+      const n = csvFinite(value);
+      if (n == null) return "";
+      return (Math.round(n * 10) / 10).toFixed(1);
+    }
+
+    function orderBookAction(side) {
+      const s = String(side || "").trim();
+      if (!s) return "";
+      return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    }
+
+    function orderBookSharesLeft(order) {
+      const held = csvFinite(order.held);
+      const shares = csvFinite(order.shares) || 0;
+      if (held == null) return "";
+      const left = Math.max(0, held - shares);
+      return left % 1 === 0 ? String(left) : left.toFixed(2);
+    }
+
+    function orderBookQty(value) {
+      const n = csvFinite(value);
+      if (n == null) return "";
+      return n % 1 === 0 ? String(n) : n.toFixed(2);
+    }
+
+    /** Same layout as mobile/lib/orderBookCsv.ts */
     function orderBookToCsv(book) {
       const headers = [
-        "side", "kind", "symbol", "shares", "limit", "execSource",
-        "estLoss", "estGain", "estCash", "score", "held", "maxTrim",
+        "Action", "Kind", "Symbol", "Score", "Trade Shares", "Limit",
+        "Gain est", "Loss est", "Cash est", "Shares left", "MaxTrim",
       ];
       const lines = [headers.join(",")];
+      let totalGain = 0;
+      let totalLoss = 0;
+      let totalCash = 0;
+      let hasGain = false;
+      let hasLoss = false;
+      let hasCash = false;
+
       (book?.orders || []).forEach((o) => {
         const score = o.kind === "tax_loss" ? o.lossScore : o.trimScore;
+        const gain = csvFinite(o.estGain);
+        const loss = csvFinite(o.estLoss);
+        const cash = csvFinite(o.estCash);
+        if (gain != null) { totalGain += gain; hasGain = true; }
+        if (loss != null) { totalLoss += loss; hasLoss = true; }
+        if (cash != null) { totalCash += cash; hasCash = true; }
         lines.push([
-          o.side, o.kind, o.symbol, o.shares,
-          csvNum2(o.limit),
-          o.execSource || "",
-          csvNum2(o.estLoss),
-          csvNum2(o.estGain),
-          csvNum2(o.estCash),
-          csvNum2(score),
-          o.held != null ? o.held : "",
-          o.maxTrim != null ? o.maxTrim : "",
+          orderBookAction(o.side),
+          o.kind || "",
+          o.symbol || "",
+          csvScore1(score),
+          orderBookQty(o.shares),
+          csvPrice(o.limit),
+          gain != null ? csvMoney2(gain) : "",
+          loss != null ? csvMoney2(loss) : "",
+          cash != null ? csvMoney2(cash) : "",
+          orderBookSharesLeft(o),
+          orderBookQty(o.maxTrim),
         ].map(csvEscape).join(","));
       });
+
+      lines.push([
+        "Totals", "", "", "", "", "",
+        hasGain ? csvMoney0(totalGain) : "",
+        hasLoss ? csvMoney0(totalLoss) : "",
+        hasCash ? csvMoney0(totalCash) : "",
+        "", "",
+      ].map(csvEscape).join(","));
+
       return `${lines.join("\n")}\n`;
     }
 
@@ -12654,29 +12906,6 @@
         },
         orders,
       };
-    }
-
-    function orderBookToCsv(book) {
-      const headers = [
-        "side", "kind", "symbol", "shares", "limit", "execSource",
-        "estLoss", "estGain", "estCash", "score", "held", "maxTrim",
-      ];
-      const lines = [headers.join(",")];
-      (book?.orders || []).forEach((o) => {
-        const score = o.kind === "tax_loss" ? o.lossScore : o.trimScore;
-        lines.push([
-          o.side, o.kind, o.symbol, o.shares,
-          o.limit != null ? o.limit : "",
-          o.execSource || "",
-          o.estLoss != null ? o.estLoss : "",
-          o.estGain != null ? o.estGain : "",
-          o.estCash != null ? o.estCash : "",
-          score != null ? score : "",
-          o.held != null ? o.held : "",
-          o.maxTrim != null ? o.maxTrim : "",
-        ].map(csvEscape).join(","));
-      });
-      return `${lines.join("\n")}\n`;
     }
 
     function downloadOrderBook(book, format) {
@@ -13242,26 +13471,26 @@
       const unknownGains = Number(plan.totalUnknownGains) || 0;
       const taxEst = SIM_TAX_RATE * Math.max(plan.totalNetGains, 0);
       const gainsValue = anyGains
-        ? `${renderColoredMoneyCell(plan.totalNetGains)} <span class="sim-gaintax-tax">(${formatMoney(taxEst)})</span>`
+        ? `${renderColoredSummaryMoneyCell(plan.totalNetGains)} <span class="sim-gaintax-tax">(${formatSummaryMoney(taxEst)})</span>`
         : "—";
       const unknownLine = unknownGains > 0
         ? `<span class="sim-gaintax-block sim-gaintax-unknown" title="${plan.unknownGainsCount} symbol(s) have sell legs but no cost basis on file, so their realized gain can't be computed or taxed — shown here as gross sell proceeds. Add an average cost per share to include them in Gains/Tax.">`
           + `<span class="sim-gaintax-label">UNKNOWN-WINS</span>`
-          + `<span class="sim-gaintax-value">${formatMoney(unknownGains)}</span>`
+          + `<span class="sim-gaintax-value">${formatSummaryMoney(unknownGains)}</span>`
           + `</span>`
         : "";
       el.innerHTML = `
         <div class="sim-kpi lead">
           <span class="sim-kpi-label">Net Cash Flow</span>
-          <span class="sim-kpi-value">${renderColoredMoneyCell(plan.netCashFlow)}</span>
+          <span class="sim-kpi-value">${renderColoredSummaryMoneyCell(plan.netCashFlow)}</span>
         </div>
         <div class="sim-kpi">
           <span class="sim-kpi-label">Total Invested</span>
-          <span class="sim-kpi-value">${formatMoney(plan.totalInvested)}</span>
+          <span class="sim-kpi-value">${formatSummaryMoney(plan.totalInvested)}</span>
         </div>
         <div class="sim-kpi">
           <span class="sim-kpi-label">Total Generated</span>
-          <span class="sim-kpi-value">${formatMoney(plan.totalGenerated)}</span>
+          <span class="sim-kpi-value">${formatSummaryMoney(plan.totalGenerated)}</span>
         </div>
         <div class="sim-kpi">
           <span class="sim-kpi-label">Buys / Sells</span>
@@ -15027,11 +15256,12 @@
 
     function formatGainLine(gain, pct) {
       if (gain == null && pct == null) return "—";
-      const gainText = gain != null ? formatSignedMoney(gain) : "—";
+      const gainText = gain != null ? formatSignedSummaryMoney(gain) : "—";
       if (pct == null || pct === "") return gainText;
       const amount = Number(pct);
+      if (!Number.isFinite(amount)) return gainText;
       const sign = amount > 0 ? "+" : "";
-      return `${gainText} (${sign}${amount.toFixed(1)}%)`;
+      return `${gainText}<span class="chip-pct">(${sign}${Math.round(amount)}%)</span>`;
     }
 
     function formatInspectorMetric(value, suffix = "") {
@@ -15049,15 +15279,14 @@
     }
 
     function formatInspectorTargetUpside(pct) {
-      if (pct == null || pct === "") return "—";
+      if (pct == null || pct === "") return "";
       const amount = Number(pct);
-      if (!Number.isFinite(amount)) return "—";
+      if (!Number.isFinite(amount)) return "";
       const sign = amount > 0 ? "+" : "";
-      return `${sign}${amount.toFixed(1)}%`;
+      return `${sign}${Math.round(amount)}%`;
     }
 
     function renderInspectorHoldingsCard(data, metricsHtml = "") {
-      const symbol = data.symbol || "—";
       const pm = data.positionMechanics;
       const holding = data.holding;
       const metricsBlock = metricsHtml
@@ -15077,8 +15306,8 @@
       const entryDate = entryDateRaw ? formatPanelDateWithYear(entryDateRaw) : "—";
       const shareCount = pm?.sharesOwned ?? holding?.quantity;
       const shares = formatInspectorShares(shareCount);
-      const investment = formatMoney(pm?.entryCapital ?? holding?.totalCost);
-      const currentValue = formatMoney(pm?.currentValue ?? holding?.marketValue);
+      const investment = formatSummaryMoney(pm?.entryCapital ?? holding?.totalCost);
+      const currentValue = formatSummaryMoney(pm?.currentValue ?? holding?.marketValue);
       const gain = pm?.totalGain ?? holding?.unrealizedGain;
       const gainPct = pm?.totalGainPct ?? holding?.gainPct;
       const gainClass = (gain ?? 0) >= 0 ? "gain-pos" : "gain-neg";
@@ -15096,22 +15325,22 @@
             / (holding?.currentPrice ?? data.quote?.currentPrice)) * 100
           : null
       );
+      const upsideTxt = formatInspectorTargetUpside(personalUpside);
+      const targetValue = personalTargetValue != null
+        ? `${formatSummaryMoney(personalTargetValue)}${upsideTxt ? `<span class="chip-pct">(${upsideTxt})</span>` : ""}`
+        : "—";
+      const upsideClass = (personalUpside ?? 0) >= 0 ? "gain-pos" : "gain-neg";
 
       return `
         <section class="valuation-scoring inspector-holdings-card">
           <h3>Holdings</h3>
-          <div class="holdings-condensed">
-            <p class="holdings-line">
-              Entry: <strong>${entryDate}</strong>
-              · <strong>${shares}</strong> Shares
-              · Investment <strong>${investment}</strong>
-            </p>
-            <p class="holdings-line">
-              Value <strong>${currentValue}</strong>
-              Gain <strong class="${gainClass}">${formatGainLine(gain, gainPct)}</strong>
-              · Target <strong>${personalTargetValue != null ? formatMoney(personalTargetValue) : "—"}</strong>
-              <span class="muted">(${formatInspectorTargetUpside(personalUpside)})</span>
-            </p>
+          <div class="valuation-grid valuation-inline holdings-position-grid">
+            ${renderValuationMetric("Entry", entryDate)}
+            ${renderValuationMetric("Shares", shares)}
+            ${renderValuationMetric("Investment", investment)}
+            ${renderValuationMetric("Value", currentValue)}
+            ${renderValuationMetric("Gain", formatGainLine(gain, gainPct), gainClass)}
+            ${renderValuationMetric("Target", targetValue, personalTargetValue != null ? upsideClass : "")}
           </div>
           ${metricsBlock}
         </section>`;
@@ -15206,12 +15435,10 @@
       const slope = v.obvSlopePct;
       const label = v.obvLabel || (slope > 0 ? "Accumulation" : slope < 0 ? "Distribution" : "Neutral");
       const cls = obvBadgeClass(label);
-      const mag = `${slope >= 0 ? "+" : ""}${slope}%`;
-      // Self-relative strength appended compactly + muted (only when ranked and
-      // not flat). Tooltip explains what the percentile is relative to.
-      const strengthSuffix = v.obvStrength ? ` <span class="muted">· ${escapeHtml(v.obvStrength)}</span>` : "";
+      // Chip shows label + strength only; slope % / percentile stay in the tooltip.
+      const strength = v.obvStrength ? ` ° ${escapeHtml(v.obvStrength)}` : "";
       return `<div class="valuation-metric"><span class="label">OBV Trend</span>`
-        + `<span class="value ${cls}" title="${escapeHtml(buildObvStrengthTooltip(v))}">${label} · ${mag}${strengthSuffix}</span></div>`;
+        + `<span class="value ${cls}" title="${escapeHtml(buildObvStrengthTooltip(v))}">${escapeHtml(label)}${strength}</span></div>`;
     }
 
     // Price/OBV four-quadrant reading → colored glyph + short label. Distinct from
@@ -15483,7 +15710,7 @@
               <p>${advisory.message || "Insufficient technical data to assess support positioning."}</p>
             </section>`;
       const valuationMetricsHtml = [
-        renderValuationMetric("Est. Dividend", formatMoney(val.estDividend), (val.estDividend ?? 0) > 0 ? "gain-pos" : ""),
+        renderValuationMetric("Est. Dividend", formatSummaryMoney(val.estDividend), (val.estDividend ?? 0) > 0 ? "gain-pos" : ""),
         renderValuationMetric("Trailing P/E", formatInspectorMetric(val.trailingPe)),
         renderValuationMetric("Forward P/E", formatInspectorMetric(val.forwardPe)),
         renderValuationMetric("PEG Ratio", formatInspectorMetric(val.pegRatio)),
@@ -15499,6 +15726,7 @@
             <div class="inspector-chart-head">
               <div class="inspector-chart-title-row">
                 <h3 class="card-headline-accent">Performance &amp; Fibonacci</h3>
+                <button type="button" class="help-btn" onclick="openPatternsHelp('patternsHelpObv')" title="Patterns, Fibonacci &amp; OBV help" aria-label="Patterns, Fibonacci and OBV help">?</button>
                 ${canSwitchChart
                   ? `<div class="inspector-chart-mode" data-panel="${panelId}">
                       <button type="button" class="inspector-mode-btn ${chartMode === "timeline" ? "active" : ""}" data-mode="timeline" onclick="setInspectorChartMode('timeline', '${panelId}')">Timeline &amp; Trends</button>
@@ -15763,6 +15991,34 @@
       if (chart.$inspectorFsYaxis) syncInspectorFsYaxis(chart);
       if (chart.$tradeThresholds) updateTradeThresholdOverlay(chart, chart.$tradeThresholds);
       drawInspectorFibLineLabels(chart);
+      drawInspectorHoverCrosshair(chart);
+    }
+
+    /** Vertical dashed guide at the active tooltip / hover reading position. */
+    function drawInspectorHoverCrosshair(chart) {
+      const area = chart?.chartArea;
+      const ctx = chart?.ctx;
+      if (!area || !ctx) return;
+      let x = null;
+      const tooltip = chart.tooltip;
+      if (tooltip?.opacity > 0 && Array.isArray(tooltip.dataPoints) && tooltip.dataPoints.length) {
+        x = tooltip.dataPoints[0].element?.x;
+      }
+      if (x == null) {
+        const active = typeof chart.getActiveElements === "function" ? chart.getActiveElements() : [];
+        if (active.length) x = active[0].element?.x;
+      }
+      if (x == null || !Number.isFinite(x)) return;
+      if (x < area.left || x > area.right) return;
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.72)";
+      ctx.lineWidth = 1.25;
+      ctx.moveTo(x, area.top);
+      ctx.lineTo(x, area.bottom);
+      ctx.stroke();
+      ctx.restore();
     }
 
     /** Paint short labels on Fib / Center / Base horizontals (parity with mobile). */
@@ -16772,7 +17028,7 @@
       }
 
       const valuationMetricsHtml = [
-        renderValuationMetric("Est. Dividend", formatMoney(val.estDividend), (val.estDividend ?? 0) > 0 ? "gain-pos" : ""),
+        renderValuationMetric("Est. Dividend", formatSummaryMoney(val.estDividend), (val.estDividend ?? 0) > 0 ? "gain-pos" : ""),
         renderValuationMetric("Trailing P/E", formatInspectorMetric(val.trailingPe)),
         renderValuationMetric("Forward P/E", formatInspectorMetric(val.forwardPe)),
         renderValuationMetric("PEG Ratio", formatInspectorMetric(val.pegRatio)),
@@ -17623,14 +17879,23 @@
 
     document.getElementById("symbolForm").addEventListener("input", (event) => {
       const input = event.target;
+      if (input.name === "shares") {
+        updatePositionWatchHint();
+        return;
+      }
       if (input.name !== "targetPrice") return;
       const form = event.target.form;
       const price = targetCurrentPrice;
       const target = parsePrice(form.targetPrice.value);
       const targetMeta = document.getElementById("targetUpsideMeta");
-      if (!targetMeta || price == null || target == null) return;
+      if (!targetMeta) return;
+      if (price == null || target == null) {
+        targetMeta.textContent = "";
+        targetMeta.className = "target-field-meta";
+        return;
+      }
       const upside = ((target - price) / price) * 100;
-      targetMeta.textContent = `${formatUpside(upside)} to personal target`;
+      targetMeta.textContent = formatUpside(upside);
       targetMeta.className = `target-field-meta ${upside < 0 ? "negative" : "positive"}`;
     });
 

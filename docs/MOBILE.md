@@ -38,7 +38,7 @@ There is **no** client TTL. `useApiQuery` keeps in-memory state until remount / 
 | **Portfolio** | Also refetches on **every tab focus** (so threshold edits from Symbol detail show up) |
 | **Summary / Fundamentals / News / Alerts** | Fetch on first mount; switching tabs does **not** refetch |
 
-Each load calls `api.wake()` first (cold Render). Fundamentals and News use a **45s** timeout.
+Each load calls `api.ensureSessionReady()` first (shared wake + coalesced `/portfolio` warm so Summary does not race a cold `/overview` against star hydration). Overview, Fundamentals, and News use a **45s** timeout. Overview KPIs load without waiting on cold Yahoo YTD/past-progress downloads.
 
 **News timeouts:** `/news-feed` currently runs bulk fundamentals+news enrichment for the whole portfolio, then ranks headlines — same cost class as Fundamentals. A **Retry after a few seconds** usually succeeds once the API is awake and server caches are warm. Full map: [CACHING.md](./CACHING.md).
 

@@ -12,7 +12,7 @@ from typing import Any, Callable
 
 import pandas as pd
 
-from services.market_cache import TtlCache, yf_throttle
+from services.market_cache import CACHE_MISS, TtlCache, peek_or_schedule, yf_throttle
 
 logger = logging.getLogger(__name__)
 
@@ -372,8 +372,13 @@ def build_past_progress(
     *,
     value_now: float | None = None,
     fetch_closes: Callable[[list[str], date], dict[str, pd.Series]] | None = None,
+    blocking: bool = True,
 ) -> dict[str, Any] | None:
-    """Fetch history and compute pastProgress for overview."""
+    """Fetch history and compute pastProgress for overview.
+
+    When ``blocking`` is False (Overview cold path), return a cache hit immediately
+    or schedule a background warm and return None so KPIs are not delayed.
+    """
     positions = held_positions(holdings)
     if not positions:
         return None
@@ -396,5 +401,11 @@ def build_past_progress(
             as_of=today,
             value_now_override=value_now,
         )
+
+    if not blocking:
+        hit = peek_or_schedule(_PAST_PROGRESS_CACHE, cache_key, factory)
+        if hit is CACHE_MISS:
+            return None
+        return hit
 
     return _PAST_PROGRESS_CACHE.get(cache_key, factory)

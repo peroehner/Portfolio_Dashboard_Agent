@@ -39,6 +39,8 @@ export function StarredSymbolsProvider({ children }: { children: ReactNode }) {
       const local = await loadStarredSymbols();
       let merged = new Set(local);
       try {
+        // Shares the same coalesced /portfolio warm as Summary's ensureSessionReady.
+        await api.ensureSessionReady();
         const { symbols } = await api.portfolio();
         const serverStarred = symbols
           .filter((item) => item.isStarred)

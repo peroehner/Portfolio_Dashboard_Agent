@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -103,6 +103,7 @@ export default function OverviewScreen() {
   const { data, loading, error, refresh } = useApiQuery(() => api.overview(), []);
   const { user, authEnabled, signOut } = useAuth();
   const [refreshedAt, setRefreshedAt] = useState("");
+  const pastProgressSoftRetry = useRef(false);
 
   useEffect(() => {
     if (loading || !data) return;
@@ -112,6 +113,15 @@ export default function OverviewScreen() {
     const ss = String(now.getSeconds()).padStart(2, "0");
     setRefreshedAt(`${hh}:${mm}:${ss}`);
   }, [loading, data]);
+
+  // Overview returns KPIs immediately while pastProgress warms in the background.
+  // One delayed refetch picks up 1M/3M/ATH once Yahoo history is cached.
+  useEffect(() => {
+    if (loading || !data || data.pastProgress || pastProgressSoftRetry.current) return;
+    pastProgressSoftRetry.current = true;
+    const t = setTimeout(() => void refresh(), 2800);
+    return () => clearTimeout(t);
+  }, [loading, data, refresh]);
 
   const cellWidth = useMemo(() => {
     const pad = spacing.lg * 2;

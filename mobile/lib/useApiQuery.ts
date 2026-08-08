@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, api } from "@/lib/api";
 
@@ -13,15 +13,22 @@ export function useApiQuery<T>(loader: () => Promise<T>, deps: unknown[] = []): 
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     try {
-      await api.wake();
+      // Wake + cheap /portfolio first so Summary doesn't race a cold heavy
+      // /overview against StarredSymbols (Portfolio-tab-then-Retry workaround).
+      await api.ensureSessionReady();
+      if (requestId !== requestIdRef.current) return;
       const result = await loader();
+      if (requestId !== requestIdRef.current) return;
       setData(result);
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       const message =
         err instanceof ApiError
           ? err.message
@@ -30,7 +37,9 @@ export function useApiQuery<T>(loader: () => Promise<T>, deps: unknown[] = []): 
             : "Unknown error";
       setError(message);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, deps);
 

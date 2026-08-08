@@ -96,6 +96,40 @@ class TtlCache:
         ]
 
 
+# Keys currently filling via peek_or_schedule — avoid stampedes on cold miss.
+_soft_warming: set[tuple[int, Hashable]] = set()
+_soft_warming_lock = threading.Lock()
+
+
+def peek_or_schedule(cache: TtlCache, key: Hashable, factory: Callable[[], T]) -> Any:
+    """Return a fresh cache hit, else schedule ``factory`` and return CACHE_MISS.
+
+    Used by Overview so Yahoo-backed extras (YTD, past progress) never block the
+    first paint after a cold start — the next request picks up the warm value.
+    """
+    hit = cache.peek(key)
+    if hit is not CACHE_MISS:
+        return hit
+
+    warm_key = (id(cache), key)
+    with _soft_warming_lock:
+        if warm_key in _soft_warming:
+            return CACHE_MISS
+        _soft_warming.add(warm_key)
+
+    def _run() -> None:
+        try:
+            cache.get(key, factory)
+        except Exception:  # noqa: BLE001 — warmers must not crash the worker
+            pass
+        finally:
+            with _soft_warming_lock:
+                _soft_warming.discard(warm_key)
+
+    threading.Thread(target=_run, daemon=True, name="ttl-soft-warm").start()
+    return CACHE_MISS
+
+
 def _cache_key_label(key: Hashable) -> str:
     if isinstance(key, tuple):
         return "/".join(str(part) for part in key)
