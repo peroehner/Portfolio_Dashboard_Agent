@@ -435,8 +435,22 @@ class InspectorService:
             "forwardPe": None,
             "pegRatio": None,
             "revenueGrowth": None,
+            "earningsGrowth": None,
             "operatingMargin": None,
             "companyName": None,
+            # Analyst · Health (mobile Summary second chip; mirrors Fundamentals tab)
+            "recommendationKey": None,
+            "analystCount": None,
+            "targetMean": None,
+            "targetHigh": None,
+            "targetLow": None,
+            "beta": None,
+            "debtToEquity": None,
+            "freeCashflow": None,
+            "ma50": None,
+            "ma200": None,
+            "high52w": None,
+            "low52w": None,
         }
         try:
             from services.market_cache import make_ticker, ticker_info_cache
@@ -448,12 +462,37 @@ class InspectorService:
                     "forwardPe": self._safe_round(info.get("forwardPE")),
                     "pegRatio": self._safe_round(info.get("pegRatio")),
                     "revenueGrowth": self._safe_pct(info.get("revenueGrowth")),
+                    "earningsGrowth": self._safe_pct(info.get("earningsGrowth")),
                     "operatingMargin": self._safe_pct(info.get("operatingMargins")),
                     "companyName": info.get("longName") or info.get("shortName"),
+                    "recommendationKey": info.get("recommendationKey"),
+                    "analystCount": self._safe_round(info.get("numberOfAnalystOpinions"), digits=0),
+                    "targetMean": self._safe_round(info.get("targetMeanPrice")),
+                    "targetHigh": self._safe_round(info.get("targetHighPrice")),
+                    "targetLow": self._safe_round(info.get("targetLowPrice")),
+                    "beta": self._safe_round(info.get("beta")),
+                    "debtToEquity": self._safe_round(info.get("debtToEquity")),
+                    "freeCashflow": self._safe_round(info.get("freeCashflow"), digits=0),
+                    "ma50": self._safe_round(info.get("fiftyDayAverage")),
+                    "ma200": self._safe_round(info.get("twoHundredDayAverage")),
+                    "high52w": self._safe_round(info.get("fiftyTwoWeekHigh")),
+                    "low52w": self._safe_round(info.get("fiftyTwoWeekLow")),
                 }
             )
         except Exception:
             pass
+        self._backfill_valuation_from_fundamentals(symbol, metrics)
+        # Keep 52W coherent with live quote (same expansion Fundamentals uses).
+        price = symbol_data.get("currentPrice")
+        try:
+            px = float(price) if price is not None else None
+        except (TypeError, ValueError):
+            px = None
+        if px is not None:
+            if metrics.get("high52w") is not None:
+                metrics["high52w"] = max(float(metrics["high52w"]), px)
+            if metrics.get("low52w") is not None:
+                metrics["low52w"] = min(float(metrics["low52w"]), px)
         if not metrics.get("companyName"):
             metrics["companyName"] = symbol_data.get("companyName")
         if not metrics.get("companyName"):
@@ -467,6 +506,77 @@ class InspectorService:
 
             metrics["companyName"] = resolve_company_name(symbol)
         return metrics
+
+    def _backfill_valuation_from_fundamentals(
+        self, symbol: str, metrics: dict[str, Any]
+    ) -> None:
+        """Fill Analyst · Health gaps from the same fundamentals store the table uses.
+
+        Yahoo ``.info`` often omits MAs / FCF / beta on datacenter IPs while the
+        Fundamentals tab still has history + Finnhub-backed values.
+        """
+        need = (
+            metrics.get("ma50") is None
+            or metrics.get("ma200") is None
+            or metrics.get("high52w") is None
+            or metrics.get("low52w") is None
+            or metrics.get("beta") is None
+            or metrics.get("debtToEquity") is None
+            or metrics.get("freeCashflow") is None
+            or metrics.get("recommendationKey") is None
+            or metrics.get("earningsGrowth") is None
+        )
+        if not need:
+            return
+        try:
+            from services.fundamentals_service import FundamentalsService
+
+            fund_svc = FundamentalsService()
+            fund = (fund_svc.get_enrichment_cached(symbol).get("fundamentals") or {})
+            if not fund:
+                fund = fund_svc.fetch_fundamentals(symbol) or {}
+        except Exception:
+            return
+        if not fund:
+            return
+        price_range = fund.get("priceRange") or {}
+        health = fund.get("financialHealth") or {}
+        growth = fund.get("growthProfitability") or {}
+        analyst = fund.get("analyst") or {}
+        profile = fund.get("profile") or {}
+
+        def fill(key: str, value: Any, *, pct: bool = False) -> None:
+            if metrics.get(key) is not None or value is None:
+                return
+            metrics[key] = self._safe_pct(value) if pct else self._safe_round(value)
+
+        fill("ma50", price_range.get("ma50"))
+        fill("ma200", price_range.get("ma200"))
+        fill("high52w", price_range.get("high52w"))
+        fill("low52w", price_range.get("low52w"))
+        fill("beta", profile.get("beta"))
+        fill("debtToEquity", health.get("debtToEquity"))
+        if metrics.get("freeCashflow") is None and health.get("freeCashflow") is not None:
+            metrics["freeCashflow"] = self._safe_round(health.get("freeCashflow"), digits=0)
+        if metrics.get("recommendationKey") is None and analyst.get("recommendationKey"):
+            metrics["recommendationKey"] = analyst.get("recommendationKey")
+        if metrics.get("analystCount") is None and analyst.get("analystCount") is not None:
+            metrics["analystCount"] = self._safe_round(analyst.get("analystCount"), digits=0)
+        fill("targetMean", analyst.get("targetMean"))
+        fill("targetHigh", analyst.get("targetHigh"))
+        fill("targetLow", analyst.get("targetLow"))
+        fill("earningsGrowth", growth.get("earningsGrowth"), pct=True)
+        fill("revenueGrowth", growth.get("revenueGrowth"), pct=True)
+        fill("operatingMargin", growth.get("operatingMargin"), pct=True)
+
+        # Last resort for MAs when even stored fundamentals lack them.
+        if metrics.get("ma50") is None or metrics.get("ma200") is None:
+            try:
+                mas = fund_svc._history_moving_averages(symbol)
+                fill("ma50", mas.get("ma50"))
+                fill("ma200", mas.get("ma200"))
+            except Exception:
+                pass
 
     def _detect_trend_waves(self, symbol: str) -> list[dict[str, Any]]:
         from services.market_cache import make_ticker

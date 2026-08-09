@@ -11,19 +11,22 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AboutApiButton } from "@/components/AboutApiButton";
 import { AlertRow } from "@/components/AlertRow";
 import { AllocationChart } from "@/components/AllocationChart";
 import { KpiCard } from "@/components/KpiCard";
 import { Screen } from "@/components/Screen";
+import { UserChip } from "@/components/UserChip";
 import {
   allocationSourceLabel,
   holdingsForAllocationSource,
+  nextAllocationSource,
   sourceBelongsToDirection,
   type AllocationMode,
   type AllocationSource,
   type ProgressDirection,
 } from "@/lib/allocationChart";
-import { api, getApiHostLabel, showApiHostInDev } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/AuthContext";
 import { formatEntryDate, formatMoney, formatPct, formatShortDateTime, pctColor } from "@/lib/format";
 import { openSymbol } from "@/lib/symbolBrowseSession";
@@ -100,6 +103,7 @@ export default function OverviewScreen() {
   const [allocationSource, setAllocationSource] = useState<AllocationSource>("current");
   const [progressDirection, setProgressDirection] = useState<ProgressDirection>("forward");
   const [hideAmounts, setHideAmounts] = useState(false);
+  const allocPillTapRef = useRef(0);
   const { data, loading, error, refresh } = useApiQuery(() => api.overview(), []);
   const { user, authEnabled, signOut } = useAuth();
   const [refreshedAt, setRefreshedAt] = useState("");
@@ -131,13 +135,11 @@ export default function OverviewScreen() {
 
   const subtitle = useMemo(() => {
     const parts: string[] = [];
-    if (user?.email) parts.push(user.email);
     // pricesAsOf is a market session date (YYYY-MM-DD), not a clock time.
     if (data?.pricesAsOf) parts.push(`Data session ${formatShortDateTime(data.pricesAsOf)}`);
     if (refreshedAt) parts.push(`Refreshed ${refreshedAt}`);
-    if (showApiHostInDev()) parts.push(getApiHostLabel());
     return parts.join(" · ");
-  }, [data?.pricesAsOf, refreshedAt, user?.email]);
+  }, [data?.pricesAsOf, refreshedAt]);
 
   const recentAlerts = (data?.alerts ?? []).slice(0, isWide ? 5 : 3);
   const hasAlerts = recentAlerts.length > 0;
@@ -180,15 +182,46 @@ export default function OverviewScreen() {
     }
   };
 
+  const cycleAllocationSource = () => {
+    const available: AllocationSource[] = [];
+    if (progressDirection === "back") {
+      if (data?.pastProgress?.windows?.["1M"]?.valueThen != null) available.push("1M");
+      if (data?.pastProgress?.windows?.["3M"]?.valueThen != null) available.push("3M");
+      if (data?.pastProgress?.ath?.value != null) available.push("ath");
+    } else {
+      available.push("current");
+      if (data?.totalAnalystTargetValue != null) available.push("analyst");
+      if (data?.totalPersonalTargetValue != null) available.push("personal");
+      if (data?.simulation?.projectedValuation != null) available.push("simulation");
+    }
+    setAllocationSource((prev) => nextAllocationSource(prev, progressDirection, available));
+  };
+
+  const onAllocationPillPress = () => {
+    const now = Date.now();
+    if (now - allocPillTapRef.current < 400) {
+      allocPillTapRef.current = 0;
+      cycleAllocationSource();
+      return;
+    }
+    allocPillTapRef.current = now;
+  };
+
   const allocationSection = (
     <View style={[styles.section, isWide && styles.sectionFlex]}>
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>Portfolio allocation</Text>
-        <View style={styles.sectionSourcePill}>
+        <Pressable
+          style={styles.sectionSourcePill}
+          onPress={onAllocationPillPress}
+          accessibilityRole="button"
+          accessibilityLabel={`${allocationLabel}. Double tap to cycle allocation source`}
+          accessibilityHint="Double tap to show the next portfolio in the list"
+        >
           <Text style={styles.sectionSource} numberOfLines={1}>
             {allocationLabel}
           </Text>
-        </View>
+        </Pressable>
       </View>
       <AllocationChart
         holdings={allocationHoldings}
@@ -469,11 +502,23 @@ export default function OverviewScreen() {
         error={error}
         onRetry={() => void refresh()}
         rightAction={
-          authEnabled ? (
-            <Pressable onPress={() => void signOut()} accessibilityRole="button">
-              <Text style={styles.signOut}>Sign out</Text>
-            </Pressable>
-          ) : undefined
+          <View style={styles.headerActions}>
+            <UserChip picture={user?.picture} plan={user?.plan} name={user?.name || user?.email} />
+            <AboutApiButton
+              session={{
+                email: user?.email,
+                pricesAsOf: data?.pricesAsOf
+                  ? formatShortDateTime(data.pricesAsOf)
+                  : null,
+                refreshedAt: refreshedAt || null,
+              }}
+            />
+            {authEnabled ? (
+              <Pressable onPress={() => void signOut()} accessibilityRole="button">
+                <Text style={styles.signOut}>Sign out</Text>
+              </Pressable>
+            ) : null}
+          </View>
         }
       >
         <ScrollView
@@ -751,6 +796,11 @@ const styles = StyleSheet.create({
     color: colors.link,
     fontSize: 14,
     fontWeight: "600",
-    marginTop: 6,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: 4,
   },
 });

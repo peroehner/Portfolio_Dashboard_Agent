@@ -102,13 +102,19 @@ export function recommendationRank(key: unknown): number | null {
     .replace(/\s+/g, "_");
   switch (normalized) {
     case "strong_buy":
-      return 5;
+      return 6;
     case "buy":
-      return 4;
+    case "outperform":
+    case "overweight":
+      return 5;
     case "hold":
-      return 3;
+    case "neutral":
+    case "equal_weight":
+    case "market_perform":
+      return 4;
     case "underperform":
-      return 2;
+    case "underweight":
+      return 3;
     case "sell":
       return 2;
     case "strong_sell":
@@ -118,11 +124,12 @@ export function recommendationRank(key: unknown): number | null {
   }
 }
 
+/** Upside from price → mean target: (mean − price) / price. */
 export function targetMeanDeviation(row: FundamentalsRow): number | null {
   const price = fundNum(row.currentPrice);
   const mean = fundNum(fundVal(row, "analyst", "targetMean"));
-  if (price == null || mean == null || mean === 0) return null;
-  return ((price - mean) / mean) * 100;
+  if (price == null || mean == null || price === 0) return null;
+  return ((mean - price) / price) * 100;
 }
 
 const VAL_STICKY: FundamentalsColumn[] = [

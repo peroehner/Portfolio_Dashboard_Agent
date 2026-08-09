@@ -109,6 +109,29 @@ export function sourceBelongsToDirection(
   return source === "current" || source === "analyst" || source === "personal" || source === "simulation";
 }
 
+const BACK_ALLOCATION_CYCLE: AllocationSource[] = ["1M", "3M", "ath"];
+const FORWARD_ALLOCATION_CYCLE: AllocationSource[] = [
+  "current",
+  "analyst",
+  "personal",
+  "simulation",
+];
+
+/** Next allocation source in the active Looking Back / Looking Forward list (wraps). */
+export function nextAllocationSource(
+  current: AllocationSource,
+  direction: ProgressDirection,
+  available?: Iterable<AllocationSource> | null,
+): AllocationSource {
+  const cycle = direction === "back" ? BACK_ALLOCATION_CYCLE : FORWARD_ALLOCATION_CYCLE;
+  const allow = available ? new Set(available) : null;
+  const list = allow ? cycle.filter((key) => allow.has(key)) : [...cycle];
+  if (!list.length) return current;
+  const idx = list.indexOf(current);
+  if (idx < 0) return list[0];
+  return list[(idx + 1) % list.length];
+}
+
 export function holdingsForAllocationSource(
   holdings: Holding[] | undefined,
   past: PastProgress | null | undefined,

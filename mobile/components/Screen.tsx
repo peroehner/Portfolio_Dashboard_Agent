@@ -15,6 +15,7 @@ interface ScreenProps {
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
+  leftAction?: React.ReactNode;
   rightAction?: React.ReactNode;
   children: React.ReactNode;
   contentStyle?: ViewStyle;
@@ -26,14 +27,16 @@ export function Screen({
   loading,
   error,
   onRetry,
+  leftAction,
   rightAction,
   children,
   contentStyle,
 }: ScreenProps) {
   return (
     <View style={styles.root}>
-      {(title || rightAction) && (
+      {(title || rightAction || leftAction) && (
         <View style={styles.header}>
+          {leftAction ? <View style={styles.leftAction}>{leftAction}</View> : null}
           <View style={styles.headerText}>
             {title ? <Text style={styles.title}>{title}</Text> : null}
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
@@ -76,6 +79,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     gap: spacing.md,
+  },
+  leftAction: {
+    paddingTop: 4,
+    marginRight: -spacing.xs,
   },
   headerText: {
     flex: 1,

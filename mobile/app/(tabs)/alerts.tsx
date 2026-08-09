@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -9,8 +9,10 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalSearchParams } from "expo-router";
 
 import { AlertRow } from "@/components/AlertRow";
+import { BackToSymbolButton } from "@/components/BackToSymbolButton";
 import { RecallFilterButton } from "@/components/RecallFilterButton";
 import { Screen } from "@/components/Screen";
 import { StarFilterButton } from "@/components/StarFilterButton";
@@ -31,6 +33,8 @@ import type { Alert } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
 
 export default function AlertsScreen() {
+  const { symbol: symbolParam } = useLocalSearchParams<{ symbol?: string }>();
+  const returnSymbol = typeof symbolParam === "string" ? symbolParam.trim().toUpperCase() : "";
   const { filter, setFilter, lastFilter, applyLast, canRecall } = usePersistedSymbolFilter();
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [dismissingId, setDismissingId] = useState<number | null>(null);
@@ -38,6 +42,10 @@ export default function AlertsScreen() {
     () => api.alerts("active"),
     [],
   );
+
+  useEffect(() => {
+    if (returnSymbol) setFilter(returnSymbol);
+  }, [returnSymbol, setFilter]);
 
   const typeOptions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -105,6 +113,7 @@ export default function AlertsScreen() {
         loading={loading && !data}
         error={error}
         onRetry={() => void refresh()}
+        leftAction={returnSymbol ? <BackToSymbolButton symbol={returnSymbol} /> : null}
       >
         <View style={styles.filterRow}>
           <TextInput

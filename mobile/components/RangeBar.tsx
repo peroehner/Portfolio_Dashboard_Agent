@@ -126,7 +126,7 @@ export function TargetRangeBar({ row, width = 110 }: { row: FundamentalsRow; wid
     return <Text style={styles.empty}>—</Text>;
   }
 
-  const dev = ((price - mean) / mean) * 100;
+  const dev = ((mean - price) / price) * 100;
   const sign = dev < 0 ? "▼" : "▲";
   const color = dev >= 0 ? colors.buy : colors.sell;
 

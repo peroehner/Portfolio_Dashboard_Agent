@@ -5457,7 +5457,12 @@
           <div class="visual-card-head">
             <div class="visual-card-title-row">
               <h2>Portfolio Allocation Weight</h2>
-              <span class="allocation-source-pill" id="allocationSourcePill">Current holdings</span>
+              <span
+                class="allocation-source-pill"
+                id="allocationSourcePill"
+                title="Double-click to cycle to the next portfolio in Looking Back / Looking Forward"
+                ondblclick="cycleAllocationSource()"
+              >Current holdings</span>
             </div>
             <div class="fund-news-sort" id="allocationModeToggle" role="group" aria-label="Allocation grouping">
               <button type="button" data-alloc-mode="top5" class="active" onclick="setAllocationMode('top5')">Top 5</button>
@@ -5930,6 +5935,7 @@
       fib: { data: null, fetchedAt: 0 },
     };
     let screeningLoadSeq = 0;
+    let screeningLoadInFlight = null;
     let selectedSymbol = null;
     let targetCurrentPrice = null;
     // `currentView` starts null so the first showView() bootstrap renders even
@@ -6907,6 +6913,9 @@
       holdings: () => loadHoldings(),
       screening: () => {
         const cache = viewDataCache.screening;
+        // Never start a second /screen while one is in flight — that used to
+        // invalidate the first response and leave the Loading placeholder stuck.
+        if (screeningLoadInFlight) return screeningLoadInFlight;
         if (!cache.data || screeningTableIsEmpty()) return loadScreening("", true);
         renderScreeningView(cache.data);
       },
@@ -9424,6 +9433,27 @@
       });
       updateAllocationSubtitle();
       refreshAllocationChart();
+    }
+
+    function cycleAllocationSource() {
+      const back = new Set(["1M", "3M", "ath"]);
+      const forward = new Set(["current", "analyst", "personal", "simulation"]);
+      const group = back.has(allocationSource) ? back : forward;
+      const rows = [...document.querySelectorAll(".projection-row[data-alloc-key]")].filter(
+        (row) => group.has(row.dataset.allocKey),
+      );
+      const keys = rows
+        .map((row) => row.dataset.allocKey)
+        .filter((key, idx, arr) => key && arr.indexOf(key) === idx);
+      if (!keys.length) return;
+      const currentIdx = keys.indexOf(allocationSource);
+      const nextKey = keys[(currentIdx < 0 ? 0 : currentIdx + 1) % keys.length];
+      const nextRow = rows.find((row) => row.dataset.allocKey === nextKey);
+      const label =
+        nextRow?.getAttribute("data-alloc-label")
+        || nextRow?.querySelector(".projection-label")?.textContent?.trim()
+        || nextKey;
+      selectAllocationSource(nextKey, label);
     }
 
     function refreshAllocationChart() {
@@ -12308,7 +12338,12 @@
 
     function screeningTableIsEmpty() {
       const el = document.getElementById("screeningTable");
-      return !el || !el.innerHTML.trim();
+      if (!el) return true;
+      const html = el.innerHTML.trim();
+      if (!html) return true;
+      // Placeholder counts as empty so re-select / auto-refresh can recover a stuck load.
+      if (/Loading screening/i.test(html)) return true;
+      return false;
     }
 
     function renderScreeningView(rows) {
@@ -13497,29 +13532,63 @@
         renderScreeningView(cache.data);
         return;
       }
+      // Coalesce concurrent fetches. Auto-refresh used to bump screeningLoadSeq while
+      // the first /screen was still in flight, discard the response, and leave
+      // "Loading screening…" forever until a tab switch started a fresh request.
+      if (screeningLoadInFlight && !force) {
+        try {
+          await screeningLoadInFlight;
+        } catch (_) { /* surfaced by the in-flight loader */ }
+        if (cache.data) renderScreeningView(cache.data);
+        return;
+      }
+      if (screeningLoadInFlight && force) {
+        try {
+          await screeningLoadInFlight;
+        } catch (_) { /* continue with a forced refresh */ }
+        if (
+          cache.data
+          && cache.query === query
+          && Date.now() - cache.fetchedAt < VIEW_CACHE_TTL_MS
+          && !screeningTableIsEmpty()
+        ) {
+          renderScreeningView(cache.data);
+          return;
+        }
+      }
       const seq = ++screeningLoadSeq;
-      if (currentView === "screening" && !cache.data) {
+      if (currentView === "screening" && (screeningTableIsEmpty() || !cache.data)) {
         document.getElementById("screeningTable").innerHTML = '<div class="empty">Loading screening…</div>';
       }
-      try {
-        const data = await api(`/screen${query}`);
-        if (seq !== screeningLoadSeq) return;
-        cache.query = query;
-        cache.data = data.results || [];
-        cache.fetchedAt = Date.now();
-        renderScreeningView(cache.data);
-        // Pattern badges come from the shared /patterns map; fill them in once loaded.
-        loadSymbolPatterns().then(() => {
+      const pending = (async () => {
+        try {
+          const data = await api(`/screen${query}`);
           if (seq !== screeningLoadSeq) return;
-          if (currentView === "screening" && cache.data) renderScreeningView(cache.data);
-        });
-      } catch (error) {
-        if (seq !== screeningLoadSeq) return;
-        const message = escapeHtml(error.message || "Failed to load screening.");
-        if (currentView === "screening") {
-          document.getElementById("screeningTable").innerHTML = `<div class="empty">${message}</div>`;
+          cache.query = query;
+          cache.data = data.results || [];
+          cache.fetchedAt = Date.now();
+          renderScreeningView(cache.data);
+          if (currentView === "screening") markRefreshed("Screening table");
+          // Pattern badges come from the shared /patterns map; fill them in once loaded.
+          loadSymbolPatterns().then(() => {
+            if (seq !== screeningLoadSeq) return;
+            if (currentView === "screening" && cache.data) renderScreeningView(cache.data);
+          });
+        } catch (error) {
+          if (seq !== screeningLoadSeq) return;
+          const message = escapeHtml(error.message || "Failed to load screening.");
+          if (currentView === "screening") {
+            document.getElementById("screeningTable").innerHTML = `<div class="empty">${message}</div>`;
+          }
+          setStatus(error.message, "error");
+          throw error;
         }
-        setStatus(error.message, "error");
+      })();
+      screeningLoadInFlight = pending;
+      try {
+        await pending;
+      } finally {
+        if (screeningLoadInFlight === pending) screeningLoadInFlight = null;
       }
     }
 
@@ -17843,6 +17912,26 @@
       return Number.isFinite(amount) ? amount : null;
     }
 
+    /** Analyst rating sort: Strong Buy → … → Strong Sell → none (null). */
+    function recommendationRank(key) {
+      const normalized = String(key || "").toLowerCase().trim().replace(/\s+/g, "_");
+      switch (normalized) {
+        case "strong_buy": return 6;
+        case "buy":
+        case "outperform":
+        case "overweight": return 5;
+        case "hold":
+        case "neutral":
+        case "equal_weight":
+        case "market_perform": return 4;
+        case "underperform":
+        case "underweight": return 3;
+        case "sell": return 2;
+        case "strong_sell": return 1;
+        default: return null;
+      }
+    }
+
     function fundRangeLevels(row) {
       const price = fundNum(row.currentPrice);
       const storedHigh = fundNum(fundVal(row, "priceRange", "high52w"));
@@ -17902,7 +17991,8 @@
       const clamp = (v) => Math.max(0, Math.min(100, v));
       const pricePos = clamp(((price - low) / span) * 100);
       const meanPos = clamp(((mean - low) / span) * 100);
-      const dev = mean !== 0 ? ((price - mean) / mean) * 100 : null;
+      // Upside from price → mean target (not price vs mean as % of mean).
+      const dev = price !== 0 ? ((mean - price) / price) * 100 : null;
       const meanDelta = dev != null ? `${dev < 0 ? "▼" : "▲"}${Math.abs(dev).toFixed(1)}%` : null;
       const label = meanDelta || "—";
       const color = dev != null && dev >= 0 ? "#22c55e" : "#ef4444";
@@ -18022,13 +18112,13 @@
           { key: "fcf", label: "Free Cash Flow", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "freeCashflow")), render: (r) => { const v = fundVal(r, "financialHealth", "freeCashflow"); const cls = (fundNum(v) ?? 0) >= 0 ? "gain-pos" : "gain-neg"; return `<span class="${cls}">${formatLargeMoney(v)}</span>`; } },
           { key: "cash", label: "Total Cash", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "totalCash")), render: (r) => formatLargeMoney(fundVal(r, "financialHealth", "totalCash")) },
           { key: "debt", label: "Total Debt", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "totalDebt")), render: (r) => formatLargeMoney(fundVal(r, "financialHealth", "totalDebt")) },
-          { key: "rec", label: "Rating", sortValue: (r) => fundVal(r, "analyst", "recommendationKey") || "", render: (r) => { const k = fundVal(r, "analyst", "recommendationKey"); return k ? String(k).replace(/_/g, " ") : "—"; } },
+          { key: "rec", label: "Rating", sortValue: (r) => recommendationRank(fundVal(r, "analyst", "recommendationKey")), render: (r) => { const k = fundVal(r, "analyst", "recommendationKey"); const n = fundNum(fundVal(r, "analyst", "analystCount")); if (!k) return "—"; const label = String(k).replace(/_/g, " "); return n != null ? `${label} (${Math.round(n)})` : label; } },
           {
             key: "tgtRange", label: "Target Low · Mean · High",
             sortValue: (r) => {
               const price = fundNum(r.currentPrice);
               const mean = fundNum(fundVal(r, "analyst", "targetMean"));
-              return price != null && mean != null && mean !== 0 ? ((price - mean) / mean) * 100 : null;
+              return price != null && mean != null && price !== 0 ? ((mean - price) / price) * 100 : null;
             },
             render: (r) => renderTargetBar(r),
           },

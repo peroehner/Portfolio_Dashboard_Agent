@@ -1,9 +1,36 @@
 export type SaiAction = "buy" | "sell" | "hold" | "watch" | string;
 
+export interface DeployFingerprint {
+  appVersion?: string;
+  environment?: "local" | "render" | string;
+  build?: string | null;
+  gitCommit?: string | null;
+  gitBranch?: string | null;
+  host?: string | null;
+  serviceId?: string | null;
+  serviceName?: string | null;
+  instanceId?: string | null;
+  label?: string;
+}
+
 export interface ApiConfig {
   version?: string;
+  appVersion?: string;
+  build?: string | null;
+  environment?: string;
+  host?: string | null;
+  gitCommit?: string | null;
+  gitBranch?: string | null;
+  serviceId?: string | null;
+  serviceName?: string | null;
+  deploy?: DeployFingerprint;
   assessmentProvider?: string;
+  assessmentMode?: string;
+  llmConfigured?: boolean;
   syncIntervalSeconds?: number;
+  importVersion?: number;
+  geminiModel?: string | null;
+  docs?: Record<string, string>;
 }
 
 export interface Overview {
@@ -146,6 +173,7 @@ export interface PortfolioRow {
   symbol: string;
   saiAction?: SaiAction;
   saiConfidence?: string;
+  saiProposal?: TradingProposal;
   currentPrice?: number | null;
   dayChangePct?: number | null;
   quantity?: number | null;
@@ -211,6 +239,27 @@ export interface TradingProposal {
   rationale?: string;
   actionSource?: string | null;
   fitExtensions?: Record<string, unknown>;
+  bandBias?: {
+    code?: string;
+    label?: string;
+    range?: string;
+    advisory?: boolean;
+    note?: string;
+  };
+  attention?: {
+    flag?: boolean;
+    level?: string | null;
+    message?: string | null;
+    bandAction?: string | null;
+    saiAction?: string | null;
+  };
+  intent?: {
+    code?: string;
+    label?: string;
+    inferred?: string;
+    override?: string | null;
+    source?: string;
+  };
 }
 
 export interface RecommendationChange {
@@ -258,6 +307,7 @@ export interface InspectorPayload {
     sentiment?: string;
     sentimentSource?: string;
     sentimentDetail?: string;
+    assessedAt?: string;
     proposal?: TradingProposal;
   };
   screening?: {
@@ -292,8 +342,21 @@ export interface InspectorPayload {
     forwardPe?: number | null;
     pegRatio?: number | null;
     revenueGrowth?: number | null;
+    earningsGrowth?: number | null;
     operatingMargin?: number | null;
     companyName?: string | null;
+    recommendationKey?: string | null;
+    analystCount?: number | null;
+    targetMean?: number | null;
+    targetHigh?: number | null;
+    targetLow?: number | null;
+    beta?: number | null;
+    debtToEquity?: number | null;
+    freeCashflow?: number | null;
+    ma50?: number | null;
+    ma200?: number | null;
+    high52w?: number | null;
+    low52w?: number | null;
   };
   technicalAdvisory?: {
     stance?: string;

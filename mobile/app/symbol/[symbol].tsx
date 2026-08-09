@@ -18,8 +18,10 @@ import {
   View,
 } from "react-native";
 
-import { AlertMessageText, AlertRow } from "@/components/AlertRow";
+import { AlertRow } from "@/components/AlertRow";
 import { HoldingsCompactCard } from "@/components/inspector/HoldingsCompactCard";
+import { AnalystHealthCard } from "@/components/inspector/AnalystHealthCard";
+import { KeyFundamentalsCard } from "@/components/inspector/KeyFundamentalsCard";
 import { QuoteHeader } from "@/components/inspector/QuoteHeader";
 import { TechnicalPanel } from "@/components/inspector/TechnicalPanel";
 import { SaiSummaryCard } from "@/components/inspector/SaiSummaryCard";
@@ -29,8 +31,7 @@ import { SaiBadge } from "@/components/SaiBadge";
 import { Screen } from "@/components/Screen";
 import { api, isTimeoutApiError } from "@/lib/api";
 import { dedupeActiveAlerts } from "@/lib/alertDedup";
-import { emphasizeDriverText } from "@/lib/driverHighlight";
-import { getRecommendationDrivers, headlineForAction } from "@/lib/inspectorHelpers";
+import { headlineForAction } from "@/lib/inspectorHelpers";
 import { formatNoteDate, formatPrice, formatQty, formatShortDateTime } from "@/lib/format";
 import { proposeThresholds } from "@/lib/thresholdProposals";
 import {
@@ -44,6 +45,7 @@ import {
 } from "@/lib/symbolBrowseSession";
 import { isChartFullscreenActive } from "@/lib/chartFullscreenGate";
 import { useStarredSymbols } from "@/lib/StarredSymbolsContext";
+import { usePersistedSymbolFilter } from "@/lib/usePersistedSymbolFilter";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { InspectorPayload, Note, PortfolioSymbol } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
@@ -132,6 +134,7 @@ export default function SymbolDetailScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const { setStarred } = useStarredSymbols();
+  const { setFilter } = usePersistedSymbolFilter();
   const { symbol } = useLocalSearchParams<{ symbol: string }>();
   const sym = String(symbol || "").toUpperCase();
   const [tab, setTab] = useState<SymbolTab>(() => getBrowseUi().tab);
@@ -166,7 +169,6 @@ export default function SymbolDetailScreen() {
   const quote = data?.quote;
   const effectiveBuyBelow = quote?.tradeBelowPrice ?? quote?.buyBelow;
   const effectiveSellAbove = quote?.tradeAbovePrice ?? quote?.sellAbove;
-  const drivers = useMemo(() => getRecommendationDrivers(data), [data]);
   const activeAlerts = useMemo(() => dedupeActiveAlerts(data?.alerts), [data?.alerts]);
   const thresholdSuggestions = useMemo(
     () => proposeThresholds(quote, data),
@@ -212,6 +214,8 @@ export default function SymbolDetailScreen() {
   const [editNoteTitle, setEditNoteTitle] = useState("");
   const [editNoteText, setEditNoteText] = useState("");
   const [expandedAssessmentKey, setExpandedAssessmentKey] = useState<string | null>(null);
+  const [assessingSymbol, setAssessingSymbol] = useState(false);
+  const [clearingHistory, setClearingHistory] = useState(false);
   const { width, height } = useWindowDimensions();
   const isWideSummaryLayout = width >= 980 || (width >= 760 && width > height);
 
@@ -223,6 +227,8 @@ export default function SymbolDetailScreen() {
     setExpandedNoteKey(null);
     setEditingNoteId(null);
     setExpandedAssessmentKey(null);
+    setAssessingSymbol(false);
+    setClearingHistory(false);
     setEditOpen(false);
     restoredScrollSym.current = null;
     // Restore persisted tab after replace remounts this screen.
@@ -560,6 +566,68 @@ export default function SymbolDetailScreen() {
     }
   }
 
+  async function runAssessSymbol() {
+    if (!sym || assessingSymbol || clearingHistory) return;
+    setAssessingSymbol(true);
+    setSaveError(null);
+    try {
+      await api.assessSymbol(sym);
+      setExpandedAssessmentKey(null);
+      await refreshAll();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to assess symbol");
+    } finally {
+      setAssessingSymbol(false);
+    }
+  }
+
+  function confirmClearAssessmentHistory() {
+    if (!sym || clearingHistory || assessingSymbol) return;
+    void (async () => {
+      try {
+        const res = await api.listAssessments(sym, 500);
+        const older = (res.assessments ?? []).slice(1).filter((item) => item.id != null);
+        if (!older.length) {
+          setSaveError("No agent read history to delete.");
+          return;
+        }
+        Alert.alert(
+          "Clear history?",
+          `Delete the entire agent read history (${older.length})? The latest agent read is kept.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Clear history",
+              style: "destructive",
+              onPress: () => {
+                void clearAssessmentHistory(older.map((item) => Number(item.id)));
+              },
+            },
+          ],
+        );
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : "Failed to load agent read history");
+      }
+    })();
+  }
+
+  async function clearAssessmentHistory(ids: number[]) {
+    if (!sym || !ids.length) return;
+    setClearingHistory(true);
+    setSaveError(null);
+    try {
+      for (const id of ids) {
+        await api.deleteAssessment(id, sym);
+      }
+      setExpandedAssessmentKey(null);
+      await refreshAll();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to clear agent read history");
+    } finally {
+      setClearingHistory(false);
+    }
+  }
+
   function startEditNote(note: Note) {
     const noteId = Number(note.id);
     if (!Number.isFinite(noteId)) {
@@ -851,15 +919,60 @@ export default function SymbolDetailScreen() {
               dayChangePct={quote?.dayChangePct}
             />
             <SaiSummaryCard data={data} />
-            <View style={isWideSummaryLayout ? styles.summaryTwoColRow : undefined}>
-              <View style={isWideSummaryLayout ? styles.summaryCol : undefined}>
-                <HoldingsCompactCard
-                  data={data}
-                  style={isWideSummaryLayout ? styles.summaryCardInRow : undefined}
-                />
+            {isWideSummaryLayout ? (
+              <View style={styles.summaryPairStack}>
+                <View style={styles.summaryPairRow}>
+                  <View style={styles.summaryCol}>
+                    <HoldingsCompactCard data={data} style={styles.summaryCardInRow} />
+                  </View>
+                  <View style={styles.summaryCol}>
+                    <View style={[styles.card, styles.summaryCardInRow]}>
+                      <Text style={styles.cardTitle}>Thresholds</Text>
+                      <ScrollView
+                        nestedScrollEnabled
+                        style={styles.summaryCardScroll}
+                        contentContainerStyle={styles.summaryCardScrollContent}
+                        showsVerticalScrollIndicator={false}
+                      >
+                        <View style={styles.thresholdGrid}>
+                          <View style={styles.thresholdCell}>
+                            <Text style={styles.statLabel}>Trade @ Below</Text>
+                            <Text style={styles.statValue}>
+                              {thresholdValueText(effectiveBuyBelow, quote?.tradeBelowShares)}
+                            </Text>
+                          </View>
+                          <View style={styles.thresholdCell}>
+                            <Text style={styles.statLabel}>Trade @ Above</Text>
+                            <Text style={styles.statValue}>
+                              {thresholdValueText(effectiveSellAbove, quote?.tradeAboveShares)}
+                            </Text>
+                          </View>
+                          <View style={styles.thresholdCell}>
+                            <Text style={styles.statLabel}>Personal target</Text>
+                            <Text style={styles.statValue}>{formatPrice(quote?.targetPrice)}</Text>
+                          </View>
+                          <View style={styles.thresholdCell}>
+                            <Text style={styles.statLabel}>Analyst 1Y</Text>
+                            <Text style={styles.statValue}>{formatPrice(quote?.analystTarget1y)}</Text>
+                          </View>
+                        </View>
+                      </ScrollView>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.summaryPairRow}>
+                  <View style={styles.summaryCol}>
+                    <KeyFundamentalsCard data={data} style={styles.summaryCardInRow} />
+                  </View>
+                  <View style={styles.summaryCol}>
+                    <AnalystHealthCard data={data} style={styles.summaryCardInRow} />
+                  </View>
+                </View>
               </View>
-              <View style={isWideSummaryLayout ? styles.summaryCol : undefined}>
-                <View style={[styles.card, isWideSummaryLayout ? styles.summaryCardInRow : undefined]}>
+            ) : (
+              <>
+                <HoldingsCompactCard data={data} />
+                <View style={styles.card}>
                   <Text style={styles.cardTitle}>Thresholds</Text>
                   <View style={styles.thresholdGrid}>
                     <View style={styles.thresholdCell}>
@@ -884,7 +997,26 @@ export default function SymbolDetailScreen() {
                     </View>
                   </View>
                 </View>
-              </View>
+                <KeyFundamentalsCard data={data} />
+                <AnalystHealthCard data={data} />
+              </>
+            )}
+
+            <View style={styles.removeSection}>
+              {saveError ? <Text style={styles.fullError}>{saveError}</Text> : null}
+              <Pressable
+                style={[styles.removeBtn, removingSymbol && styles.removeBtnDisabled]}
+                onPress={confirmRemoveSymbol}
+                disabled={removingSymbol}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete ${sym} from portfolio`}
+              >
+                {removingSymbol ? (
+                  <ActivityIndicator color="#fca5a5" size="small" />
+                ) : (
+                  <Text style={styles.removeBtnText}>Delete Symbol</Text>
+                )}
+              </Pressable>
             </View>
 
             <View style={styles.card}>
@@ -1106,44 +1238,107 @@ export default function SymbolDetailScreen() {
               )}
             </View>
 
-            {drivers.length > 0 ? (
-              <View style={[styles.card, styles.driversCard]}>
-                <Text style={styles.driversTitle}>Drivers</Text>
-                {drivers.map((reason, idx) => (
-                  <View key={idx} style={styles.driverRow}>
-                    <Text style={styles.driverBullet}>·</Text>
-                    <View style={styles.driverTextWrap}>
-                      <AlertMessageText
-                        message={emphasizeDriverText(reason)}
-                        style={styles.driverText}
-                        boldStyle={styles.driverBold}
-                      />
-                    </View>
-                  </View>
-                ))}
+            <View style={styles.section}>
+              <View style={styles.sectionHead}>
+                <Text style={styles.sectionTitleInline}>
+                  {activeAlerts.length > 0 ? "Active alerts" : "Alerts & News"}
+                </Text>
+                <View style={styles.sectionLinks}>
+                  <Pressable
+                    onPress={() => {
+                      setFilter(sym);
+                      router.navigate({ pathname: "/alerts", params: { symbol: sym } });
+                    }}
+                    hitSlop={8}
+                    accessibilityRole="link"
+                    accessibilityLabel={`Open Alerts tab filtered to ${sym}`}
+                  >
+                    <Text style={styles.sectionLink}>Alerts</Text>
+                  </Pressable>
+                  <Text style={styles.sectionLinkSep}>·</Text>
+                  <Pressable
+                    onPress={() => {
+                      setFilter(sym);
+                      router.navigate({ pathname: "/news", params: { symbol: sym } });
+                    }}
+                    hitSlop={8}
+                    accessibilityRole="link"
+                    accessibilityLabel={`Open News tab filtered to ${sym}`}
+                  >
+                    <Text style={styles.sectionLink}>News</Text>
+                  </Pressable>
+                </View>
               </View>
-            ) : null}
+              {activeAlerts.length > 0 ? (
+                <ScrollView
+                  nestedScrollEnabled
+                  style={styles.alertsScroll}
+                  contentContainerStyle={styles.alertsScrollContent}
+                  showsVerticalScrollIndicator={activeAlerts.length > 3}
+                >
+                  {activeAlerts.map((alert) => (
+                    <AlertRow key={alert.id} alert={alert} />
+                  ))}
+                </ScrollView>
+              ) : (
+                <Text style={styles.emptyInlinePad}>
+                  No active alerts. Open Alerts or News for {sym}.
+                </Text>
+              )}
+            </View>
 
-            {activeAlerts.length > 0 ? (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Active alerts</Text>
-                {activeAlerts.map((alert) => (
-                  <AlertRow key={alert.id} alert={alert} />
-                ))}
+            <View style={styles.card}>
+              <View style={styles.agentReadsHead}>
+                <Text style={styles.cardTitle}>Agent Reads</Text>
+                <Pressable
+                  style={[
+                    styles.assessBtn,
+                    (assessingSymbol || clearingHistory) && styles.assessBtnDisabled,
+                  ]}
+                  onPress={() => void runAssessSymbol()}
+                  disabled={assessingSymbol || clearingHistory}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Assess ${sym}`}
+                >
+                  {assessingSymbol ? (
+                    <ActivityIndicator color="#0a1a0f" size="small" />
+                  ) : (
+                    <Text style={styles.assessBtnText}>Assess Symbol</Text>
+                  )}
+                </Pressable>
               </View>
-            ) : null}
 
-            {(data?.assessments?.length ?? 0) > 0 ? (
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>Recent assessments</Text>
-                {data?.assessments?.slice(0, 3).map((item, idx) => {
+              {saveError ? <Text style={styles.fullError}>{saveError}</Text> : null}
+
+              {(data?.assessments?.length ?? 0) > 1 ? (
+                <Pressable
+                  style={[styles.clearHistoryBtn, clearingHistory && styles.clearHistoryBtnDisabled]}
+                  onPress={confirmClearAssessmentHistory}
+                  disabled={clearingHistory || assessingSymbol}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear agent read history"
+                >
+                  {clearingHistory ? (
+                    <ActivityIndicator color="#fca5a5" size="small" />
+                  ) : (
+                    <Text style={styles.clearHistoryBtnText}>Clear history</Text>
+                  )}
+                </Pressable>
+              ) : null}
+
+              {(data?.assessments?.length ?? 0) > 0 ? (
+                data?.assessments?.slice(0, 5).map((item, idx) => {
                   const key = String(item.id ?? item.createdAt ?? idx);
                   const isLatest = idx === 0;
                   const expanded = isLatest || expandedAssessmentKey === key;
+                  const meta = [formatShortDateTime(item.createdAt) || item.createdAt, item.provider]
+                    .filter(Boolean)
+                    .join(" · ");
+                  const conf = (item.confidence || "").trim();
                   return (
                     <Pressable
                       key={key}
-                      style={styles.assessment}
+                      style={[styles.assessment, isLatest && styles.assessmentLatest]}
                       onPress={() => {
                         if (isLatest) return;
                         setExpandedAssessmentKey(expanded ? null : key);
@@ -1151,10 +1346,20 @@ export default function SymbolDetailScreen() {
                       disabled={isLatest}
                     >
                       <View style={styles.assessmentHead}>
-                        <SaiBadge action={item.action} confidence={item.confidence} compact />
-                        <Text style={styles.assessmentDate}>
-                          {formatShortDateTime(item.createdAt) || item.createdAt}
-                        </Text>
+                        <View style={styles.assessmentChips}>
+                          <SaiBadge action={item.action} confidence={item.confidence} compact />
+                          {conf ? (
+                            <View style={styles.confChip}>
+                              <Text style={styles.confChipText}>{conf}</Text>
+                            </View>
+                          ) : null}
+                          {isLatest ? (
+                            <View style={styles.latestChip}>
+                              <Text style={styles.latestChipText}>LATEST</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        {meta ? <Text style={styles.assessmentDate}>{meta}</Text> : null}
                       </View>
                       {item.rationale ? (
                         <Text style={styles.reason} numberOfLines={expanded ? undefined : 2}>
@@ -1168,32 +1373,12 @@ export default function SymbolDetailScreen() {
                       ) : null}
                     </Pressable>
                   );
-                })}
-              </View>
-            ) : null}
-
-            <View style={styles.removeSection}>
-              <Text style={styles.removeHint}>
-                To keep the ticker as watch-only, set shares to 0 in Edit. Remove deletes the ticker
-                entirely.
-              </Text>
-              {saveError ? <Text style={styles.fullError}>{saveError}</Text> : null}
-              <Pressable
-                style={[styles.removeBtn, removingSymbol && styles.removeBtnDisabled]}
-                onPress={confirmRemoveSymbol}
-                disabled={removingSymbol}
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${sym} from portfolio`}
-              >
-                {removingSymbol ? (
-                  <ActivityIndicator color="#fecaca" />
-                ) : (
-                  <>
-                    <Ionicons name="trash-outline" size={16} color="#fecaca" />
-                    <Text style={styles.removeBtnText}>Remove from portfolio</Text>
-                  </>
-                )}
-              </Pressable>
+                })
+              ) : (
+                <Text style={styles.emptyInline}>
+                  No agent reads yet — run Assess Symbol to generate one.
+                </Text>
+              )}
             </View>
           </>
         ) : null}
@@ -1269,12 +1454,15 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     gap: spacing.sm,
   },
-  summaryTwoColRow: {
+  summaryPairStack: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  summaryPairRow: {
     flexDirection: "row",
     alignItems: "stretch",
     gap: spacing.sm,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
   },
   summaryCol: {
     flex: 1,
@@ -1283,7 +1471,15 @@ const styles = StyleSheet.create({
   summaryCardInRow: {
     marginHorizontal: 0,
     marginBottom: 0,
-    height: "100%",
+    flex: 1,
+    alignSelf: "stretch",
+  },
+  summaryCardScroll: {
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  summaryCardScrollContent: {
+    flexGrow: 1,
   },
   cardTitle: {
     color: colors.text,
@@ -1297,6 +1493,50 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.sm,
     marginBottom: spacing.xs,
+  },
+  agentReadsHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  assessBtn: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accent,
+    minWidth: 108,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  assessBtnDisabled: {
+    opacity: 0.6,
+  },
+  assessBtnText: {
+    color: "#0a1a0f",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  clearHistoryBtn: {
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.35)",
+    borderRadius: radii.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: "rgba(239,68,68,0.15)",
+    marginBottom: spacing.xs,
+  },
+  clearHistoryBtnDisabled: {
+    opacity: 0.6,
+  },
+  clearHistoryBtnText: {
+    color: "#fca5a5",
+    fontSize: 12,
+    fontWeight: "600",
   },
   newNoteBtn: {
     paddingHorizontal: spacing.sm,
@@ -1353,53 +1593,54 @@ const styles = StyleSheet.create({
   },
   section: {
     marginTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
-  sectionTitle: {
+  alertsScroll: {
+    // ~3 AlertRow cards visible; scroll for the rest
+    maxHeight: 300,
+    marginHorizontal: spacing.lg,
+  },
+  alertsScrollContent: {
+    gap: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
+  sectionHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  sectionTitleInline: {
     color: colors.text,
     fontSize: 16,
     fontWeight: "700",
+    flexShrink: 1,
+  },
+  sectionLinks: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  sectionLink: {
+    color: colors.link,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  sectionLinkSep: {
+    color: colors.textMuted,
+    fontSize: 13,
+  },
+  emptyInlinePad: {
+    color: colors.textMuted,
+    fontSize: 13,
     paddingHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
   },
   reason: {
     color: colors.textMuted,
     fontSize: 14,
     lineHeight: 20,
-  },
-  driversCard: {
-    borderColor: "rgba(96,165,250,0.45)",
-    backgroundColor: "rgba(30,58,138,0.22)",
-  },
-  driversTitle: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: "800",
-    letterSpacing: 0.2,
-    marginBottom: spacing.xs,
-  },
-  driverRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-  },
-  driverBullet: {
-    color: colors.link,
-    fontSize: 14,
-    fontWeight: "800",
-    lineHeight: 20,
-  },
-  driverTextWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  driverText: {
-    color: colors.text,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  driverBold: {
-    color: colors.text,
-    fontWeight: "800",
   },
   noteForm: {
     gap: spacing.sm,
@@ -1596,14 +1837,57 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     gap: spacing.xs,
   },
+  assessmentLatest: {
+    borderLeftWidth: 2,
+    borderLeftColor: "#a78bfa",
+    paddingLeft: spacing.sm,
+    marginLeft: -2,
+  },
   assessmentHead: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: spacing.sm,
+  },
+  assessmentChips: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
+  },
+  confChip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: colors.surfaceAlt,
+  },
+  confChipText: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  latestChip: {
+    borderWidth: 1,
+    borderColor: "rgba(167,139,250,0.55)",
+    borderRadius: radii.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: "rgba(167,139,250,0.2)",
+  },
+  latestChipText: {
+    color: "#c4b5fd",
+    fontSize: 10,
+    fontWeight: "800",
   },
   assessmentDate: {
     color: colors.textMuted,
     fontSize: 11,
+    flexShrink: 0,
   },
   assessmentMore: {
     color: colors.link,
@@ -1613,33 +1897,25 @@ const styles = StyleSheet.create({
   },
   removeSection: {
     marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
+    marginTop: spacing.xs,
     marginBottom: spacing.sm,
-    gap: spacing.sm,
-  },
-  removeHint: {
-    color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 17,
+    alignItems: "flex-end",
   },
   removeBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.xs,
     borderWidth: 1,
-    borderColor: "#7f1d1d",
-    borderRadius: radii.md,
-    paddingVertical: 12,
-    backgroundColor: "#3f151b",
+    borderColor: "rgba(239,68,68,0.35)",
+    borderRadius: radii.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: "rgba(239,68,68,0.15)",
   },
   removeBtnDisabled: {
     opacity: 0.6,
   },
   removeBtnText: {
-    color: "#fecaca",
-    fontSize: 14,
-    fontWeight: "700",
+    color: "#fca5a5",
+    fontSize: 12,
+    fontWeight: "600",
   },
   modalRoot: {
     flex: 1,

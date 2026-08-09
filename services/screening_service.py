@@ -68,20 +68,19 @@ class ScreeningService:
                 track_record_summary=extras.get("track_record_summary"),
                 portfolio_annual_dividend=extras.get("portfolio_annual_dividend"),
             )
-            # Same live proposal as Inspector (fundamentals + Fit prefs) so
-            # Conf · Score and Attention ! stay consistent across surfaces.
-            live_proposal = assessment_service.get_proposal(symbol)
-            if live_proposal:
+            # Prefer the proposal already built above (Fit prefs + Intent). A second
+            # get_proposal() per symbol re-ran _build_context for the whole book and
+            # made first Screening open feel hung until another tab warmed caches.
+            proposal = rec.get("proposal") if isinstance(rec.get("proposal"), dict) else None
+            if proposal:
                 from services.portfolio_intent import attention_for_actions
                 from services.proposal_service import action_for_band_code
 
-                band = live_proposal.get("bandBias") or {}
-                live_proposal["attention"] = attention_for_actions(
+                band = proposal.get("bandBias") or {}
+                proposal["attention"] = attention_for_actions(
                     band_action=action_for_band_code(band.get("code") or ""),
                     sai_action=rec.get("action") or "hold",
                 )
-                rec["proposal"] = live_proposal
-            proposal = rec.get("proposal") if isinstance(rec.get("proposal"), dict) else None
             slim_proposal = None
             if proposal:
                 scores = proposal.get("scores") or {}

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { NewsSymbolGroupCard, SaiChangeCard } from "@/components/NewsCards";
 import { NewsArticleModal } from "@/components/NewsArticleModal";
 import { NoteModal, type NoteDraft } from "@/components/NoteModal";
+import { BackToSymbolButton } from "@/components/BackToSymbolButton";
 import { Screen } from "@/components/Screen";
 import { RecallFilterButton } from "@/components/RecallFilterButton";
 import { StarFilterButton } from "@/components/StarFilterButton";
@@ -121,6 +122,8 @@ function PaneHeader({
 }
 
 export default function NewsScreen() {
+  const { symbol: symbolParam } = useLocalSearchParams<{ symbol?: string }>();
+  const returnSymbol = typeof symbolParam === "string" ? symbolParam.trim().toUpperCase() : "";
   const { filter, setFilter, lastFilter, applyLast, canRecall } = usePersistedSymbolFilter();
   const [dirFilter, setDirFilter] = useState<RecoChangesDirFilter>("");
   const [expanded, setExpanded] = useState<Pane | null>(null);
@@ -138,6 +141,10 @@ export default function NewsScreen() {
     [],
   );
   const [extraNotedKeys, setExtraNotedKeys] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    if (returnSymbol) setFilter(returnSymbol);
+  }, [returnSymbol, setFilter]);
 
   const notedNewsKeys = useMemo(() => {
     const fromPortfolio = buildNotedNewsKeySet(portfolio?.symbols);
@@ -210,6 +217,7 @@ export default function NewsScreen() {
         loading={loading && !data}
         error={error}
         onRetry={() => void refresh()}
+        leftAction={returnSymbol ? <BackToSymbolButton symbol={returnSymbol} /> : null}
         contentStyle={styles.screenContent}
       >
         <View style={styles.filterRow}>
