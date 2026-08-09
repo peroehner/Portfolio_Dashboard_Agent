@@ -1715,7 +1715,27 @@
     .chip.hold { background: rgba(148,163,184,0.2); color: #cbd5e1; }
     .chip.watch { background: rgba(245,158,11,0.2); color: var(--warn); }
     .chip.attention { outline: 1px solid var(--warn); font-weight: 600; }
-    .chip.intent { background: rgba(148,163,184,0.15); color: #94a3b8; text-transform: none; font-size: 0.72rem; }
+    .chip.intent {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+      background: rgba(148,163,184,0.15);
+      color: #94a3b8;
+      text-transform: none;
+      font-size: 0.72rem;
+    }
+    .chip.intent .intent-glyph {
+      width: 0.85em;
+      height: 0.85em;
+      flex-shrink: 0;
+      opacity: 0.95;
+    }
+    /* Offset Portfolio Intent from the three SAI signal chips (Action · Conf · Sentiment). */
+    .sai-intent-gap {
+      display: inline-block;
+      width: 0.85rem;
+      flex-shrink: 0;
+    }
     .chip.add { background: rgba(34,197,94,0.15); color: #86efac; }
     .chip.reduce { background: rgba(239,68,68,0.15); color: #fca5a5; }
     .chip.sentiment-bullish { background: rgba(34,197,94,0.18); color: #4ade80; }
@@ -1729,6 +1749,9 @@
       flex-wrap: nowrap;
       align-items: center;
       gap: 0.4rem;
+    }
+    .screening-rec-chips .sai-intent-gap {
+      width: 0.7rem;
     }
     .screening-rec-chips .chip {
       font-size: 0.72rem;
@@ -2668,16 +2691,21 @@
     }
     .gain-pos { color: var(--accent-2); }
     .gain-neg { color: var(--danger); }
+    .gain-mid { color: #f59e0b; }
     table.data td .gain-pos,
     table.data td .gain-neg,
+    table.data td .gain-mid,
     table.data td.pct-cell .gain-pos,
-    table.data td.pct-cell .gain-neg {
+    table.data td.pct-cell .gain-neg,
+    table.data td.pct-cell .gain-mid {
       font-weight: 600;
     }
     table.data td .gain-pos,
     table.data td.pct-cell .gain-pos { color: #22c55e !important; }
     table.data td .gain-neg,
     table.data td.pct-cell .gain-neg { color: #ef4444 !important; }
+    table.data td .gain-mid,
+    table.data td.pct-cell .gain-mid { color: #f59e0b !important; }
     .inspector-side-card.advisory {
       border-color: rgba(34, 197, 94, 0.28);
       background: rgba(34, 197, 94, 0.08);
@@ -2936,8 +2964,15 @@
       margin: 0.25rem 0 1rem;
       align-items: center;
     }
-    .fundamentals-tabbar .sel-clip-actions {
+    .fundamentals-tabbar-end {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
       margin-left: auto;
+      flex: 0 0 auto;
+    }
+    .fundamentals-tabbar .sel-clip-actions {
+      margin-left: 0;
     }
     .fib-filter-bar .sel-clip-actions {
       margin-left: 0;
@@ -4922,7 +4957,7 @@
         <img id="userAvatar" alt="" width="24" height="24" style="border-radius:50%;display:none">
         <span id="userPlanBadge" class="plan-badge" hidden></span>
         <span id="userEmail"></span>
-        <a id="logoutLink" href="/auth/logout" style="display:none;color:#7aa2f7;text-decoration:none">Logout</a>
+        <a id="logoutLink" href="/auth/logout" style="display:none;color:#7aa2f7;text-decoration:none">Sign out</a>
       </span>
     </div>
   </header>
@@ -5150,6 +5185,78 @@
         </table>
         <p>Use OBV as a confirmation layer, not a standalone trigger: strongest conviction usually comes when pattern/fib structure and OBV agree.</p>
         <p style="margin-top:1rem;font-size:0.82rem;color:var(--muted,#9aa8bc);">Full guide: <code>docs/PATTERNS.md</code>.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="fundamentalsHelp" class="help-modal-backdrop" hidden onclick="onFundamentalsHelpBackdrop(event)">
+    <div class="help-modal" role="dialog" aria-modal="true" aria-labelledby="fundamentalsHelpTitle">
+      <div class="help-modal-head">
+        <h3 id="fundamentalsHelpTitle">Reading Fundamentals</h3>
+        <button type="button" class="help-modal-close" onclick="closeFundamentalsHelp()" aria-label="Close">&times;</button>
+      </div>
+      <div class="help-modal-body">
+        <div class="help-caveat">
+          <strong>Big caveat first.</strong> Fundamentals ratios are <em>context- and sector-sensitive</em>.
+          Cell colors are compact heuristics for scanning — not investment advice and not a substitute
+          for notes, SAI, or peer comparison. Absolute “cheap/expensive” bands for P/E-style multiples
+          mislead across sectors, so those stay uncolored.
+        </div>
+
+        <h4>1 · The three tabs</h4>
+        <table class="help-table">
+          <tr><th>Tab</th><th>What it shows</th></tr>
+          <tr><td><strong>Valuation · Growth · Profitability</strong></td><td>Multiples (P/E, PEG, EV/EBITDA…), YoY growth, margins, ROE.</td></tr>
+          <tr><td><strong>Health · Analyst</strong></td><td>Beta, leverage, liquidity (Current/Quick), cash flow, Street rating &amp; target range.</td></tr>
+          <tr><td><strong>52-Week · News</strong></td><td>Price vs 52W high/low and MAs, closest level, range position; symbol news panel.</td></tr>
+        </table>
+        <p>Per-column <code>?</code> on headers still opens a short tooltip. This overview is the full guide.</p>
+
+        <h4>2 · Color legend</h4>
+        <table class="help-table">
+          <tr><th>Tone</th><th>Meaning in this table</th></tr>
+          <tr><td><span class="help-badge bull">Good</span></td><td>Green — threshold or sign looks constructive for a quick scan.</td></tr>
+          <tr><td><span class="help-badge neutral">Neutral</span></td><td>Amber — mid band / watch zone (or muted when near zero).</td></tr>
+          <tr><td><span class="help-badge bear">Caution</span></td><td>Red — below coverage, high leverage, rich PEG, negative growth/margin, etc.</td></tr>
+          <tr><td>Muted</td><td>No absolute color — sector-relative multiples, labels, levels.</td></tr>
+        </table>
+
+        <h4>3 · Valuation multiples</h4>
+        <table class="help-table">
+          <tr><th>Column</th><th>Meaning</th><th>Color</th></tr>
+          <tr><td>Mkt Cap</td><td>Share price × shares outstanding.</td><td>Muted</td></tr>
+          <tr><td>P/E · Fwd P/E</td><td>Price vs trailing / next-year earnings.</td><td>Muted (sector-relative)</td></tr>
+          <tr><td>P/B · P/S · EV/EBITDA</td><td>Price vs book, sales, or enterprise value / EBITDA.</td><td>Muted</td></tr>
+          <tr><td>PEG</td><td>P/E adjusted by expected earnings growth.</td><td><strong>&lt;1</strong> good · <strong>1–2</strong> neutral · <strong>&gt;2</strong> caution</td></tr>
+        </table>
+
+        <h4>4 · Growth &amp; profitability</h4>
+        <table class="help-table">
+          <tr><th>Column</th><th>Meaning</th><th>Color</th></tr>
+          <tr><td>Rev Growth · Earn Growth</td><td>Year-over-year revenue / earnings growth.</td><td>Sign: ≥0 green, &lt;0 red</td></tr>
+          <tr><td>Gross · Op · Profit Margin</td><td>Profitability ratios.</td><td>&gt;0 green · &lt;0 red · ~0 muted</td></tr>
+          <tr><td>ROE</td><td>Return on equity (net income / equity).</td><td>Same sign rule as margins</td></tr>
+        </table>
+
+        <h4>5 · Health &amp; liquidity</h4>
+        <table class="help-table">
+          <tr><th>Column</th><th>Good</th><th>Neutral</th><th>Caution</th></tr>
+          <tr><td>Current Ratio (assets / liabilities)</td><td>≥ 1.5</td><td>1.0–1.5</td><td>&lt; 1.0</td></tr>
+          <tr><td>Quick Ratio (ex-inventory coverage)</td><td>≥ 1.0</td><td>0.7–1.0</td><td>&lt; 0.7</td></tr>
+          <tr><td>Debt / Equity <em>(yfinance-style % scale)</em></td><td>&lt; 100</td><td>100–200</td><td>&gt; 200</td></tr>
+          <tr><td>Beta (vs broad market)</td><td>0.7–1.2</td><td>0.5–0.7 or 1.2–1.5</td><td>&lt; 0.5 or &gt; 1.5</td></tr>
+          <tr><td>Free Cash Flow</td><td colspan="3">Sign only: ≥0 green, &lt;0 red (not a coverage ratio)</td></tr>
+        </table>
+        <p>Beta extremes mark <em>volatility</em> (hot/cold), not automatically a “bad company.” Liquidity and leverage bands are classic textbook cutoffs for scanning.</p>
+
+        <h4>6 · Analyst &amp; 52-Week</h4>
+        <table class="help-table">
+          <tr><th>Field</th><th>How to read it</th></tr>
+          <tr><td>Rating · # Analysts</td><td>Street consensus label and coverage count — reference, not traffic-light colored.</td></tr>
+          <tr><td>Target Low · Mean · High</td><td>Analyst target band vs price (bar / deviation).</td></tr>
+          <tr><td>52W High/Low · 50/200-Day</td><td>Price vs levels; Closest highlights nearest reference. Deviation % uses green/red by side of level.</td></tr>
+          <tr><td>News panel</td><td>Recent headlines for the selected symbol; optional reaction analysis.</td></tr>
+        </table>
       </div>
     </div>
   </div>
@@ -5804,7 +5911,10 @@
         <button class="fund-tab active" data-fund-tab="val" onclick="setFundamentalsTab('val')">Valuation · Growth · Profitability</button>
         <button class="fund-tab" data-fund-tab="health" onclick="setFundamentalsTab('health')">Health · Analyst</button>
         <button class="fund-tab" data-fund-tab="range" onclick="setFundamentalsTab('range')">52-Week · News</button>
-        <span class="sel-clip-actions" data-clip-tab="fundamentals"></span>
+        <div class="fundamentals-tabbar-end">
+          <span class="sel-clip-actions" data-clip-tab="fundamentals"></span>
+          <button type="button" class="help-btn" onclick="openFundamentalsHelp()" title="How to read Fundamentals" aria-label="How to read Fundamentals">?</button>
+        </div>
       </div>
       <div id="fundamentalsTable"><div class="empty">Loading fundamentals…</div></div>
     </section>
@@ -6114,23 +6224,51 @@
 
     function renderHeaderInfo(config) {
       const versionEl = document.getElementById("headerInfoVersion");
+      const deploy = config.deploy || {};
+      const appVersion = config.appVersion || deploy.appVersion || "1.0";
+      const build = config.build || deploy.build || "";
+      const environment = config.environment || deploy.environment || "";
       if (versionEl) {
-        const parts = [`v${config.appVersion || "1.0"}`];
-        if (config.build) parts.push(config.build);
+        const parts = [`v${appVersion}`];
+        if (build) parts.push(build);
+        if (environment) parts.push(environment);
         versionEl.textContent = parts.join(" · ");
       }
       const meta = document.getElementById("headerInfoMeta");
       if (meta) {
         const assess = config.assessmentProvider || "rules";
         const assessCls = config.llmConfigured ? "is-llm" : "";
-        const modelRow = config.geminiModel
-          ? `<dt>Model</dt><dd>${escapeHtml(config.geminiModel)}</dd>`
-          : "";
+        const assessModel = (config.geminiModel || "").trim();
+        const assessLabel = assessModel ? `${assess} + ${assessModel}` : assess;
+        const apiHost = (() => {
+          try {
+            return window.location.host || "—";
+          } catch {
+            return "—";
+          }
+        })();
+        const serverHost = config.host || deploy.host || "";
+        const gitCommit = config.gitCommit || deploy.gitCommit || build || "";
+        const gitBranch = config.gitBranch || deploy.gitBranch || "";
+        const serviceId = config.serviceId || deploy.serviceId || "";
+        const serviceName = config.serviceName || deploy.serviceName || "";
         meta.innerHTML = `
-          <dt>Assessment</dt><dd class="${assessCls}">${escapeHtml(assess)}</dd>
+          <dt>Environment</dt><dd>${escapeHtml(environment || "—")}</dd>
+          <dt>This page</dt><dd>${escapeHtml(apiHost)}</dd>
+          <dt>API host</dt><dd>${escapeHtml(serverHost || apiHost)}</dd>
+          <dt>Build (git)</dt><dd>${escapeHtml(gitCommit || "—")}${
+            gitBranch ? ` <span style="color:var(--muted)">(${escapeHtml(gitBranch)})</span>` : ""
+          }</dd>
+          ${
+            serviceId || serviceName
+              ? `<dt>Render service</dt><dd>${escapeHtml(
+                  [serviceName, serviceId].filter(Boolean).join(" · "),
+                )}</dd>`
+              : ""
+          }
+          <dt>Assessment</dt><dd class="${assessCls}">${escapeHtml(assessLabel)}</dd>
           <dt>Import schema</dt><dd>v${config.importVersion ?? "?"}</dd>
-          <dt>API</dt><dd>${escapeHtml(config.version || "v1")}</dd>
-          ${modelRow}`;
+          <dt>API</dt><dd>${escapeHtml(config.version || "v1")}</dd>`;
       }
       const links = document.getElementById("headerInfoLinks");
       if (links) {
@@ -6139,6 +6277,7 @@
           docs.api ? `<a href="${docs.api}" target="_blank" rel="noopener">API docs</a>` : "",
           docs.replit ? `<a href="${docs.replit}" target="_blank" rel="noopener">Replit mobile</a>` : "",
           docs.openapi ? `<a href="${docs.openapi}" target="_blank" rel="noopener">OpenAPI</a>` : "",
+          `<a href="/health" target="_blank" rel="noopener">/health</a>`,
         ].filter(Boolean);
         if (authorConsoleEnabled) {
           linkParts.push("Author shortcut: Cmd/Ctrl+Shift+Y (toggle)");
@@ -6184,7 +6323,7 @@
     let planLimits = null;
 
     function formatPlanLabel(plan) {
-      const labels = { free: "Free", standard: "Standard", pro: "Pro" };
+      const labels = { free: "Free", standard: "Std", pro: "Pro" };
       return labels[plan] || plan || "";
     }
 
@@ -11589,18 +11728,23 @@
       const actionText = attentionFlag ? `${action} !` : action;
       const actionClass = attentionFlag ? `${action} attention` : action;
       const intent = rec?.proposal?.intent;
+      // Flag glyph: Portfolio Intent is a role/stance, separate from SAI Action·Conf·Sentiment.
+      const intentGlyph =
+        `<svg class="intent-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">` +
+        `<path fill="currentColor" d="M3.25 1.75a.75.75 0 0 1 .75.75v11a.75.75 0 0 1-1.5 0V2.5a.75.75 0 0 1 .75-.75zm1.5 1.1c1.55-.55 2.85-.15 4.05.35 1.1.45 2.15.9 3.35.35a.75.75 0 0 1 1.05.7v5.1a.75.75 0 0 1-1.05.7c-1.4.55-2.55.05-3.7-.4-1.15-.45-2.25-.85-3.7-.2a.75.75 0 0 1-1-.7V3.6a.75.75 0 0 1 .1-.4.75.75 0 0 1 .9-.25z"/></svg>`;
       const intentChip = intent?.label
         ? `<span class="chip intent" title="${escapeHtml(
-            `Intent ${intent.label} (${intent.source || "inferred"}${
+            `Portfolio Intent ${intent.label} (${intent.source || "inferred"}${
               intent.override ? `; override ${intent.override}` : ""
             })`
-          )}">${escapeHtml(intent.code || "intent")}</span>`
+          )}">${intentGlyph}<span class="intent-code">${escapeHtml(intent.code || "intent")}</span></span>`
         : "";
       const chips = `
           <span class="chip ${actionClass}" title="${actionTitle}">${escapeHtml(actionText)}</span>
           <span class="chip ${confClass}${hasScore ? " has-score" : ""}" title="${confTitle}">${escapeHtml(confLabel)}</span>
-          ${intentChip}
-          <span class="chip ${sentClass}" title="${sentimentTitle}">${sentiment}</span>`;
+          <span class="chip ${sentClass}" title="${sentimentTitle}">${sentiment}</span>${
+            intentChip ? `<span class="sai-intent-gap" aria-hidden="true"></span>${intentChip}` : ""
+          }`;
       if (bare) return chips;
       if (wrapperClass) {
         return `<span class="${wrapperClass}">${chips}</span>`;
@@ -12041,7 +12185,7 @@
     }
 
     const TECH_STANCE_HELP = "Confluence agent's purely technical read (independent of the SAI):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 scale (left = bearish, center = neutral, right = bullish)\n• Strength — how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume)";
-    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell. A trailing ! means Score-band action differs from this SAI Action (Pay attention).\n• CONF · SCORE — two measures: Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit)\n• INTENT — portfolio role from holdings + planned trades (or your override): tactical / accumulate / core / core_accumulate / divest\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• SENTIMENT — news reaction (else notes)\n• Sort — Action, Conf · Score (Label then Score), or Sentiment";
+    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell. A trailing ! means Score-band action differs from this SAI Action (Pay attention).\n• CONF · SCORE — two measures: Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit)\n• SENTIMENT — news reaction (else notes)\n• INTENT (offset, flag) — Portfolio Intent from holdings + planned trades (or your override): tactical / accumulate / core / core_accumulate / divest — separate from the three SAI signals\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), or Sentiment";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
     const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
@@ -12503,6 +12647,20 @@
       if (event.target && event.target.id === "patternsHelp") closePatternsHelp();
     }
 
+    function openFundamentalsHelp() {
+      const modal = document.getElementById("fundamentalsHelp");
+      if (modal) modal.hidden = false;
+    }
+
+    function closeFundamentalsHelp() {
+      const modal = document.getElementById("fundamentalsHelp");
+      if (modal) modal.hidden = true;
+    }
+
+    function onFundamentalsHelpBackdrop(event) {
+      if (event.target && event.target.id === "fundamentalsHelp") closeFundamentalsHelp();
+    }
+
     function openAlertsHelp() {
       const modal = document.getElementById("alertsHelp");
       if (modal) modal.hidden = false;
@@ -12535,6 +12693,8 @@
       if (event.key === "Escape") {
         const patternsModal = document.getElementById("patternsHelp");
         if (patternsModal && !patternsModal.hidden) closePatternsHelp();
+        const fundamentalsModal = document.getElementById("fundamentalsHelp");
+        if (fundamentalsModal && !fundamentalsModal.hidden) closeFundamentalsHelp();
         const alertsModal = document.getElementById("alertsHelp");
         if (alertsModal && !alertsModal.hidden) closeAlertsHelp();
         const signalModal = document.getElementById("signalRecordHelp");
@@ -17552,6 +17712,72 @@
       return `${(amount * 100).toFixed(1)}%`;
     }
 
+    /** @returns {"pos"|"neg"|"mid"|null} */
+    function fundTonePeg(value) {
+      const v = Number(value);
+      if (!Number.isFinite(v)) return null;
+      if (v < 1) return "pos";
+      if (v <= 2) return "mid";
+      return "neg";
+    }
+
+    function fundToneCurrent(value) {
+      const v = Number(value);
+      if (!Number.isFinite(v)) return null;
+      if (v >= 1.5) return "pos";
+      if (v >= 1.0) return "mid";
+      return "neg";
+    }
+
+    function fundToneQuick(value) {
+      const v = Number(value);
+      if (!Number.isFinite(v)) return null;
+      if (v >= 1.0) return "pos";
+      if (v >= 0.7) return "mid";
+      return "neg";
+    }
+
+    /** Debt/E on yfinance-style % scale (e.g. 150 ≈ 1.5×). */
+    function fundToneDebtEquity(value) {
+      const v = Number(value);
+      if (!Number.isFinite(v)) return null;
+      if (v < 100) return "pos";
+      if (v <= 200) return "mid";
+      return "neg";
+    }
+
+    /** Beta extremes = volatility extremes, not “bad company.” */
+    function fundToneBeta(value) {
+      const v = Number(value);
+      if (!Number.isFinite(v)) return null;
+      if (v >= 0.7 && v <= 1.2) return "pos";
+      if ((v >= 0.5 && v < 0.7) || (v > 1.2 && v <= 1.5)) return "mid";
+      return "neg";
+    }
+
+    /** Margins / ROE: >0 good, <0 bad, ~0 muted. */
+    function fundToneSignedRatio(value) {
+      const v = Number(value);
+      if (!Number.isFinite(v)) return null;
+      if (Math.abs(v) < 1e-9) return null;
+      return v > 0 ? "pos" : "neg";
+    }
+
+    function fundToneClass(tone) {
+      if (tone === "pos") return "gain-pos";
+      if (tone === "neg") return "gain-neg";
+      if (tone === "mid") return "gain-mid";
+      return "";
+    }
+
+    function formatFundRatioTone(value, tone, opts = {}) {
+      const text = opts.asPercent ? formatRatioPercent(value) : formatRatio(value, opts.suffix || "");
+      if (text === "—") return text;
+      const cls = fundToneClass(tone);
+      if (!cls) return text;
+      return `<span class="${cls}">${text}</span>`;
+    }
+
     function formatColoredRatioPercent(value) {
       if (value == null || value === "") return "—";
       const amount = Number(value) * 100;
@@ -17789,10 +18015,10 @@
         return [
           fundSymbolColumn(),
           fundPriceColumn(),
-          { key: "beta", label: "Beta", help: FUND_BETA_HELP, sortValue: (r) => fundNum(fundVal(r, "profile", "beta")), render: (r) => formatRatio(fundVal(r, "profile", "beta")) },
-          { key: "d2e", label: "Debt/Equity", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "debtToEquity")), render: (r) => formatRatio(fundVal(r, "financialHealth", "debtToEquity")) },
-          { key: "current", label: "Current Ratio", help: FUND_CURRENT_RATIO_HELP, sortValue: (r) => fundNum(fundVal(r, "financialHealth", "currentRatio")), render: (r) => formatRatio(fundVal(r, "financialHealth", "currentRatio")) },
-          { key: "quick", label: "Quick Ratio", help: FUND_QUICK_RATIO_HELP, sortValue: (r) => fundNum(fundVal(r, "financialHealth", "quickRatio")), render: (r) => formatRatio(fundVal(r, "financialHealth", "quickRatio")) },
+          { key: "beta", label: "Beta", help: FUND_BETA_HELP, sortValue: (r) => fundNum(fundVal(r, "profile", "beta")), render: (r) => { const v = fundVal(r, "profile", "beta"); return formatFundRatioTone(v, fundToneBeta(v)); } },
+          { key: "d2e", label: "Debt/Equity", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "debtToEquity")), render: (r) => { const v = fundVal(r, "financialHealth", "debtToEquity"); return formatFundRatioTone(v, fundToneDebtEquity(v)); } },
+          { key: "current", label: "Current Ratio", help: FUND_CURRENT_RATIO_HELP, sortValue: (r) => fundNum(fundVal(r, "financialHealth", "currentRatio")), render: (r) => { const v = fundVal(r, "financialHealth", "currentRatio"); return formatFundRatioTone(v, fundToneCurrent(v)); } },
+          { key: "quick", label: "Quick Ratio", help: FUND_QUICK_RATIO_HELP, sortValue: (r) => fundNum(fundVal(r, "financialHealth", "quickRatio")), render: (r) => { const v = fundVal(r, "financialHealth", "quickRatio"); return formatFundRatioTone(v, fundToneQuick(v)); } },
           { key: "fcf", label: "Free Cash Flow", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "freeCashflow")), render: (r) => { const v = fundVal(r, "financialHealth", "freeCashflow"); const cls = (fundNum(v) ?? 0) >= 0 ? "gain-pos" : "gain-neg"; return `<span class="${cls}">${formatLargeMoney(v)}</span>`; } },
           { key: "cash", label: "Total Cash", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "totalCash")), render: (r) => formatLargeMoney(fundVal(r, "financialHealth", "totalCash")) },
           { key: "debt", label: "Total Debt", sortValue: (r) => fundNum(fundVal(r, "financialHealth", "totalDebt")), render: (r) => formatLargeMoney(fundVal(r, "financialHealth", "totalDebt")) },
@@ -17849,14 +18075,14 @@
         { key: "fwdPe", label: "Fwd P/E", help: FUND_FWD_PE_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "forwardPe")), render: (r) => formatRatio(fundVal(r, "valuation", "forwardPe")) },
         { key: "pb", label: "P/B", help: FUND_PB_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "priceToBook")), render: (r) => formatRatio(fundVal(r, "valuation", "priceToBook")) },
         { key: "ps", label: "P/S", help: FUND_PS_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "priceToSales")), render: (r) => formatRatio(fundVal(r, "valuation", "priceToSales")) },
-        { key: "peg", label: "PEG", help: FUND_PEG_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "pegRatio")), render: (r) => formatRatio(fundVal(r, "valuation", "pegRatio")) },
+        { key: "peg", label: "PEG", help: FUND_PEG_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "pegRatio")), render: (r) => { const v = fundVal(r, "valuation", "pegRatio"); return formatFundRatioTone(v, fundTonePeg(v)); } },
         { key: "ev", label: "EV/EBITDA", help: FUND_EVEBITDA_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "evToEbitda")), render: (r) => formatRatio(fundVal(r, "valuation", "evToEbitda")) },
         { key: "revG", label: "Rev Growth", help: FUND_REV_GROWTH_HELP, sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "revenueGrowth")), render: (r) => formatColoredRatioPercent(fundVal(r, "growthProfitability", "revenueGrowth")) },
         { key: "earnG", label: "Earn Growth", help: FUND_EARN_GROWTH_HELP, sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "earningsGrowth")), render: (r) => formatColoredRatioPercent(fundVal(r, "growthProfitability", "earningsGrowth")) },
-        { key: "gm", label: "Gross Margin", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "grossMargin")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "grossMargin")) },
-        { key: "om", label: "Op Margin", help: FUND_OP_MARGIN_HELP, sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "operatingMargin")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "operatingMargin")) },
-        { key: "pm", label: "Profit Margin", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "profitMargin")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "profitMargin")) },
-        { key: "roe", label: "ROE", help: FUND_ROE_HELP, sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "returnOnEquity")), render: (r) => formatRatioPercent(fundVal(r, "growthProfitability", "returnOnEquity")) },
+        { key: "gm", label: "Gross Margin", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "grossMargin")), render: (r) => { const v = fundVal(r, "growthProfitability", "grossMargin"); return formatFundRatioTone(v, fundToneSignedRatio(v), { asPercent: true }); } },
+        { key: "om", label: "Op Margin", help: FUND_OP_MARGIN_HELP, sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "operatingMargin")), render: (r) => { const v = fundVal(r, "growthProfitability", "operatingMargin"); return formatFundRatioTone(v, fundToneSignedRatio(v), { asPercent: true }); } },
+        { key: "pm", label: "Profit Margin", sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "profitMargin")), render: (r) => { const v = fundVal(r, "growthProfitability", "profitMargin"); return formatFundRatioTone(v, fundToneSignedRatio(v), { asPercent: true }); } },
+        { key: "roe", label: "ROE", help: FUND_ROE_HELP, sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "returnOnEquity")), render: (r) => { const v = fundVal(r, "growthProfitability", "returnOnEquity"); return formatFundRatioTone(v, fundToneSignedRatio(v), { asPercent: true }); } },
       ];
     }
 

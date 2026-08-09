@@ -18,14 +18,14 @@ Use **TestFlight** when you are away from home. Expo Go still needs a Metro pack
 
 | Tab | API | Purpose |
 |-----|-----|---------|
-| **Summary** | `GET /overview` | KPIs, allocation chart, recent alerts |
+| **Summary** | `GET /overview` (+ `GET /config` / `GET /me`) | KPIs, allocation chart, recent alerts; header chip = avatar + FREE/STD/PRO · **i** About · **Sign out** |
 | **Portfolio** | `GET /portfolio`, `GET /assessments/overview`, `GET /holdings` | Sortable holdings table with SAI; **Add** ticker via search (`POST /symbols`) |
-| **Fundamentals** | `GET /fundamentals?includeNews=0` | Valuation/growth + health/analyst tables, 52W range |
+| **Fundamentals** | `GET /fundamentals?includeNews=0` | Filter row with **Val · Growth** / **Analyst · Health** pills (same toolbar pattern as Portfolio); Rating includes analyst count; Current/Quick + MAs + Closest on Analyst · Health. Cell colors use the same absolute thresholds as web Fundamentals Help (PEG, liquidity, leverage, beta, signed growth/margins); sector-relative multiples stay uncolored. |
 | **News** | `GET /news-feed` | SAI changes + ranked news |
 | **Alerts** | `GET /alerts`, `POST /alerts/{id}/dismiss` | Active alerts, dismiss |
-| **Symbol** (stack) | `GET /symbols/{symbol}/inspector` | Price, position, thresholds, recommendation; **Remove from portfolio** (`DELETE /symbols/{symbol}`) cascades notes, assessments, alerts, and position (same as web). Clearing shares to 0 keeps the ticker as watch-only. |
+| **Symbol** (stack) | `GET /symbols/{symbol}/inspector` | Summary: SAI chips = Action/`!` · Conf · Score · Sentiment, then offset Portfolio Intent (flag glyph); Drivers; wide paired rows **Holdings ‖ Thresholds** and **Key Fundamentals ‖ Analyst · Health**. Compact **Delete Symbol** right-aligned. **Agent Reads** (Assess Symbol / Clear history). Alerts links to filtered **Alerts** / **News**. |
 
-Optional later: `GET /symbols/{symbol}/proposal` and `recommendation.proposal` on inspector (State / Trigger / Portfolio Fit scaffold — see [PROPOSAL_FRAMEWORK.md](./PROPOSAL_FRAMEWORK.md)). Keep `SaiSummary` / `Assessment` types sparse; treat `proposal` as optional JSON.
+Inspector SAI uses live `recommendation.proposal` (same framework as web). Portfolio SAI badges use slim proposal from `GET /assessments/overview` when present (Attention `!` when Score-band ≠ Action).
 
 Comma-separated ticker filters work the same as the web app (`GH, ne` → GH and NET).
 

@@ -5,6 +5,15 @@ import {
   formatRatio,
   formatRatioPercent,
 } from "@/lib/format";
+import {
+  fundToneBeta,
+  fundToneColor,
+  fundToneCurrent,
+  fundToneDebtEquity,
+  fundTonePeg,
+  fundToneQuick,
+  fundToneSignedRatio,
+} from "@/lib/fundamentalsTone";
 import { colors } from "@/lib/theme";
 import type { FundamentalsRow } from "@/lib/types";
 
@@ -139,23 +148,95 @@ const VAL_SCROLL: FundamentalsColumn[] = [
   { key: "roe", label: "ROE", width: 52, align: "right", kind: "ratioPct" },
 ];
 
+function toneRatio(
+  value: number | null,
+  tone: ReturnType<typeof fundTonePeg>,
+): FundamentalsCellText {
+  return { text: formatRatio(value), color: fundToneColor(tone) };
+}
+
+function toneRatioPercent(
+  value: number | null,
+  tone: ReturnType<typeof fundToneSignedRatio>,
+): FundamentalsCellText {
+  return { text: formatRatioPercent(value), color: fundToneColor(tone) };
+}
+
 const HEALTH_STICKY: FundamentalsColumn[] = [
   { key: "symbol", label: "Symbol", width: 64, kind: "symbol" },
 ];
 
 const HEALTH_SCROLL: FundamentalsColumn[] = [
-  { key: "rec", label: "Rating", width: 72, kind: "rating" },
+  { key: "rec", label: "Rating", width: 96, kind: "rating" },
   { key: "tgtRange", label: "Target", width: 120, kind: "targetRange" },
-  { key: "analysts", label: "#", width: 40, align: "right", kind: "ratio" },
   { key: "price", label: "Price", width: 72, align: "right", kind: "price" },
   { key: "beta", label: "Beta", width: 52, align: "right", kind: "ratio" },
-  { key: "d2e", label: "D/E", width: 52, align: "right", kind: "ratio" },
-  { key: "current", label: "Current", width: 60, align: "right", kind: "ratio" },
+  { key: "current", label: "Current", width: 64, align: "right", kind: "ratio" },
   { key: "quick", label: "Quick", width: 56, align: "right", kind: "ratio" },
+  { key: "d2e", label: "Debt / E", width: 64, align: "right", kind: "ratio" },
   { key: "fcf", label: "FCF", width: 68, align: "right", kind: "largeMoney" },
-  { key: "cash", label: "Cash", width: 68, align: "right", kind: "largeMoney" },
-  { key: "debt", label: "Debt", width: 68, align: "right", kind: "largeMoney" },
+  { key: "ma50", label: "50-Day Avg", width: 84, align: "right", kind: "money" },
+  { key: "ma200", label: "200-Day Avg", width: 92, align: "right", kind: "money" },
+  { key: "closest", label: "Closest", width: 118, align: "right", kind: "text" },
 ];
+
+/** Short Closest labels (web-aligned levels). */
+const FUND_LEVELS: { key: string; label: string; field: string }[] = [
+  { key: "high52", label: "52W-Hi", field: "high52w" },
+  { key: "low52", label: "52W-Lo", field: "low52w" },
+  { key: "ma50", label: "50-Avg", field: "ma50" },
+  { key: "ma200", label: "200-Avg", field: "ma200" },
+];
+
+export function fundLevelDeviations(row: FundamentalsRow): {
+  key: string;
+  label: string;
+  field: string;
+  level: number;
+  deviation: number;
+  absDev: number;
+}[] {
+  const { price, high, low } = fundRangeLevels(row);
+  if (price == null) return [];
+  const effective: Record<string, number | null> = {
+    high52w: high,
+    low52w: low,
+    ma50: fundNum(fundVal(row, "priceRange", "ma50")),
+    ma200: fundNum(fundVal(row, "priceRange", "ma200")),
+  };
+  const out: {
+    key: string;
+    label: string;
+    field: string;
+    level: number;
+    deviation: number;
+    absDev: number;
+  }[] = [];
+  for (const lvl of FUND_LEVELS) {
+    const level = effective[lvl.field];
+    if (level == null || level === 0) continue;
+    const deviation = ((price - level) / level) * 100;
+    out.push({ ...lvl, level, deviation, absDev: Math.abs(deviation) });
+  }
+  return out;
+}
+
+export function fundClosestLevel(row: FundamentalsRow) {
+  const devs = fundLevelDeviations(row);
+  if (!devs.length) return null;
+  return devs.reduce((best, d) => (d.absDev < best.absDev ? d : best));
+}
+
+export function fundLevelAbsDev(row: FundamentalsRow, field: string): number | null {
+  const price = fundNum(row.currentPrice);
+  let level = fundNum(fundVal(row, "priceRange", field));
+  if (field === "high52w" || field === "low52w") {
+    const range = fundRangeLevels(row);
+    level = field === "high52w" ? range.high : range.low;
+  }
+  if (price == null || level == null || level === 0) return null;
+  return Math.abs(((price - level) / level) * 100);
+}
 
 export function fundamentalsColumns(tab: FundamentalsTab): {
   sticky: FundamentalsColumn[];
@@ -222,24 +303,26 @@ function sortValue(row: FundamentalsRow, key: FundamentalsSortKey): string | num
       return fundNum(fundVal(row, "growthProfitability", "returnOnEquity"));
     case "beta":
       return fundNum(fundVal(row, "profile", "beta"));
-    case "d2e":
-      return fundNum(fundVal(row, "financialHealth", "debtToEquity"));
     case "current":
       return fundNum(fundVal(row, "financialHealth", "currentRatio"));
     case "quick":
       return fundNum(fundVal(row, "financialHealth", "quickRatio"));
+    case "d2e":
+      return fundNum(fundVal(row, "financialHealth", "debtToEquity"));
     case "fcf":
       return fundNum(fundVal(row, "financialHealth", "freeCashflow"));
-    case "cash":
-      return fundNum(fundVal(row, "financialHealth", "totalCash"));
-    case "debt":
-      return fundNum(fundVal(row, "financialHealth", "totalDebt"));
+    case "ma50":
+      return fundLevelAbsDev(row, "ma50");
+    case "ma200":
+      return fundLevelAbsDev(row, "ma200");
+    case "closest": {
+      const c = fundClosestLevel(row);
+      return c ? c.absDev : null;
+    }
     case "rec":
       return recommendationRank(fundVal(row, "analyst", "recommendationKey"));
     case "tgtRange":
       return targetMeanDeviation(row);
-    case "analysts":
-      return fundNum(fundVal(row, "analyst", "analystCount"));
     default:
       return null;
   }
@@ -310,45 +393,74 @@ export function renderFundamentalsCell(
         return { text: formatRatio(fundNum(fundVal(row, "valuation", "priceToBook"))) };
       case "ps":
         return { text: formatRatio(fundNum(fundVal(row, "valuation", "priceToSales"))) };
-      case "peg":
-        return { text: formatRatio(fundNum(fundVal(row, "valuation", "pegRatio"))) };
+      case "peg": {
+        const n = fundNum(fundVal(row, "valuation", "pegRatio"));
+        return toneRatio(n, fundTonePeg(n));
+      }
       case "ev":
         return { text: formatRatio(fundNum(fundVal(row, "valuation", "evToEbitda"))) };
       case "revG":
         return formatColoredRatioPercent(fundNum(fundVal(row, "growthProfitability", "revenueGrowth")));
       case "earnG":
         return formatColoredRatioPercent(fundNum(fundVal(row, "growthProfitability", "earningsGrowth")));
-      case "gm":
-        return { text: formatRatioPercent(fundNum(fundVal(row, "growthProfitability", "grossMargin"))) };
-      case "om":
-        return { text: formatRatioPercent(fundNum(fundVal(row, "growthProfitability", "operatingMargin"))) };
-      case "pm":
-        return { text: formatRatioPercent(fundNum(fundVal(row, "growthProfitability", "profitMargin"))) };
-      case "roe":
-        return { text: formatRatioPercent(fundNum(fundVal(row, "growthProfitability", "returnOnEquity"))) };
-      case "beta":
-        return { text: formatRatio(fundNum(fundVal(row, "profile", "beta"))) };
-      case "d2e":
-        return { text: formatRatio(fundNum(fundVal(row, "financialHealth", "debtToEquity"))) };
-      case "current":
-        return { text: formatRatio(fundNum(fundVal(row, "financialHealth", "currentRatio"))) };
-      case "quick":
-        return { text: formatRatio(fundNum(fundVal(row, "financialHealth", "quickRatio"))) };
+      case "gm": {
+        const n = fundNum(fundVal(row, "growthProfitability", "grossMargin"));
+        return toneRatioPercent(n, fundToneSignedRatio(n));
+      }
+      case "om": {
+        const n = fundNum(fundVal(row, "growthProfitability", "operatingMargin"));
+        return toneRatioPercent(n, fundToneSignedRatio(n));
+      }
+      case "pm": {
+        const n = fundNum(fundVal(row, "growthProfitability", "profitMargin"));
+        return toneRatioPercent(n, fundToneSignedRatio(n));
+      }
+      case "roe": {
+        const n = fundNum(fundVal(row, "growthProfitability", "returnOnEquity"));
+        return toneRatioPercent(n, fundToneSignedRatio(n));
+      }
+      case "beta": {
+        const n = fundNum(fundVal(row, "profile", "beta"));
+        return toneRatio(n, fundToneBeta(n));
+      }
+      case "current": {
+        const n = fundNum(fundVal(row, "financialHealth", "currentRatio"));
+        return toneRatio(n, fundToneCurrent(n));
+      }
+      case "quick": {
+        const n = fundNum(fundVal(row, "financialHealth", "quickRatio"));
+        return toneRatio(n, fundToneQuick(n));
+      }
+      case "d2e": {
+        const n = fundNum(fundVal(row, "financialHealth", "debtToEquity"));
+        return toneRatio(n, fundToneDebtEquity(n));
+      }
       case "fcf": {
         const n = fundNum(fundVal(row, "financialHealth", "freeCashflow"));
-        return { text: formatLargeMoney(n), color: n != null && n < 0 ? colors.sell : undefined };
+        return {
+          text: formatLargeMoney(n),
+          color: n == null ? undefined : n >= 0 ? colors.buy : colors.sell,
+        };
       }
-      case "cash":
-        return { text: formatLargeMoney(fundNum(fundVal(row, "financialHealth", "totalCash"))) };
-      case "debt":
-        return { text: formatLargeMoney(fundNum(fundVal(row, "financialHealth", "totalDebt"))) };
+      case "ma50":
+        return { text: formatPrice(fundNum(fundVal(row, "priceRange", "ma50"))) };
+      case "ma200":
+        return { text: formatPrice(fundNum(fundVal(row, "priceRange", "ma200"))) };
+      case "closest": {
+        const c = fundClosestLevel(row);
+        if (!c) return { text: "—" };
+        const sign = c.deviation > 0 ? "+" : "";
+        return {
+          text: `${c.label} ${sign}${c.deviation.toFixed(1)}%`,
+          color: c.deviation >= 0 ? colors.buy : colors.sell,
+        };
+      }
       case "rec": {
         const k = fundVal(row, "analyst", "recommendationKey");
-        return { text: k ? String(k).replace(/_/g, " ") : "—" };
-      }
-      case "analysts": {
+        const rating = k ? String(k).replace(/_/g, " ") : "—";
         const n = fundNum(fundVal(row, "analyst", "analystCount"));
-        return { text: n != null ? String(Math.round(n)) : "—" };
+        if (rating === "—" || n == null) return { text: rating };
+        return { text: `${rating} (${Math.round(n)})` };
       }
       default:
         return { text: "—" };
@@ -369,9 +481,6 @@ export function computeFundamentalsTotals(
 
   const mktCap = sumFund("profile", "marketCap");
   const fcf = sumFund("financialHealth", "freeCashflow");
-  const cash = sumFund("financialHealth", "totalCash");
-  const debt = sumFund("financialHealth", "totalDebt");
-  const analysts = sumFund("analyst", "analystCount");
 
   return {
     symbol: { text: "TOTAL" },
@@ -380,9 +489,6 @@ export function computeFundamentalsTotals(
       text: formatLargeMoney(fcf || null),
       color: fcf < 0 ? colors.sell : undefined,
     },
-    cash: { text: formatLargeMoney(cash || null) },
-    debt: { text: formatLargeMoney(debt || null) },
-    analysts: { text: analysts ? String(Math.round(analysts)) : "—" },
   };
 }
 
