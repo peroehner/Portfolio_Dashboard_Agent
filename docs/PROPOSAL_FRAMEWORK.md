@@ -36,7 +36,7 @@ They explain structure; they do **not** yet override the overlay/LLM action.
 | 30–44 | Hold / trim bias |
 | < 30 | Sell / avoid |
 
-Emitted on every proposal as `bandBias` (`advisory: true`). **Does not change SAI action** until Slice 4. v1 keeps `proposal.action` aligned with the assessment action (`authority: "assessment"`).
+Emitted on every proposal as `bandBias`. **Current code:** band-derived action is authoritative for published SAI (`authority: "proposal_band"`) unless `PROPOSAL_STABILITY_GATE=1` holds a prior action. Screening still shows the **stored assessment action** as the Action chip; when that differs from the live Score band, `attention` / **!** surfaces the gap. Gate remains **off** by default while Score accuracy (Fit / Intent) is improved.
 
 ## Label vs Score (Screening Conf · Score)
 
@@ -92,7 +92,37 @@ Whether the trade belongs in *this* portfolio.
 - Position weight / concentration  
 - Distance to personal buy-below / sell-above  
 - Unrealized gain/loss (tax-awareness hint only)  
-- Held vs watchlist
+- Held vs watchlist  
+- **Portfolio Intent** (inferred from holdings + planned-trade geometry; optional override)
+
+### Portfolio Intent
+
+A symbol’s role in the book — used for Fit alignment and a capped Tax & Trim harvest lean.
+
+| Code | Typical pattern |
+|------|-----------------|
+| `tactical` | Watch / light hold; buy≈sell size (swing) |
+| `accumulate` | Watch / light hold; buy≫sell (build + harvest peaks) |
+| `core` | Material hold; small opportunistic buy≈sell |
+| `core_accumulate` | Material hold; buy≫sell (compound + light trim) |
+| `divest` | Held; no add plan; sell ≥25% of held |
+
+**Fields:** `proposal.intent` = `{ code, label, inferred, override, source }` where `source` is `inferred` or `override`.  
+**Override:** optional `symbols.intent_override` (Target “Portfolio Intent” select) or `intentOverride` on symbol PUT.  
+**Fit:** soft ±2 when SAI action aligns with Intent.  
+**Tax & Trim:** harvest lean capped ±5 (divest +5, tactical +4 … core_accumulate −2; light core trim +1). Separate from the existing plan-share “intentPts” (−10…+10) inside Trim Score.
+
+`fitExtensions.holdingPeriodBias` mirrors effective Intent `code`; `fitExtensions.intentOverride` mirrors the user override when set.
+
+### Attention (`Watch !`)
+
+When Score-band action ≠ published SAI Action (hold treated as watch for comparison):
+
+- `proposal.attention.flag`  
+- `level`: `warn` for buy↔sell, else `info`  
+- Screening / Inspector action chip shows trailing **!** (e.g. `Watch !`)
+
+Stability gate stays **off** by default (`PROPOSAL_STABILITY_GATE=0`); observe band assessments + Attention while Fit/Intent improve Score accuracy.
 
 **Roadmap — iterate without schema break**
 
@@ -107,7 +137,8 @@ Prefer additive fields under `proposal.fitExtensions` / preferences API rather t
 | `taxLotPreference` | Harvest vs defer; wash-sale awareness |
 | `filterSetBias` | Boost symbols in the user’s current filter-set |
 | `liquidityFloor` | Skip illiquid names for size |
-| `holdingPeriodBias` | Swing vs long-term fit |
+| `holdingPeriodBias` | Effective Portfolio Intent code (implemented) |
+| `intentOverride` | User Intent override echo (implemented) |
 
 Document new keys in this file when implemented; bump `schemaVersion` only on breaking changes.
 
@@ -143,12 +174,21 @@ Emitted as `proposal.vetoes[]` with `{ code, message, severity }`.
   "schemaVersion": 1,
   "action": "watch",
   "confidence": "medium",
-  "authority": "assessment",
+  "authority": "proposal_band",
   "scores": {
     "state": 28,
     "trigger": 14,
     "portfolioFit": 11,
     "total": 53
+  },
+  "bandBias": { "code": "watch_hold", "label": "Watch / hold with catalysts", "range": "45–59", "advisory": false },
+  "attention": { "flag": false, "level": null, "message": null, "bandAction": "watch", "saiAction": "watch" },
+  "intent": {
+    "code": "core_accumulate",
+    "label": "Core accumulate / light trim",
+    "inferred": "core_accumulate",
+    "override": null,
+    "source": "inferred"
   },
   "components": {
     "state": { "score": 28, "max": 50, "factors": ["…"] },
@@ -169,7 +209,9 @@ Emitted as `proposal.vetoes[]` with `{ code, message, severity }`.
     "maxSingleNameWeightPct": null,
     "sectorCapPct": null,
     "taxLotPreference": null,
-    "filterSetBias": null
+    "filterSetBias": null,
+    "holdingPeriodBias": "core_accumulate",
+    "intentOverride": null
   },
   "rationale": "…",
   "actionSource": "base_assessment+overlay",

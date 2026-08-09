@@ -31,6 +31,7 @@ class ScreeningService:
         filters = filters or {}
         results = []
         assessment_service = AssessmentService()
+        extras = assessment_service._proposal_extras()
 
         symbols_data = self.portfolio_service.list_symbols()
         # Confluence rides the same cached price history the Patterns & Tech Signals
@@ -62,7 +63,24 @@ class ScreeningService:
                 row,
                 nearest,
                 news_sentiment=sentiment_by_symbol.get(symbol.upper()),
+                holding=row.get("holding"),
+                fit_prefs=extras.get("fit_prefs"),
+                track_record_summary=extras.get("track_record_summary"),
+                portfolio_annual_dividend=extras.get("portfolio_annual_dividend"),
             )
+            # Same live proposal as Inspector (fundamentals + Fit prefs) so
+            # Conf · Score and Attention ! stay consistent across surfaces.
+            live_proposal = assessment_service.get_proposal(symbol)
+            if live_proposal:
+                from services.portfolio_intent import attention_for_actions
+                from services.proposal_service import action_for_band_code
+
+                band = live_proposal.get("bandBias") or {}
+                live_proposal["attention"] = attention_for_actions(
+                    band_action=action_for_band_code(band.get("code") or ""),
+                    sai_action=rec.get("action") or "hold",
+                )
+                rec["proposal"] = live_proposal
             proposal = rec.get("proposal") if isinstance(rec.get("proposal"), dict) else None
             slim_proposal = None
             if proposal:
@@ -94,6 +112,8 @@ class ScreeningService:
                         },
                         "confidence": proposal.get("confidence"),
                         "bandBias": proposal.get("bandBias"),
+                        "attention": proposal.get("attention"),
+                        "intent": proposal.get("intent"),
                         "stability": {
                             "gated": bool(stability.get("gated")),
                             "confirmed": stability.get("confirmed", True),

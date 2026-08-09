@@ -131,9 +131,18 @@ class InspectorService:
             holding=holding,
             proposal_service=self.proposal_service,
         )
-        # Always refresh proposal so Portfolio Fit prefs apply without re-assess.
+        # Refresh Fit prefs / track-record scales without a re-assess; keep
+        # attention vs the displayed SAI Action chip.
         live_proposal = self.assessment_service.get_proposal(symbol)
         if live_proposal:
+            from services.portfolio_intent import attention_for_actions
+            from services.proposal_service import action_for_band_code
+
+            band = live_proposal.get("bandBias") or {}
+            live_proposal["attention"] = attention_for_actions(
+                band_action=action_for_band_code(band.get("code") or ""),
+                sai_action=recommendation.get("action") or "hold",
+            )
             recommendation["proposal"] = live_proposal
 
         valuation = self._valuation_metrics(symbol, symbol_data, screen_row, holding)
@@ -636,6 +645,9 @@ def build_symbol_recommendation(
     news_sentiment: dict[str, Any] | None = None,
     holding: dict[str, Any] | None = None,
     proposal_service: ProposalService | None = None,
+    fit_prefs: dict[str, Any] | None = None,
+    track_record_summary: dict[str, Any] | None = None,
+    portfolio_annual_dividend: float | None = None,
 ) -> dict[str, Any]:
     def _action_sentiment_hint(action_value: str) -> str:
         a = str(action_value or "").lower()
@@ -714,45 +726,59 @@ def build_symbol_recommendation(
         )
 
     proposal = None
-    if latest and latest.get("proposal"):
-        proposal = latest["proposal"]
-    else:
-        builder = proposal_service or ProposalService()
-        previous_actions = [a.get("action") for a in assessments[1:6]] if assessments else []
-        trade_below = symbol_data.get("tradeBelowPrice")
-        trade_above = symbol_data.get("tradeAbovePrice")
-        buy_below = trade_below if trade_below is not None else symbol_data.get("buyBelow")
-        sell_above = trade_above if trade_above is not None else symbol_data.get("sellAbove")
-        proposal = builder.build(
-            symbol=symbol_data.get("symbol") or "",
-            action=action,
-            confidence=confidence,
-            rationale=rationale,
-            factors=drivers,
-            action_source=latest.get("actionSource") if latest else None,
-            context={
-                "symbol": symbol_data.get("symbol"),
-                "currentPrice": symbol_data.get("currentPrice"),
-                "targetPrice": symbol_data.get("targetPrice"),
-                "analystTarget1y": symbol_data.get("analystTarget1y"),
-                "buyBelow": buy_below,
-                "sellAbove": sell_above,
-                "screening": {
-                    "score": screening.get("score"),
-                    "upsidePct": screening.get("upsidePct"),
-                    "flags": screening.get("flags", []),
-                    "fibDistancePct": screening.get("fibDistancePct"),
-                    "techStance": screening.get("techStance"),
-                },
-                "holding": holding,
-                "alerts": alerts,
-            },
-            screening=screening,
-            holding=holding,
-            alerts=alerts,
-            news_sentiment=news_sentiment,
-            previous_actions=previous_actions,
-        )
+    builder = proposal_service or ProposalService()
+    previous_actions = [a.get("action") for a in assessments[1:6]] if assessments else []
+    trade_below = symbol_data.get("tradeBelowPrice")
+    trade_above = symbol_data.get("tradeAbovePrice")
+    buy_below = trade_below if trade_below is not None else symbol_data.get("buyBelow")
+    sell_above = trade_above if trade_above is not None else symbol_data.get("sellAbove")
+    screen_block = {
+        "score": screening.get("score"),
+        "upsidePct": screening.get("upsidePct"),
+        "flags": screening.get("flags", []),
+        "fibDistancePct": screening.get("fibDistancePct"),
+        "techStance": screening.get("techStance"),
+        "tradeBelowPrice": screening.get("tradeBelowPrice", trade_below),
+        "tradeBelowShares": screening.get("tradeBelowShares", symbol_data.get("tradeBelowShares")),
+        "tradeAbovePrice": screening.get("tradeAbovePrice", trade_above),
+        "tradeAboveShares": screening.get("tradeAboveShares", symbol_data.get("tradeAboveShares")),
+        "personalTarget": screening.get("personalTarget") or symbol_data.get("targetPrice"),
+        "analystTarget1y": screening.get("analystTarget1y") or symbol_data.get("analystTarget1y"),
+        "targetPrice": screening.get("targetPrice") or symbol_data.get("analystTarget1y"),
+    }
+    # Always rebuild so Fit / Intent / attention reflect live holdings + trade plan.
+    proposal = builder.build(
+        symbol=symbol_data.get("symbol") or "",
+        action=action,
+        confidence=confidence,
+        rationale=rationale,
+        factors=drivers,
+        action_source=latest.get("actionSource") if latest else None,
+        context={
+            "symbol": symbol_data.get("symbol"),
+            "currentPrice": symbol_data.get("currentPrice"),
+            "targetPrice": symbol_data.get("targetPrice"),
+            "analystTarget1y": symbol_data.get("analystTarget1y"),
+            "buyBelow": buy_below,
+            "sellAbove": sell_above,
+            "tradeBelowPrice": trade_below,
+            "tradeBelowShares": symbol_data.get("tradeBelowShares"),
+            "tradeAbovePrice": trade_above,
+            "tradeAboveShares": symbol_data.get("tradeAboveShares"),
+            "intentOverride": symbol_data.get("intentOverride"),
+            "screening": screen_block,
+            "holding": holding,
+            "alerts": alerts,
+        },
+        screening={**screening, **screen_block},
+        holding=holding,
+        alerts=alerts,
+        news_sentiment=news_sentiment,
+        previous_actions=previous_actions,
+        fit_prefs=fit_prefs,
+        track_record_summary=track_record_summary,
+        portfolio_annual_dividend=portfolio_annual_dividend,
+    )
 
     return {
         "action": action,

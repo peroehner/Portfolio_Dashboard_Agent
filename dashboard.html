@@ -1714,6 +1714,8 @@
     .chip.sell { background: rgba(239,68,68,0.2); color: var(--danger); }
     .chip.hold { background: rgba(148,163,184,0.2); color: #cbd5e1; }
     .chip.watch { background: rgba(245,158,11,0.2); color: var(--warn); }
+    .chip.attention { outline: 1px solid var(--warn); font-weight: 600; }
+    .chip.intent { background: rgba(148,163,184,0.15); color: #94a3b8; text-transform: none; font-size: 0.72rem; }
     .chip.add { background: rgba(34,197,94,0.15); color: #86efac; }
     .chip.reduce { background: rgba(239,68,68,0.15); color: #fca5a5; }
     .chip.sentiment-bullish { background: rgba(34,197,94,0.18); color: #4ade80; }
@@ -5641,6 +5643,17 @@
               </div>
               </div>
             </div>
+            <div class="target-field" style="margin-top:0.65rem;max-width:18rem;">
+              <label>Portfolio Intent <span class="field-hint">optional override</span></label>
+              <select name="intentOverride" title="Leave Auto to infer from holdings + planned trades">
+                <option value="">Auto (from plan)</option>
+                <option value="tactical">Tactical / speculative</option>
+                <option value="accumulate">Accumulate &amp; harvest</option>
+                <option value="core">Core + opportunistic</option>
+                <option value="core_accumulate">Core accumulate / light trim</option>
+                <option value="divest">Divest</option>
+              </select>
+            </div>
             <div class="target-fib-strip" id="fibLevels">
               <span class="empty" style="margin:0;">Loading Fibonacci context…</span>
             </div>
@@ -7927,6 +7940,7 @@
           btn.classList.toggle("active", btn.dataset.dir === dir);
         });
       }
+      refreshIntentOverrideAutoFromForm();
     }
 
     // Load: derive the Buy/Sell toggle from the sign of the stored signed
@@ -7956,6 +7970,85 @@
       if (!form || !hint) return;
       const shares = parseQuantity(form.shares.value);
       hint.hidden = !(shares == null || shares === 0);
+    }
+
+    const INTENT_SHORT_LABELS = {
+      tactical: "Tactical",
+      accumulate: "Accumulate",
+      core: "Core",
+      core_accumulate: "Core accumulate",
+      divest: "Divest",
+    };
+
+    /** Mirror of services.portfolio_intent.infer_intent for live Auto label. */
+    function inferPortfolioIntentFromPlan(held, buyQty, sellQty) {
+      const h = Math.max(0, Number(held) || 0);
+      const buy = Math.max(0, Number(buyQty) || 0);
+      const sell = Math.max(0, Number(sellQty) || 0);
+      const DIVEST_SELL_FRAC = 0.25;
+      if (h > 0 && buy <= 0 && sell > 0 && sell / h >= DIVEST_SELL_FRAC) return "divest";
+      const plan = Math.max(buy, sell);
+      const isCore = h > 0 && (plan <= 0 || h >= Math.max(plan * 2, 50));
+      const sellVsBuy = buy > 0 ? sell / buy : null;
+      if (!isCore) {
+        if (buy > 0 && sell > 0) {
+          if (sellVsBuy != null && sellVsBuy <= 0.35) return "accumulate";
+          if (Math.abs(buy - sell) / Math.max(buy, sell) <= 0.25) return "tactical";
+          if (sell < buy) return "accumulate";
+          return "tactical";
+        }
+        if (buy > 0 && sell <= 0) return "accumulate";
+        if (sell > 0 && buy <= 0) return "tactical";
+        return "tactical";
+      }
+      if (buy > 0 && sell > 0) {
+        if (sellVsBuy != null && sellVsBuy <= 0.35) return "core_accumulate";
+        if (Math.abs(buy - sell) / Math.max(buy, sell) <= 0.35) return "core";
+        if (sell < buy) return "core_accumulate";
+        return "core";
+      }
+      if (buy > 0 && sell <= 0) return "core_accumulate";
+      if (sell > 0 && h > 0 && sell / h < DIVEST_SELL_FRAC) return "core_accumulate";
+      return "core";
+    }
+
+    function planBuySellFromSymbolForm(form) {
+      if (!form) return { buy: 0, sell: 0, held: 0 };
+      const held = Math.max(0, parseQuantity(form.shares?.value) || 0);
+      let buy = 0;
+      let sell = 0;
+      ["Below", "Above"].forEach((side) => {
+        const qty = Math.abs(parseQuantity(form[`trade${side}Qty`]?.value) || 0);
+        if (!(qty > 0)) return;
+        const dir = String(form[`trade${side}Dir`]?.value || (side === "Below" ? "buy" : "sell")).toLowerCase();
+        if (dir === "sell") sell += qty;
+        else buy += qty;
+      });
+      return { buy, sell, held };
+    }
+
+    function updateIntentOverrideAutoLabel(inferredCode) {
+      const form = document.getElementById("symbolForm");
+      const sel = form?.intentOverride;
+      if (!sel || !sel.options.length) return;
+      const autoOpt = sel.options[0];
+      if (autoOpt.value !== "") return;
+      const code = String(inferredCode || "").toLowerCase();
+      const short = INTENT_SHORT_LABELS[code];
+      autoOpt.textContent = short ? `Auto - ${short} (from plan)` : "Auto (from plan)";
+      autoOpt.title = short
+        ? `Inferred portfolio Intent: ${short}. Leave Auto to use the plan classification.`
+        : "Infer Intent from holdings + planned trades";
+    }
+
+    function refreshIntentOverrideAutoFromForm(fallbackInferred) {
+      const form = document.getElementById("symbolForm");
+      if (!form?.intentOverride) return;
+      const { buy, sell, held } = planBuySellFromSymbolForm(form);
+      const inferred = (buy > 0 || sell > 0 || held > 0)
+        ? inferPortfolioIntentFromPlan(held, buy, sell)
+        : (fallbackInferred || null);
+      updateIntentOverrideAutoLabel(inferred);
     }
 
     // Save: combine the positive quantity input with the Buy/Sell toggle into a
@@ -8068,6 +8161,14 @@
       form.tradeAbovePrice.value = formatPriceInput(item.tradeAbovePrice);
       applyTradeShareToForm("Below", item.tradeBelowShares, "buy");
       applyTradeShareToForm("Above", item.tradeAboveShares, "sell");
+      if (form.intentOverride) {
+        form.intentOverride.value = item.intentOverride || "";
+        const inferred =
+          inspectorData?.recommendation?.proposal?.intent?.inferred
+          || inspectorData?.recommendation?.proposal?.intent?.code
+          || null;
+        refreshIntentOverrideAutoFromForm(inferred);
+      }
       updatePositionWatchHint();
       resetNoteForm();
       setComposingNote(false);
@@ -8714,6 +8815,7 @@
             tradeBelowShares: signedTradeShares("Below"),
             tradeAbovePrice: parsePrice(form.tradeAbovePrice.value),
             tradeAboveShares: signedTradeShares("Above"),
+            intentOverride: form.intentOverride?.value || null,
           }),
         });
         const shares = parsePrice(form.shares.value);
@@ -11407,9 +11509,62 @@
       return inspectorData;
     }
 
+    function saiNormAction(action) {
+      const a = String(action || "hold").toLowerCase();
+      return a === "hold" ? "watch" : a;
+    }
+
+    /** Map proposal band / Score total → buy | watch | sell. */
+    function saiBandActionFromProposal(proposal) {
+      const code = String(proposal?.bandBias?.code || "").toLowerCase();
+      if (code === "strong_buy" || code === "buy") return "buy";
+      if (code === "watch_hold" || code === "hold_trim") return "watch";
+      if (code === "sell_avoid") return "sell";
+      const total = Number(proposal?.scores?.total);
+      if (!Number.isFinite(total)) return null;
+      if (total >= 60) return "buy";
+      if (total >= 30) return "watch";
+      return "sell";
+    }
+
+    /**
+     * Pay-attention when Score-band action ≠ displayed SAI Action.
+     * Prefer live band vs rec.action so Inspector matches Screening even if
+     * a stored proposal.attention is stale or missing.
+     */
+    function resolveSaiAttention(rec) {
+      const proposal = rec?.proposal || {};
+      const saiAction = String(rec?.action || "hold").toLowerCase();
+      const bandAction = saiBandActionFromProposal(proposal);
+      if (!bandAction) {
+        return proposal.attention && typeof proposal.attention === "object"
+          ? proposal.attention
+          : { flag: false, level: null, message: null, bandAction: null, saiAction };
+      }
+      if (saiNormAction(bandAction) === saiNormAction(saiAction)) {
+        return {
+          flag: false,
+          level: null,
+          message: null,
+          bandAction,
+          saiAction,
+        };
+      }
+      const nb = saiNormAction(bandAction);
+      const ns = saiNormAction(saiAction);
+      const opposite = (nb === "buy" && ns === "sell") || (nb === "sell" && ns === "buy");
+      return {
+        flag: true,
+        level: opposite ? "warn" : "info",
+        message: `Pay attention: Score band → ${bandAction.toUpperCase()} while SAI Action is ${saiAction.toUpperCase()}`,
+        bandAction,
+        saiAction,
+      };
+    }
+
     function renderRecommendationChipRow(rec, { wrapperClass = "", bare = false } = {}) {
       const action = rec?.action || "hold";
-      const confidence = rec?.confidence || "medium";
+      const confidence = rec?.proposal?.confidence || rec?.confidence || "medium";
       const sentiment = rec?.sentiment || "neutral";
       const sentimentTitle = escapeHtml(rec?.sentimentDetail || "Sentiment");
       const sentClass = sentiment === "bullish" ? "sentiment-bullish"
@@ -11426,9 +11581,25 @@
         ? `${confidence} · ${Math.round(total)}`
         : confidence;
       const confTitle = escapeHtml(saiConfidenceStrengthTitle(rec));
+      const attention = resolveSaiAttention(rec);
+      const attentionFlag = Boolean(attention?.flag);
+      const actionTitle = attentionFlag
+        ? escapeHtml(attention.message || "Pay attention: Score band differs from SAI Action")
+        : "Action";
+      const actionText = attentionFlag ? `${action} !` : action;
+      const actionClass = attentionFlag ? `${action} attention` : action;
+      const intent = rec?.proposal?.intent;
+      const intentChip = intent?.label
+        ? `<span class="chip intent" title="${escapeHtml(
+            `Intent ${intent.label} (${intent.source || "inferred"}${
+              intent.override ? `; override ${intent.override}` : ""
+            })`
+          )}">${escapeHtml(intent.code || "intent")}</span>`
+        : "";
       const chips = `
-          <span class="chip ${action}" title="Action">${action}</span>
+          <span class="chip ${actionClass}" title="${actionTitle}">${escapeHtml(actionText)}</span>
           <span class="chip ${confClass}${hasScore ? " has-score" : ""}" title="${confTitle}">${escapeHtml(confLabel)}</span>
+          ${intentChip}
           <span class="chip ${sentClass}" title="${sentimentTitle}">${sentiment}</span>`;
       if (bare) return chips;
       if (wrapperClass) {
@@ -11870,7 +12041,7 @@
     }
 
     const TECH_STANCE_HELP = "Confluence agent's purely technical read (independent of the SAI):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 scale (left = bearish, center = neutral, right = bullish)\n• Strength — how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume)";
-    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell\n• CONF · SCORE — two measures: Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit)\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• SENTIMENT — news reaction (else notes)\n• Sort — Action, Conf · Score (Label then Score), or Sentiment";
+    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell. A trailing ! means Score-band action differs from this SAI Action (Pay attention).\n• CONF · SCORE — two measures: Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit)\n• INTENT — portfolio role from holdings + planned trades (or your override): tactical / accumulate / core / core_accumulate / divest\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• SENTIMENT — news reaction (else notes)\n• Sort — Action, Conf · Score (Label then Score), or Sentiment";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
     const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
@@ -14787,7 +14958,8 @@
           <li><strong>Exhaustion</strong> up to +30 when headroom is 0; 0 when headroom ≥ ${TAX_PROPOSAL_TRIM_HEADROOM_REF_PCT}%</li>
           <li><strong>52W peak</strong> up to +20 from ${TAX_PROPOSAL_PEAK_PCT}%→100% of high (missing peak → +10 mid)</li>
           <li><strong>Weight</strong> up to +15 at ≥${TAX_PROPOSAL_TRIM_WEIGHT_REF_PCT}% of portfolio</li>
-          <li><strong>Intent</strong> −10…+10 from planned buy−sell shares (net add lowers score; net sell raises it)</li>
+          <li><strong>Intent (plan shares)</strong> −10…+10 from planned buy−sell shares (net add lowers score; net sell raises it)</li>
+          <li><strong>Portfolio Intent lean</strong> capped ±5: divest +5, tactical +4, accumulate +2, core 0, core_accumulate −2 (light trim on core +1) — prefers harvesting divest/tactical names over protecting core holdings</li>
           <li><strong>Trim-score threshold</strong> builds selected trim pool <strong>G</strong> independently of L</li>
         </ul>
         <h4>Selected trim pool (G) vs loss pool (L)</h4>
@@ -15020,7 +15192,7 @@
       renderFibMapView();
     }
 
-    function renderProposalScorecard(proposal, { compact = false } = {}) {
+    function renderProposalScorecard(proposal, { compact = false, saiAction = null } = {}) {
       if (!proposal || !proposal.scores) return "";
       const s = proposal.scores;
       const state = Number(s.state) || 0;
@@ -15031,9 +15203,21 @@
       const stab = proposal.stability || {};
       const band = proposal.bandBias || {};
       const legacy = proposal.legacySai || {};
+      const attentionResolved = resolveSaiAttention({
+        action: saiAction != null ? saiAction : (legacy.action || proposal.action),
+        proposal,
+      });
+      const intent = proposal.intent || {};
       const notes = [];
-      if (legacy.diverged && legacy.note) {
+      if (attentionResolved?.flag && attentionResolved.message) {
+        notes.push(attentionResolved.message);
+      } else if (legacy.diverged && legacy.note) {
         notes.push(legacy.note);
+      }
+      if (intent?.label) {
+        notes.push(
+          `Intent: ${intent.label}${intent.source === "override" ? " (override)" : " (from plan)"}`
+        );
       }
       if (band.label) {
         notes.push(`Band: ${band.label}${band.range ? ` [${band.range}]` : ""}`);
@@ -15043,7 +15227,7 @@
       const veto = (proposal.vetoes || []).find((v) => v.severity === "block" || v.severity === "warn");
       if (veto) notes.push(veto.message);
       const noteHtml = notes.length
-        ? `<div class="proposal-scorecard-note">${escapeHtml(notes[0])}</div>`
+        ? `<div class="proposal-scorecard-note">${escapeHtml(notes.slice(0, 2).join(" · "))}</div>`
         : "";
       return `
         <div class="proposal-scorecard${compact ? " snap-proposal" : ""}">
@@ -15074,7 +15258,7 @@
         rec.provider || null,
         rec.upsidePct != null ? `${rec.upsidePct}% upside to target` : null,
       ].filter(Boolean).join(" · ");
-      const scorecard = renderProposalScorecard(rec.proposal);
+      const scorecard = renderProposalScorecard(rec.proposal, { saiAction: rec.action });
       const sentimentGuard = rec.sentimentGuard
         ? `<div class="empty" style="margin-top:0.45rem;color:var(--warn);">${escapeHtml(rec.sentimentGuard)}</div>`
         : "";
@@ -17975,8 +18159,13 @@
 
     document.getElementById("symbolForm").addEventListener("input", (event) => {
       const input = event.target;
-      if (input.name === "shares") {
-        updatePositionWatchHint();
+      if (
+        input.name === "shares"
+        || input.name === "tradeBelowQty"
+        || input.name === "tradeAboveQty"
+      ) {
+        if (input.name === "shares") updatePositionWatchHint();
+        refreshIntentOverrideAutoFromForm();
         return;
       }
       if (input.name !== "targetPrice") return;

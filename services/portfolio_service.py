@@ -65,6 +65,7 @@ class PortfolioService:
             ).fetchone()
 
             if existing:
+                existing_keys = existing.keys()
                 merged = {
                     "target_price": payload.get("target_price", existing["target_price"]),
                     "buy_below": payload.get("buy_below", existing["buy_below"]),
@@ -82,6 +83,10 @@ class PortfolioService:
                         "trade_above_shares", existing["trade_above_shares"]
                     ),
                     "annual_dividend": payload.get("annual_dividend", existing["annual_dividend"]),
+                    "intent_override": payload.get(
+                        "intent_override",
+                        existing["intent_override"] if "intent_override" in existing_keys else None,
+                    ),
                 }
                 if merged["trade_below_price"] is not None:
                     merged["buy_below"] = merged["trade_below_price"]
@@ -93,7 +98,8 @@ class PortfolioService:
                     SET target_price = %s, buy_below = %s, sell_above = %s,
                         trade_below_price = %s, trade_below_shares = %s,
                         trade_above_price = %s, trade_above_shares = %s,
-                        annual_dividend = %s, updated_at = app_now_text()
+                        annual_dividend = %s, intent_override = %s,
+                        updated_at = app_now_text()
                     WHERE user_id = %s AND symbol = %s
                     """,
                     (
@@ -105,6 +111,7 @@ class PortfolioService:
                         merged["trade_above_price"],
                         merged["trade_above_shares"],
                         merged["annual_dividend"],
+                        merged["intent_override"],
                         user_id,
                         symbol,
                     ),
@@ -131,9 +138,9 @@ class PortfolioService:
                         user_id, symbol, target_price, buy_below, sell_above,
                         trade_below_price, trade_below_shares,
                         trade_above_price, trade_above_shares,
-                        annual_dividend
+                        annual_dividend, intent_override
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         user_id,
@@ -146,6 +153,7 @@ class PortfolioService:
                         trade_above_price,
                         payload.get("trade_above_shares"),
                         payload.get("annual_dividend"),
+                        payload.get("intent_override"),
                     ),
                 )
             conn.commit()
@@ -331,6 +339,20 @@ class PortfolioService:
                 normalized[field] = None
             else:
                 normalized[field] = round(float(value), 4)
+
+        # Optional portfolio Intent override (tactical | accumulate | core | core_accumulate).
+        if any(k in data for k in ("intent_override", "intentOverride", "intent")):
+            raw_intent = next(
+                data[k]
+                for k in ("intent_override", "intentOverride", "intent")
+                if k in data
+            )
+            if raw_intent is None or raw_intent == "":
+                normalized["intent_override"] = None
+            else:
+                from services.portfolio_intent import normalize_intent
+
+                normalized["intent_override"] = normalize_intent(raw_intent)
         return normalized
 
     def _row_to_symbol(self, row, include_notes: bool) -> dict[str, Any]:
@@ -352,6 +374,9 @@ class PortfolioService:
             "tradeAbovePrice": row["trade_above_price"] if "trade_above_price" in keys else None,
             "tradeAboveShares": row["trade_above_shares"] if "trade_above_shares" in keys else None,
             "annualDividend": row["annual_dividend"],
+            "intentOverride": (
+                row["intent_override"] if "intent_override" in keys else None
+            ),
             "isStarred": bool(row["is_starred"]) if "is_starred" in keys else False,
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],

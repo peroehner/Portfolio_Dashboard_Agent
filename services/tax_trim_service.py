@@ -12,6 +12,7 @@ from typing import Any
 from services.assessment_service import AssessmentService
 from services.harvest_score import loss_score, residual_loss_pct, trim_score
 from services.holdings_service import HoldingsService
+from services.portfolio_intent import harvest_intent_lean, resolve_intent
 from services.portfolio_service import PortfolioService
 
 MAX_TRIM_POSITIONS = 10
@@ -96,6 +97,21 @@ def exec_price_info(symbol_row: dict[str, Any], pricing_mode: str) -> dict[str, 
     if spot is not None and spot > 0:
         return {"price": spot, "source": "spot"}
     return {"price": None, "source": None}
+
+
+def intent_for_row(symbol_row: dict[str, Any]) -> dict[str, Any]:
+    """Resolve portfolio Intent for a tax/trim candidate row."""
+    held = float(symbol_row.get("quantity") or 0)
+    buy = buy_plan_qty(symbol_row)
+    sell = sell_plan_qty(symbol_row)
+    return resolve_intent(
+        held=held,
+        buy_qty=buy,
+        sell_qty=sell,
+        buy_price=None,
+        sell_price=None,
+        override=symbol_row.get("intentOverride") or symbol_row.get("intent_override"),
+    )
 
 
 def sai_weight(action: str | None, confidence: str | None) -> float:
@@ -307,6 +323,13 @@ class TaxTrimService:
             net_loss = loss_per_share * max_shares
             rec = row.get("recommendation") or {}
             sw = sai_weight(rec.get("action"), rec.get("confidence"))
+            intent = intent_for_row(row)
+            lean, lean_note = harvest_intent_lean(
+                intent_code=intent.get("code"),
+                is_trim=is_trim,
+                held=held,
+                sell_qty=max_shares,
+            )
             score = 25 + ls
             if has_sell_plan:
                 score += 20
@@ -314,6 +337,7 @@ class TaxTrimService:
                 score += 10
             score += min(15.0, net_loss / 5000.0)
             score += sw
+            score += lean
             candidates.append(
                 {
                     "symbol": symbol,
@@ -335,6 +359,10 @@ class TaxTrimService:
                     "score": round(score, 2),
                     "lossScore": round(ls, 2),
                     "saiWeight": sw,
+                    "intentLean": lean,
+                    "intent": intent.get("code"),
+                    "intentLabel": intent.get("label"),
+                    "intentNote": lean_note,
                     "saiAction": rec.get("action") or "—",
                     "saiConfidence": rec.get("confidence") or "—",
                     "techBias": row.get("techStance") or "—",
@@ -392,7 +420,14 @@ class TaxTrimService:
             has_sell_plan = sell_qty > 0
             is_trim = held > sell_qty if has_sell_plan else max_shares < held
             trim = parts["trimScore"]
-            score = trim + min(15.0, net_gains / 5000.0)
+            intent = intent_for_row(row)
+            lean, lean_note = harvest_intent_lean(
+                intent_code=intent.get("code"),
+                is_trim=is_trim,
+                held=held,
+                sell_qty=max_shares,
+            )
+            score = trim + min(15.0, net_gains / 5000.0) + lean
             rec = row.get("recommendation") or {}
             candidates.append(
                 {
@@ -421,7 +456,11 @@ class TaxTrimService:
                     "hasSellPlan": has_sell_plan,
                     "isTrim": is_trim,
                     "score": round(score, 2),
-                    "trimScore": round(trim, 2),
+                    "trimScore": round(trim + lean, 2),
+                    "intentLean": lean,
+                    "intent": intent.get("code"),
+                    "intentLabel": intent.get("label"),
+                    "intentNote": lean_note,
                     "saiAction": rec.get("action") or "—",
                     "saiConfidence": rec.get("confidence") or "—",
                     "techBias": row.get("techStance") or "—",

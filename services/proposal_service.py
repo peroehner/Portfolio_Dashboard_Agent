@@ -18,6 +18,11 @@ from services.harvest_score import (
     peak_proximity_pct,
     upside_pct,
 )
+from services.portfolio_intent import (
+    attention_for_actions,
+    fit_intent_nudge,
+    resolve_intent,
+)
 
 SCHEMA_VERSION = 1
 STATE_MAX = 50
@@ -52,6 +57,8 @@ FIT_EXTENSION_KEYS = (
     "sectorCapPct",
     "taxLotPreference",
     "filterSetBias",
+    "holdingPeriodBias",
+    "intentOverride",
 )
 
 # volatilityPreference → soft beta ceiling (fundamentals.beta when present).
@@ -260,6 +267,41 @@ class ProposalService:
             current_price=ctx.get("currentPrice"),
             scale=scales["trigger"],
         )
+        intent_override = (
+            ctx.get("intentOverride")
+            or prefs.get("intentOverride")
+            or (holding or {}).get("intentOverride")
+        )
+        plan_row = {
+            "tradeBelowPrice": screening.get("tradeBelowPrice") or ctx.get("buyBelow"),
+            "tradeBelowShares": screening.get("tradeBelowShares"),
+            "tradeAbovePrice": screening.get("tradeAbovePrice") or ctx.get("sellAbove"),
+            "tradeAboveShares": screening.get("tradeAboveShares"),
+        }
+        # Prefer explicit context shares when screening block is thin (assess path).
+        if plan_row["tradeBelowShares"] is None and ctx.get("tradeBelowShares") is not None:
+            plan_row["tradeBelowShares"] = ctx.get("tradeBelowShares")
+        if plan_row["tradeAboveShares"] is None and ctx.get("tradeAboveShares") is not None:
+            plan_row["tradeAboveShares"] = ctx.get("tradeAboveShares")
+        if screening.get("tradeBelowPrice") is None and ctx.get("tradeBelowPrice") is not None:
+            plan_row["tradeBelowPrice"] = ctx.get("tradeBelowPrice")
+        if screening.get("tradeAbovePrice") is None and ctx.get("tradeAbovePrice") is not None:
+            plan_row["tradeAbovePrice"] = ctx.get("tradeAbovePrice")
+
+        from services.tax_trim_service import buy_plan_qty, sell_plan_qty
+
+        buy_qty = buy_plan_qty(plan_row)
+        sell_qty = sell_plan_qty(plan_row)
+        held_qty = float((holding or {}).get("quantity") or 0)
+        intent = resolve_intent(
+            held=held_qty,
+            buy_qty=buy_qty,
+            sell_qty=sell_qty,
+            buy_price=self._leg_price_for_side(plan_row, buy=True),
+            sell_price=self._leg_price_for_side(plan_row, buy=False),
+            override=intent_override,
+        )
+
         fit = self._score_portfolio_fit(
             action=action,
             holding=holding,
@@ -272,6 +314,9 @@ class ProposalService:
             screening=screening,
             analyst_target=ctx.get("analystTarget1y"),
             personal_target=ctx.get("targetPrice") or ctx.get("personalTarget"),
+            intent=intent,
+            buy_qty=buy_qty,
+            sell_qty=sell_qty,
         )
         vetoes = self._vetoes(
             action=action,
@@ -328,10 +373,18 @@ class ProposalService:
                 f"TECHNICAL / NEWS signaled {base_assessment_action.upper()} "
                 f"({src}); band-based SAI is {published_action.upper()}."
             )
+        # Screening SAI Action is the stored assessment action; band may disagree
+        # between assesses when Fit/State move. Surface as Pay attention / !.
+        attention = attention_for_actions(
+            band_action=band_action,
+            sai_action=base_assessment_action,
+        )
         fit_extensions = {key: None for key in FIT_EXTENSION_KEYS}
         for key in FIT_EXTENSION_KEYS:
             if key in prefs and prefs[key] is not None:
                 fit_extensions[key] = prefs[key]
+        fit_extensions["holdingPeriodBias"] = intent["code"]
+        fit_extensions["intentOverride"] = intent.get("override")
 
         return {
             "schemaVersion": SCHEMA_VERSION,
@@ -351,6 +404,8 @@ class ProposalService:
                 "advisory": False,
                 "note": "Band-derived action is authoritative for SAI.",
             },
+            "attention": attention,
+            "intent": intent,
             "legacySai": {
                 "action": base_assessment_action,
                 "confidence": str(confidence or "medium").lower(),
@@ -426,7 +481,7 @@ class ProposalService:
         cap = src.get("maxSingleNameWeightPct")
         if isinstance(cap, (int, float)) and 0 < float(cap) <= 100:
             out["maxSingleNameWeightPct"] = float(cap)
-        for key in ("sectorCapPct", "taxLotPreference", "filterSetBias"):
+        for key in ("sectorCapPct", "taxLotPreference", "filterSetBias", "intentOverride"):
             if src.get(key) is not None:
                 out[key] = src[key]
         return out
@@ -629,6 +684,9 @@ class ProposalService:
         screening: dict[str, Any] | None = None,
         analyst_target: float | None = None,
         personal_target: float | None = None,
+        intent: dict[str, Any] | None = None,
+        buy_qty: float = 0.0,
+        sell_qty: float = 0.0,
     ) -> dict[str, Any]:
         score = 8.0
         factors: list[str] = []
@@ -647,6 +705,19 @@ class ProposalService:
                 factors.append("Sell on non-holding is weak fit")
             else:
                 factors.append("Watchlist name — neutral portfolio fit")
+            if intent:
+                nudge, intent_factors = fit_intent_nudge(
+                    intent_code=intent.get("code"),
+                    action=action,
+                    held=0,
+                    sell_qty=sell_qty,
+                )
+                if nudge:
+                    score += nudge
+                    factors.extend(intent_factors)
+                elif intent.get("label"):
+                    src = intent.get("source") or "inferred"
+                    factors.append(f"Intent {intent['label']} ({src})")
             score = self._apply_pref_fit_bonuses(
                 score,
                 factors,
@@ -657,7 +728,7 @@ class ProposalService:
                 portfolio_annual_dividend=portfolio_annual_dividend,
             )
             capped = _round_score(_clamp(score, 0, FIT_MAX))
-            return {"score": capped, "max": FIT_MAX, "factors": factors[:6]}
+            return {"score": capped, "max": FIT_MAX, "factors": factors[:8]}
 
         weight = holding.get("weightPct")
         if isinstance(weight, (int, float)):
@@ -705,7 +776,8 @@ class ProposalService:
             p_up = upside_pct(p_tgt, current_price)
         high_52 = _fund_get(fundamentals, "high52w", "fiftyTwoWeekHigh", "week52High")
         peak = peak_proximity_pct(current_price, high_52)
-        buy_qty, sell_qty = self._plan_share_qty(screening)
+        if buy_qty <= 0 and sell_qty <= 0:
+            buy_qty, sell_qty = self._plan_share_qty(screening)
         harvest_nudge, harvest_factors = fit_harvest_nudge(
             action=action,
             gain_pct=gain_pct if isinstance(gain_pct, (int, float)) else None,
@@ -721,6 +793,20 @@ class ProposalService:
             score += harvest_nudge
             factors.extend(harvest_factors)
 
+        if intent:
+            nudge, intent_factors = fit_intent_nudge(
+                intent_code=intent.get("code"),
+                action=action,
+                held=float(holding.get("quantity") or 0),
+                sell_qty=sell_qty,
+            )
+            if nudge:
+                score += nudge
+                factors.extend(intent_factors)
+            elif intent.get("label"):
+                src = intent.get("source") or "inferred"
+                factors.append(f"Intent {intent['label']} ({src})")
+
         score = self._apply_pref_fit_bonuses(
             score,
             factors,
@@ -735,27 +821,36 @@ class ProposalService:
         return {"score": capped, "max": FIT_MAX, "factors": factors[:8]}
 
     @staticmethod
-    def _plan_share_qty(screening: dict[str, Any]) -> tuple[float, float]:
-        """Signed planned buy/sell qty from screening trade legs (abs for each side)."""
-        buy = 0.0
-        sell = 0.0
-        for price_key, shares_key, default_buy in (
-            ("tradeBelowPrice", "tradeBelowShares", True),
-            ("tradeAbovePrice", "tradeAboveShares", False),
+    def _leg_price_for_side(plan_row: dict[str, Any], *, buy: bool) -> float | None:
+        """Price of the first planned leg matching buy/sell direction."""
+        from services.tax_trim_service import eval_trade_leg
+
+        for price_key, shares_key, side in (
+            ("tradeBelowPrice", "tradeBelowShares", "below"),
+            ("tradeAbovePrice", "tradeAboveShares", "above"),
         ):
-            price = screening.get(price_key)
-            shares = screening.get(shares_key)
-            if price is None:
+            leg = eval_trade_leg(plan_row.get(price_key), plan_row.get(shares_key), side)
+            if not leg or not leg.get("qty"):
                 continue
-            if isinstance(shares, (int, float)) and shares > 0:
-                buy += float(shares)
-            elif isinstance(shares, (int, float)) and shares < 0:
-                sell += abs(float(shares))
-            elif default_buy:
-                pass
-            else:
-                pass
-        return buy, sell
+            if bool(leg.get("buy")) == buy:
+                try:
+                    return float(leg["price"])
+                except (TypeError, ValueError):
+                    return None
+        return None
+
+    @staticmethod
+    def _plan_share_qty(screening: dict[str, Any]) -> tuple[float, float]:
+        """Buy/sell planned qty from screening trade legs (signed-share convention)."""
+        from services.tax_trim_service import buy_plan_qty, sell_plan_qty
+
+        plan_row = {
+            "tradeBelowPrice": screening.get("tradeBelowPrice"),
+            "tradeBelowShares": screening.get("tradeBelowShares"),
+            "tradeAbovePrice": screening.get("tradeAbovePrice"),
+            "tradeAboveShares": screening.get("tradeAboveShares"),
+        }
+        return buy_plan_qty(plan_row), sell_plan_qty(plan_row)
 
     def _apply_pref_fit_bonuses(
         self,
