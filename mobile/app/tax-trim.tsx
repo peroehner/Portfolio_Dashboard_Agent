@@ -94,10 +94,11 @@ function MetricCell({
 
 function PoolSliderCard({
   title,
-  amount,
-  amountColor,
-  countLabel,
-  matchNote,
+  primaryLabel,
+  primaryAmount,
+  primaryColor,
+  cashAmount,
+  helperText,
   scoreLabel,
   scoreValue,
   scoreMax,
@@ -105,10 +106,11 @@ function PoolSliderCard({
   trackColor,
 }: {
   title: string;
-  amount: string;
-  amountColor: string;
-  countLabel: string;
-  matchNote?: string | null;
+  primaryLabel: string;
+  primaryAmount: string;
+  primaryColor: string;
+  cashAmount: string;
+  helperText?: string | null;
   scoreLabel: string;
   scoreValue: number;
   scoreMax: number;
@@ -117,10 +119,28 @@ function PoolSliderCard({
 }) {
   return (
     <View style={styles.poolCard}>
-      <Text style={styles.poolCardTitle}>{title}</Text>
-      <Text style={[styles.poolCardAmount, { color: amountColor }]}>{amount}</Text>
-      <Text style={styles.poolCardCount}>{countLabel}</Text>
-      {matchNote ? <Text style={styles.poolCardMatch}>{matchNote}</Text> : null}
+      <View style={styles.poolCardHead}>
+        <Text style={styles.poolCardTitle}>{title}</Text>
+        {helperText ? (
+          <Text style={styles.poolCardHelper} numberOfLines={2}>
+            {helperText}
+          </Text>
+        ) : null}
+      </View>
+      <View style={styles.poolTotalsRow}>
+        <View style={styles.poolTotalCell}>
+          <Text style={styles.poolTotalLabel}>{primaryLabel}</Text>
+          <Text style={[styles.poolCardAmount, { color: primaryColor }]} numberOfLines={1}>
+            {primaryAmount}
+          </Text>
+        </View>
+        <View style={styles.poolTotalCell}>
+          <Text style={styles.poolTotalLabel}>Cash</Text>
+          <Text style={[styles.poolCardAmount, styles.poolCashAmount]} numberOfLines={1}>
+            {cashAmount}
+          </Text>
+        </View>
+      </View>
       <View style={styles.poolSliderHeader}>
         <Text style={styles.poolSliderLabel}>{scoreLabel}</Text>
         <Text style={[styles.poolSliderValue, { color: trackColor }]}>{Math.round(scoreValue)}</Text>
@@ -175,7 +195,7 @@ function LossCard({
           flex={1.4}
         />
         <MetricCell
-          label="Max Loss"
+          label={qualifies ? "Real Loss" : "Max Loss"}
           value={formatMoney(row.netLossMax, true)}
           valueColor={colors.sell}
         />
@@ -205,7 +225,14 @@ function TrimCard({
   const proposedShares =
     pick != null && (pick.suggestShares ?? 0) > 0 ? (pick.suggestShares ?? 0) : 0;
   const proposed = proposedShares > 0;
-  const gain = proposed ? pick?.suggestGain : row.netGainsMax;
+  const maxGainTxt = formatMoney(row.netGainsMax, true);
+  const gainLabel = proposed ? "Prop Gain (Max)" : "Max Gain";
+  const gainValue = proposed
+    ? `${formatMoney(pick?.suggestGain, true)} (${maxGainTxt})`
+    : maxGainTxt;
+  const cashTxt = proposed
+    ? formatMoney(pick?.suggestCash, true)
+    : formatMoney(row.cashGenerated, true);
   return (
     <Pressable
       style={[styles.card, qualifies ? styles.cardTrimQualified : styles.cardMuted]}
@@ -232,18 +259,20 @@ function TrimCard({
             row.held,
             row.hasSellPlan ? row.sellPlanCap : null,
           )}
-          flex={1.5}
+          flex={1.35}
         />
         <MetricCell
-          label={proposed ? "Proposed Gain" : "Max Gain"}
-          value={formatMoney(gain, true)}
+          label={gainLabel}
+          value={gainValue}
           valueColor={colors.buy}
+          flex={1.35}
         />
+        <MetricCell label="Cash" value={cashTxt} />
         <MetricCell
           label="Score"
           value={String(Math.round(row.trimScore ?? 0))}
           valueColor={qualifies ? colors.buy : colors.textMuted}
-          flex={0.7}
+          flex={0.65}
         />
       </View>
     </Pressable>
@@ -543,6 +572,19 @@ export default function TaxTrimScreen() {
   const trimSelected = proposal?.winnerTrims?.selectedCount ?? 0;
   const trimTotal = proposal?.winnerTrims?.candidateCount ?? 0;
 
+  const lossPoolCash = useMemo(() => {
+    return (proposal?.lossSells?.candidates ?? [])
+      .filter((row) => (row.lossScore ?? 0) >= lossScoreThreshold)
+      .reduce((sum, row) => sum + Math.max(0, Number(row.cashGenerated) || 0), 0);
+  }, [proposal?.lossSells?.candidates, lossScoreThreshold]);
+
+  const trimPoolCash = useMemo(() => {
+    return (proposal?.picks ?? []).reduce(
+      (sum, row) => sum + Math.max(0, Number(row.suggestCash) || 0),
+      0,
+    );
+  }, [proposal?.picks]);
+
   const refreshControl = (
     <RefreshControl
       refreshing={refreshing}
@@ -603,7 +645,7 @@ export default function TaxTrimScreen() {
             <Text style={styles.pillText}>Threshold</Text>
           </Pressable>
           <View style={styles.matchRow}>
-            <Text style={styles.matchLabel}>Match Loss</Text>
+            <Text style={styles.matchLabel}>Match Losses</Text>
             <Switch
               value={matchLossPool}
               onValueChange={setMatchLossPool}
@@ -636,9 +678,11 @@ export default function TaxTrimScreen() {
         <View style={styles.poolRow}>
           <PoolSliderCard
             title="Loss pool"
-            amount={formatMoney(proposal?.lossPool, true)}
-            amountColor={colors.sell}
-            countLabel={`${lossSelected} of ${lossTotal} qualified`}
+            primaryLabel="Loss"
+            primaryAmount={formatMoney(proposal?.lossPool, true)}
+            primaryColor={colors.sell}
+            cashAmount={formatMoney(lossPoolCash, true)}
+            helperText={`${lossSelected} of ${lossTotal} qualified`}
             scoreLabel="Loss-score ≥"
             scoreValue={lossScoreThreshold}
             scoreMax={LOSS_SCORE_MAX}
@@ -647,14 +691,13 @@ export default function TaxTrimScreen() {
           />
           <PoolSliderCard
             title="Trim pool"
-            amount={formatMoney(proposal?.selectedTrimPool, true)}
-            amountColor={colors.buy}
-            countLabel={`${trimSelected} of ${trimTotal} qualified`}
-            matchNote={
-              matchLossPool
-                ? `Matched ${formatMoney(proposal?.offsetGain, true)}`
-                : `Offset ${formatMoney(proposal?.offsetGain, true)}`
-            }
+            primaryLabel="Gains"
+            primaryAmount={formatMoney(proposal?.offsetGain, true)}
+            primaryColor={colors.buy}
+            cashAmount={formatMoney(trimPoolCash, true)}
+            helperText={`${trimSelected} of ${trimTotal} qualified${
+              matchLossPool ? " · Match Losses" : " · Full trim capacity"
+            }`}
             scoreLabel="Trim-score ≥"
             scoreValue={trimScoreThreshold}
             scoreMax={TRIM_SCORE_MAX}
@@ -774,9 +817,31 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
-  poolCardAmount: { fontSize: 20, fontWeight: "800" },
-  poolCardCount: { color: colors.textMuted, fontSize: 11 },
-  poolCardMatch: { color: colors.textMuted, fontSize: 11, marginBottom: 2 },
+  poolCardHead: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  poolCardHelper: {
+    flex: 1,
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: "600",
+    textAlign: "right",
+    lineHeight: 13,
+  },
+  poolTotalsRow: { flexDirection: "row", gap: spacing.sm, marginTop: 2 },
+  poolTotalCell: { flex: 1, minWidth: 0, gap: 1 },
+  poolTotalLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  poolCardAmount: { fontSize: 16, fontWeight: "800" },
+  poolCashAmount: { color: colors.text },
   poolSliderHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
