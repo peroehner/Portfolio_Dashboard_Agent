@@ -122,18 +122,32 @@ export default function PortfolioScreen() {
         onRetry={() => void refresh()}
         contentStyle={styles.screenContent}
         rightAction={
-          <Pressable
-            style={styles.taxTrimBtn}
-            onPress={() =>
-              router.push({
-                pathname: "/tax-trim",
-                params: { mode },
-              })
-            }
-            hitSlop={8}
-          >
-            <Text style={styles.taxTrimBtnText}>Tax & Trim</Text>
-          </Pressable>
+          <View style={styles.rightActions}>
+            <Pressable
+              style={styles.planBtn}
+              onPress={() =>
+                router.push({
+                  pathname: "/trade-plan",
+                  params: { mode },
+                })
+              }
+              hitSlop={8}
+            >
+              <Text style={styles.planBtnText}>Buy/Sell Plan</Text>
+            </Pressable>
+            <Pressable
+              style={styles.taxTrimBtn}
+              onPress={() =>
+                router.push({
+                  pathname: "/tax-trim",
+                  params: { mode },
+                })
+              }
+              hitSlop={8}
+            >
+              <Text style={styles.taxTrimBtnText}>Tax & Trim</Text>
+            </Pressable>
+          </View>
         }
       >
         <View style={styles.toolbar}>
@@ -274,6 +288,24 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     paddingHorizontal: 10,
     paddingVertical: 6,
+  },
+  rightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  planBtn: {
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentMuted,
+    borderRadius: radii.md,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  planBtnText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: "700",
   },
   taxTrimBtnText: {
     color: colors.accent,

@@ -51,6 +51,14 @@ function RootNavigator() {
               presentation: "card",
             }}
           />
+          <Stack.Screen
+            name="trade-plan"
+            options={{
+              title: "Buy/Sell Plan",
+              headerBackTitle: "Portfolio",
+              presentation: "card",
+            }}
+          />
         </Stack>
       </SymbolFilterProvider>
     </StarredSymbolsProvider>

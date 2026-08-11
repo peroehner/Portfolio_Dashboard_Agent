@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useLocalSearchParams, useNavigation, usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -133,6 +133,7 @@ function mergeInspector(
 export default function SymbolDetailScreen() {
   const navigation = useNavigation();
   const router = useRouter();
+  const pathname = usePathname();
   const { setStarred } = useStarredSymbols();
   const { setFilter } = usePersistedSymbolFilter();
   const { symbol } = useLocalSearchParams<{ symbol: string }>();
@@ -238,8 +239,34 @@ export default function SymbolDetailScreen() {
   const neighbors = useMemo(() => getSymbolBrowseNeighbors(sym), [sym]);
   const symRef = useRef(sym);
   symRef.current = sym;
+  const pathRef = useRef(pathname);
+  pathRef.current = pathname;
   const slideX = useRef(new Animated.Value(0)).current;
   const browsingRef = useRef(false);
+
+  const fallbackListPath = useMemo(() => {
+    if (neighbors.source === "alerts") return "/alerts";
+    if (neighbors.source === "news") return "/news";
+    if (neighbors.source === "fundamentals") return "/fundamentals";
+    if (neighbors.source === "trade-plan") return "/trade-plan";
+    return "/portfolio";
+  }, [neighbors.source]);
+
+  const goBackFromDetail = useCallback(() => {
+    const fromPath = pathRef.current;
+    const fromSym = symRef.current;
+    if (router.canGoBack()) {
+      router.back();
+      // Guard against occasional no-op back transitions.
+      setTimeout(() => {
+        if (pathRef.current === fromPath && symRef.current === fromSym) {
+          router.replace(fallbackListPath as "/portfolio");
+        }
+      }, 220);
+      return;
+    }
+    router.replace(fallbackListPath as "/portfolio");
+  }, [router, fallbackListPath]);
 
   const goBrowse = useCallback(
     (target: string | null, direction: BrowseDirection) => {
@@ -349,6 +376,11 @@ export default function SymbolDetailScreen() {
       title: sym,
       headerBackTitle: "Back",
       headerLargeTitle: false,
+      headerLeft: () => (
+        <Pressable onPress={goBackFromDetail} hitSlop={8} accessibilityRole="button">
+          <Text style={styles.headerBtn}>Back</Text>
+        </Pressable>
+      ),
       headerRight: () => (
         <Pressable
           onPress={() => {
@@ -397,6 +429,7 @@ export default function SymbolDetailScreen() {
     data?.holding,
     data?.positionMechanics,
     loadFull,
+    goBackFromDetail,
   ]);
 
   async function refreshAll() {
