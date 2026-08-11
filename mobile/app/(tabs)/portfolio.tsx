@@ -48,6 +48,7 @@ export default function PortfolioScreen() {
   const [addOpen, setAddOpen] = useState(false);
   const [addHint, setAddHint] = useState<string | null>(null);
   const [addedSymbol, setAddedSymbol] = useState<string | null>(null);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const { data, loading, error, refresh } = useApiQuery(
     async () => {
       const [portfolio, assessments, holdings] = await Promise.all([
@@ -217,8 +218,11 @@ export default function PortfolioScreen() {
             landscape={isLandscape}
             refreshControl={
               <RefreshControl
-                refreshing={loading && !!data}
-                onRefresh={() => void refresh()}
+                refreshing={pullRefreshing}
+                onRefresh={() => {
+                  setPullRefreshing(true);
+                  void refresh().finally(() => setPullRefreshing(false));
+                }}
                 tintColor={colors.accent}
               />
             }

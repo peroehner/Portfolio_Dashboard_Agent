@@ -34,14 +34,20 @@ export function Screen({
 }: ScreenProps) {
   return (
     <View style={styles.root}>
-      {(title || rightAction || leftAction) && (
+      {(title || rightAction || leftAction || subtitle) && (
         <View style={styles.header}>
-          {leftAction ? <View style={styles.leftAction}>{leftAction}</View> : null}
-          <View style={styles.headerText}>
-            {title ? <Text style={styles.title}>{title}</Text> : null}
-            {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          <View style={styles.headerTop}>
+            {leftAction ? <View style={styles.leftAction}>{leftAction}</View> : null}
+            <View style={styles.headerText}>
+              {title ? <Text style={styles.title}>{title}</Text> : null}
+            </View>
+            {rightAction}
           </View>
-          {rightAction}
+          {subtitle ? (
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
         </View>
       )}
       {loading ? (
@@ -72,12 +78,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
+    gap: 4,
+  },
+  headerTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     gap: spacing.md,
   },
   leftAction: {
@@ -95,7 +104,6 @@ const styles = StyleSheet.create({
   subtitle: {
     color: colors.textMuted,
     fontSize: 13,
-    marginTop: 4,
   },
   content: {
     flex: 1,

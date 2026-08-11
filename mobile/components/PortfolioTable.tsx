@@ -187,6 +187,7 @@ export function PortfolioTable({
           style={styles.bodyScroll}
           nestedScrollEnabled
           showsVerticalScrollIndicator
+          contentInsetAdjustmentBehavior="never"
           refreshControl={refreshControl}
         >
         <View style={styles.bodyRow}>
