@@ -32,7 +32,6 @@ export function SymbolFilterProvider({ children }: { children: ReactNode }) {
       const saved = await loadLastSymbolFilter();
       if (cancelled) return;
       setLastFilter(saved);
-      if (saved) setFilterState(saved);
       setHydrated(true);
     })();
     return () => {

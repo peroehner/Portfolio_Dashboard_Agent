@@ -206,6 +206,7 @@ export default function SymbolDetailScreen() {
   const [noteDate, setNoteDate] = useState(todayIso());
   const [noteTitle, setNoteTitle] = useState("");
   const [noteText, setNoteText] = useState("");
+  const [pendingNoteFocus, setPendingNoteFocus] = useState<{ text: string; date: string } | null>(null);
   const [composingNote, setComposingNote] = useState(false);
   const [expandedNoteKey, setExpandedNoteKey] = useState<string | null>(null);
   const [deletingNoteId, setDeletingNoteId] = useState<number | null>(null);
@@ -219,12 +220,14 @@ export default function SymbolDetailScreen() {
   const [clearingHistory, setClearingHistory] = useState(false);
   const { width, height } = useWindowDimensions();
   const isWideSummaryLayout = width >= 980 || (width >= 760 && width > height);
+  const notesCardYRef = useRef(0);
 
   useEffect(() => {
     setFullData(null);
     setFullError(null);
     setNewsSentiment(null);
     setComposingNote(false);
+    setPendingNoteFocus(null);
     setExpandedNoteKey(null);
     setEditingNoteId(null);
     setExpandedAssessmentKey(null);
@@ -371,6 +374,23 @@ export default function SymbolDetailScreen() {
     return list;
   }, [quote?.notes]);
 
+  useEffect(() => {
+    if (!pendingNoteFocus || !notes.length) return;
+    const matched = notes.find((note) => {
+      const text = (note.text || "").trim();
+      const date = (note.date || "").trim();
+      return text === pendingNoteFocus.text && (!pendingNoteFocus.date || date === pendingNoteFocus.date);
+    });
+    if (!matched) return;
+    const key = String(matched.id ?? `${matched.date}-${matched.source}-${matched.text}`);
+    setExpandedNoteKey(key);
+    setTab("summary");
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: Math.max(0, notesCardYRef.current - 8), animated: true });
+    });
+    setPendingNoteFocus(null);
+  }, [notes, pendingNoteFocus]);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       title: sym,
@@ -511,6 +531,7 @@ export default function SymbolDetailScreen() {
       setNoteDate(todayIso());
       setComposingNote(false);
       await refreshAll();
+      setPendingNoteFocus({ text: payload.text.trim(), date: (payload.date || "").trim() });
     } catch (err) {
       if (isTimeoutApiError(err)) {
         try {
@@ -533,6 +554,7 @@ export default function SymbolDetailScreen() {
             setNoteDate(todayIso());
             setComposingNote(false);
             await refreshAll();
+            setPendingNoteFocus({ text: payload.text.trim(), date: (payload.date || "").trim() });
             return;
           }
         } catch {
@@ -1052,7 +1074,12 @@ export default function SymbolDetailScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.card}>
+            <View
+              style={styles.card}
+              onLayout={(event) => {
+                notesCardYRef.current = event.nativeEvent.layout.y;
+              }}
+            >
               <View style={styles.notesHead}>
                 <Text style={styles.cardTitle}>Notes</Text>
                 {!composingNote ? (

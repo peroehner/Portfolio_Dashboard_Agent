@@ -317,7 +317,7 @@ export function InspectorChartSvg({
       })}
 
       {showXLabels
-        ? dateTicks.map((tick) => (
+        ? dateTicks.map((tick, index) => (
             <SvgText
               key={`xt-${tick.x}`}
               x={xForNorm(tick.x)}
@@ -325,7 +325,7 @@ export function InspectorChartSvg({
               fill="#9aa8bc"
               fontSize="9"
               fontWeight="600"
-              textAnchor="middle"
+              textAnchor={index === 0 ? "start" : index === dateTicks.length - 1 ? "end" : "middle"}
             >
               {tick.label}
             </SvgText>

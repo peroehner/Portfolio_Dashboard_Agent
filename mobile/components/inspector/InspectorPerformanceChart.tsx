@@ -35,7 +35,7 @@ import type { InspectorPayload } from "@/lib/types";
 
 const CHART_HEIGHT = 280;
 const PAD = 12;
-const ZOOM_MIN = 0.5;
+const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 4;
 /** Cancel pending long-press scrub if the finger drifts this far (allow H-scroll). */
 const SCRUB_CANCEL_MOVE_PX = 14;
@@ -62,6 +62,9 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
   const scrubTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastScrubKeyRef = useRef<string | null>(null);
   const fsChartWRef = useRef(320);
+  const fsScrollXRef = useRef(0);
+  const lastFsChartWRef = useRef(0);
+  const fsPrimedRef = useRef(false);
   const model = useMemo(() => buildInspectorChartModel(data), [data]);
   const isLandscape = windowWidth > windowHeight;
   const wasLandscapeRef = useRef(isLandscape);
@@ -89,15 +92,22 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
 
   useEffect(() => {
     if (!fullscreen) {
+      fsPrimedRef.current = false;
+      lastFsChartWRef.current = 0;
+      fsScrollXRef.current = 0;
       setZoom(1);
       endScrub();
       return;
     }
+    if (fsPrimedRef.current) return;
+    fsPrimedRef.current = true;
     const t = setTimeout(() => {
       fsScrollRef.current?.scrollToEnd({ animated: false });
+      fsScrollXRef.current = Math.max(0, fsChartWRef.current - Math.max(0, fsViewport));
+      lastFsChartWRef.current = fsChartWRef.current;
     }, 80);
     return () => clearTimeout(t);
-  }, [fullscreen, model, fsViewport]);
+  }, [fullscreen, fsViewport]);
 
   useEffect(() => {
     return () => clearScrubTimer();
@@ -258,6 +268,23 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
   fsChartWRef.current = fsChartW;
   const fsChartH = Math.max(windowHeight - 72, 200);
 
+  useEffect(() => {
+    if (!fullscreen || fsViewport <= 0) return;
+    const prevW = lastFsChartWRef.current || fsChartW;
+    if (!(prevW > 0)) return;
+    if (Math.abs(prevW - fsChartW) < 1) {
+      lastFsChartWRef.current = fsChartW;
+      return;
+    }
+    const prevScrollX = fsScrollXRef.current;
+    const centerRatio = Math.max(0, Math.min(1, (prevScrollX + fsViewport / 2) / prevW));
+    const nextMaxX = Math.max(0, fsChartW - fsViewport);
+    const nextX = Math.max(0, Math.min(nextMaxX, centerRatio * fsChartW - fsViewport / 2));
+    fsScrollRef.current?.scrollTo({ x: nextX, animated: false });
+    fsScrollXRef.current = nextX;
+    lastFsChartWRef.current = fsChartW;
+  }, [fsChartW, fsViewport, fullscreen]);
+
   function onInlinePress(locationX: number) {
     const now = Date.now();
     if (now - lastTapRef.current < 320) {
@@ -402,6 +429,10 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
               showsHorizontalScrollIndicator
               style={styles.fsScroll}
               contentContainerStyle={{ width: fsChartW }}
+              scrollEventThrottle={16}
+              onScroll={(e) => {
+                fsScrollXRef.current = e.nativeEvent.contentOffset.x;
+              }}
             >
               <Pressable
                 onPress={(e) => onFsPress(e.nativeEvent.locationX)}
@@ -441,10 +472,10 @@ function StickyYAxis({ model, height }: { model: InspectorChartModel; height: nu
         return (
           <Text
             key={`fs-fib-${fib.label}-${fib.price}`}
-            style={[styles.fsFibTick, { top, color: fib.color }]}
+            style={[styles.fsYTick, styles.fsYTickFib, { top, color: fib.color }]}
             numberOfLines={1}
           >
-            {shortFibAxisLabel(fib.label)}
+            {`${shortFibAxisLabel(fib.label)} ${formatMoney(fib.price)}`}
           </Text>
         );
       })}
@@ -602,12 +633,9 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "600",
   },
-  fsFibTick: {
-    position: "absolute",
-    left: 3,
+  fsYTickFib: {
     fontSize: 8,
     fontWeight: "700",
-    maxWidth: 36,
   },
   fsScroll: {
     flex: 1,

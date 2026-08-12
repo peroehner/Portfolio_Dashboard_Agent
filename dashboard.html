@@ -1769,6 +1769,10 @@
     .chip.confidence-high { background: rgba(34,197,94,0.18); color: #4ade80; }
     .chip.confidence-medium { background: rgba(245,158,11,0.2); color: var(--warn); }
     .chip.confidence-low { background: rgba(239,68,68,0.15); color: #fca5a5; }
+    .chip.fitband-strong { background: rgba(34,197,94,0.2); color: #86efac; }
+    .chip.fitband-mid { background: rgba(245,158,11,0.22); color: #fbbf24; }
+    .chip.fitband-weak { background: rgba(239,68,68,0.2); color: #fca5a5; }
+    .chip.fitband-unknown { background: rgba(148,163,184,0.17); color: #cbd5e1; }
     .screening-rec-chips {
       display: inline-flex;
       flex-wrap: nowrap;
@@ -1801,7 +1805,9 @@
     .rec-head-captions span:nth-child(2),
     .screening-rec-chips .chip:nth-child(2) { min-width: 6.4rem; }
     .rec-head-captions span:nth-child(3),
-    .screening-rec-chips .chip:nth-child(3) { min-width: 5.1rem; }
+    .screening-rec-chips .chip:nth-child(3) { min-width: 4.2rem; }
+    .rec-head-captions span:nth-child(4),
+    .screening-rec-chips .chip:nth-child(4) { min-width: 5.1rem; }
     .screening-rec-chips .chip.has-score {
       font-variant-numeric: tabular-nums;
     }
@@ -1824,8 +1830,9 @@
     .rec-sort-caption:hover { color: var(--text); }
     .rec-sort-caption.active { color: var(--accent); }
     .rec-sort-caption:nth-child(1) { min-width: 4rem; }
-    .rec-sort-caption:nth-child(2) { min-width: 5.1rem; }
-    .rec-sort-caption:nth-child(3) { min-width: 5.1rem; }
+    .rec-sort-caption:nth-child(2) { min-width: 6.4rem; }
+    .rec-sort-caption:nth-child(3) { min-width: 4.2rem; }
+    .rec-sort-caption:nth-child(4) { min-width: 5.1rem; }
     table.data th.sai-sort-group { cursor: default; }
     .screening-inspector-link {
       display: inline-flex;
@@ -9198,6 +9205,7 @@
     }
 
     const SAI_ACTION_RANK = { buy: 4, watch: 3, hold: 2, sell: 1 };
+    const SAI_FIT_BAND_RANK = { strong: 4, mid: 3, weak: 2, unknown: 1 };
     const SAI_CONFIDENCE_RANK = { high: 3, medium: 2, low: 1 };
     const SAI_SENTIMENT_RANK = { bullish: 3, neutral: 2, bearish: 1 };
 
@@ -11734,6 +11742,14 @@
     }
 
     /** Map proposal band / Score total → buy | watch | sell. */
+    function saiFitBandFromProposal(proposal) {
+      const total = Number(proposal?.scores?.total);
+      if (!Number.isFinite(total)) return "unknown";
+      if (total >= 60) return "strong";
+      if (total >= 45) return "mid";
+      return "weak";
+    }
+
     function saiBandActionFromProposal(proposal) {
       const code = String(proposal?.bandBias?.code || "").toLowerCase();
       if (code === "strong_buy" || code === "buy") return "buy";
@@ -11796,6 +11812,7 @@
       const scores = rec?.proposal?.scores;
       const total = scores != null ? Number(scores.total) : null;
       const hasScore = Number.isFinite(total);
+      const fitBand = saiFitBandFromProposal(rec?.proposal);
       const confLabel = hasScore
         ? `${confidence} · ${Math.round(total)}`
         : confidence;
@@ -11819,9 +11836,14 @@
             })`
           )}">${intentGlyph}<span class="intent-code">${escapeHtml(intent.code || "intent")}</span></span>`
         : "";
+      const fitBandTitle = hasScore
+        ? `SAI by Fit Band: ${fitBand.toUpperCase()} (from proposal score ${Math.round(total)})`
+        : "SAI by Fit Band: UNKNOWN (proposal score missing)";
+      const fitBandChip = `<span class="chip fitband-${fitBand}" title="${escapeHtml(fitBandTitle)}">fit ${escapeHtml(fitBand)}</span>`;
       const chips = `
           <span class="chip ${actionClass}" title="${actionTitle}">${escapeHtml(actionText)}</span>
           <span class="chip ${confClass}${hasScore ? " has-score" : ""}" title="${confTitle}">${escapeHtml(confLabel)}</span>
+          ${fitBandChip}
           <span class="chip ${sentClass}" title="${sentimentTitle}">${sentiment}</span>${
             intentChip ? `<span class="sai-intent-gap" aria-hidden="true"></span>${intentChip}` : ""
           }`;
@@ -12265,7 +12287,7 @@
     }
 
     const TECH_STANCE_HELP = "Confluence agent's purely technical read (independent of the SAI):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 scale (left = bearish, center = neutral, right = bullish)\n• Strength — how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume)";
-    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell. A trailing ! means Score-band action differs from this SAI Action (Pay attention).\n• CONF · SCORE — two measures: Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit)\n• SENTIMENT — news reaction (else notes)\n• INTENT (offset, flag) — Portfolio Intent from holdings + planned trades (or your override): tactical / accumulate / core / core_accumulate / divest — separate from the three SAI signals\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), or Sentiment";
+    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell. A trailing ! means Score-band action differs from this SAI Action (Pay attention).\n• CONF · SCORE — two measures: Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit)\n• FIT BAND — SAI by Fit Band (strong / mid / weak / unknown) from proposal score; strong bets historically hit ~80%+ in Agent Signal Record\n• SENTIMENT — news reaction (else notes)\n• INTENT (offset, flag) — Portfolio Intent from holdings + planned trades (or your override): tactical / accumulate / core / core_accumulate / divest — separate from the SAI signals\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), Fit Band, or Sentiment";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
     const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
@@ -12307,6 +12329,18 @@
             label: "Conf · Score",
             sortValue: (row) => saiConfidenceStrengthSortValue(row),
             compare: saiConfidenceStrengthCompare,
+          },
+          {
+            key: "recFitBand",
+            label: "Fit Band",
+            sortValue: (row) => saiFieldRank(
+              saiFitBandFromProposal(row.recommendation?.proposal),
+              SAI_FIT_BAND_RANK
+            ),
+            compare: saiFieldCompare(
+              SAI_FIT_BAND_RANK,
+              (row) => saiFitBandFromProposal(row.recommendation?.proposal)
+            ),
           },
           {
             key: "recSentiment",

@@ -696,7 +696,7 @@ export default function TaxTrimScreen() {
             primaryColor={colors.buy}
             cashAmount={formatMoney(trimPoolCash, true)}
             helperText={`${trimSelected} of ${trimTotal} qualified${
-              matchLossPool ? " · Match Losses" : " · Full trim capacity"
+              matchLossPool ? " · Match Losses" : landscape || width >= 760 ? " · Full trim capacity" : ""
             }`}
             scoreLabel="Trim-score ≥"
             scoreValue={trimScoreThreshold}
