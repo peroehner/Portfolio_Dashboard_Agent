@@ -202,7 +202,7 @@ export function PortfolioTable({
                   />
                 </View>
                 <View style={[styles.saiCell, { width: saiWidth }]}>
-                  <SaiBadge action={row.saiAction} mini />
+                  <SaiBadge action={row.saiAction} proposal={row.saiProposal} mini />
                 </View>
               </View>
             ))}

@@ -1,8 +1,11 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { titleCaseAction } from "@/lib/format";
+import {
+  formatSaiActionLabel,
+  resolveSaiAttention,
+} from "@/lib/saiDisplay";
 import { colors, radii, spacing } from "@/lib/theme";
-import type { SaiAction } from "@/lib/types";
+import type { SaiAction, TradingProposal } from "@/lib/types";
 
 const ACTION_COLORS: Record<string, string> = {
   buy: colors.buy,
@@ -21,21 +24,37 @@ const ACTION_SHORT: Record<string, string> = {
 interface SaiBadgeProps {
   action?: SaiAction | null;
   confidence?: string | null;
+  proposal?: TradingProposal | null;
+  /** Force attention bang; otherwise derived from proposal vs action. */
+  attention?: boolean;
   compact?: boolean;
   mini?: boolean;
   alignRight?: boolean;
 }
 
-export function SaiBadge({ action, confidence, compact, mini, alignRight }: SaiBadgeProps) {
+export function SaiBadge({
+  action,
+  confidence,
+  proposal,
+  attention: attentionProp,
+  compact,
+  mini,
+  alignRight,
+}: SaiBadgeProps) {
   if (!action) return null;
   const key = String(action).toLowerCase();
   const color = ACTION_COLORS[key] ?? colors.textMuted;
-  const label = mini ? (ACTION_SHORT[key] ?? titleCaseAction(key).slice(0, 3).toUpperCase()) : titleCaseAction(key);
+  const attention =
+    attentionProp ?? resolveSaiAttention(action, proposal).flag;
+  const label = mini
+    ? `${ACTION_SHORT[key] ?? key.slice(0, 3).toUpperCase()}${attention ? "!" : ""}`
+    : formatSaiActionLabel(action, attention);
   return (
     <View
       style={[
         styles.badge,
         { borderColor: color },
+        attention && styles.attention,
         compact && styles.compact,
         mini && styles.mini,
         alignRight && styles.alignRight,
@@ -59,6 +78,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     alignSelf: "flex-start",
     gap: 2,
+  },
+  attention: {
+    borderWidth: 1.5,
   },
   compact: {
     paddingVertical: 2,

@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -27,6 +28,7 @@ type PortfolioMode = "all" | "holdings" | "watch";
 type ListMode = "sell" | "buy";
 type Side = "buy" | "sell";
 type QualificationMode = "proximity" | "score";
+type SortMetric = "proximity" | "score";
 
 type PlanCandidate = {
   symbol: string;
@@ -66,10 +68,10 @@ function formatQty(value: number): string {
 
 function proximityDetailText(row: PlanCandidate): string {
   const pct = `${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%`;
-  const dist = row.thresholdPrice - row.currentPrice;
-  const distTxt = `${dist >= 0 ? "+" : "-"}${formatMoney(Math.abs(dist), false)}`;
-  const relation = dist >= 0 ? "missing" : "above";
-  return `${pct} (Thres ${formatPrice(row.thresholdPrice)} ${relation} ${distTxt})`;
+  const absDist = Math.abs(row.thresholdPrice - row.currentPrice);
+  // Match Trade Band / Close %: ▼ when price is above threshold, ▲ when below.
+  const arrow = row.currentPrice > row.thresholdPrice ? "▼" : "▲";
+  return `${pct} (@ ${formatPrice(row.thresholdPrice)}, ${arrow} ${formatMoney(absDist, false)})`;
 }
 
 function evalTradeLeg(price: number | null | undefined, shares: number | null | undefined, side: "below" | "above") {
@@ -103,10 +105,15 @@ function candidateFromRow(
     const pnl = side === "sell" && Number.isFinite(costBasis) ? (execPrice - costBasis) * leg.qty : null;
     const proximitySignedPct = ((currentPrice - leg.price) / currentPrice) * 100;
     const proximityAbsPct = Math.abs(proximitySignedPct);
+    // Attractiveness for this side's action (closer / triggered / larger).
     const proximityScore = Math.max(0, 50 - proximityAbsPct);
     const triggerScore =
       side === "sell" ? (proximitySignedPct >= 0 ? 15 : 0) : (proximitySignedPct <= 0 ? 15 : 0);
     const sizeScore = Math.min(15, (cash / 50_000) * 15);
+    const attract = proximityScore + triggerScore + sizeScore;
+    // Directional score: high = buy lean, low = sell lean (so Buy ≥ / Sell ≤ gates).
+    const SCORE_CEILING = 80;
+    const totalScore = side === "buy" ? attract : Math.max(0, SCORE_CEILING - attract);
     return {
       symbol: row.symbol,
       side,
@@ -123,7 +130,7 @@ function candidateFromRow(
       proximityScore,
       triggerScore,
       sizeScore,
-      totalScore: proximityScore + triggerScore + sizeScore,
+      totalScore,
     };
   });
 }
@@ -135,12 +142,23 @@ function proposedQtyFromThreshold(
   thresholdMax: number,
 ): number {
   const candidateValue = mode === "score" ? candidate.totalScore : candidate.proximityAbsPct;
-  const qualifies = mode === "score" ? candidateValue >= threshold : candidateValue <= threshold;
+  // Proximity: both sides ≤ limit. Score: Buy ≥ (high=buy), Sell ≤ (low=sell).
+  const qualifies =
+    mode === "score"
+      ? candidate.side === "buy"
+        ? candidateValue >= threshold
+        : candidateValue <= threshold
+      : candidateValue <= threshold;
   if (!qualifies) return 0;
   if (!(candidate.qty > 0)) return 0;
   if (!(thresholdMax > 0)) return Math.floor(candidate.qty);
   // Proposed allocation scales by margin inside qualification gate.
-  const margin = mode === "score" ? Math.max(0, candidateValue - threshold) : Math.max(0, threshold - candidateValue);
+  const margin =
+    mode === "score"
+      ? candidate.side === "buy"
+        ? Math.max(0, candidateValue - threshold)
+        : Math.max(0, threshold - candidateValue)
+      : Math.max(0, threshold - candidateValue);
   const ratio = Math.max(0.15, Math.min(1, margin / thresholdMax));
   return Math.max(1, Math.floor(candidate.qty * ratio));
 }
@@ -154,8 +172,11 @@ function PoolCard({
   sliderLabel,
   sliderValue,
   sliderMax,
+  valueSuffix = "",
   trackColor,
   onChange,
+  cashFirst = false,
+  wide = false,
 }: {
   title: string;
   helperText: string;
@@ -165,20 +186,39 @@ function PoolCard({
   sliderLabel: string;
   sliderValue: number;
   sliderMax: number;
+  valueSuffix?: string;
   trackColor: string;
   onChange: (v: number) => void;
+  cashFirst?: boolean;
+  wide?: boolean;
 }) {
+  const cashNode = (
+    <Text style={[styles.poolCash, tone === "sell" ? styles.sellText : styles.buyText]}>{cashLine}</Text>
+  );
   return (
     <View style={[styles.poolCard, tone === "sell" ? styles.poolCardSell : styles.poolCardBuy]}>
       <View style={styles.poolHead}>
         <Text style={[styles.poolTitle, tone === "sell" ? styles.sellText : styles.buyText]}>{title}</Text>
         <Text style={styles.poolHelper}>{helperText}</Text>
       </View>
-      {totalNode ? <Text style={styles.poolTotal}>{totalNode}</Text> : null}
-      <Text style={[styles.poolCash, tone === "sell" ? styles.sellText : styles.buyText]}>{cashLine}</Text>
+      {wide && totalNode ? (
+        <View style={styles.poolTopLine}>
+          {cashFirst ? cashNode : <Text style={styles.poolTotal}>{totalNode}</Text>}
+          {cashFirst ? <Text style={styles.poolTotal}>{totalNode}</Text> : cashNode}
+        </View>
+      ) : (
+        <>
+          {cashFirst ? cashNode : null}
+          {totalNode ? <Text style={styles.poolTotal}>{totalNode}</Text> : null}
+          {cashFirst ? null : cashNode}
+        </>
+      )}
       <View style={styles.sliderHead}>
         <Text style={styles.sliderLabel}>{sliderLabel}</Text>
-        <Text style={[styles.sliderValue, { color: trackColor }]}>{Math.round(sliderValue)}%</Text>
+        <Text style={[styles.sliderValue, { color: trackColor }]}>
+          {Math.round(sliderValue)}
+          {valueSuffix}
+        </Text>
       </View>
       <Slider
         style={styles.slider}
@@ -197,6 +237,7 @@ function PoolCard({
 
 export default function TradePlanScreen() {
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
   const portfolioMode: PortfolioMode =
     modeParam === "holdings" || modeParam === "watch" || modeParam === "all" ? modeParam : "all";
@@ -210,6 +251,8 @@ export default function TradePlanScreen() {
   const [sellScoreThreshold, setSellScoreThreshold] = useState(40);
   const [buyScoreThreshold, setBuyScoreThreshold] = useState(40);
   const [listMode, setListMode] = useState<ListMode>("sell");
+  const [sellSortMetric, setSellSortMetric] = useState<SortMetric>("score");
+  const [buySortMetric, setBuySortMetric] = useState<SortMetric>("score");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -219,6 +262,9 @@ export default function TradePlanScreen() {
   const [scopeReady, setScopeReady] = useState(false);
 
   const filterActive = Boolean(filter.trim());
+  const landscape = width > height;
+  const compactCards = width <= 420 && !landscape;
+  const wideCards = landscape || width >= 760;
   const scopeLabel = useMemo(() => {
     if (!filterActive && portfolioMode === "all") return null;
     const bits: string[] = [];
@@ -306,16 +352,43 @@ export default function TradePlanScreen() {
     () =>
       allCandidates
         .filter((row) => row.side === "sell")
-        .sort((a, b) => b.totalScore - a.totalScore || a.proximityAbsPct - b.proximityAbsPct),
-    [allCandidates],
+        .sort((a, b) => {
+          if (sellSortMetric === "score") {
+            return a.totalScore - b.totalScore || a.proximityAbsPct - b.proximityAbsPct;
+          }
+          return a.proximityAbsPct - b.proximityAbsPct || a.totalScore - b.totalScore;
+        }),
+    [allCandidates, sellSortMetric],
   );
   const buyCandidates = useMemo(
     () =>
       allCandidates
         .filter((row) => row.side === "buy")
-        .sort((a, b) => b.totalScore - a.totalScore || a.proximityAbsPct - b.proximityAbsPct),
-    [allCandidates],
+        .sort((a, b) => {
+          if (buySortMetric === "score") {
+            return b.totalScore - a.totalScore || a.proximityAbsPct - b.proximityAbsPct;
+          }
+          return a.proximityAbsPct - b.proximityAbsPct || b.totalScore - a.totalScore;
+        }),
+    [allCandidates, buySortMetric],
   );
+
+  function toggleSortFor(mode: ListMode) {
+    if (mode === "sell") {
+      setSellSortMetric((prev) => (prev === "score" ? "proximity" : "score"));
+    } else {
+      setBuySortMetric((prev) => (prev === "score" ? "proximity" : "score"));
+    }
+  }
+
+  function listButtonLabel(mode: ListMode): string {
+    const metric = mode === "sell" ? sellSortMetric : buySortMetric;
+    const scoreArrow = mode === "sell" ? "↑" : "↓";
+    const activeArrow = metric === "score" ? scoreArrow : "↑";
+    const short = compactCards ? "S|P" : "Score|Prox";
+    const base = mode === "sell" ? "Sell" : "Buy";
+    return `${base} ${compactCards ? "" : "Candidates "}(${activeArrow} ${short})`;
+  }
 
   const sellScoreMax = useMemo(
     () => Math.max(1, Math.round(sellCandidates.reduce((m, c) => Math.max(m, c.totalScore), 0))),
@@ -327,8 +400,8 @@ export default function TradePlanScreen() {
   );
   const sellGate = qualificationMode === "score" ? sellScoreThreshold : sellProxThreshold;
   const buyGate = qualificationMode === "score" ? buyScoreThreshold : buyProxThreshold;
-  const sellGateMax = qualificationMode === "score" ? sellScoreMax : 50;
-  const buyGateMax = qualificationMode === "score" ? buyScoreMax : 30;
+  const sellGateMax = qualificationMode === "score" ? Math.max(sellScoreMax, 80) : 50;
+  const buyGateMax = qualificationMode === "score" ? Math.max(buyScoreMax, 80) : 30;
 
   const proposedSells = useMemo(
     () =>
@@ -397,41 +470,66 @@ export default function TradePlanScreen() {
         >
           <View style={styles.cardHead}>
             <Text style={styles.symbol}>{row.symbol}</Text>
-            <Text style={styles.execHint}>
+            <Text style={[styles.execHint, styles.execHintStrong]}>
               @ {row.execSource === "threshold" ? "The" : "Cur"} {formatPrice(row.execPrice)}
             </Text>
           </View>
-          <View style={styles.metricsRow}>
-            <View style={[styles.metric, { flex: 1.35 }]}>
-              <Text style={styles.metricLabel}>Prop Sell</Text>
-              <Text style={styles.metricValue}>
-                {qualifies ? formatQty(row.proposedQty) : "0"} (of {formatQty(row.qty)} / {formatQty(row.held)})
+          {compactCards ? (
+            <View style={styles.compactMetrics}>
+              <Text style={styles.compactLine}>
+                <Text style={styles.metricLabel}>Prop Sell </Text>
+                <Text style={styles.metricValue}>
+                  {qualifies ? formatQty(row.proposedQty) : "0"} (of {formatQty(row.qty)})
+                </Text>
+              </Text>
+              <Text style={styles.compactLine}>
+                <Text style={styles.metricLabel}>Cash </Text>
+                <Text style={styles.metricValue}>
+                  {qualifies ? formatMoney(row.proposedCash, true) : formatMoney(row.cash, true)}
+                </Text>
+              </Text>
+              <Text style={styles.compactLine}>
+                <Text style={styles.metricLabel}>Proximity </Text>
+                <Text style={styles.metricValue}>{`${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%`}</Text>
+                <Text style={styles.metricLabel}>  · Score </Text>
+                <Text style={styles.metricValue}>{Math.round(row.totalScore)}</Text>
               </Text>
             </View>
-            <View style={[styles.metric, { flex: 1.2 }]}>
-              <Text style={styles.metricLabel}>{qualifies ? "Prop Gain (Max)" : "Max Gain"}</Text>
-              <Text style={[styles.metricValue, { color: row.pnl != null && row.pnl >= 0 ? colors.buy : colors.sell }]}>
-                {qualifies ? `${propTxt} (${maxTxt})` : maxTxt}
-              </Text>
+          ) : (
+            <View style={[styles.metricsRow, wideCards && styles.metricsRowWide]}>
+              <View style={[styles.metric, { flex: wideCards ? 1.1 : 1.2 }]}>
+                <Text style={styles.metricLabel}>Prop Sell</Text>
+                <Text style={styles.metricValue}>
+                  {qualifies ? formatQty(row.proposedQty) : "0"} (of {formatQty(row.qty)} / {formatQty(row.held)})
+                </Text>
+              </View>
+              <View style={[styles.metric, { flex: wideCards ? 0.9 : 1.15 }]}>
+                <Text style={styles.metricLabel}>{qualifies ? "Prop Gain (Max)" : "Max Gain"}</Text>
+                <Text style={[styles.metricValue, { color: row.pnl != null && row.pnl >= 0 ? colors.buy : colors.sell }]}>
+                  {qualifies ? `${propTxt} (${maxTxt})` : maxTxt}
+                </Text>
+              </View>
+              <View style={[styles.metric, { flex: 0.8 }]}>
+                <Text style={styles.metricLabel}>Cash</Text>
+                <Text style={styles.metricValue}>
+                  {qualifies ? formatMoney(row.proposedCash, true) : formatMoney(row.cash, true)}
+                </Text>
+              </View>
+              <View style={[styles.metric, { flex: wideCards ? 1.15 : 1.35 }]}>
+                <Text style={styles.metricLabel}>Proximity</Text>
+                <Text style={styles.metricValue}>{wideCards ? `${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%` : proximityDetailText(row)}</Text>
+              </View>
+              <View style={[styles.metric, { flex: wideCards ? 1.0 : 0.85 }]}>
+                <Text style={styles.metricLabel}>Score</Text>
+                <Text style={styles.metricValue}>{Math.round(row.totalScore)}</Text>
+                {wideCards ? null : (
+                  <Text style={styles.metricSub}>
+                    P{Math.round(row.proximityScore)} T{Math.round(row.triggerScore)} S{Math.round(row.sizeScore)}
+                  </Text>
+                )}
+              </View>
             </View>
-            <View style={styles.metric}>
-              <Text style={styles.metricLabel}>Cash</Text>
-              <Text style={styles.metricValue}>
-                {qualifies ? formatMoney(row.proposedCash, true) : formatMoney(row.cash, true)}
-              </Text>
-            </View>
-            <View style={[styles.metric, { flex: 0.8 }]}>
-              <Text style={styles.metricLabel}>Proximity</Text>
-              <Text style={styles.metricValue}>{proximityDetailText(row)}</Text>
-            </View>
-            <View style={[styles.metric, { flex: 0.65 }]}>
-              <Text style={styles.metricLabel}>Score</Text>
-              <Text style={styles.metricValue}>{Math.round(row.totalScore)}</Text>
-              <Text style={styles.metricSub}>
-                P{Math.round(row.proximityScore)} T{Math.round(row.triggerScore)} S{Math.round(row.sizeScore)}
-              </Text>
-            </View>
-          </View>
+          )}
         </Pressable>
       );
     });
@@ -454,35 +552,60 @@ export default function TradePlanScreen() {
         >
           <View style={styles.cardHead}>
             <Text style={styles.symbol}>{row.symbol}</Text>
-            <Text style={styles.execHint}>
+            <Text style={[styles.execHint, styles.execHintStrong]}>
               @ {row.execSource === "threshold" ? "The" : "Cur"} {formatPrice(row.execPrice)}
             </Text>
           </View>
-          <View style={styles.metricsRow}>
-            <View style={[styles.metric, { flex: 1.45 }]}>
-              <Text style={styles.metricLabel}>Prop Buy</Text>
-              <Text style={styles.metricValue}>
-                {qualifies ? formatQty(row.proposedQty) : "0"} (of {formatQty(row.qty)})
+          {compactCards ? (
+            <View style={styles.compactMetrics}>
+              <Text style={styles.compactLine}>
+                <Text style={styles.metricLabel}>Prop Buy </Text>
+                <Text style={styles.metricValue}>
+                  {qualifies ? formatQty(row.proposedQty) : "0"} (of {formatQty(row.qty)})
+                </Text>
+              </Text>
+              <Text style={styles.compactLine}>
+                <Text style={styles.metricLabel}>Cash </Text>
+                <Text style={styles.metricValue}>
+                  {qualifies ? formatMoney(row.proposedCash, true) : formatMoney(row.cash, true)}
+                </Text>
+              </Text>
+              <Text style={styles.compactLine}>
+                <Text style={styles.metricLabel}>Proximity </Text>
+                <Text style={styles.metricValue}>{`${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%`}</Text>
+                <Text style={styles.metricLabel}>  · Score </Text>
+                <Text style={styles.metricValue}>{Math.round(row.totalScore)}</Text>
               </Text>
             </View>
-            <View style={styles.metric}>
-              <Text style={styles.metricLabel}>Cash</Text>
-              <Text style={styles.metricValue}>
-                {qualifies ? formatMoney(row.proposedCash, true) : formatMoney(row.cash, true)}
-              </Text>
+          ) : (
+            <View style={[styles.metricsRow, wideCards && styles.metricsRowWide]}>
+              <View style={[styles.metric, { flex: wideCards ? 1.1 : 1.25 }]}>
+                <Text style={styles.metricLabel}>Prop Buy</Text>
+                <Text style={styles.metricValue}>
+                  {qualifies ? formatQty(row.proposedQty) : "0"} (of {formatQty(row.qty)})
+                </Text>
+              </View>
+              <View style={[styles.metric, { flex: 0.8 }]}>
+                <Text style={styles.metricLabel}>Cash</Text>
+                <Text style={styles.metricValue}>
+                  {qualifies ? formatMoney(row.proposedCash, true) : formatMoney(row.cash, true)}
+                </Text>
+              </View>
+              <View style={[styles.metric, { flex: wideCards ? 1.15 : 1.45 }]}>
+                <Text style={styles.metricLabel}>Proximity</Text>
+                <Text style={styles.metricValue}>{wideCards ? `${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%` : proximityDetailText(row)}</Text>
+              </View>
+              <View style={[styles.metric, { flex: wideCards ? 1.0 : 0.85 }]}>
+                <Text style={styles.metricLabel}>Score</Text>
+                <Text style={styles.metricValue}>{Math.round(row.totalScore)}</Text>
+                {wideCards ? null : (
+                  <Text style={styles.metricSub}>
+                    P{Math.round(row.proximityScore)} T{Math.round(row.triggerScore)} S{Math.round(row.sizeScore)}
+                  </Text>
+                )}
+              </View>
             </View>
-            <View style={[styles.metric, { flex: 0.8 }]}>
-              <Text style={styles.metricLabel}>Proximity</Text>
-              <Text style={styles.metricValue}>{proximityDetailText(row)}</Text>
-            </View>
-            <View style={[styles.metric, { flex: 0.65 }]}>
-              <Text style={styles.metricLabel}>Score</Text>
-              <Text style={styles.metricValue}>{Math.round(row.totalScore)}</Text>
-              <Text style={styles.metricSub}>
-                P{Math.round(row.proximityScore)} T{Math.round(row.triggerScore)} S{Math.round(row.sizeScore)}
-              </Text>
-            </View>
-          </View>
+          )}
         </Pressable>
       );
     });
@@ -518,7 +641,7 @@ export default function TradePlanScreen() {
           <PoolCard
             title="Sell Pool"
             tone="sell"
-            helperText={`${qualifiedSells.length} of ${sellCandidates.length} qualified (${qualificationMode === "score" ? "Score" : "%-Proximity"})`}
+            helperText={`${qualifiedSells.length} of ${sellCandidates.length} qualified`}
             totalNode={
               <>
                 TOTAL{" "}
@@ -541,22 +664,27 @@ export default function TradePlanScreen() {
               </>
             }
             cashLine={`CASH ${formatMoney(sellCash, true)}`}
-            sliderLabel={qualificationMode === "score" ? "Sell Score ≥" : "Sell Proximity ≤"}
+            sliderLabel={qualificationMode === "score" ? "Sell Score ≤" : "Sell Proximity ≤"}
             sliderValue={sellGate}
             sliderMax={sellGateMax}
+            valueSuffix={qualificationMode === "score" ? "" : "%"}
             onChange={qualificationMode === "score" ? setSellScoreThreshold : setSellProxThreshold}
             trackColor="#60a5fa"
+            cashFirst
+            wide={wideCards}
           />
           <PoolCard
             title="Buy Pool"
             tone="buy"
-            helperText={`${qualifiedBuys.length} of ${buyCandidates.length} qualified (${qualificationMode === "score" ? "Score" : "%-Proximity"})`}
+            helperText={`${qualifiedBuys.length} of ${buyCandidates.length} qualified`}
             cashLine={`CASH ${formatMoney(buyCash, true)}`}
             sliderLabel={qualificationMode === "score" ? "Buy Score ≥" : "Buy Proximity ≤"}
             sliderValue={buyGate}
             sliderMax={buyGateMax}
+            valueSuffix={qualificationMode === "score" ? "" : "%"}
             onChange={qualificationMode === "score" ? setBuyScoreThreshold : setBuyProxThreshold}
             trackColor="#fb923c"
+            wide={wideCards}
           />
         </View>
         <View style={styles.segRow}>
@@ -568,9 +696,12 @@ export default function TradePlanScreen() {
               styles.sellToggle,
               listMode === "sell" ? styles.sellToggleActive : null,
             ]}
-            onPress={() => setListMode("sell")}
+            onPress={() => {
+              if (listMode === "sell") toggleSortFor("sell");
+              else setListMode("sell");
+            }}
           >
-            <Text style={styles.pillText}>Sell Candidates</Text>
+            <Text style={styles.pillText}>{listButtonLabel("sell")}</Text>
           </Pressable>
           <Pressable
             style={[
@@ -580,9 +711,12 @@ export default function TradePlanScreen() {
               styles.buyToggle,
               listMode === "buy" ? styles.buyToggleActive : null,
             ]}
-            onPress={() => setListMode("buy")}
+            onPress={() => {
+              if (listMode === "buy") toggleSortFor("buy");
+              else setListMode("buy");
+            }}
           >
-            <Text style={styles.pillText}>Buy Candidates</Text>
+            <Text style={styles.pillText}>{listButtonLabel("buy")}</Text>
           </Pressable>
         </View>
       </View>
@@ -669,6 +803,7 @@ const styles = StyleSheet.create({
   poolHelper: { flex: 1, textAlign: "right", color: colors.textMuted, fontSize: 10, fontWeight: "600" },
   poolTotal: { color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 4 },
   poolCash: { color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  poolTopLine: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: spacing.sm },
   sliderHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 6 },
   sliderLabel: { color: colors.text, fontSize: 12, fontWeight: "600" },
   sliderValue: { fontSize: 14, fontWeight: "800" },
@@ -686,8 +821,12 @@ const styles = StyleSheet.create({
   cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: spacing.sm },
   symbol: { color: colors.text, fontSize: 16, fontWeight: "700" },
   execHint: { color: colors.textMuted, fontSize: 11 },
+  execHintStrong: { color: colors.text, fontSize: 20, fontWeight: "800", lineHeight: 22 },
   metricsRow: { flexDirection: "row", gap: spacing.sm },
+  metricsRowWide: { gap: spacing.xs },
   metric: { gap: 2, minWidth: 0, flex: 1 },
+  compactMetrics: { gap: 3 },
+  compactLine: { color: colors.text, fontSize: 13, fontWeight: "600" },
   metricLabel: { color: colors.textMuted, fontSize: 10, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.3 },
   metricValue: { color: colors.text, fontSize: 13, fontWeight: "700" },
   metricSub: { color: colors.textMuted, fontSize: 10, fontWeight: "600" },

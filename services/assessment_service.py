@@ -214,7 +214,7 @@ class AssessmentService:
             rows = conn.execute(
                 """
                 SELECT a.symbol, a.action, a.confidence, a.rationale, a.factors,
-                       a.provider, a.created_at,
+                       a.provider, a.created_at, a.trading_recommendation,
                        m.current_price, s.target_price, m.analyst_target_1y
                 FROM (
                     SELECT *, ROW_NUMBER() OVER (
@@ -246,8 +246,23 @@ class AssessmentService:
                 if price and analyst and price > 0
                 else None
             )
-            out.append(
-                {
+            proposal = self._parse_json_field(row["trading_recommendation"], default=None)
+            slim_proposal = None
+            if isinstance(proposal, dict) and proposal.get("schemaVersion") is not None:
+                scores = proposal.get("scores") or {}
+                slim_proposal = {
+                    "scores": {
+                        "total": scores.get("total"),
+                        "state": scores.get("state"),
+                        "trigger": scores.get("trigger"),
+                        "portfolioFit": scores.get("portfolioFit"),
+                    },
+                    "confidence": proposal.get("confidence"),
+                    "bandBias": proposal.get("bandBias"),
+                    "attention": proposal.get("attention"),
+                    "intent": proposal.get("intent"),
+                }
+            item: dict[str, Any] = {
                     "symbol": row["symbol"],
                     "action": row["action"],
                     "confidence": row["confidence"],
@@ -260,8 +275,10 @@ class AssessmentService:
                     "analystTarget1y": analyst,
                     "upsidePct": upside,
                     "analystUpsidePct": analyst_upside,
-                }
-            )
+            }
+            if slim_proposal is not None:
+                item["proposal"] = slim_proposal
+            out.append(item)
         return out
 
     def band_divergence(self) -> list[dict[str, Any]]:

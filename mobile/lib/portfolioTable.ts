@@ -149,6 +149,7 @@ function buildRow(
     symbol: symbol.symbol,
     saiAction: assessment?.action,
     saiConfidence: assessment?.confidence,
+    saiProposal: assessment?.proposal,
     currentPrice,
     dayChangePct: holding?.dayChangePct ?? symbol.dayChangePct ?? null,
     quantity: quantity > 0 ? quantity : null,
