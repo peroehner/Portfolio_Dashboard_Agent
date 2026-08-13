@@ -50,7 +50,7 @@
       justify-content: space-between;
       align-items: center;
       gap: 1rem;
-      padding: 1rem 1.25rem;
+      padding: 0.45rem 1.25rem;
       border-bottom: 1px solid var(--border);
       background: var(--panel);
     }
@@ -68,7 +68,7 @@
         z-index: auto;
       }
     }
-    h1 { margin: 0; font-size: 1.15rem; }
+    h1 { margin: 0; font-size: 1.02rem; line-height: 1.15; }
     .brand {
       display: flex;
       align-items: center;
@@ -82,9 +82,9 @@
       line-height: 0;
     }
     .brand-logo {
-      width: 44px;
-      height: 44px;
-      border-radius: 10px;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
       object-fit: cover;
       object-position: 55% center;
       border: 1px solid rgba(59, 130, 246, 0.35);
@@ -104,7 +104,7 @@
       gap: 0.15rem;
     }
     .brand-tagline {
-      font-size: 0.72rem;
+      font-size: 0.66rem;
       color: var(--muted);
       letter-spacing: 0.02em;
     }
@@ -1743,19 +1743,52 @@
     .chip.intent {
       display: inline-flex;
       align-items: center;
-      gap: 0.28rem;
-      background: rgba(148,163,184,0.15);
-      color: #94a3b8;
+      gap: 0.32rem;
       text-transform: none;
       font-size: 0.72rem;
+      font-weight: 700;
+      border: 1px solid transparent;
+      max-width: 11.5rem;
     }
     .chip.intent .intent-glyph {
-      width: 0.85em;
-      height: 0.85em;
+      width: 0.95em;
+      height: 0.95em;
       flex-shrink: 0;
-      opacity: 0.95;
+      opacity: 0.98;
     }
-    /* Offset Portfolio Intent from the three SAI signal chips (Action · Conf · Sentiment). */
+    .chip.intent .intent-code {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+    .chip.intent-divest {
+      background: rgba(248, 113, 113, 0.16);
+      color: #f87171;
+      border-color: rgba(248, 113, 113, 0.45);
+    }
+    .chip.intent-tactical {
+      background: rgba(245, 158, 11, 0.16);
+      color: #f59e0b;
+      border-color: rgba(245, 158, 11, 0.45);
+    }
+    .chip.intent-accumulate {
+      background: rgba(74, 222, 128, 0.16);
+      color: #4ade80;
+      border-color: rgba(74, 222, 128, 0.45);
+    }
+    .chip.intent-core,
+    .chip.intent-core_accumulate {
+      background: rgba(96, 165, 250, 0.16);
+      color: #60a5fa;
+      border-color: rgba(96, 165, 250, 0.45);
+    }
+    .chip.intent-unknown {
+      background: rgba(148, 163, 184, 0.15);
+      color: #94a3b8;
+      border-color: rgba(148, 163, 184, 0.35);
+    }
+    /* Offset Portfolio Intent from the SAI signal chips (Action · Conf · Fit · Sentiment). */
     .sai-intent-gap {
       display: inline-block;
       width: 0.85rem;
@@ -2094,6 +2127,10 @@
       font-size: 0.72rem;
       color: var(--muted);
       line-height: 1.35;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
     }
     .chip.proposal-total {
       background: rgba(96, 165, 250, 0.18);
@@ -3916,19 +3953,19 @@
     .status { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; }
     nav.tabs {
       display: flex;
-      align-items: flex-end;
+      align-items: center;
       justify-content: space-between;
-      gap: 0.9rem;
-      padding: 0.65rem 1.25rem 0.75rem;
+      gap: 0.65rem;
+      padding: 0.38rem 1.25rem 0.42rem;
       border-bottom: 1px solid var(--border);
       background: var(--panel);
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
     }
     .nav-tabs-main {
       display: flex;
-      align-items: flex-end;
-      gap: 0.9rem;
-      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.55rem;
+      flex-wrap: nowrap;
       flex: 1;
       min-width: 0;
     }
@@ -3976,7 +4013,7 @@
     }
     .nav-agent-btn {
       font-size: 0.82rem;
-      padding: 0.45rem 0.72rem;
+      padding: 0.38rem 0.58rem;
       white-space: nowrap;
       font-weight: 600;
       border: 1px solid transparent;
@@ -4004,30 +4041,65 @@
     }
     .nav-group {
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       gap: 0.38rem;
       min-width: 0;
-      align-items: stretch;
+      align-items: center;
     }
     .nav-group-label {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 0.32rem;
-      align-self: center;
-      font-size: 0.64rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
+      flex: none;
+      position: relative;
+      width: 1.7rem;
+      height: 1.7rem;
+      padding: 0;
+      font-size: 0;
       color: #b8c5d6;
       line-height: 1;
       user-select: none;
       white-space: nowrap;
       cursor: default;
-      padding: 0.22rem 0.58rem;
-      border-radius: 5px;
+      border-radius: 6px;
       background: rgba(154, 168, 188, 0.1);
       border: 1px solid rgba(154, 168, 188, 0.2);
+    }
+    .nav-group-label:hover::after {
+      content: attr(data-label);
+      position: absolute;
+      left: 50%;
+      top: calc(100% + 6px);
+      transform: translateX(-50%);
+      z-index: 30;
+      padding: 0.28rem 0.5rem;
+      border-radius: 6px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      line-height: 1.2;
+      white-space: nowrap;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+    }
+    .nav-group-agents .nav-group-label:hover::after {
+      left: auto;
+      right: 0;
+      transform: none;
+    }
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
     .nav-group-portfolio .nav-group-label {
       color: #93c5fd;
@@ -4047,14 +4119,19 @@
     .nav-group-label svg {
       display: block;
       flex: none;
-      width: 12px;
-      height: 12px;
+      width: 14px;
+      height: 14px;
       opacity: 0.95;
     }
     .nav-group-tabs {
       display: flex;
-      gap: 0.5rem;
-      flex-wrap: wrap;
+      gap: 0.2rem;
+      flex-wrap: nowrap;
+    }
+    .nav-group-tabs button {
+      white-space: nowrap;
+      padding: 0.38rem 0.52rem;
+      font-size: 0.82rem;
     }
     .nav-divider {
       width: 2px;
@@ -4841,22 +4918,22 @@
     }
     .badge.llm { color: #a78bfa; border-color: rgba(167,139,250,0.4); }
     .badge .price-asof-stale { color: var(--danger); font-weight: 700; }
-    .trade-band { position: relative; width: 100%; min-width: 180px; height: 40px; }
+    .trade-band { position: relative; width: 100%; min-width: 180px; height: 28px; }
     .trade-band-pct {
-      position: absolute; top: 2px;
+      position: absolute; top: 1px;
       font-size: 0.66rem; font-weight: 700; line-height: 1;
       white-space: nowrap; pointer-events: none;
       transform: translateX(-50%);
       text-shadow: 0 0 2px var(--panel), 0 0 2px var(--panel);
     }
     .trade-band-track {
-      position: absolute; top: 20px; left: 0; right: 0; height: 5px;
+      position: absolute; top: 18px; left: 0; right: 0; height: 5px;
       transform: translateY(-50%);
       border-radius: 999px;
       background: linear-gradient(90deg, rgba(148,163,184,0.18), rgba(148,163,184,0.4), rgba(148,163,184,0.18));
     }
     .trade-band-half {
-      position: absolute; top: 11px; height: 5px;
+      position: absolute; top: 18px; height: 5px;
       transform: translateY(-50%);
       border-radius: 999px;
       background: rgba(148,163,184,0.3);
@@ -4868,21 +4945,21 @@
       opacity: 0.6;
     }
     .trade-band-knob {
-      position: absolute; top: 20px; width: 12px; height: 12px;
+      position: absolute; top: 18px; width: 12px; height: 12px;
       border-radius: 50%;
       background: #60a5fa;
       transform: translate(-50%, -50%);
       box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px rgba(96,165,250,0.35);
     }
     .trade-band-mark {
-      position: absolute; top: 20px; width: 3px; height: 15px;
+      position: absolute; top: 18px; width: 3px; height: 15px;
       transform: translate(-50%, -50%);
       border-radius: 1px;
       box-shadow: 0 0 0 1px var(--panel);
     }
     .trade-band-mark.off-scale { opacity: 0.5; }
     .trade-band-heat {
-      position: absolute; top: 20px; height: 6px;
+      position: absolute; top: 18px; height: 6px;
       transform: translateY(-50%);
       border-radius: 999px;
       opacity: 0.92;
@@ -4891,7 +4968,7 @@
       background: linear-gradient(90deg, rgba(96,165,250,0.18), rgba(96,165,250,0.5), rgba(96,165,250,0.18));
     }
     .trade-band-glyph {
-      position: absolute; top: 11px;
+      position: absolute; top: 18px;
       transform: translate(-50%, -50%);
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 0.9rem; line-height: 1; font-weight: 700;
@@ -4907,29 +4984,35 @@
     .trade-bar-marker.low { background: #ef4444; }
     .trade-bar-marker.high { background: #22c55e; }
     .trade-band-label {
-      position: absolute; top: 28px;
-      font-size: 0.68rem; font-weight: 600; color: var(--muted);
+      position: absolute; top: 1px;
+      font-size: 0.66rem; font-weight: 700; line-height: 1;
+      color: #93c5fd;
       white-space: nowrap; pointer-events: none;
+      text-shadow: 0 0 2px var(--panel), 0 0 2px var(--panel);
     }
-    .trade-band-label.center { color: var(--text); }
+    /* Sit price beside the knob above the bar: right when closer to lower, left when closer to higher. */
+    .trade-band-label.sit-right { transform: translateX(7px); }
+    .trade-band-label.sit-left { transform: translateX(calc(-100% - 7px)); }
+    .trade-band-label.center { transform: translateX(-50%); color: #93c5fd; }
     .trade-band-edge {
-      position: absolute; top: 28px;
-      font-size: 0.8rem; font-weight: 700; color: var(--text);
+      position: absolute; top: 18px;
+      font-size: 0.72rem; font-weight: 700; color: var(--text);
       white-space: nowrap; pointer-events: none;
       background: var(--panel); padding: 0 3px; border-radius: 2px;
       opacity: 0; transition: opacity 0.12s ease;
+      transform: translateY(6px);
     }
     .trade-band-edge.low { left: 0; }
     .trade-band-edge.high { right: 0; }
     .trade-band:hover .trade-band-edge { opacity: 1; }
     .trade-band-add {
-      position: absolute; top: 11px;
+      position: absolute; top: 18px;
       transform: translate(-50%, -50%);
       font-size: 0.85rem; font-weight: 700; color: var(--muted);
       opacity: 0.5; pointer-events: none;
     }
     .trade-band-hint {
-      position: absolute; top: 11px; left: 50%;
+      position: absolute; top: 18px; left: 50%;
       transform: translate(-50%, -50%);
       font-size: 0.68rem; color: var(--muted);
       opacity: 0.7; pointer-events: none; white-space: nowrap;
@@ -4986,7 +5069,7 @@
     <div class="meta">
       <div class="brand">
         <button type="button" class="brand-logo-btn" id="brandLogoBtn" onclick="openAuthorConsol()" aria-label="Portfolio Dashboard Agent" title="Portfolio Dashboard Agent">
-          <img src="/assets/logo.png" alt="" class="brand-logo" id="brandLogo" width="44" height="44">
+          <img src="/assets/logo.png" alt="" class="brand-logo" id="brandLogo" width="32" height="32">
         </button>
         <div class="brand-text">
           <h1>Portfolio Dashboard Agent</h1>
@@ -5019,43 +5102,43 @@
   <nav class="tabs" aria-label="Portfolio views">
     <div class="nav-tabs-main">
     <div class="nav-group nav-group-portfolio">
-      <span class="nav-group-label" title="Portfolio-wide summary and sortable tables across all symbols">
-        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        Portfolio
+      <span class="nav-group-label" data-label="Portfolio" title="Portfolio — summary and sortable tables across all symbols">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        <span class="nav-group-label-text">Portfolio</span>
       </span>
       <div class="nav-group-tabs">
-        <button class="active" data-view="overview" onclick="showView('overview')" ondblclick="togglePreviousView()">Summary</button>
-        <button data-view="holdings" onclick="showView('holdings')" ondblclick="togglePreviousView()">Holdings</button>
-        <button data-view="screening" onclick="showView('screening')" ondblclick="togglePreviousView()">Screening</button>
-        <button data-view="simulation" onclick="showView('simulation')" ondblclick="togglePreviousView()">Simulation</button>
-        <button data-view="fib" onclick="showView('fib')" ondblclick="togglePreviousView()">Patterns &amp; Tech Signals</button>
-        <button data-view="fundamentals" onclick="showView('fundamentals')" ondblclick="togglePreviousView()">Fundamentals</button>
+        <button class="active" data-view="overview" onclick="showView('overview')" ondblclick="togglePreviousView()" title="Summary">Sum</button>
+        <button data-view="holdings" onclick="showView('holdings')" ondblclick="togglePreviousView()" title="Holdings">Hold</button>
+        <button data-view="screening" onclick="showView('screening')" ondblclick="togglePreviousView()" title="Screening">Screen</button>
+        <button data-view="simulation" onclick="showView('simulation')" ondblclick="togglePreviousView()" title="Simulation">Sim</button>
+        <button data-view="fib" onclick="showView('fib')" ondblclick="togglePreviousView()" title="Patterns &amp; Tech Signals">Tech</button>
+        <button data-view="fundamentals" onclick="showView('fundamentals')" ondblclick="togglePreviousView()" title="Fundamentals">Fund</button>
       </div>
     </div>
     <div class="nav-divider" aria-hidden="true"></div>
     <div class="nav-group nav-group-symbol">
-      <span class="nav-group-label" title="Edit and inspect one symbol at a time">
-        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-        Per symbol
+      <span class="nav-group-label" data-label="Per symbol" title="Per symbol — edit and inspect one ticker at a time">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        <span class="nav-group-label-text">Per symbol</span>
       </span>
       <div class="nav-group-tabs">
-        <button data-view="portfolio" onclick="showView('portfolio')" ondblclick="togglePreviousView()">Target</button>
-        <button data-view="inspector" onclick="showView('inspector')" ondblclick="togglePreviousView()">Inspector</button>
+        <button data-view="portfolio" onclick="showView('portfolio')" ondblclick="togglePreviousView()" title="Target">Target</button>
+        <button data-view="inspector" onclick="showView('inspector')" ondblclick="togglePreviousView()" title="Inspect">Inspect</button>
       </div>
     </div>
     </div>
     <div class="nav-divider" aria-hidden="true"></div>
     <div class="nav-group nav-group-agents">
-      <span class="nav-group-label" title="Run portfolio agents — prices, alerts, and assessments also refresh in the background">
+      <span class="nav-group-label" data-label="Agents" title="Agents — run prices, alerts, and assessments (also refresh in the background)">
         <span class="nav-agent-glyph" id="navAgentGlyph" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.582a.5.5 0 0 1 0 .962L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 19l2-2"/><path d="M5 18l-2 2"/></svg>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.582a.5.5 0 0 1 0 .962L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 19l2-2"/><path d="M5 18l-2 2"/></svg>
           <span class="nav-agent-pulse"></span>
         </span>
-        Agents
+        <span class="nav-group-label-text">Agents</span>
       </span>
       <div class="nav-group-tabs">
-        <button type="button" class="nav-agent-btn nav-agent-sync" id="btnSync" onclick="syncPortfolio()">Sync Prices</button>
-        <button type="button" class="nav-agent-btn nav-agent-assess" id="btnAssess" onclick="assessAll()">Assess Portfolio</button>
+        <button type="button" class="nav-agent-btn nav-agent-sync" id="btnSync" onclick="syncPortfolio()" title="Sync Prices">Price</button>
+        <button type="button" class="nav-agent-btn nav-agent-assess" id="btnAssess" onclick="assessAll()" title="Assess Portfolio">Assess</button>
       </div>
     </div>
   </nav>
@@ -11750,6 +11833,15 @@
       return "weak";
     }
 
+    /** Inclusive score range for a Fit Band label (strong ≥60 · mid ≥45 · else weak). */
+    function saiFitBandRange(band) {
+      const key = String(band || "").toLowerCase();
+      if (key === "strong") return { low: 60, high: 100 };
+      if (key === "mid") return { low: 45, high: 59 };
+      if (key === "weak") return { low: 0, high: 44 };
+      return null;
+    }
+
     function saiBandActionFromProposal(proposal) {
       const code = String(proposal?.bandBias?.code || "").toLowerCase();
       if (code === "strong_buy" || code === "buy") return "buy";
@@ -11797,15 +11889,20 @@
       };
     }
 
+    /** Published Conviction for Conf · Score chip / Bet-S-Hit (proposal Label, else assessment). */
+    function saiPublishedConfidence(rec) {
+      return String(rec?.proposal?.confidence || rec?.confidence || "medium").toLowerCase();
+    }
+
     function renderRecommendationChipRow(rec, { wrapperClass = "", bare = false } = {}) {
       const action = rec?.action || "hold";
-      const confidence = rec?.proposal?.confidence || rec?.confidence || "medium";
+      const confidence = saiPublishedConfidence(rec);
       const sentiment = rec?.sentiment || "neutral";
       const sentimentTitle = escapeHtml(rec?.sentimentDetail || "Sentiment");
       const sentClass = sentiment === "bullish" ? "sentiment-bullish"
         : sentiment === "bearish" ? "sentiment-bearish"
         : "sentiment-neutral";
-      const confKey = String(confidence || "medium").toLowerCase();
+      const confKey = confidence;
       const confClass = confKey === "high" ? "confidence-high"
         : confKey === "low" ? "confidence-low"
         : "confidence-medium";
@@ -11825,20 +11922,11 @@
       const actionText = attentionFlag ? `${action} !` : action;
       const actionClass = attentionFlag ? `${action} attention` : action;
       const intent = rec?.proposal?.intent;
-      // Flag glyph: Portfolio Intent is a role/stance, separate from SAI Action·Conf·Sentiment.
-      const intentGlyph =
-        `<svg class="intent-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">` +
-        `<path fill="currentColor" d="M3.25 1.75a.75.75 0 0 1 .75.75v11a.75.75 0 0 1-1.5 0V2.5a.75.75 0 0 1 .75-.75zm1.5 1.1c1.55-.55 2.85-.15 4.05.35 1.1.45 2.15.9 3.35.35a.75.75 0 0 1 1.05.7v5.1a.75.75 0 0 1-1.05.7c-1.4.55-2.55.05-3.7-.4-1.15-.45-2.25-.85-3.7-.2a.75.75 0 0 1-1-.7V3.6a.75.75 0 0 1 .1-.4.75.75 0 0 1 .9-.25z"/></svg>`;
-      const intentChip = intent?.label
-        ? `<span class="chip intent" title="${escapeHtml(
-            `Portfolio Intent ${intent.label} (${intent.source || "inferred"}${
-              intent.override ? `; override ${intent.override}` : ""
-            })`
-          )}">${intentGlyph}<span class="intent-code">${escapeHtml(intent.code || "intent")}</span></span>`
-        : "";
-      const fitBandTitle = hasScore
-        ? `SAI by Fit Band: ${fitBand.toUpperCase()} (from proposal score ${Math.round(total)})`
-        : "SAI by Fit Band: UNKNOWN (proposal score missing)";
+      const intentChip = renderIntentChip(intent);
+      const fitRange = saiFitBandRange(fitBand);
+      const fitBandTitle = hasScore && fitRange
+        ? `Fit Band: ${fitBand.toUpperCase()} (${Math.round(total)}: ${fitRange.low} - ${fitRange.high})`
+        : "Fit Band: UNKNOWN (proposal score missing)";
       const fitBandChip = `<span class="chip fitband-${fitBand}" title="${escapeHtml(fitBandTitle)}">fit ${escapeHtml(fitBand)}</span>`;
       const chips = `
           <span class="chip ${actionClass}" title="${actionTitle}">${escapeHtml(actionText)}</span>
@@ -11854,7 +11942,48 @@
       return `<div>${chips}</div>`;
     }
 
-    /** Hover copy: two measures (label vs score), discrepancy hint, this-row math. */
+    /** Portfolio Intent chip — same glyph + tone language as mobile SAI card. */
+    function intentToneKey(code) {
+      const key = String(code || "").toLowerCase();
+      if (key.startsWith("divest")) return "divest";
+      if (key.startsWith("tactical")) return "tactical";
+      if (key.startsWith("accumulate")) return "accumulate";
+      if (key.startsWith("core_accumulate")) return "core_accumulate";
+      if (key.startsWith("core")) return "core";
+      return "unknown";
+    }
+
+    function intentGlyphSvg(tone) {
+      // Stroke icons aligned with mobile Ionicons (shield / tools / trend / exit).
+      const common =
+        `class="intent-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
+        `stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"`;
+      if (tone === "divest") {
+        return `<svg ${common}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`;
+      }
+      if (tone === "tactical") {
+        return `<svg ${common}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`;
+      }
+      if (tone === "accumulate") {
+        return `<svg ${common}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`;
+      }
+      if (tone === "core" || tone === "core_accumulate") {
+        return `<svg ${common}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>`;
+      }
+      return `<svg ${common}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.66V19a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v1.66"/></svg>`;
+    }
+
+    function renderIntentChip(intent) {
+      if (!intent || !(intent.label || intent.code)) return "";
+      const tone = intentToneKey(intent.code);
+      const label = intent.label || intent.code;
+      const title = `Portfolio Intent ${label} (${intent.source || "inferred"}${
+        intent.override ? `; override ${intent.override}` : ""
+      })`;
+      return `<span class="chip intent intent-${tone}" title="${escapeHtml(title)}">${intentGlyphSvg(tone)}<span class="intent-code">${escapeHtml(label)}</span></span>`;
+    }
+
+    /** Hover copy: Conviction → Score → weight → crisp Drivers → lag hint. */
     function saiScoreImpliedConfidence(total) {
       const n = Number(total);
       if (!Number.isFinite(n)) return null;
@@ -11863,15 +11992,43 @@
       return "low";
     }
 
+    /** Turn a long factor string into "Pillar ±N — short why" for native title tooltips. */
+    function crispSaiDriverLine(pillar, factor) {
+      const raw = String(factor || "").replace(/\s+/g, " ").trim();
+      if (!raw) return null;
+      const deltaMatch = raw.match(
+        /(?:→|->)\s*(?:state|trigger|fit)\s*([+\−\-]?\d+(?:\.\d+)?)/i
+      );
+      let why = deltaMatch ? raw.slice(0, deltaMatch.index).trim() : raw;
+      why = why
+        .replace(/^Intent\s+.+?\s+(aligns with|vs|—|-)\s*/i, (_, verb) => `Intent ${verb} `)
+        .replace(/\b(\d+)\s+active\s+alert\(s\)/gi, "$1 alert")
+        .replace(/\b(\d+)\s+active\s+alerts?\b/gi, "$1 alert")
+        .replace(/≈\s*/g, "~")
+        .replace(/(\d+)\.\d+%/g, "$1%")
+        .replace(/\s*[·•]\s*$/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/[.:;,]+$/g, "");
+      if (why.length > 42) why = `${why.slice(0, 40).trim()}…`;
+      if (deltaMatch) {
+        const delta = String(deltaMatch[1]).replace("−", "-");
+        const signed = /^[+\-]/.test(delta) ? delta : `+${delta}`;
+        return why ? `${pillar} ${signed} — ${why}` : `${pillar} ${signed}`;
+      }
+      return why ? `${pillar} — ${why}` : null;
+    }
+
     function saiConfidenceStrengthTitle(rec) {
-      const confidence = String(rec?.confidence || "medium").toLowerCase();
+      const confidence = saiPublishedConfidence(rec);
       const scores = rec?.proposal?.scores || {};
       const total = Number(scores.total);
       const confW = confidence === "high" ? 3 : confidence === "low" ? 1 : 2;
       const confLabel = confidence ? confidence[0].toUpperCase() + confidence.slice(1) : "Medium";
       const lines = [];
 
-      lines.push(`Label (${confLabel}) — published conviction for Bet-S-Hit (High=3, Medium=2, Low=1)`);
+      // Lead with the chip's conviction so hover matches what the eye just saw.
+      lines.push(`${confLabel} Conviction (High=3, Medium=2, Low=1)`);
 
       if (Number.isFinite(total)) {
         const state = Number(scores.state);
@@ -11882,25 +12039,32 @@
           Number.isFinite(trigger) ? `Trigger ${Math.round(trigger)}` : null,
           Number.isFinite(fit) ? `Fit ${Math.round(fit)}` : null,
         ].filter(Boolean);
-        lines.push(`Score ${Math.round(total)}/100${parts.length ? ` (${parts.join(" · ")})` : ""}`);
         const band = rec?.proposal?.bandBias;
+        let scoreLine = `Score ${Math.round(total)}/100${parts.length ? ` (${parts.join(" · ")})` : ""}`;
         if (band?.label) {
-          lines.push(`Band: ${band.label}${band.range ? ` [${band.range}]` : ""}`);
+          const range = band.range ? String(band.range).replace(/[\[\]]/g, "") : "";
+          scoreLine += ` — ${band.label}${range ? ` (${range})` : ""}`;
         }
+        lines.push(scoreLine);
         const weight = confW * (1 + Math.max(0, Math.min(total, 100)) / 100);
-        lines.push(`Bet-S-Hit weight ≈ ${weight.toFixed(2)} (= ${confLabel}×${confW} × (1+${Math.round(total)}/100))`);
+        lines.push(
+          `Bet-S-Hit weight ${weight.toFixed(2)} (${confW}×${confLabel} × (1+${Math.round(total)}/100))`
+        );
       } else {
         lines.push("Score — not available yet (run Assess Symbol)");
       }
 
       const components = rec?.proposal?.components || {};
       const drivers = [];
-      ["state", "trigger", "portfolioFit"].forEach((key) => {
+      [
+        ["state", "State"],
+        ["trigger", "Trigger"],
+        ["portfolioFit", "Fit"],
+      ].forEach(([key, pillar]) => {
         const factors = components[key]?.factors;
-        if (Array.isArray(factors) && factors.length) {
-          const label = key === "portfolioFit" ? "Fit" : key[0].toUpperCase() + key.slice(1);
-          drivers.push(`${label}: ${String(factors[0])}`);
-        }
+        if (!Array.isArray(factors) || !factors.length) return;
+        const line = crispSaiDriverLine(pillar, factors[0]);
+        if (line) drivers.push(line);
       });
       if (drivers.length) {
         lines.push("Drivers");
@@ -11911,17 +12075,30 @@
         const implied = saiScoreImpliedConfidence(total);
         const publishedRank = saiFieldRank(confidence, SAI_CONFIDENCE_RANK);
         const impliedRank = saiFieldRank(implied, SAI_CONFIDENCE_RANK);
-        if (implied && publishedRank > 0 && impliedRank > publishedRank) {
-          const impliedLabel = implied[0].toUpperCase() + implied.slice(1);
+        const assessmentConf = String(rec?.confidence || "").toLowerCase();
+        const assessmentRank = saiFieldRank(assessmentConf, SAI_CONFIDENCE_RANK);
+        const scoreSoftened = Boolean(implied && publishedRank > 0 && impliedRank > publishedRank);
+        const assessmentSoftened =
+          Boolean(assessmentConf) &&
+          assessmentConf !== confidence &&
+          assessmentRank > publishedRank;
+        if (scoreSoftened || assessmentSoftened) {
           lines.push("");
-          lines.push(
-            `Score may lag the Label: ${Math.round(total)} alone → ${impliedLabel}, but Label is ${confLabel}.`
-          );
-          lines.push("Score can stay high while Label is softened (stability / guardrails).");
+          if (scoreSoftened) {
+            const impliedLabel = implied[0].toUpperCase() + implied.slice(1);
+            lines.push(
+              `Note: Score ${Math.round(total)} alone → ${impliedLabel}, but Conviction is ${confLabel} (softened).`
+            );
+          } else if (assessmentSoftened) {
+            const assessLabel = assessmentConf[0].toUpperCase() + assessmentConf.slice(1);
+            lines.push(
+              `Note: Assessment was ${assessLabel}; published Conviction is ${confLabel} (softened).`
+            );
+          }
           const stability = rec?.proposal?.stability || {};
           if (stability.gated || stability.confirmed === false) {
             lines.push(
-              `• ${stability.hysteresisHint || "Stability: unconfirmed action flip — Label down one notch"}`
+              `• ${stability.hysteresisHint || "Stability: unconfirmed flip — Conviction down one notch"}`
             );
           }
           const vetoes = Array.isArray(rec?.proposal?.vetoes) ? rec.proposal.vetoes : [];
@@ -11942,7 +12119,7 @@
 
     function saiConfidenceStrengthSortValue(row) {
       // Confidence first, then continuous SAI score — closes the loop with Bet-S-Hit ranking.
-      return saiFieldRank(row.recommendation?.confidence, SAI_CONFIDENCE_RANK) * 1000
+      return saiFieldRank(saiPublishedConfidence(row.recommendation), SAI_CONFIDENCE_RANK) * 1000
         + saiScoreSortValue(row);
     }
 
@@ -12277,17 +12454,22 @@
       }
 
       const title = escapeHtml(titleLines.join("\n"));
+      // Price label sits above the bar beside the knob (same size as distance %).
+      // Closer to lower threshold → sit right of knob; closer to higher → sit left.
+      const priceSitClass = closest === "below" ? "sit-right"
+        : closest === "above" ? "sit-left"
+        : "center";
       return `<div class="trade-band" title="${title}">`
         + pieces.join("")
         + `<div class="trade-band-knob" style="left:${pPrice.toFixed(2)}%;"></div>`
-        + `<span class="trade-band-label center" style="left:${pPrice.toFixed(2)}%; transform:translateX(-50%);">${formatMoney(price)}</span>`
+        + `<span class="trade-band-label ${priceSitClass}" style="left:${pPrice.toFixed(2)}%;">${formatMoney(price)}</span>`
         + `<span class="trade-band-edge low">${formatMoney(low)}</span>`
         + `<span class="trade-band-edge high">${formatMoney(high)}</span>`
         + `</div>`;
     }
 
     const TECH_STANCE_HELP = "Confluence agent's purely technical read (independent of the SAI):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 scale (left = bearish, center = neutral, right = bullish)\n• Strength — how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume)";
-    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell. A trailing ! means Score-band action differs from this SAI Action (Pay attention).\n• CONF · SCORE — two measures: Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit)\n• FIT BAND — SAI by Fit Band (strong / mid / weak / unknown) from proposal score; strong bets historically hit ~80%+ in Agent Signal Record\n• SENTIMENT — news reaction (else notes)\n• INTENT (offset, flag) — Portfolio Intent from holdings + planned trades (or your override): tactical / accumulate / core / core_accumulate / divest — separate from the SAI signals\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), Fit Band, or Sentiment";
+    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell. A trailing ! means Score-band action differs from this SAI Action (Pay attention).\n• CONF · SCORE — two measures: Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit)\n• FIT BAND — SAI by Fit Band (strong / mid / weak / unknown) from proposal score; strong bets historically hit ~80%+ in Agent Signal Record\n• SENTIMENT — news reaction (else notes)\n• INTENT (offset, role glyph) — Portfolio Intent from holdings + planned trades (or your override): tactical / accumulate / core / core_accumulate / divest — color + icon by role; separate from the SAI signals\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), Fit Band, or Sentiment";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
     const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
@@ -15575,11 +15757,6 @@
       } else if (legacy.diverged && legacy.note) {
         notes.push(legacy.note);
       }
-      if (intent?.label) {
-        notes.push(
-          `Intent: ${intent.label}${intent.source === "override" ? " (override)" : " (from plan)"}`
-        );
-      }
       if (band.label) {
         notes.push(`Band: ${band.label}${band.range ? ` [${band.range}]` : ""}`);
       }
@@ -15587,9 +15764,14 @@
       else if (stab.hysteresisHint) notes.push(stab.hysteresisHint);
       const veto = (proposal.vetoes || []).find((v) => v.severity === "block" || v.severity === "warn");
       if (veto) notes.push(veto.message);
-      const noteHtml = notes.length
-        ? `<div class="proposal-scorecard-note">${escapeHtml(notes.slice(0, 2).join(" · "))}</div>`
-        : "";
+      const intentChip = renderIntentChip(intent);
+      const textNotes = notes.slice(0, intentChip ? 1 : 2);
+      const noteHtml =
+        intentChip || textNotes.length
+          ? `<div class="proposal-scorecard-note">${
+              intentChip ? `${intentChip}${textNotes.length ? " " : ""}` : ""
+            }${textNotes.length ? escapeHtml(textNotes.join(" · ")) : ""}</div>`
+          : "";
       return `
         <div class="proposal-scorecard${compact ? " snap-proposal" : ""}">
           <div class="proposal-scorecard-head">

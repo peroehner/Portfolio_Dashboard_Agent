@@ -11,7 +11,8 @@ const HEAT_MAX = 15;
 const PAD = 4;
 const TRACK_HEIGHT = 5;
 const KNOB_R = 5;
-const BAR_HEIGHT = 36;
+const BAR_HEIGHT = 26;
+const TRACK_Y = 16;
 const MIN_HEAT_PX = 2;
 
 function heatColor(distPct: number): string {
@@ -120,11 +121,18 @@ export function TradeBandBar({ row, width = 150, active: activeProp }: TradeBand
     return <Text style={styles.empty}>—</Text>;
   }
 
-  const trackY = 20;
+  const trackY = TRACK_Y;
   const px = (pct: number) => (pct / 100) * width;
   const heatLeft = layout.pClose != null ? Math.min(layout.pPrice, layout.pClose) : null;
   const heatWidthPx =
     layout.pClose != null ? Math.abs(layout.pClose - layout.pPrice) : null;
+  // Closer to lower → price sits right of knob; closer to higher → sit left.
+  const pricePosStyle =
+    layout.closest === "above"
+      ? { right: width - px(layout.pPrice) + 7 }
+      : layout.closest === "below"
+        ? { left: px(layout.pPrice) + 7 }
+        : { left: px(layout.pPrice), transform: [{ translateX: -20 }] as const };
 
   const body = (
     <>
@@ -207,11 +215,12 @@ export function TradeBandBar({ row, width = 150, active: activeProp }: TradeBand
         </Text>
       ) : null}
 
-      {!controlled && active ? (
-        <Text style={[styles.priceLabel, { left: px(layout.pPrice) }]} numberOfLines={1}>
-          {formatPrice(layout.price)}
-        </Text>
-      ) : null}
+      <Text
+        style={[styles.priceLabel, pricePosStyle]}
+        numberOfLines={1}
+      >
+        {formatMoney(layout.price)}
+      </Text>
     </>
   );
 
@@ -262,7 +271,7 @@ const styles = StyleSheet.create({
   },
   edge: {
     position: "absolute",
-    top: 8,
+    top: TRACK_Y + 6,
     fontSize: 8,
     fontWeight: "700",
     color: colors.text,
@@ -275,18 +284,17 @@ const styles = StyleSheet.create({
   edgeHigh: { right: 0 },
   pct: {
     position: "absolute",
-    top: 4,
+    top: 1,
     fontSize: 9,
     fontWeight: "700",
     transform: [{ translateX: -12 }],
   },
   priceLabel: {
     position: "absolute",
-    bottom: 0,
-    fontSize: 8,
+    top: 1,
+    fontSize: 9,
     fontWeight: "700",
-    color: colors.text,
-    transform: [{ translateX: -16 }],
+    color: "#93c5fd",
   },
   empty: {
     color: colors.textMuted,

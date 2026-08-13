@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   RefreshControl,
   type ReactNode,
@@ -14,11 +15,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { GlossaryHint } from "@/components/GlossaryHint";
 import { api, ApiError } from "@/lib/api";
 import { parseSymbolFilter } from "@/lib/filters";
 import { formatMoney, formatPrice } from "@/lib/format";
 import { openSymbol } from "@/lib/symbolBrowseSession";
 import { buildPortfolioRows } from "@/lib/portfolioTable";
+import { signalTooltip } from "@/lib/signalGlossary";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { Holding, PortfolioRow, TaxTrimPricingMode } from "@/lib/types";
 import { usePersistedSymbolFilter } from "@/lib/usePersistedSymbolFilter";
@@ -27,8 +30,12 @@ import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 type PortfolioMode = "all" | "holdings" | "watch";
 type ListMode = "sell" | "buy";
 type Side = "buy" | "sell";
+/** Proximity = distance to threshold. Score = SAI Score (buy) / Plan Sell Rank (sell). */
 type QualificationMode = "proximity" | "score";
 type SortMetric = "proximity" | "score";
+
+const PLAN_ATTRACT_CEILING = 80;
+const SAI_SCORE_MAX = 100;
 
 type PlanCandidate = {
   symbol: string;
@@ -43,10 +50,15 @@ type PlanCandidate = {
   pnl: number | null;
   proximitySignedPct: number;
   proximityAbsPct: number;
+  /** Plan Attract pieces (sell-side rank only). */
   proximityScore: number;
   triggerScore: number;
   sizeScore: number;
-  totalScore: number;
+  planAttract: number;
+  /** Plan Sell Rank = 80 − attract (sell). Unused for buy ranking. */
+  planSellRank: number;
+  /** SAI Score = State+Trigger+Fit (buy Score mode). */
+  saiScore: number | null;
 };
 
 type ProposedCandidate = PlanCandidate & {
@@ -95,6 +107,8 @@ function candidateFromRow(
   if (!(currentPrice > 0)) return [];
   const held = Number(holdingBySymbol.get(row.symbol)?.quantity) || 0;
   const costBasis = Number(holdingBySymbol.get(row.symbol)?.costBasis);
+  const saiTotal = Number(row.saiProposal?.scores?.total);
+  const saiScore = Number.isFinite(saiTotal) ? Math.max(0, Math.min(SAI_SCORE_MAX, saiTotal)) : null;
   const below = evalTradeLeg(row.tradeBelowPrice ?? null, row.tradeBelowShares ?? null, "below");
   const above = evalTradeLeg(row.tradeAbovePrice ?? null, row.tradeAboveShares ?? null, "above");
   const legs = [below, above].filter((x) => !!x) as Array<{ price: number; qty: number; buy: boolean }>;
@@ -105,15 +119,13 @@ function candidateFromRow(
     const pnl = side === "sell" && Number.isFinite(costBasis) ? (execPrice - costBasis) * leg.qty : null;
     const proximitySignedPct = ((currentPrice - leg.price) / currentPrice) * 100;
     const proximityAbsPct = Math.abs(proximitySignedPct);
-    // Attractiveness for this side's action (closer / triggered / larger).
+    // Plan Attract: planned-leg readiness (used for Sell Rank only).
     const proximityScore = Math.max(0, 50 - proximityAbsPct);
     const triggerScore =
       side === "sell" ? (proximitySignedPct >= 0 ? 15 : 0) : (proximitySignedPct <= 0 ? 15 : 0);
     const sizeScore = Math.min(15, (cash / 50_000) * 15);
-    const attract = proximityScore + triggerScore + sizeScore;
-    // Directional score: high = buy lean, low = sell lean (so Buy ≥ / Sell ≤ gates).
-    const SCORE_CEILING = 80;
-    const totalScore = side === "buy" ? attract : Math.max(0, SCORE_CEILING - attract);
+    const planAttract = proximityScore + triggerScore + sizeScore;
+    const planSellRank = Math.max(0, PLAN_ATTRACT_CEILING - planAttract);
     return {
       symbol: row.symbol,
       side,
@@ -130,9 +142,19 @@ function candidateFromRow(
       proximityScore,
       triggerScore,
       sizeScore,
-      totalScore,
+      planAttract,
+      planSellRank,
+      saiScore,
     };
   });
+}
+
+/** Value used for Score-mode gate/sort: Buy → SAI Score, Sell → Plan Sell Rank. */
+function scoreModeValue(candidate: PlanCandidate): number {
+  if (candidate.side === "buy") {
+    return candidate.saiScore == null ? -1 : candidate.saiScore;
+  }
+  return candidate.planSellRank;
 }
 
 function proposedQtyFromThreshold(
@@ -141,24 +163,28 @@ function proposedQtyFromThreshold(
   mode: QualificationMode,
   thresholdMax: number,
 ): number {
-  const candidateValue = mode === "score" ? candidate.totalScore : candidate.proximityAbsPct;
-  // Proximity: both sides ≤ limit. Score: Buy ≥ (high=buy), Sell ≤ (low=sell).
-  const qualifies =
-    mode === "score"
-      ? candidate.side === "buy"
-        ? candidateValue >= threshold
-        : candidateValue <= threshold
-      : candidateValue <= threshold;
-  if (!qualifies) return 0;
+  if (mode === "proximity") {
+    if (!(candidate.proximityAbsPct <= threshold)) return 0;
+    if (!(candidate.qty > 0)) return 0;
+    if (!(thresholdMax > 0)) return Math.floor(candidate.qty);
+    const margin = Math.max(0, threshold - candidate.proximityAbsPct);
+    const ratio = Math.max(0.15, Math.min(1, margin / thresholdMax));
+    return Math.max(1, Math.floor(candidate.qty * ratio));
+  }
+
+  // Score mode: Buy ≥ SAI Score; Sell ≤ Plan Sell Rank.
+  const value = scoreModeValue(candidate);
+  if (candidate.side === "buy") {
+    if (value < 0 || value < threshold) return 0;
+  } else if (value > threshold) {
+    return 0;
+  }
   if (!(candidate.qty > 0)) return 0;
   if (!(thresholdMax > 0)) return Math.floor(candidate.qty);
-  // Proposed allocation scales by margin inside qualification gate.
   const margin =
-    mode === "score"
-      ? candidate.side === "buy"
-        ? Math.max(0, candidateValue - threshold)
-        : Math.max(0, threshold - candidateValue)
-      : Math.max(0, threshold - candidateValue);
+    candidate.side === "buy"
+      ? Math.max(0, value - threshold)
+      : Math.max(0, threshold - value);
   const ratio = Math.max(0.15, Math.min(1, margin / thresholdMax));
   return Math.max(1, Math.floor(candidate.qty * ratio));
 }
@@ -170,6 +196,7 @@ function PoolCard({
   cashLine,
   tone,
   sliderLabel,
+  sliderHint,
   sliderValue,
   sliderMax,
   valueSuffix = "",
@@ -184,6 +211,7 @@ function PoolCard({
   cashLine: string;
   tone: "sell" | "buy";
   sliderLabel: string;
+  sliderHint?: "proximity" | "saiScore" | "planSellRank";
   sliderValue: number;
   sliderMax: number;
   valueSuffix?: string;
@@ -214,7 +242,11 @@ function PoolCard({
         </>
       )}
       <View style={styles.sliderHead}>
-        <Text style={styles.sliderLabel}>{sliderLabel}</Text>
+        {sliderHint ? (
+          <GlossaryHint signal={sliderHint} label={sliderLabel} style={styles.sliderLabel} />
+        ) : (
+          <Text style={styles.sliderLabel}>{sliderLabel}</Text>
+        )}
         <Text style={[styles.sliderValue, { color: trackColor }]}>
           {Math.round(sliderValue)}
           {valueSuffix}
@@ -249,7 +281,7 @@ export default function TradePlanScreen() {
   const [sellProxThreshold, setSellProxThreshold] = useState(10);
   const [buyProxThreshold, setBuyProxThreshold] = useState(10);
   const [sellScoreThreshold, setSellScoreThreshold] = useState(40);
-  const [buyScoreThreshold, setBuyScoreThreshold] = useState(40);
+  const [buyScoreThreshold, setBuyScoreThreshold] = useState(45);
   const [listMode, setListMode] = useState<ListMode>("sell");
   const [sellSortMetric, setSellSortMetric] = useState<SortMetric>("score");
   const [buySortMetric, setBuySortMetric] = useState<SortMetric>("score");
@@ -354,9 +386,9 @@ export default function TradePlanScreen() {
         .filter((row) => row.side === "sell")
         .sort((a, b) => {
           if (sellSortMetric === "score") {
-            return a.totalScore - b.totalScore || a.proximityAbsPct - b.proximityAbsPct;
+            return a.planSellRank - b.planSellRank || a.proximityAbsPct - b.proximityAbsPct;
           }
-          return a.proximityAbsPct - b.proximityAbsPct || a.totalScore - b.totalScore;
+          return a.proximityAbsPct - b.proximityAbsPct || a.planSellRank - b.planSellRank;
         }),
     [allCandidates, sellSortMetric],
   );
@@ -366,9 +398,11 @@ export default function TradePlanScreen() {
         .filter((row) => row.side === "buy")
         .sort((a, b) => {
           if (buySortMetric === "score") {
-            return b.totalScore - a.totalScore || a.proximityAbsPct - b.proximityAbsPct;
+            const aSai = a.saiScore ?? -1;
+            const bSai = b.saiScore ?? -1;
+            return bSai - aSai || a.proximityAbsPct - b.proximityAbsPct;
           }
-          return a.proximityAbsPct - b.proximityAbsPct || b.totalScore - a.totalScore;
+          return a.proximityAbsPct - b.proximityAbsPct || (b.saiScore ?? -1) - (a.saiScore ?? -1);
         }),
     [allCandidates, buySortMetric],
   );
@@ -383,25 +417,32 @@ export default function TradePlanScreen() {
 
   function listButtonLabel(mode: ListMode): string {
     const metric = mode === "sell" ? sellSortMetric : buySortMetric;
-    const scoreArrow = mode === "sell" ? "↑" : "↓";
-    const activeArrow = metric === "score" ? scoreArrow : "↑";
-    const short = compactCards ? "S|P" : "Score|Prox";
+    // Sell Rank asc (low=ready), Buy SAI Score desc (high=strong); Prox closest-first.
+    const arrow = metric === "score" ? (mode === "sell" ? "↑" : "↓") : "↑";
+    const metricLabel =
+      metric === "proximity"
+        ? compactCards
+          ? "P"
+          : "Prox"
+        : mode === "sell"
+          ? compactCards
+            ? "R"
+            : "Sell Rank"
+          : compactCards
+            ? "SAI"
+            : "SAI Score";
     const base = mode === "sell" ? "Sell" : "Buy";
-    return `${base} ${compactCards ? "" : "Candidates "}(${activeArrow} ${short})`;
+    return `${base}${compactCards ? "" : " Candidates"} (${arrow} ${metricLabel})`;
   }
 
   const sellScoreMax = useMemo(
-    () => Math.max(1, Math.round(sellCandidates.reduce((m, c) => Math.max(m, c.totalScore), 0))),
+    () => Math.max(1, Math.round(sellCandidates.reduce((m, c) => Math.max(m, c.planSellRank), 0))),
     [sellCandidates],
-  );
-  const buyScoreMax = useMemo(
-    () => Math.max(1, Math.round(buyCandidates.reduce((m, c) => Math.max(m, c.totalScore), 0))),
-    [buyCandidates],
   );
   const sellGate = qualificationMode === "score" ? sellScoreThreshold : sellProxThreshold;
   const buyGate = qualificationMode === "score" ? buyScoreThreshold : buyProxThreshold;
-  const sellGateMax = qualificationMode === "score" ? Math.max(sellScoreMax, 80) : 50;
-  const buyGateMax = qualificationMode === "score" ? Math.max(buyScoreMax, 80) : 30;
+  const sellGateMax = qualificationMode === "score" ? Math.max(sellScoreMax, PLAN_ATTRACT_CEILING) : 50;
+  const buyGateMax = qualificationMode === "score" ? SAI_SCORE_MAX : 30;
 
   const proposedSells = useMemo(
     () =>
@@ -488,12 +529,13 @@ export default function TradePlanScreen() {
                   {qualifies ? formatMoney(row.proposedCash, true) : formatMoney(row.cash, true)}
                 </Text>
               </Text>
-              <Text style={styles.compactLine}>
-                <Text style={styles.metricLabel}>Proximity </Text>
-                <Text style={styles.metricValue}>{`${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%`}</Text>
-                <Text style={styles.metricLabel}>  · Score </Text>
-                <Text style={styles.metricValue}>{Math.round(row.totalScore)}</Text>
-              </Text>
+              <View style={styles.compactHintRow}>
+                <GlossaryHint signal="proximity" label="Prox" style={styles.metricLabel} />
+                <Text style={styles.metricValue}>{` ${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%`}</Text>
+                <Text style={styles.metricLabel}>  · </Text>
+                <GlossaryHint signal="planSellRank" label="Sell Rank" style={styles.metricLabel} />
+                <Text style={styles.metricValue}>{` ${Math.round(row.planSellRank)}`}</Text>
+              </View>
             </View>
           ) : (
             <View style={[styles.metricsRow, wideCards && styles.metricsRowWide]}>
@@ -516,16 +558,22 @@ export default function TradePlanScreen() {
                 </Text>
               </View>
               <View style={[styles.metric, { flex: wideCards ? 1.15 : 1.35 }]}>
-                <Text style={styles.metricLabel}>Proximity</Text>
+                <GlossaryHint signal="proximity" style={styles.metricLabel} />
                 <Text style={styles.metricValue}>{wideCards ? `${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%` : proximityDetailText(row)}</Text>
               </View>
               <View style={[styles.metric, { flex: wideCards ? 1.0 : 0.85 }]}>
-                <Text style={styles.metricLabel}>Score</Text>
-                <Text style={styles.metricValue}>{Math.round(row.totalScore)}</Text>
+                <GlossaryHint signal="planSellRank" label="Sell Rank" style={styles.metricLabel} />
+                <Text style={styles.metricValue}>{Math.round(row.planSellRank)}</Text>
                 {wideCards ? null : (
-                  <Text style={styles.metricSub}>
-                    P{Math.round(row.proximityScore)} T{Math.round(row.triggerScore)} S{Math.round(row.sizeScore)}
-                  </Text>
+                  <Pressable
+                    onLongPress={() => Alert.alert("Plan Attract", signalTooltip("planAttract"))}
+                    delayLongPress={280}
+                    hitSlop={6}
+                  >
+                    <Text style={styles.metricSub}>
+                      P{Math.round(row.proximityScore)} T{Math.round(row.triggerScore)} S{Math.round(row.sizeScore)}
+                    </Text>
+                  </Pressable>
                 )}
               </View>
             </View>
@@ -570,12 +618,15 @@ export default function TradePlanScreen() {
                   {qualifies ? formatMoney(row.proposedCash, true) : formatMoney(row.cash, true)}
                 </Text>
               </Text>
-              <Text style={styles.compactLine}>
-                <Text style={styles.metricLabel}>Proximity </Text>
-                <Text style={styles.metricValue}>{`${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%`}</Text>
-                <Text style={styles.metricLabel}>  · Score </Text>
-                <Text style={styles.metricValue}>{Math.round(row.totalScore)}</Text>
-              </Text>
+              <View style={styles.compactHintRow}>
+                <GlossaryHint signal="proximity" label="Prox" style={styles.metricLabel} />
+                <Text style={styles.metricValue}>{` ${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%`}</Text>
+                <Text style={styles.metricLabel}>  · </Text>
+                <GlossaryHint signal="saiScore" label="SAI" style={styles.metricLabel} />
+                <Text style={styles.metricValue}>
+                  {` ${row.saiScore == null ? "—" : Math.round(row.saiScore)}`}
+                </Text>
+              </View>
             </View>
           ) : (
             <View style={[styles.metricsRow, wideCards && styles.metricsRowWide]}>
@@ -592,17 +643,14 @@ export default function TradePlanScreen() {
                 </Text>
               </View>
               <View style={[styles.metric, { flex: wideCards ? 1.15 : 1.45 }]}>
-                <Text style={styles.metricLabel}>Proximity</Text>
+                <GlossaryHint signal="proximity" style={styles.metricLabel} />
                 <Text style={styles.metricValue}>{wideCards ? `${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%` : proximityDetailText(row)}</Text>
               </View>
               <View style={[styles.metric, { flex: wideCards ? 1.0 : 0.85 }]}>
-                <Text style={styles.metricLabel}>Score</Text>
-                <Text style={styles.metricValue}>{Math.round(row.totalScore)}</Text>
-                {wideCards ? null : (
-                  <Text style={styles.metricSub}>
-                    P{Math.round(row.proximityScore)} T{Math.round(row.triggerScore)} S{Math.round(row.sizeScore)}
-                  </Text>
-                )}
+                <GlossaryHint signal="saiScore" style={styles.metricLabel} />
+                <Text style={styles.metricValue}>
+                  {row.saiScore == null ? "—" : Math.round(row.saiScore)}
+                </Text>
               </View>
             </View>
           )}
@@ -625,14 +673,25 @@ export default function TradePlanScreen() {
             <Pressable
               style={[styles.qualModeBtn, qualificationMode === "proximity" ? styles.qualModeBtnActive : null]}
               onPress={() => setQualificationMode("proximity")}
+              onLongPress={() => Alert.alert("Proximity", signalTooltip("proximity"))}
+              delayLongPress={280}
+              accessibilityHint={signalTooltip("proximity")}
             >
               <Text style={styles.qualModeText}>Proximity</Text>
             </Pressable>
             <Pressable
               style={[styles.qualModeBtn, qualificationMode === "score" ? styles.qualModeBtnActive : null]}
               onPress={() => setQualificationMode("score")}
+              onLongPress={() =>
+                Alert.alert(
+                  "Score mode",
+                  `${signalTooltip("saiScore")}\n\n${signalTooltip("planSellRank")}`,
+                )
+              }
+              delayLongPress={280}
+              accessibilityHint="Buy uses SAI Score. Sell uses Plan Sell Rank."
             >
-              <Text style={styles.qualModeText}>Score</Text>
+              <Text style={styles.qualModeText}>SAI / Rank</Text>
             </Pressable>
           </View>
         </View>
@@ -664,7 +723,8 @@ export default function TradePlanScreen() {
               </>
             }
             cashLine={`CASH ${formatMoney(sellCash, true)}`}
-            sliderLabel={qualificationMode === "score" ? "Sell Score ≤" : "Sell Proximity ≤"}
+            sliderLabel={qualificationMode === "score" ? "Sell Rank ≤" : "Sell Proximity ≤"}
+            sliderHint={qualificationMode === "score" ? "planSellRank" : "proximity"}
             sliderValue={sellGate}
             sliderMax={sellGateMax}
             valueSuffix={qualificationMode === "score" ? "" : "%"}
@@ -678,7 +738,8 @@ export default function TradePlanScreen() {
             tone="buy"
             helperText={`${qualifiedBuys.length} of ${buyCandidates.length} qualified`}
             cashLine={`CASH ${formatMoney(buyCash, true)}`}
-            sliderLabel={qualificationMode === "score" ? "Buy Score ≥" : "Buy Proximity ≤"}
+            sliderLabel={qualificationMode === "score" ? "SAI Score ≥" : "Buy Proximity ≤"}
+            sliderHint={qualificationMode === "score" ? "saiScore" : "proximity"}
             sliderValue={buyGate}
             sliderMax={buyGateMax}
             valueSuffix={qualificationMode === "score" ? "" : "%"}
@@ -700,6 +761,15 @@ export default function TradePlanScreen() {
               if (listMode === "sell") toggleSortFor("sell");
               else setListMode("sell");
             }}
+            onLongPress={() =>
+              Alert.alert(
+                "Sell sort",
+                sellSortMetric === "score"
+                  ? signalTooltip("planSellRank")
+                  : signalTooltip("proximity"),
+              )
+            }
+            delayLongPress={280}
           >
             <Text style={styles.pillText}>{listButtonLabel("sell")}</Text>
           </Pressable>
@@ -715,6 +785,13 @@ export default function TradePlanScreen() {
               if (listMode === "buy") toggleSortFor("buy");
               else setListMode("buy");
             }}
+            onLongPress={() =>
+              Alert.alert(
+                "Buy sort",
+                buySortMetric === "score" ? signalTooltip("saiScore") : signalTooltip("proximity"),
+              )
+            }
+            delayLongPress={280}
           >
             <Text style={styles.pillText}>{listButtonLabel("buy")}</Text>
           </Pressable>
@@ -821,12 +898,17 @@ const styles = StyleSheet.create({
   cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: spacing.sm },
   symbol: { color: colors.text, fontSize: 16, fontWeight: "700" },
   execHint: { color: colors.textMuted, fontSize: 11 },
-  execHintStrong: { color: colors.text, fontSize: 20, fontWeight: "800", lineHeight: 22 },
+  execHintStrong: { color: colors.text, fontSize: 16, fontWeight: "700", lineHeight: 20 },
   metricsRow: { flexDirection: "row", gap: spacing.sm },
   metricsRowWide: { gap: spacing.xs },
   metric: { gap: 2, minWidth: 0, flex: 1 },
   compactMetrics: { gap: 3 },
   compactLine: { color: colors.text, fontSize: 13, fontWeight: "600" },
+  compactHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
   metricLabel: { color: colors.textMuted, fontSize: 10, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.3 },
   metricValue: { color: colors.text, fontSize: 13, fontWeight: "700" },
   metricSub: { color: colors.textMuted, fontSize: 10, fontWeight: "600" },

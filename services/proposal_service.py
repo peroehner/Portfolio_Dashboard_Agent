@@ -507,8 +507,20 @@ class ProposalService:
         factors: list[str] = []
 
         upside = upside_pct
-        if upside is None and current_price and (analyst_target or target_price):
-            tgt = analyst_target or target_price
+        # Same preference as screening upsidePct: analyst 1YT when present, else PT.
+        at = analyst_target if isinstance(analyst_target, (int, float)) else None
+        if at is None:
+            raw_at = screening.get("analystTarget1y")
+            at = float(raw_at) if isinstance(raw_at, (int, float)) else None
+        pt = target_price if isinstance(target_price, (int, float)) else None
+        if pt is None:
+            raw_pt = screening.get("personalTarget")
+            if not isinstance(raw_pt, (int, float)):
+                raw_pt = screening.get("targetPrice")
+            pt = float(raw_pt) if isinstance(raw_pt, (int, float)) else None
+        upside_src = "1YT" if at is not None else ("PT" if pt is not None else "target")
+        if upside is None and current_price and (at is not None or pt is not None):
+            tgt = at if at is not None else pt
             if current_price > 0 and tgt:
                 upside = (tgt - current_price) / current_price * 100
         if isinstance(upside, (int, float)):
@@ -516,14 +528,14 @@ class ProposalService:
                 upside_pts = _clamp(float(upside) / 45.0 * 20.0, 0, 20)
                 score += upside_pts
                 factors.append(
-                    f"Upside vs target ≈ {float(upside):.1f}% → state +{upside_pts:.0f}"
+                    f"Upside vs {upside_src} ≈ {float(upside):.1f}% → state +{upside_pts:.0f}"
                 )
             else:
                 # Stretched vs target: soft State drag (common on strong tech names).
                 drag = _clamp(abs(float(upside)) / 25.0 * 8.0, 0, 8)
                 score -= drag
                 factors.append(
-                    f"Price above target ≈ {float(upside):.1f}% → state −{drag:.0f}"
+                    f"Price above {upside_src} ≈ {float(upside):.1f}% → state −{drag:.0f}"
                 )
 
         raw_screen = screening.get("score")
