@@ -303,15 +303,6 @@ class InspectorService:
         except (TypeError, ValueError):
             return None
 
-    @staticmethod
-    def _safe_pct(value: Any) -> float | None:
-        rounded = InspectorService._safe_round(value)
-        if rounded is None:
-            return None
-        if abs(rounded) <= 1:
-            return round(rounded * 100, 1)
-        return rounded
-
     def _trend_waves(
         self,
         symbol: str,
@@ -461,9 +452,9 @@ class InspectorService:
                     "trailingPe": self._safe_round(info.get("trailingPE")),
                     "forwardPe": self._safe_round(info.get("forwardPE")),
                     "pegRatio": self._safe_round(info.get("pegRatio")),
-                    "revenueGrowth": self._safe_pct(info.get("revenueGrowth")),
-                    "earningsGrowth": self._safe_pct(info.get("earningsGrowth")),
-                    "operatingMargin": self._safe_pct(info.get("operatingMargins")),
+                    "revenueGrowth": self._safe_round(info.get("revenueGrowth"), digits=4),
+                    "earningsGrowth": self._safe_round(info.get("earningsGrowth"), digits=4),
+                    "operatingMargin": self._safe_round(info.get("operatingMargins"), digits=4),
                     "companyName": info.get("longName") or info.get("shortName"),
                     "recommendationKey": info.get("recommendationKey"),
                     "analystCount": self._safe_round(info.get("numberOfAnalystOpinions"), digits=0),
@@ -548,7 +539,7 @@ class InspectorService:
         def fill(key: str, value: Any, *, pct: bool = False) -> None:
             if metrics.get(key) is not None or value is None:
                 return
-            metrics[key] = self._safe_pct(value) if pct else self._safe_round(value)
+            metrics[key] = self._safe_round(value, digits=4) if pct else self._safe_round(value)
 
         fill("ma50", price_range.get("ma50"))
         fill("ma200", price_range.get("ma200"))

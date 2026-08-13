@@ -1,6 +1,6 @@
 import { ScrollView, StyleSheet, Text, View, type ViewStyle } from "react-native";
 
-import { formatPct, formatRatio, pctColor } from "@/lib/format";
+import { formatColoredRatioPercent, formatRatio } from "@/lib/format";
 import { fundToneColor, fundTonePeg } from "@/lib/fundamentalsTone";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { InspectorPayload } from "@/lib/types";
@@ -32,15 +32,16 @@ function Metric({
 export function KeyFundamentalsCard({ data, style }: KeyFundamentalsCardProps) {
   const v = data?.valuation;
   const peg = v?.pegRatio ?? null;
-  const rev = v?.revenueGrowth ?? null;
-  const earn = v?.earningsGrowth ?? null;
+  const rev = formatColoredRatioPercent(v?.revenueGrowth);
+  const earn = formatColoredRatioPercent(v?.earningsGrowth);
+  const opMargin = formatColoredRatioPercent(v?.operatingMargin);
   const hasAny =
     v &&
     (v.trailingPe != null ||
       v.forwardPe != null ||
       peg != null ||
-      rev != null ||
-      earn != null ||
+      v.revenueGrowth != null ||
+      v.earningsGrowth != null ||
       v.operatingMargin != null);
 
   return (
@@ -67,13 +68,9 @@ export function KeyFundamentalsCard({ data, style }: KeyFundamentalsCardProps) {
               />
             </View>
             <View style={styles.col}>
-              <Metric label="Rev growth" value={formatPct(rev)} color={pctColor(rev)} />
-              <Metric label="Earn growth" value={formatPct(earn)} color={pctColor(earn)} />
-              <Metric
-                label="Op. margin"
-                value={formatPct(v?.operatingMargin)}
-                color={pctColor(v?.operatingMargin)}
-              />
+              <Metric label="Rev growth" value={rev.text} color={rev.color} />
+              <Metric label="Earn growth" value={earn.text} color={earn.color} />
+              <Metric label="Op. margin" value={opMargin.text} color={opMargin.color} />
             </View>
           </View>
         )}

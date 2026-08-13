@@ -16353,8 +16353,8 @@
         renderValuationMetric("Trailing P/E", formatInspectorMetric(val.trailingPe)),
         renderValuationMetric("Forward P/E", formatInspectorMetric(val.forwardPe)),
         renderValuationMetric("PEG Ratio", formatInspectorMetric(val.pegRatio)),
-        renderValuationMetric("Rev Growth", formatInspectorMetric(val.revenueGrowth, "%")),
-        renderValuationMetric("Op Margin", formatInspectorMetric(val.operatingMargin, "%")),
+        renderValuationMetric("Rev Growth", formatRatioPercent(val.revenueGrowth)),
+        renderValuationMetric("Op Margin", formatRatioPercent(val.operatingMargin)),
       ].join("");
       const setupHint = data._inspectorNeedsServerRefresh
         ? `<div class="alert" style="margin-bottom:0.85rem;">Inspector analytics are partial. Restart the server from <code>Portfolio_Dashboard_Agent</code> with <code>python3 main.py</code>, then use <strong>Sync Prices</strong> so Fib levels, valuation metrics, and trend waves can load.</div>`
@@ -17674,8 +17674,8 @@
         renderValuationMetric("Trailing P/E", formatInspectorMetric(val.trailingPe)),
         renderValuationMetric("Forward P/E", formatInspectorMetric(val.forwardPe)),
         renderValuationMetric("PEG Ratio", formatInspectorMetric(val.pegRatio)),
-        renderValuationMetric("Rev Growth", formatInspectorMetric(val.revenueGrowth, "%")),
-        renderValuationMetric("Op Margin", formatInspectorMetric(val.operatingMargin, "%")),
+        renderValuationMetric("Rev Growth", formatRatioPercent(val.revenueGrowth)),
+        renderValuationMetric("Op Margin", formatRatioPercent(val.operatingMargin)),
       ].join("");
 
       const confluenceHtml = renderInspectorConfluence(conf, advisory);
