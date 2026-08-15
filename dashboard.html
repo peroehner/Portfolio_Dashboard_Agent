@@ -1802,8 +1802,11 @@
     .chip.confidence-high { background: rgba(34,197,94,0.18); color: #4ade80; }
     .chip.confidence-medium { background: rgba(245,158,11,0.2); color: var(--warn); }
     .chip.confidence-low { background: rgba(239,68,68,0.15); color: #fca5a5; }
+    .chip.fitband-high,
     .chip.fitband-strong { background: rgba(34,197,94,0.2); color: #86efac; }
+    .chip.fitband-medium,
     .chip.fitband-mid { background: rgba(245,158,11,0.22); color: #fbbf24; }
+    .chip.fitband-low,
     .chip.fitband-weak { background: rgba(239,68,68,0.2); color: #fca5a5; }
     .chip.fitband-unknown { background: rgba(148,163,184,0.17); color: #cbd5e1; }
     .screening-rec-chips {
@@ -4498,32 +4501,35 @@
       font-weight: 600;
       white-space: nowrap;
     }
-    /* GAINS / TAX (and optional Unknown-Wins) presentation in the Simulation
-       KPI header card. */
+    /* GAINS / TAX KPI — optional UNKNOWN-WINS glyph stays on the value line. */
     .sim-kpi-gaintax { min-width: 9.5rem; flex: 1.35 1 0; }
-    /* UNKNOWN-WINS sub-line inside the GAINS/TAX KPI card. */
-    .sim-gaintax-block {
-      display: flex;
-      flex-direction: column;
-      gap: 0.1rem;
-      margin-top: 0.1rem;
+    .sim-kpi-gaintax .sim-kpi-value {
+      display: inline-flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 0.28rem;
     }
-    .sim-gaintax-label {
-      font-size: 0.58rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
+    .sim-gaintax-tax {
       color: var(--muted);
-      text-transform: uppercase;
+      font-weight: 600;
     }
-    .sim-gaintax-label sup {
-      font-size: 0.7em;
-      text-transform: none;
-      letter-spacing: 0;
-    }
-    .sim-gaintax-value {
-      font-size: 0.82rem;
-      font-weight: 700;
-      white-space: nowrap;
+    .sim-gaintax-unknown-glyph {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.05rem;
+      height: 1.05rem;
+      margin-left: 0.05rem;
+      border-radius: 999px;
+      border: 1px solid rgba(251, 146, 60, 0.55);
+      background: rgba(251, 146, 60, 0.14);
+      color: #fb923c;
+      font-size: 0.62rem;
+      font-weight: 800;
+      line-height: 1;
+      cursor: help;
+      vertical-align: middle;
+      flex-shrink: 0;
     }
     .sim-tax-proposal {
       margin-top: 0.85rem;
@@ -4747,17 +4753,6 @@
       padding-left: 1.2rem;
     }
     .sim-tax-proposal details li { margin-bottom: 0.25rem; }
-    .sim-gaintax-tax {
-      color: var(--muted);
-      font-weight: 600;
-    }
-    .sim-gaintax-unknown {
-      cursor: help;
-    }
-    .sim-gaintax-unknown .sim-gaintax-label,
-    .sim-gaintax-unknown .sim-gaintax-value {
-      color: #fb923c;
-    }
     .sim-gains-derived {
       cursor: help;
     }
@@ -5507,7 +5502,7 @@
           <tr><th>Symbol</th><th>Conf · Score</th><th>Weight</th><th>Arithmetic</th></tr>
           <tr><td><code>LRCX</code></td><td>High · 83</td><td><strong>5.49</strong></td><td>3 × (1 + 83/100) = 3 × 1.83</td></tr>
           <tr><td><code>SRPT</code></td><td>Medium · 56</td><td><strong>3.12</strong></td><td>2 × 1.56</td></tr>
-          <tr><td><code>DOCU</code></td><td>Medium · 45</td><td><strong>2.90</strong></td><td>2 × 1.45</td></tr>
+          <tr><td><code>DOCU</code></td><td>Medium · 40</td><td><strong>2.80</strong></td><td>2 × 1.40 — Medium floor is ≥35</td></tr>
           <tr><td><code>TTD</code></td><td>Low · 63</td><td><strong>1.63</strong></td><td>1 × 1.63 — Score is mid-band, but Label Low keeps weight small</td></tr>
         </table>
         <p>So one <strong>LRCX-strength win (~5.5)</strong> counts about as much as <strong>three TTD-strength</strong> decisive bets (~1.6 each). That is why Bet-S-Hit can sit well above plain Hit when strong calls win and weak ones lose.</p>
@@ -5980,8 +5975,8 @@
         <button type="button" class="secondary filter-btn" data-sim-filter="far" onclick="setSimulationFilter('far')" title="Nearest planned-trade threshold is more than 100% from the current price (far from triggering)">Far Trades</button>
         <span class="sim-legs-sep" aria-hidden="true"></span>
         <button type="button" class="secondary filter-btn active" data-sim-legs="both" onclick="setSimulationLegs('both')" title="Include both buy and sell legs in the totals">Both</button>
-        <button type="button" class="secondary filter-btn" data-sim-legs="buys" onclick="setSimulationLegs('buys')" title="Only buy legs count toward the totals">Buys</button>
-        <button type="button" class="secondary filter-btn" data-sim-legs="sells" onclick="setSimulationLegs('sells')" title="Only sell legs count toward the totals">Sells</button>
+        <button type="button" class="secondary filter-btn" data-sim-legs="buys" onclick="setSimulationLegs('buys')" title="Only buy legs — shows Buy Score (SAI Score); hides Sell @ ×Sh">Buys</button>
+        <button type="button" class="secondary filter-btn" data-sim-legs="sells" onclick="setSimulationLegs('sells')" title="Only sell legs — shows Sell Rank (Plan Sell Rank); hides Buy @ ×Sh">Sells</button>
         <span class="sim-legs-sep" aria-hidden="true"></span>
         <button type="button" class="secondary filter-btn active" data-sim-pricing="threshold" onclick="setSimulationPricingMode('threshold')" title="Execute planned sizes at their threshold prices (default). Tax & Trim cash uses sell-threshold prices when set.">Thresholds</button>
         <button type="button" class="secondary filter-btn" data-sim-pricing="current" onclick="setSimulationPricingMode('current')" title="Execute planned sizes at today's price. Tax & Trim cash marks to market.">Current Price</button>
@@ -9288,7 +9283,8 @@
     }
 
     const SAI_ACTION_RANK = { buy: 4, watch: 3, hold: 2, sell: 1 };
-    const SAI_FIT_BAND_RANK = { strong: 4, mid: 3, weak: 2, unknown: 1 };
+    // Fit Band uses same High/Medium/Low vocabulary as Conf (raw Score; Conf may soften).
+    const SAI_FIT_BAND_RANK = { high: 4, medium: 3, low: 2, unknown: 1, strong: 4, mid: 3, weak: 2 };
     const SAI_CONFIDENCE_RANK = { high: 3, medium: 2, low: 1 };
     const SAI_SENTIMENT_RANK = { bullish: 3, neutral: 2, bearish: 1 };
 
@@ -11828,17 +11824,18 @@
     function saiFitBandFromProposal(proposal) {
       const total = Number(proposal?.scores?.total);
       if (!Number.isFinite(total)) return "unknown";
-      if (total >= 60) return "strong";
-      if (total >= 45) return "mid";
-      return "weak";
+      // Same cuts as Conf base: ≥75 high · ≥35 medium · else low (raw; no soften).
+      if (total >= 75) return "high";
+      if (total >= 35) return "medium";
+      return "low";
     }
 
-    /** Inclusive score range for a Fit Band label (strong ≥60 · mid ≥45 · else weak). */
+    /** Inclusive score range for a Fit Band / Conf-base label. */
     function saiFitBandRange(band) {
       const key = String(band || "").toLowerCase();
-      if (key === "strong") return { low: 60, high: 100 };
-      if (key === "mid") return { low: 45, high: 59 };
-      if (key === "weak") return { low: 0, high: 44 };
+      if (key === "high" || key === "strong") return { low: 75, high: 100 };
+      if (key === "medium" || key === "mid") return { low: 35, high: 74 };
+      if (key === "low" || key === "weak") return { low: 0, high: 34 };
       return null;
     }
 
@@ -11855,9 +11852,9 @@
     }
 
     /**
-     * Pay-attention when Score-band action ≠ displayed SAI Action.
-     * Prefer live band vs rec.action so Inspector matches Screening even if
-     * a stored proposal.attention is stale or missing.
+     * Pay-attention (!) when the Action chip (stored Assess) disagrees with what
+     * the live SAI Score maps to on the action ladder. There is only one Action
+     * metric — ! is a stale/mismatch hint, not a second Action and not Conf vs Fit Band.
      */
     function resolveSaiAttention(rec) {
       const proposal = rec?.proposal || {};
@@ -11883,7 +11880,7 @@
       return {
         flag: true,
         level: opposite ? "warn" : "info",
-        message: `Pay attention: Score band → ${bandAction.toUpperCase()} while SAI Action is ${saiAction.toUpperCase()}`,
+        message: `Pay attention: SAI Action is ${saiAction.toUpperCase()} (last Assess), while Live Score shows a ${bandAction.toUpperCase()}`,
         bandAction,
         saiAction,
       };
@@ -11917,7 +11914,7 @@
       const attention = resolveSaiAttention(rec);
       const attentionFlag = Boolean(attention?.flag);
       const actionTitle = attentionFlag
-        ? escapeHtml(attention.message || "Pay attention: Score band differs from SAI Action")
+        ? escapeHtml(attention.message || "Pay attention: SAI Action (last Assess) differs from what Live Score shows")
         : "Action";
       const actionText = attentionFlag ? `${action} !` : action;
       const actionClass = attentionFlag ? `${action} attention` : action;
@@ -11988,7 +11985,7 @@
       const n = Number(total);
       if (!Number.isFinite(n)) return null;
       if (n >= 75) return "high";
-      if (n >= 45) return "medium";
+      if (n >= 35) return "medium";
       return "low";
     }
 
@@ -12469,14 +12466,19 @@
     }
 
     const TECH_STANCE_HELP = "Confluence agent's purely technical read (independent of the SAI):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 scale (left = bearish, center = neutral, right = bullish)\n• Strength — how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume)";
-    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — Buy / Watch / Hold / Sell. A trailing ! means Score-band action differs from this SAI Action (Pay attention).\n• CONF · SCORE — two measures: Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit)\n• FIT BAND — SAI by Fit Band (strong / mid / weak / unknown) from proposal score; strong bets historically hit ~80%+ in Agent Signal Record\n• SENTIMENT — news reaction (else notes)\n• INTENT (offset, role glyph) — Portfolio Intent from holdings + planned trades (or your override): tactical / accumulate / core / core_accumulate / divest — color + icon by role; separate from the SAI signals\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), Fit Band, or Sentiment";
+    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — the only Action chip: Buy / Watch / Hold / Sell (from last Assess). A trailing ! means live SAI Score maps to a different Buy/Watch/Sell on the action ladder below — often stale Assess vs moved Score. ! is not Conf vs Fit Band.\n• ACTION LADDER (from live SAI Score) — ≥75 Strong buy / size-up · 60–74 Buy / add · 45–59 Watch / hold · 30–44 Hold / trim · <30 Sell / avoid\n• CONF · SCORE — Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit). Base Label cuts: ≥75 High · ≥35 Medium · else Low; Label may soften one notch.\n• FIT BAND — same High/Medium/Low cuts on raw Score (no softening). Compare Conf vs Fit Band to see soften impact — both are conviction, not Action.\n• SENTIMENT — news reaction (else notes)\n• INTENT (offset, role glyph) — Portfolio Intent from holdings + planned trades (or your override): tactical / accumulate / core / core_accumulate / divest — color + icon by role; separate from the SAI signals\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), Fit Band, or Sentiment";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
     const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
     const SIM_SYMBOL_HELP = "Ticker with at least one priced planned-trade threshold. Click to open in Target.";
     const SIM_CLOSE_PCT_HELP = "Distance to the nearest in-scope planned-trade threshold:\n• Uses the active Buys / Sells / Both leg filter\n• Smaller % = closer to triggering\n• ▼ price above threshold · ▲ price below threshold\n• Sort ascending to surface trades about to fire";
+    const SIM_BUY_SCORE_HELP = "Buy Score = SAI Score (State + Trigger + Fit, 0–100).\n• Same as mobile Buy Plan Score mode\n• Higher = stronger buy lean\n• — when no published proposal score yet (run Assess)";
+    const SIM_SELL_RANK_HELP = "Sell Rank = Plan Sell Rank = 80 − Plan Attract (P+T+S).\n• Same as mobile Sell Plan Score mode\n• Lower = closer / triggered / larger → stronger sell-to-fire\n• Not Trim Score (Tax & Trim)\n• Hover cell for P / T / S breakdown";
     const SIM_NET_GAINS_HELP = "Realized gain on in-scope SELL legs:\n• (avg sell price − cost/share) × shares sold\n• Cost/share — holding average cost when on file, otherwise share-weighted planned BUY threshold\n• — when no in-scope sells, or no derivable cost (UNKNOWN-WINS)";
     const SIM_WARN_HELP = "Warnings on planned-trade rows:\n• ⚠ — planned sell exceeds shares held (a paired buy leg may cover it)\n• $0 — priced leg has no share quantity set";
+
+    /** Match mobile trade-plan Plan Attract ceiling (Sell Rank = ceiling − Attract). */
+    const PLAN_ATTRACT_CEILING = 80;
     const FUND_LEVEL_SORT_HELP = "Deviation sort by |price − level| / level:\n• Click cycles closest first → furthest first → unsorted\n• Applies to the reference level in this column";
     const FUND_BETA_HELP = "Beta measures volatility vs the broad market (typically S&P 500):\n• 1.0 = roughly market-like swings\n• >1.0 = more volatile than market\n• <1.0 = less volatile than market";
     const FUND_CURRENT_RATIO_HELP = "Current Ratio = current assets / current liabilities:\n• >1.0 means short-term assets cover short-term obligations\n• Higher can signal stronger near-term liquidity";
@@ -13913,6 +13915,39 @@
       return { side, price, qty, buy, qtyNotSet: !shares };
     }
 
+    /** Plan Attract pieces for one leg — same math as mobile trade-plan.tsx. */
+    function planLegAttractParts(currentPrice, leg) {
+      const px = Number(currentPrice) || 0;
+      const thr = Number(leg?.price);
+      if (!(px > 0) || !Number.isFinite(thr)) return null;
+      const proximitySignedPct = ((px - thr) / px) * 100;
+      const proximityAbsPct = Math.abs(proximitySignedPct);
+      const proximityScore = Math.max(0, 50 - proximityAbsPct);
+      const triggerScore = leg.buy
+        ? (proximitySignedPct <= 0 ? 15 : 0)
+        : (proximitySignedPct >= 0 ? 15 : 0);
+      const exec = Number(leg.execPrice != null ? leg.execPrice : thr);
+      const cash = (Number.isFinite(exec) ? exec : thr) * (Number(leg.qty) || 0);
+      const sizeScore = Math.min(15, (cash / 50000) * 15);
+      const planAttract = proximityScore + triggerScore + sizeScore;
+      const planSellRank = Math.max(0, PLAN_ATTRACT_CEILING - planAttract);
+      return {
+        proximitySignedPct,
+        proximityAbsPct,
+        proximityScore,
+        triggerScore,
+        sizeScore,
+        planAttract,
+        planSellRank,
+      };
+    }
+
+    function rowSaiBuyScore(row) {
+      const total = Number(row?.recommendation?.proposal?.scores?.total);
+      if (!Number.isFinite(total)) return null;
+      return Math.max(0, Math.min(100, total));
+    }
+
     function computeTradePlan(rows, legFilter = "both", pricingMode = simulationPricingMode) {
       const atCurrent = pricingMode === "current";
       const keepLeg = (leg) =>
@@ -13969,6 +14004,18 @@
         if (oversell) oversellCount += 1;
         totalInvested += cashInvested;
         totalGenerated += cashGenerated;
+        const buyScore = rowSaiBuyScore(row);
+        // Strongest sell-to-fire among in-scope sell legs (lowest Plan Sell Rank).
+        let sellRank = null;
+        let sellAttractParts = null;
+        sellLegList.forEach((leg) => {
+          const parts = planLegAttractParts(currentPrice, leg);
+          if (!parts) return;
+          if (sellRank == null || parts.planSellRank < sellRank) {
+            sellRank = parts.planSellRank;
+            sellAttractParts = parts;
+          }
+        });
         // Realized gains from in-scope SELL legs, weighted by share-avg sell vs
         // an effective cost/share. Cost basis comes from (a) the holding's avg
         // cost when on file, else (b) the share-weighted planned BUY threshold
@@ -14026,6 +14073,9 @@
           qtyNotSet,
           buyLegList,
           sellLegList,
+          buyScore,
+          sellRank,
+          sellAttractParts,
         });
       });
       return {
@@ -14129,12 +14179,36 @@
       return best;
     }
 
-    const simulationColumns = [
+    const simulationColumnsBase = [
       { key: "symbol", label: "Symbol", rowKey: true, help: SIM_SYMBOL_HELP, sortValue: (row) => row.symbol, render: (row) => `<a href="#" onclick="selectSymbol('${row.symbol}'); showView('portfolio'); return false;">${row.symbol}</a>` },
       { key: "cashInvested", label: "Invested", sortValue: (row) => row.cashInvested, render: (row) => (row.cashInvested ? formatMoney(row.cashInvested) : "—") },
       { key: "currentPrice", label: "Price", sortValue: (row) => row.currentPrice, render: (row) => formatMoney(row.currentPrice) },
       { key: "buy", label: "Buy @ ×Sh", sortValue: (row) => row.cashInvested, render: (row) => simLegCell(row.buyLegList) },
+      {
+        key: "buyScore",
+        label: "Buy Score",
+        help: SIM_BUY_SCORE_HELP,
+        sortValue: (row) => (row.buyScore == null ? -1 : row.buyScore),
+        render: (row) => {
+          if (row.buyScore == null) return "—";
+          return `<span title="SAI Score (State+Trigger+Fit)">${Math.round(row.buyScore)}</span>`;
+        },
+      },
       { key: "sell", label: "Sell @ ×Sh", sortValue: (row) => row.cashGenerated, render: (row) => simLegCell(row.sellLegList) },
+      {
+        key: "sellRank",
+        label: "Sell Rank",
+        help: SIM_SELL_RANK_HELP,
+        sortValue: (row) => (row.sellRank == null ? Infinity : row.sellRank),
+        render: (row) => {
+          if (row.sellRank == null) return "—";
+          const p = row.sellAttractParts;
+          const title = p
+            ? `Plan Sell Rank ${Math.round(row.sellRank)} = 80 − Attract ${Math.round(p.planAttract)} (P${Math.round(p.proximityScore)} T${Math.round(p.triggerScore)} S${Math.round(p.sizeScore)})`
+            : `Plan Sell Rank ${Math.round(row.sellRank)}`;
+          return `<span title="${escapeHtml(title)}">${Math.round(row.sellRank)}</span>`;
+        },
+      },
       { key: "closePct", label: "Close %", help: SIM_CLOSE_PCT_HELP, sortValue: (row) => { const m = simClosestMeta(row); return m ? m.dist : Infinity; }, render: (row) => {
         const m = simClosestMeta(row);
         if (!m) return "—";
@@ -14152,6 +14226,17 @@
       { key: "held", label: "Held", sortValue: (row) => row.held, render: (row) => (row.held ? simQty(row.held) : "—") },
       { key: "warn", label: "⚠", help: SIM_WARN_HELP, sortValue: (row) => (row.oversell ? 1 : 0) + (row.qtyNotSet ? 0.5 : 0), render: (row) => simWarnCell(row) },
     ];
+
+    /** Both: Buy+Sell @×Sh. Buys: drop Sell @×Sh, show Buy Score. Sells: drop Buy @×Sh, show Sell Rank. */
+    function activeSimulationColumns() {
+      return simulationColumnsBase.filter((col) => {
+        if (col.key === "buy" && simulationLegs === "sells") return false;
+        if (col.key === "sell" && simulationLegs === "buys") return false;
+        if (col.key === "buyScore" && simulationLegs !== "buys") return false;
+        if (col.key === "sellRank" && simulationLegs !== "sells") return false;
+        return true;
+      });
+    }
 
     // Leg-aware threshold distances for a raw screening row, honoring the active
     // Buys/Sells/Both leg filter.
@@ -14196,7 +14281,7 @@
     }
 
     function currentSimulationOrder() {
-      return sortRows("simulation", tableDataCache.simulation || [], simulationColumns).map((row) => row.symbol);
+      return sortRows("simulation", tableDataCache.simulation || [], activeSimulationColumns()).map((row) => row.symbol);
     }
 
     function simulationTotalsFooterHtml(plan, useSelection) {
@@ -14215,7 +14300,7 @@
         netShares: `<strong>${renderSimulationSharesCell(totalNetShares)}</strong>`,
         warn: plan.oversellCount ? `<strong>${plan.oversellCount} ⚠</strong>` : "",
       };
-      const cells = simulationColumns
+      const cells = activeSimulationColumns()
         .map((col) => `<td>${cellByKey[col.key] ?? ""}</td>`)
         .join("");
       return `<tfoot><tr class="total-row">${cells}</tr></tfoot>`;
@@ -14225,20 +14310,22 @@
       const el = document.getElementById("simulationKpis");
       if (!el) return;
       const scopeLabel = `${plan.scopeCount} symbol${plan.scopeCount === 1 ? "" : "s"}${useSelection ? " selected" : ""}`;
-      // GAINS / TAX KPI: computable realized gains + est. tax, with an optional
-      // amber UNKNOWN-WINS sub-line for sells lacking a derivable cost basis.
+      // GAINS / TAX KPI: computable realized gains + est. tax; UNKNOWN-WINS as
+      // a same-line glyph (hover for amount + explanation — no layout shift).
       const anyGains = plan.symbols.some((row) => row.netGains != null);
       const unknownGains = Number(plan.totalUnknownGains) || 0;
       const taxEst = SIM_TAX_RATE * Math.max(plan.totalNetGains, 0);
-      const gainsValue = anyGains
-        ? `${renderColoredSummaryMoneyCell(plan.totalNetGains)} <span class="sim-gaintax-tax">(${formatSummaryMoney(taxEst)})</span>`
-        : "—";
-      const unknownLine = unknownGains > 0
-        ? `<span class="sim-gaintax-block sim-gaintax-unknown" title="${plan.unknownGainsCount} symbol(s) have sell legs but no cost basis on file, so their realized gain can't be computed or taxed — shown here as gross sell proceeds. Add an average cost per share to include them in Gains/Tax.">`
-          + `<span class="sim-gaintax-label">UNKNOWN-WINS</span>`
-          + `<span class="sim-gaintax-value">${formatSummaryMoney(unknownGains)}</span>`
-          + `</span>`
+      const unknownHint = unknownGains > 0
+        ? escapeHtml(
+            `UNKNOWN-WINS ${formatSummaryMoney(unknownGains)} — ${plan.unknownGainsCount} symbol(s) have sell legs but no cost basis on file, so their realized gain can't be computed or taxed (gross sell proceeds). Add an average cost per share to include them in Gains/Tax.`
+          )
         : "";
+      const unknownGlyph = unknownGains > 0
+        ? `<span class="sim-gaintax-unknown-glyph" title="${unknownHint}" aria-label="${unknownHint}">?</span>`
+        : "";
+      const gainsValue = anyGains
+        ? `${renderColoredSummaryMoneyCell(plan.totalNetGains)} <span class="sim-gaintax-tax">(${formatSummaryMoney(taxEst)})</span>${unknownGlyph}`
+        : `—${unknownGlyph}`;
       el.innerHTML = `
         <div class="sim-kpi lead">
           <span class="sim-kpi-label">Net Cash Flow</span>
@@ -14267,7 +14354,6 @@
         <div class="sim-kpi sim-kpi-gaintax">
           <span class="sim-kpi-label">GAINS / TAX<sup>est</sup></span>
           <span class="sim-kpi-value">${gainsValue}</span>
-          ${unknownLine}
         </div>
       `;
     }
@@ -14313,7 +14399,7 @@
         "simulation",
         renderSortableTable(
           "simulation",
-          simulationColumns,
+          activeSimulationColumns(),
           tablePlan.symbols,
           emptyMsg,
           {

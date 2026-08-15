@@ -110,13 +110,33 @@ def _downgrade_confidence(level: str) -> str:
     return order[min(idx + 1, len(order) - 1)]
 
 
-def base_confidence_for_total(*, total: int) -> str:
-    """Base confidence before stability/veto adjustments."""
-    if total >= 75:
+# Shared Score → High/Medium/Low cuts (Conf base + Fit Band raw).
+# Conf may soften one notch afterward; Fit Band does not.
+SCORE_BAND_HIGH_MIN = 75
+SCORE_BAND_MEDIUM_MIN = 35
+
+
+def score_band_for_total(total: float | int | None) -> str:
+    """Raw High/Medium/Low from SAI Score — same cuts for Conf base and Fit Band."""
+    if total is None:
+        return "unknown"
+    try:
+        t = float(total)
+    except (TypeError, ValueError):
+        return "unknown"
+    if not (t == t):  # NaN
+        return "unknown"
+    if t >= SCORE_BAND_HIGH_MIN:
         return "high"
-    if total >= 45:
+    if t >= SCORE_BAND_MEDIUM_MIN:
         return "medium"
     return "low"
+
+
+def base_confidence_for_total(*, total: int) -> str:
+    """Base confidence before stability/veto adjustments."""
+    band = score_band_for_total(total)
+    return band if band in ("high", "medium", "low") else "low"
 
 
 def confirmation_required_for_confidence(level: str) -> int:

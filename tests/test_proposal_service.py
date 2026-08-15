@@ -8,7 +8,9 @@ from services.proposal_service import (
     FIT_EXTENSION_KEYS,
     ProposalService,
     action_for_band_code,
+    base_confidence_for_total,
     pillar_scales_from_track_record,
+    score_band_for_total,
 )
 
 
@@ -178,6 +180,16 @@ class ProposalServiceTests(unittest.TestCase):
             {"byKind": {"recommendation": {"wins": 1, "losses": 0, "hitRate": 1.0}}}
         )
         self.assertEqual(thin["state"], 1.0)
+
+    def test_score_band_cuts_match_conf_and_fit_band(self) -> None:
+        """Shared ≥75 / ≥35 / else cuts; Fit Band = raw, Conf base uses same helper."""
+        self.assertEqual(score_band_for_total(75), "high")
+        self.assertEqual(score_band_for_total(74), "medium")
+        self.assertEqual(score_band_for_total(35), "medium")
+        self.assertEqual(score_band_for_total(34), "low")
+        self.assertEqual(score_band_for_total(None), "unknown")
+        self.assertEqual(base_confidence_for_total(total=40), "medium")
+        self.assertEqual(base_confidence_for_total(total=34), "low")
 
 
 if __name__ == "__main__":

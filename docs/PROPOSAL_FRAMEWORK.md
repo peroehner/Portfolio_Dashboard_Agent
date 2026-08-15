@@ -36,30 +36,31 @@ They explain structure; they do **not** yet override the overlay/LLM action.
 | 30–44 | Hold / trim bias |
 | < 30 | Sell / avoid |
 
-Emitted on every proposal as `bandBias`. **Current code:** band-derived action is authoritative for published SAI (`authority: "proposal_band"`) unless `PROPOSAL_STABILITY_GATE=1` holds a prior action. Screening still shows the **stored assessment action** as the Action chip; when that differs from the live Score band, `attention` / **!** surfaces the gap. Gate remains **off** by default while Score accuracy (Fit / Intent) is improved.
+Emitted on every proposal as `bandBias`. **Current code:** the action ladder from live Score is authoritative for `proposal.action` (`authority: "proposal_band"`) unless `PROPOSAL_STABILITY_GATE=1` holds a prior action. Screening’s **Action chip** still shows the **stored Assess Action**; when live Score maps to a different Buy/Watch/Sell, Attention **!** surfaces the gap (not a second Action metric). Gate remains **off** by default while Score accuracy (Fit / Intent) is improved.
 
 ## Label vs Score (Screening Conf · Score)
 
-Screening’s **Conf · Score** chip shows **two measures**, not one duplicated field:
+Screening’s **Conf · Score** chip shows **two measures**, not one duplicated field. Canonical names and cross-surface map: [SIGNAL_SCORES.md](./SIGNAL_SCORES.md).
 
-| Measure | What it is | Role |
-|---------|------------|------|
-| **Label** (High / Medium / Low) | Published conviction | Bet-S-Hit weight factor (3 / 2 / 1) |
-| **Score** (0–100) | State + Trigger + Fit | Continuous setup quality; scales Bet-S-Hit via `(1 + score/100)` |
+| Measure | Product name | Role |
+|---------|--------------|------|
+| **Label** (High / Medium / Low) | **SAI Conf** — published Conviction | Bet-S-Hit weight factor (3 / 2 / 1) |
+| **Score** (0–100) | **SAI Score** — State + Trigger + Fit | Setup quality; scales Bet-S-Hit via `(1 + score/100)`; also **Buy Plan** Score mode |
+| **Fit Band** (High / Medium / Low) | Raw Score with **same cuts** as Conf base (≥75 / ≥35 / else) | Screening Fit chip + track-record slice — **not** softened |
 
-**Base Label from Score alone:** ≥75 High, ≥45 Medium, else Low — then Label may be **softened one notch** (stability gate / unconfirmed flip, or warn/block vetoes). **Score does not drop with that soften**, so Score can **lag behind** a lower Label.
+**Base Label / Fit Band from Score alone:** ≥75 High, ≥35 Medium, else Low — then **only Label** may be **softened one notch** (stability gate / unconfirmed flip, or warn/block vetoes). **Score does not drop with that soften**, so Score can **lag behind** a lower Label. Fit Band always follows raw Score (same vocabulary as Conf).
 
 **Examples (not bugs):**
 
 | Chip | Reading |
 |------|---------|
 | `High · 83` | Label matches score band; weight ≈ `3 × (1+83/100) = 5.49` |
-| `Medium · 45` | Floor of Medium band; sorts above any Low when Conf · Score is sorted Label-first |
+| `Medium · 40` | Floor of Medium band (≥35); sorts above any Low when Conf · Score is sorted Label-first |
 | `Low · 63` | Score alone → Medium, but Label Low after soften — **Score may lag Label**; hover lists stability/guardrail when known |
 
-Hover (native title) stays compact: Label → Score (State·Trigger·Fit) → Bet-S-Hit weight → Drivers → lag hint only when Label &lt; score-implied band. Sort tip: Label first, then Score.
+**Hover (Conf · Score):** published Conviction first (`Medium Conviction…`), then Score (State·Trigger·Fit) + action band, Bet-S-Hit weight using the **same** published Label as the chip, crisp Drivers, then soften note when assessment or score-implied Label is higher. Fit Band hover: `Fit Band: HIGH (80: 75 - 100)`.
 
-Agent Signal Record **Bet-S-Hit** uses the same pair: `confidence_weight × (1 + fit_total/100)` where `fit_total` is proposal Score total. See [signal_track_record.md](./signal_track_record.md).
+Agent Signal Record **Bet-S-Hit** uses the same pair: `confidence_weight × (1 + fit_total/100)` where `fit_total` is proposal **SAI Score** total (naming gotcha — not Fit pillar alone). See [signal_track_record.md](./signal_track_record.md). Compare **SAI by confidence** (published) vs **SAI by Fit band** (raw) to judge softening.
 
 ## Pillar detail
 
@@ -72,7 +73,7 @@ Slow-moving quality of the name and thesis.
 - Note synthesis thesis quality (when present)  
 - Analyst coverage quality (targets, dispersion — later)
 
-**Upside weight (current scaffold):** State takes screening `upsidePct` (analyst **1YT** when present, else **personal Target**) and maps positive upside into up to **+20** of State’s 0–50 (`upside/45 × 20`, capped). Example: ~25.6% upside → about **+11 State**. That is a large share of State, so ambitious targets (especially when personal Target is the only one) lift Score/band quickly even if Label is later softened. **Likely tune:** reduce this cap or split personal vs Street upside so State is less dominated by Target.
+**Upside weight (current scaffold):** State takes screening `upsidePct` (analyst **1YT** when present, else **personal Target / PT**) and maps positive upside into up to **+20** of State’s 0–50 (`upside/45 × 20`, capped). Factor text names the source (`Upside vs 1YT` / `Upside vs PT`). Example: ~25.6% upside → about **+11 State**. That is a large share of State, so ambitious targets (especially when personal Target is the only one) lift Score/band quickly even if Label is later softened. **Likely tune:** reduce this cap or split personal vs Street upside so State is less dominated by Target.
 
 ### B) Trigger (0–30)
 
@@ -114,15 +115,13 @@ A symbol’s role in the book — used for Fit alignment and a capped Tax & Trim
 
 `fitExtensions.holdingPeriodBias` mirrors effective Intent `code`; `fitExtensions.intentOverride` mirrors the user override when set.
 
-### Attention (`Watch !`)
+### Attention (`!` on Action)
 
-When Score-band action ≠ published SAI Action (hold treated as watch for comparison):
+There is **only one Action chip** (stored Assess Action). A trailing **!** means the **live SAI Score** currently maps to a **different** Buy/Watch/Sell on the **action ladder** (often stale Assess vs prices/Fit moved). Hover spells out both sides.
 
-- `proposal.attention.flag`  
-- `level`: `warn` for buy↔sell, else `info`  
-- Screening / Inspector action chip shows trailing **!** (e.g. `Watch !`)
+**Not** Conf vs Fit Band — those share High/Medium/Low cuts and only differ by softening; they do not set Action.
 
-Stability gate stays **off** by default (`PROPOSAL_STABILITY_GATE=0`); observe band assessments + Attention while Fit/Intent improve Score accuracy.
+Stability gate stays **off** by default (`PROPOSAL_STABILITY_GATE=0`); observe Attention while Fit/Intent improve Score accuracy.
 
 **Roadmap — iterate without schema break**
 
@@ -272,7 +271,8 @@ Mobile compact card is deferred; API fields remain optional for later clients.
 
 ## Related
 
+- Scores & ranks map (Buy/Sell Plan, Tax & Trim, Bet-S-Hit): [SIGNAL_SCORES.md](./SIGNAL_SCORES.md)  
 - Assessment overlay: `services/assessment_overlay_service.py`  
 - Signal track record: [signal_track_record.md](./signal_track_record.md)  
 - API overview: [API.md](./API.md)  
-- Mobile surfaces: [MOBILE.md](./MOBILE.md) (proposal card later)
+- Mobile surfaces: [MOBILE.md](./MOBILE.md)

@@ -77,9 +77,12 @@ class StrengthHelperTests(unittest.TestCase):
         self.assertEqual(band, "buy")
 
     def test_fit_band_label(self) -> None:
-        self.assertEqual(fit_band_label(70), "strong")
-        self.assertEqual(fit_band_label(50), "mid")
-        self.assertEqual(fit_band_label(20), "weak")
+        # Same cuts as Conf base: ≥75 high · ≥35 medium · else low (raw; no soften).
+        self.assertEqual(fit_band_label(80), "high")
+        self.assertEqual(fit_band_label(70), "medium")
+        self.assertEqual(fit_band_label(35), "medium")
+        self.assertEqual(fit_band_label(34), "low")
+        self.assertEqual(fit_band_label(20), "low")
         self.assertEqual(fit_band_label(None), "unknown")
 
     def test_direction_adjusted_return(self) -> None:

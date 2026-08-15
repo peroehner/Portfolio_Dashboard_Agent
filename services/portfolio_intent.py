@@ -264,7 +264,7 @@ def harvest_intent_lean(
 
 
 def attention_for_actions(*, band_action: str, sai_action: str) -> dict[str, Any]:
-    """Pay-attention when Score-band action differs from published SAI action."""
+    """Pay-attention when Live Score’s action ladder differs from Assess Action."""
 
     def _norm(action: str) -> str:
         a = str(action or "hold").lower()
@@ -289,7 +289,8 @@ def attention_for_actions(*, band_action: str, sai_action: str) -> dict[str, Any
         "flag": True,
         "level": level,
         "message": (
-            f"Pay attention: Score band → {band.upper()} while SAI Action is {sai.upper()}"
+            f"Pay attention: SAI Action is {sai.upper()} (last Assess), "
+            f"while Live Score shows a {band.upper()}"
         ),
         "bandAction": band,
         "saiAction": sai,

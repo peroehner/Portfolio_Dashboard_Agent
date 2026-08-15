@@ -174,7 +174,7 @@ Bet-S-Hit = Σ(weights on wins) / Σ(weights on wins+losses) × 100
 |--------|--------------|--------|
 | LRCX | High · 83 | 3 × 1.83 = **5.49** |
 | SRPT | Medium · 56 | 2 × 1.56 = **3.12** |
-| DOCU | Medium · 45 | 2 × 1.45 = **2.90** |
+| DOCU | Medium · 40 | 2 × 1.40 = **2.80** |
 | TTD | Low · 63 | 1 × 1.63 = **1.63** |
 
 TTD’s Score (63) sits in the Medium band, but Label Low keeps its Bet-S-Hit weight small — so a TTD loss barely offsets an LRCX-strength win.
@@ -186,10 +186,10 @@ do not store strength today, so those rows stay equal. Once SAI strength fills i
 Bet-S-Hit ≫ Hit prefer stronger signals; if ≪ Hit stronger calls are underperforming.
 Summary insight grades categories by Bet-S-Hit so confluence gaps (e.g. Bearish) surface.
 
-**Label vs Score:** Confidence **Label** and proposal **Score** are separate. Score can stay
+**Label vs Score:** Confidence **Label** (SAI Conf) and proposal **Score** (SAI Score) are separate. Score can stay
 in a higher band while Label is softened (stability / guardrails) — “Score may lag Label.”
-Screening **Conf · Score** hover explains the pair; full model + examples:
-[PROPOSAL_FRAMEWORK.md — Label vs Score](./PROPOSAL_FRAMEWORK.md#label-vs-score-screening-conf--score).
+Screening **Conf · Score** hover explains the pair; full model + cross-surface map:
+[SIGNAL_SCORES.md](./SIGNAL_SCORES.md) · [PROPOSAL_FRAMEWORK.md — Label vs Score](./PROPOSAL_FRAMEWORK.md#label-vs-score-screening-conf--score).
 
 **SAI strength metadata (P1 — implemented):** recommendation bets store
 `confidence`, `fit_total`, and `band_code` at capture (from the published

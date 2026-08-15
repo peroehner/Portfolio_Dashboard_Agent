@@ -30,15 +30,15 @@ export const SIGNAL_GLOSSARY: Record<SignalKey, SignalDef> = {
     key: "saiConf",
     label: "SAI Conf",
     shortLabel: "Conf",
-    formula: "High ≥75 · Medium ≥45 · else Low (may soften for gates/vetoes)",
+    formula: "High ≥75 · Medium ≥35 · else Low (may soften for gates/vetoes)",
     meaning: "Published conviction label from SAI Score.",
   },
   fitBand: {
     key: "fitBand",
     label: "Fit Band",
     shortLabel: "Fit",
-    formula: "strong ≥60 · mid ≥45 · else weak (raw SAI Score)",
-    meaning: "Score-quality band; not softened like SAI Conf.",
+    formula: "High ≥75 · Medium ≥35 · else Low (raw SAI Score; no soften)",
+    meaning: "Same cuts/names as SAI Conf base — compare to Conf to see softening impact.",
   },
   proximity: {
     key: "proximity",

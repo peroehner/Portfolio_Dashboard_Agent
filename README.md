@@ -22,6 +22,9 @@ Assessment signal scoring (SAI, patterns, confluence hit rates):
 Trading proposal framework (State / Trigger / Portfolio Fit — API scaffold):
 **[docs/PROPOSAL_FRAMEWORK.md](docs/PROPOSAL_FRAMEWORK.md)**.
 
+Scores & ranks map (SAI, Bet-S-Hit, Buy/Sell Plan, Tax & Trim):
+**[docs/SIGNAL_SCORES.md](docs/SIGNAL_SCORES.md)**.
+
 Adding a new web or mobile user:
 **[docs/USERS.md](docs/USERS.md)**.
 

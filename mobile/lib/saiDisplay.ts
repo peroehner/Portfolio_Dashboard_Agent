@@ -28,7 +28,7 @@ export interface SaiAttention {
   saiAction: string;
 }
 
-/** Pay attention when Score-band action ≠ displayed SAI Action. */
+/** Pay attention when Action chip (last Assess) ≠ what Live Score maps to. */
 export function resolveSaiAttention(
   action?: string | null,
   proposal?: TradingProposal | null,
@@ -57,7 +57,7 @@ export function resolveSaiAttention(
   return {
     flag: true,
     level: opposite ? "warn" : "info",
-    message: `Pay attention: Score band → ${bandAction.toUpperCase()} while SAI Action is ${saiAction.toUpperCase()}`,
+    message: `Pay attention: SAI Action is ${saiAction.toUpperCase()} (last Assess), while Live Score shows a ${bandAction.toUpperCase()}`,
     bandAction,
     saiAction,
   };
@@ -91,9 +91,10 @@ export function saiIntentLabel(proposal?: TradingProposal | null): string | null
 export function saiFitBandLabel(proposal?: TradingProposal | null): string | null {
   const total = Number(proposal?.scores?.total);
   if (!Number.isFinite(total)) return null;
-  if (total >= 60) return "strong";
-  if (total >= 45) return "mid";
-  return "weak";
+  // Same cuts as Conf base: ≥75 high · ≥35 medium · else low (raw; no soften).
+  if (total >= 75) return "high";
+  if (total >= 35) return "medium";
+  return "low";
 }
 
 export function saiFitBandStyle(band?: string | null): {
@@ -102,13 +103,13 @@ export function saiFitBandStyle(band?: string | null): {
   border: string;
 } {
   const key = String(band || "unknown").toLowerCase();
-  if (key === "strong") {
+  if (key === "high" || key === "strong") {
     return { color: "#86efac", bg: "rgba(34,197,94,0.2)", border: "rgba(34,197,94,0.45)" };
   }
-  if (key === "mid") {
+  if (key === "medium" || key === "mid") {
     return { color: "#fbbf24", bg: "rgba(245,158,11,0.22)", border: "rgba(245,158,11,0.45)" };
   }
-  if (key === "weak") {
+  if (key === "low" || key === "weak") {
     return { color: "#fca5a5", bg: "rgba(239,68,68,0.2)", border: "rgba(248,113,113,0.45)" };
   }
   return { color: colors.textMuted, bg: colors.surfaceAlt, border: colors.border };

@@ -615,14 +615,10 @@ def conflict_bucket_label(conflict_count: int | None) -> str:
 
 
 def fit_band_label(fit_total: float | None) -> str:
-    if fit_total is None:
-        return "unknown"
-    total = float(fit_total)
-    if total >= 60:
-        return "strong"
-    if total >= 45:
-        return "mid"
-    return "weak"
+    """Raw SAI Score band — same High/Medium/Low cuts as Conf base (no softening)."""
+    from services.proposal_service import score_band_for_total
+
+    return score_band_for_total(fit_total)
 
 
 def _confidence_weight(confidence: str | None) -> float:
@@ -643,7 +639,16 @@ def _confidence_sort_key(confidence: str | None) -> tuple:
 
 
 def _fit_band_sort_key(fit_band: str | None) -> tuple:
-    order = {"strong": 0, "mid": 1, "weak": 2, "unknown": 3}
+    # Same vocabulary as Conf (high/medium/low); legacy strong/mid/weak sort as aliases.
+    order = {
+        "high": 0,
+        "strong": 0,
+        "medium": 1,
+        "mid": 1,
+        "low": 2,
+        "weak": 2,
+        "unknown": 3,
+    }
     key = str(fit_band or "unknown").lower()
     return (order.get(key, 9), key)
 
