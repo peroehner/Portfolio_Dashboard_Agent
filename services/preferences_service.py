@@ -1,4 +1,4 @@
-"""Per-user preferences — Portfolio Fit + Tax & Trim controls.
+"""Per-user preferences — Portfolio Fit + Tax & Trim + Buy/Sell Plan controls.
 
 Stored as JSONB on ``users.preferences_json``. Additive keys only; updates merge.
 See docs/PROPOSAL_FRAMEWORK.md (Slice 3).
@@ -22,6 +22,8 @@ PORTFOLIO_FIT_KEYS = (
 
 VOLATILITY_VALUES = frozenset({"low", "moderate", "high"})
 TAX_TRIM_PRICING = frozenset({"current", "threshold"})
+TRADE_PLAN_QUAL = frozenset({"proximity", "score"})
+TRADE_PLAN_LIST = frozenset({"sell", "buy"})
 
 
 def _empty_portfolio_fit() -> dict[str, Any]:
@@ -34,6 +36,20 @@ def _default_tax_trim() -> dict[str, Any]:
         "lossScoreThreshold": 0,
         "trimScoreThreshold": 0,
         "matchLossPool": True,
+    }
+
+
+def _default_trade_plan() -> dict[str, Any]:
+    return {
+        "pricingMode": "current",
+        "qualificationMode": "proximity",
+        "sellProxThreshold": 10,
+        "buyProxThreshold": 10,
+        "sellScoreThreshold": 40,
+        "buyScoreThreshold": 45,
+        "sellBudget": 0,
+        "buyBudget": 0,
+        "listMode": "sell",
     }
 
 
@@ -50,6 +66,7 @@ class PreferencesService:
         return {
             "portfolioFit": self._portfolio_fit_from(data),
             "taxTrim": self._tax_trim_from(data),
+            "tradePlan": self._trade_plan_from(data),
         }
 
     def get_portfolio_fit(self, user_id: int | None = None) -> dict[str, Any]:
@@ -66,6 +83,7 @@ class PreferencesService:
 
             fit = self._portfolio_fit_from(data)
             tax_trim = self._tax_trim_from(data)
+            trade_plan = self._trade_plan_from(data)
 
             if "portfolioFit" in payload or any(k in payload for k in PORTFOLIO_FIT_KEYS):
                 incoming_fit = (
@@ -83,15 +101,25 @@ class PreferencesService:
                     raise ValueError("taxTrim must be an object")
                 tax_trim = self._merge_tax_trim(tax_trim or _default_tax_trim(), incoming_tax)
 
+            if "tradePlan" in payload and payload.get("tradePlan") is not None:
+                incoming_plan = payload.get("tradePlan")
+                if not isinstance(incoming_plan, dict):
+                    raise ValueError("tradePlan must be an object")
+                trade_plan = self._merge_trade_plan(
+                    trade_plan or _default_trade_plan(), incoming_plan
+                )
+
             blob = {**data, "portfolioFit": fit}
             if tax_trim is not None:
                 blob["taxTrim"] = tax_trim
+            if trade_plan is not None:
+                blob["tradePlan"] = trade_plan
             conn.execute(
                 "UPDATE users SET preferences_json = %s::jsonb WHERE id = %s",
                 (json.dumps(blob), uid),
             )
             conn.commit()
-        return {"portfolioFit": fit, "taxTrim": tax_trim}
+        return {"portfolioFit": fit, "taxTrim": tax_trim, "tradePlan": trade_plan}
 
     def _portfolio_fit_from(self, data: dict[str, Any]) -> dict[str, Any]:
         fit = _empty_portfolio_fit()
@@ -106,6 +134,12 @@ class PreferencesService:
         if not stored:
             return None
         return self._merge_tax_trim(_default_tax_trim(), stored)
+
+    def _trade_plan_from(self, data: dict[str, Any]) -> dict[str, Any] | None:
+        stored = data.get("tradePlan") if isinstance(data.get("tradePlan"), dict) else None
+        if not stored:
+            return None
+        return self._merge_trade_plan(_default_trade_plan(), stored)
 
     def _merge_portfolio_fit(self, fit: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
         out = dict(fit)
@@ -135,14 +169,43 @@ class PreferencesService:
             out["pricingMode"] = mode
         if "lossScoreThreshold" in incoming:
             out["lossScoreThreshold"] = self._parse_score_threshold(
-                incoming.get("lossScoreThreshold"), "lossScoreThreshold"
+                incoming.get("lossScoreThreshold"), "taxTrim.lossScoreThreshold"
             )
         if "trimScoreThreshold" in incoming:
             out["trimScoreThreshold"] = self._parse_score_threshold(
-                incoming.get("trimScoreThreshold"), "trimScoreThreshold"
+                incoming.get("trimScoreThreshold"), "taxTrim.trimScoreThreshold"
             )
         if "matchLossPool" in incoming:
             out["matchLossPool"] = bool(incoming.get("matchLossPool"))
+        return out
+
+    def _merge_trade_plan(self, current: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+        out = dict(current)
+        if "pricingMode" in incoming:
+            mode = str(incoming.get("pricingMode") or "").strip().lower()
+            if mode not in TAX_TRIM_PRICING:
+                raise ValueError("tradePlan.pricingMode must be current or threshold")
+            out["pricingMode"] = mode
+        if "qualificationMode" in incoming:
+            mode = str(incoming.get("qualificationMode") or "").strip().lower()
+            if mode not in TRADE_PLAN_QUAL:
+                raise ValueError("tradePlan.qualificationMode must be proximity or score")
+            out["qualificationMode"] = mode
+        if "listMode" in incoming:
+            mode = str(incoming.get("listMode") or "").strip().lower()
+            if mode not in TRADE_PLAN_LIST:
+                raise ValueError("tradePlan.listMode must be sell or buy")
+            out["listMode"] = mode
+        for field in (
+            "sellProxThreshold",
+            "buyProxThreshold",
+            "sellScoreThreshold",
+            "buyScoreThreshold",
+            "sellBudget",
+            "buyBudget",
+        ):
+            if field in incoming:
+                out[field] = self._parse_score_threshold(incoming.get(field), f"tradePlan.{field}")
         return out
 
     @staticmethod
@@ -199,7 +262,7 @@ class PreferencesService:
         try:
             num = float(value)
         except (TypeError, ValueError) as exc:
-            raise ValueError(f"taxTrim.{field} must be a number") from exc
+            raise ValueError(f"{field} must be a number") from exc
         if num < 0:
-            raise ValueError(f"taxTrim.{field} must be ≥ 0")
+            raise ValueError(f"{field} must be ≥ 0")
         return round(num, 2)

@@ -399,6 +399,17 @@ export const api = {
         trimScoreThreshold?: number;
         matchLossPool?: boolean;
       };
+      tradePlan?: {
+        pricingMode?: import("./types").TaxTrimPricingMode;
+        qualificationMode?: "proximity" | "score";
+        sellProxThreshold?: number;
+        buyProxThreshold?: number;
+        sellScoreThreshold?: number;
+        buyScoreThreshold?: number;
+        sellBudget?: number;
+        buyBudget?: number;
+        listMode?: "sell" | "buy";
+      };
     }>("/preferences"),
   updatePreferences: (payload: {
     portfolioFit?: Record<string, unknown>;
@@ -408,6 +419,17 @@ export const api = {
       trimScoreThreshold?: number;
       matchLossPool?: boolean;
     };
+    tradePlan?: {
+      pricingMode?: import("./types").TaxTrimPricingMode;
+      qualificationMode?: "proximity" | "score";
+      sellProxThreshold?: number;
+      buyProxThreshold?: number;
+      sellScoreThreshold?: number;
+      buyScoreThreshold?: number;
+      sellBudget?: number;
+      buyBudget?: number;
+      listMode?: "sell" | "buy";
+    };
   }) =>
     apiFetch<{
       portfolioFit?: Record<string, unknown>;
@@ -416,6 +438,17 @@ export const api = {
         lossScoreThreshold?: number;
         trimScoreThreshold?: number;
         matchLossPool?: boolean;
+      };
+      tradePlan?: {
+        pricingMode?: import("./types").TaxTrimPricingMode;
+        qualificationMode?: "proximity" | "score";
+        sellProxThreshold?: number;
+        buyProxThreshold?: number;
+        sellScoreThreshold?: number;
+        buyScoreThreshold?: number;
+        sellBudget?: number;
+        buyBudget?: number;
+        listMode?: "sell" | "buy";
       };
     }>("/preferences", {
       method: "PATCH",

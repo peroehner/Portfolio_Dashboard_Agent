@@ -1,6 +1,6 @@
 import Slider from "@react-native-community/slider";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -30,9 +30,8 @@ import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 type PortfolioMode = "all" | "holdings" | "watch";
 type ListMode = "sell" | "buy";
 type Side = "buy" | "sell";
-/** Proximity = distance to threshold. Score = SAI Score (buy) / Plan Sell Rank (sell). */
+/** Proximity = distance to threshold. Score = SAI Score (buy) / Plan Sell Rank (sell). Also drives list sort. */
 type QualificationMode = "proximity" | "score";
-type SortMetric = "proximity" | "score";
 
 const PLAN_ATTRACT_CEILING = 80;
 const SAI_SCORE_MAX = 100;
@@ -157,36 +156,136 @@ function scoreModeValue(candidate: PlanCandidate): number {
   return candidate.planSellRank;
 }
 
-function proposedQtyFromThreshold(
+function passesQualificationGate(
   candidate: PlanCandidate,
   threshold: number,
   mode: QualificationMode,
-  thresholdMax: number,
-): number {
+): boolean {
   if (mode === "proximity") {
-    if (!(candidate.proximityAbsPct <= threshold)) return 0;
-    if (!(candidate.qty > 0)) return 0;
-    if (!(thresholdMax > 0)) return Math.floor(candidate.qty);
-    const margin = Math.max(0, threshold - candidate.proximityAbsPct);
-    const ratio = Math.max(0.15, Math.min(1, margin / thresholdMax));
-    return Math.max(1, Math.floor(candidate.qty * ratio));
+    return candidate.proximityAbsPct <= threshold;
   }
-
-  // Score mode: Buy ≥ SAI Score; Sell ≤ Plan Sell Rank.
   const value = scoreModeValue(candidate);
   if (candidate.side === "buy") {
-    if (value < 0 || value < threshold) return 0;
-  } else if (value > threshold) {
-    return 0;
+    return value >= 0 && value >= threshold;
   }
+  return value <= threshold;
+}
+
+function maxLegQty(candidate: PlanCandidate): number {
   if (!(candidate.qty > 0)) return 0;
-  if (!(thresholdMax > 0)) return Math.floor(candidate.qty);
-  const margin =
-    candidate.side === "buy"
-      ? Math.max(0, value - threshold)
-      : Math.max(0, threshold - value);
-  const ratio = Math.max(0.15, Math.min(1, margin / thresholdMax));
-  return Math.max(1, Math.floor(candidate.qty * ratio));
+  if (candidate.side === "sell" && candidate.held > 0) {
+    return Math.max(0, Math.floor(Math.min(candidate.qty, candidate.held)));
+  }
+  return Math.max(0, Math.floor(candidate.qty));
+}
+
+/** Readiness weight for soft budget split (deeper in gate → higher weight; min 15%). */
+function readinessWeight(
+  candidate: PlanCandidate,
+  threshold: number,
+  mode: QualificationMode,
+  gateMax: number,
+): number {
+  if (mode === "proximity") {
+    const margin = Math.max(0, threshold - candidate.proximityAbsPct);
+    return Math.max(0.15, Math.min(1, margin / Math.max(gateMax, 1)));
+  }
+  if (candidate.side === "buy") {
+    const value = scoreModeValue(candidate);
+    const margin = Math.max(0, value - threshold);
+    return Math.max(0.15, Math.min(1, margin / Math.max(gateMax - threshold, 1)));
+  }
+  // Sell Rank: lower is stronger.
+  const margin = Math.max(0, threshold - candidate.planSellRank);
+  return Math.max(0.15, Math.min(1, margin / Math.max(threshold, 1)));
+}
+
+function candidateKey(candidate: PlanCandidate): string {
+  return `${candidate.symbol}:${candidate.side}:${candidate.thresholdPrice}`;
+}
+
+/**
+ * Gate → max leg qty. If budget ≤ 0: full planned (held-capped on sells).
+ * If budget > 0: soft-split cash like Tax & Trim (weight by readiness, then remainder).
+ */
+function proposeCandidates(
+  candidates: PlanCandidate[],
+  threshold: number,
+  mode: QualificationMode,
+  gateMax: number,
+  budgetCash: number,
+): ProposedCandidate[] {
+  const prepared = candidates.map((c) => {
+    const passes = passesQualificationGate(c, threshold, mode);
+    const maxQty = passes ? maxLegQty(c) : 0;
+    const weight = maxQty > 0 ? readinessWeight(c, threshold, mode, gateMax) : 0;
+    return { c, maxQty, weight };
+  });
+
+  const qtyByKey = new Map<string, number>();
+  const useBudget = budgetCash > 0;
+  const pool = prepared.filter((x) => x.maxQty > 0 && x.weight > 0);
+
+  if (!useBudget) {
+    prepared.forEach(({ c, maxQty }) => qtyByKey.set(candidateKey(c), maxQty));
+  } else if (pool.length) {
+    const sumW = pool.reduce((sum, x) => sum + x.weight, 0) || 1;
+    pool.forEach((item) => {
+      const wantCash = (budgetCash * item.weight) / sumW;
+      let shares = Math.floor(wantCash / Math.max(item.c.execPrice, 1e-9));
+      if (shares <= 0 && wantCash >= item.c.execPrice * 0.5) shares = 1;
+      shares = Math.max(0, Math.min(item.maxQty, shares));
+      qtyByKey.set(candidateKey(item.c), shares);
+    });
+
+    const totalCash = () =>
+      pool.reduce((sum, item) => {
+        const sh = qtyByKey.get(candidateKey(item.c)) || 0;
+        return sum + sh * item.c.execPrice;
+      }, 0);
+
+    let spent = totalCash();
+    if (spent > budgetCash + 1e-6) {
+      const scale = budgetCash / spent;
+      pool.forEach((item) => {
+        const sh = qtyByKey.get(candidateKey(item.c)) || 0;
+        qtyByKey.set(candidateKey(item.c), Math.max(0, Math.floor(sh * scale)));
+      });
+      spent = totalCash();
+    }
+
+    let remaining = Math.max(0, budgetCash - spent);
+    const byWeight = [...pool].sort(
+      (a, b) =>
+        b.weight - a.weight ||
+        a.c.planSellRank - b.c.planSellRank ||
+        a.c.proximityAbsPct - b.c.proximityAbsPct,
+    );
+    for (const item of byWeight) {
+      if (!(remaining > 0)) break;
+      const used = qtyByKey.get(candidateKey(item.c)) || 0;
+      const room = item.maxQty - used;
+      if (room <= 0 || !(item.c.execPrice > 0)) continue;
+      let add = Math.floor(remaining / item.c.execPrice);
+      add = Math.max(0, Math.min(room, add));
+      if (add <= 0) continue;
+      qtyByKey.set(candidateKey(item.c), used + add);
+      remaining = Math.max(0, remaining - add * item.c.execPrice);
+    }
+  }
+
+  return prepared.map(({ c }) => {
+    const proposedQty = qtyByKey.get(candidateKey(c)) || 0;
+    const proposedCash = c.execPrice * proposedQty;
+    const proposedPnl =
+      c.pnl == null || !(c.qty > 0) ? null : c.pnl * (proposedQty / c.qty);
+    return {
+      ...c,
+      proposedQty,
+      proposedCash,
+      proposedPnl,
+    } as ProposedCandidate;
+  });
 }
 
 function PoolCard({
@@ -195,8 +294,11 @@ function PoolCard({
   totalNode,
   cashLine,
   tone,
+  selected = false,
+  onSelectPool,
   sliderLabel,
   sliderHint,
+  sliderComparator = "≤",
   sliderValue,
   sliderMax,
   valueSuffix = "",
@@ -204,14 +306,22 @@ function PoolCard({
   onChange,
   cashFirst = false,
   wide = false,
+  budgetLabel,
+  budgetValue,
+  budgetMax,
+  onBudgetChange,
 }: {
   title: string;
   helperText: string;
   totalNode?: ReactNode;
   cashLine: string;
   tone: "sell" | "buy";
+  selected?: boolean;
+  onSelectPool?: () => void;
   sliderLabel: string;
   sliderHint?: "proximity" | "saiScore" | "planSellRank";
+  /** Shown glued to the numeric value (≤ / ≥). */
+  sliderComparator?: "≤" | "≥";
   sliderValue: number;
   sliderMax: number;
   valueSuffix?: string;
@@ -219,28 +329,61 @@ function PoolCard({
   onChange: (v: number) => void;
   cashFirst?: boolean;
   wide?: boolean;
+  /** Optional cash budget (0 = off → full planned qty). */
+  budgetLabel?: string;
+  budgetValue?: number;
+  budgetMax?: number;
+  onBudgetChange?: (v: number) => void;
 }) {
   const cashNode = (
     <Text style={[styles.poolCash, tone === "sell" ? styles.sellText : styles.buyText]}>{cashLine}</Text>
   );
+  const budgetOn = typeof budgetValue === "number" && typeof budgetMax === "number" && !!onBudgetChange;
+  const budgetAmt = budgetValue ?? 0;
+  const budgetCap = Math.max(budgetMax ?? 0, 0);
+  const setBudget = onBudgetChange;
+  const defaultBudgetLabel = tone === "buy" ? "Buy Budget" : "Sell Budget";
+  const budgetHelp =
+    tone === "buy"
+      ? {
+          title: "Buy Budget",
+          body: "Off (0) = full planned qty for each qualified buy.\n\nSet a cash budget to soft-split among qualified legs by readiness (closer / higher SAI gets more), like Tax & Trim.",
+        }
+      : {
+          title: "Sell Budget",
+          body: "Off (0) = full planned qty for each qualified sell.\n\nSet a cash budget to soft-split among qualified legs by readiness (closer / stronger Sell Rank gets more), like Tax & Trim.",
+        };
   return (
-    <View style={[styles.poolCard, tone === "sell" ? styles.poolCardSell : styles.poolCardBuy]}>
-      <View style={styles.poolHead}>
-        <Text style={[styles.poolTitle, tone === "sell" ? styles.sellText : styles.buyText]}>{title}</Text>
-        <Text style={styles.poolHelper}>{helperText}</Text>
-      </View>
-      {wide && totalNode ? (
-        <View style={styles.poolTopLine}>
-          {cashFirst ? cashNode : <Text style={styles.poolTotal}>{totalNode}</Text>}
-          {cashFirst ? <Text style={styles.poolTotal}>{totalNode}</Text> : cashNode}
+    <View
+      style={[
+        styles.poolCard,
+        tone === "sell" ? styles.poolCardSell : styles.poolCardBuy,
+        selected ? (tone === "sell" ? styles.poolCardSellActive : styles.poolCardBuyActive) : null,
+      ]}
+    >
+      <Pressable
+        onPress={onSelectPool}
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        accessibilityLabel={`Show ${title} list`}
+      >
+        <View style={styles.poolHead}>
+          <Text style={[styles.poolTitle, tone === "sell" ? styles.sellText : styles.buyText]}>{title}</Text>
+          <Text style={styles.poolHelper}>{helperText}</Text>
         </View>
-      ) : (
-        <>
-          {cashFirst ? cashNode : null}
-          {totalNode ? <Text style={styles.poolTotal}>{totalNode}</Text> : null}
-          {cashFirst ? null : cashNode}
-        </>
-      )}
+        {wide && totalNode ? (
+          <View style={styles.poolTopLine}>
+            {cashFirst ? cashNode : <Text style={styles.poolTotal}>{totalNode}</Text>}
+            {cashFirst ? <Text style={styles.poolTotal}>{totalNode}</Text> : cashNode}
+          </View>
+        ) : (
+          <>
+            {cashFirst ? cashNode : null}
+            {totalNode ? <Text style={styles.poolTotal}>{totalNode}</Text> : null}
+            {cashFirst ? null : cashNode}
+          </>
+        )}
+      </Pressable>
       <View style={styles.sliderHead}>
         {sliderHint ? (
           <GlossaryHint signal={sliderHint} label={sliderLabel} style={styles.sliderLabel} />
@@ -248,6 +391,7 @@ function PoolCard({
           <Text style={styles.sliderLabel}>{sliderLabel}</Text>
         )}
         <Text style={[styles.sliderValue, { color: trackColor }]}>
+          <Text style={styles.sliderComparator}>{sliderComparator}</Text>
           {Math.round(sliderValue)}
           {valueSuffix}
         </Text>
@@ -263,6 +407,39 @@ function PoolCard({
         maximumTrackTintColor={colors.surfaceAlt}
         thumbTintColor={trackColor}
       />
+      {budgetOn && setBudget ? (
+        <>
+          <View style={styles.sliderHead}>
+            <Pressable
+              onLongPress={() => Alert.alert(budgetHelp.title, budgetHelp.body)}
+              delayLongPress={280}
+              hitSlop={6}
+            >
+              <Text style={styles.sliderLabel}>{budgetLabel ?? defaultBudgetLabel}</Text>
+            </Pressable>
+            <Text style={[styles.sliderValue, { color: trackColor }]}>
+              {budgetAmt > 0 ? formatMoney(budgetAmt, true) : "Off"}
+            </Text>
+          </View>
+          <Slider
+            style={styles.slider}
+            minimumValue={0}
+            maximumValue={Math.max(budgetCap, 1)}
+            step={Math.max(100, Math.round(Math.max(budgetCap, 1) / 100))}
+            value={Math.max(0, Math.min(budgetCap || 0, budgetAmt))}
+            onValueChange={(v) => {
+              if (!(budgetCap > 0)) {
+                setBudget(0);
+                return;
+              }
+              setBudget(Math.max(0, Math.min(budgetCap, Math.round(v))));
+            }}
+            minimumTrackTintColor={trackColor}
+            maximumTrackTintColor={colors.surfaceAlt}
+            thumbTintColor={trackColor}
+          />
+        </>
+      ) : null}
     </View>
   );
 }
@@ -282,9 +459,11 @@ export default function TradePlanScreen() {
   const [buyProxThreshold, setBuyProxThreshold] = useState(10);
   const [sellScoreThreshold, setSellScoreThreshold] = useState(40);
   const [buyScoreThreshold, setBuyScoreThreshold] = useState(45);
+  /** 0 = Off (full planned qty); >0 soft-split cash among qualified sells. */
+  const [sellBudget, setSellBudget] = useState(0);
+  /** 0 = Off (full planned qty); >0 soft-split cash among qualified buys. */
+  const [buyBudget, setBuyBudget] = useState(0);
   const [listMode, setListMode] = useState<ListMode>("sell");
-  const [sellSortMetric, setSellSortMetric] = useState<SortMetric>("score");
-  const [buySortMetric, setBuySortMetric] = useState<SortMetric>("score");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -292,6 +471,9 @@ export default function TradePlanScreen() {
   const [holdingBySymbol, setHoldingBySymbol] = useState<Map<string, Holding>>(new Map());
   const [scopeSymbols, setScopeSymbols] = useState<string[] | null>(null);
   const [scopeReady, setScopeReady] = useState(false);
+  const [prefsReady, setPrefsReady] = useState(false);
+  const prefsSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextPrefsSync = useRef(true);
 
   const filterActive = Boolean(filter.trim());
   const landscape = width > height;
@@ -311,6 +493,48 @@ export default function TradePlanScreen() {
     bits.push(`${n} symbol${n === 1 ? "" : "s"}`);
     return bits.join(" · ");
   }, [filter, filterActive, portfolioMode, scopeSymbols]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const prefs = await api.preferences();
+        const tp = prefs.tradePlan;
+        if (tp) {
+          if (tp.pricingMode === "threshold" || tp.pricingMode === "current") {
+            setPricingMode(tp.pricingMode);
+          }
+          if (tp.qualificationMode === "proximity" || tp.qualificationMode === "score") {
+            setQualificationMode(tp.qualificationMode);
+          }
+          if (typeof tp.sellProxThreshold === "number" && Number.isFinite(tp.sellProxThreshold)) {
+            setSellProxThreshold(Math.max(0, tp.sellProxThreshold));
+          }
+          if (typeof tp.buyProxThreshold === "number" && Number.isFinite(tp.buyProxThreshold)) {
+            setBuyProxThreshold(Math.max(0, tp.buyProxThreshold));
+          }
+          if (typeof tp.sellScoreThreshold === "number" && Number.isFinite(tp.sellScoreThreshold)) {
+            setSellScoreThreshold(Math.max(0, tp.sellScoreThreshold));
+          }
+          if (typeof tp.buyScoreThreshold === "number" && Number.isFinite(tp.buyScoreThreshold)) {
+            setBuyScoreThreshold(Math.max(0, tp.buyScoreThreshold));
+          }
+          if (typeof tp.sellBudget === "number" && Number.isFinite(tp.sellBudget)) {
+            setSellBudget(Math.max(0, Math.round(tp.sellBudget)));
+          }
+          if (typeof tp.buyBudget === "number" && Number.isFinite(tp.buyBudget)) {
+            setBuyBudget(Math.max(0, Math.round(tp.buyBudget)));
+          }
+          if (tp.listMode === "sell" || tp.listMode === "buy") {
+            setListMode(tp.listMode);
+          }
+        }
+      } catch {
+        /* defaults remain */
+      } finally {
+        setPrefsReady(true);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!filterHydrated) return;
@@ -371,10 +595,52 @@ export default function TradePlanScreen() {
   };
 
   useEffect(() => {
-    if (!scopeReady) return;
+    if (!prefsReady || !scopeReady) return;
     void load(rows.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeReady, scopeSymbols]);
+  }, [prefsReady, scopeReady, scopeSymbols]);
+
+  useEffect(() => {
+    if (!prefsReady) return;
+    if (skipNextPrefsSync.current) {
+      skipNextPrefsSync.current = false;
+      return;
+    }
+    if (prefsSyncRef.current) clearTimeout(prefsSyncRef.current);
+    prefsSyncRef.current = setTimeout(() => {
+      void api
+        .updatePreferences({
+          tradePlan: {
+            pricingMode,
+            qualificationMode,
+            sellProxThreshold,
+            buyProxThreshold,
+            sellScoreThreshold,
+            buyScoreThreshold,
+            sellBudget,
+            buyBudget,
+            listMode,
+          },
+        })
+        .catch(() => {
+          /* offline ok */
+        });
+    }, 500);
+    return () => {
+      if (prefsSyncRef.current) clearTimeout(prefsSyncRef.current);
+    };
+  }, [
+    prefsReady,
+    pricingMode,
+    qualificationMode,
+    sellProxThreshold,
+    buyProxThreshold,
+    sellScoreThreshold,
+    buyScoreThreshold,
+    sellBudget,
+    buyBudget,
+    listMode,
+  ]);
 
   const allCandidates = useMemo(
     () => rows.flatMap((row) => candidateFromRow(row, holdingBySymbol, pricingMode)),
@@ -383,57 +649,31 @@ export default function TradePlanScreen() {
   const sellCandidates = useMemo(
     () =>
       allCandidates
-        .filter((row) => row.side === "sell")
+        // Watch-only (no shares held) cannot sell — exclude from Sell Plan.
+        .filter((row) => row.side === "sell" && row.held > 0)
         .sort((a, b) => {
-          if (sellSortMetric === "score") {
+          // Sort follows Proximity / SAI·Rank switch.
+          if (qualificationMode === "score") {
             return a.planSellRank - b.planSellRank || a.proximityAbsPct - b.proximityAbsPct;
           }
           return a.proximityAbsPct - b.proximityAbsPct || a.planSellRank - b.planSellRank;
         }),
-    [allCandidates, sellSortMetric],
+    [allCandidates, qualificationMode],
   );
   const buyCandidates = useMemo(
     () =>
       allCandidates
         .filter((row) => row.side === "buy")
         .sort((a, b) => {
-          if (buySortMetric === "score") {
+          if (qualificationMode === "score") {
             const aSai = a.saiScore ?? -1;
             const bSai = b.saiScore ?? -1;
             return bSai - aSai || a.proximityAbsPct - b.proximityAbsPct;
           }
           return a.proximityAbsPct - b.proximityAbsPct || (b.saiScore ?? -1) - (a.saiScore ?? -1);
         }),
-    [allCandidates, buySortMetric],
+    [allCandidates, qualificationMode],
   );
-
-  function toggleSortFor(mode: ListMode) {
-    if (mode === "sell") {
-      setSellSortMetric((prev) => (prev === "score" ? "proximity" : "score"));
-    } else {
-      setBuySortMetric((prev) => (prev === "score" ? "proximity" : "score"));
-    }
-  }
-
-  function listButtonLabel(mode: ListMode): string {
-    const metric = mode === "sell" ? sellSortMetric : buySortMetric;
-    // Sell Rank asc (low=ready), Buy SAI Score desc (high=strong); Prox closest-first.
-    const arrow = metric === "score" ? (mode === "sell" ? "↑" : "↓") : "↑";
-    const metricLabel =
-      metric === "proximity"
-        ? compactCards
-          ? "P"
-          : "Prox"
-        : mode === "sell"
-          ? compactCards
-            ? "R"
-            : "Sell Rank"
-          : compactCards
-            ? "SAI"
-            : "SAI Score";
-    const base = mode === "sell" ? "Sell" : "Buy";
-    return `${base}${compactCards ? "" : " Candidates"} (${arrow} ${metricLabel})`;
-  }
 
   const sellScoreMax = useMemo(
     () => Math.max(1, Math.round(sellCandidates.reduce((m, c) => Math.max(m, c.planSellRank), 0))),
@@ -444,33 +684,44 @@ export default function TradePlanScreen() {
   const sellGateMax = qualificationMode === "score" ? Math.max(sellScoreMax, PLAN_ATTRACT_CEILING) : 50;
   const buyGateMax = qualificationMode === "score" ? SAI_SCORE_MAX : 30;
 
-  const proposedSells = useMemo(
+  /** Full planned cash of gate-passers — upper bound for budget sliders. */
+  const sellFullGateCash = useMemo(
     () =>
-      sellCandidates.map((row) => {
-        const proposedQty = proposedQtyFromThreshold(row, sellGate, qualificationMode, sellGateMax);
-        const ratio = row.qty > 0 ? proposedQty / row.qty : 0;
-        return {
-          ...row,
-          proposedQty,
-          proposedCash: row.cash * ratio,
-          proposedPnl: row.pnl == null ? null : row.pnl * ratio,
-        } as ProposedCandidate;
-      }),
-    [sellCandidates, sellGate, qualificationMode, sellGateMax],
+      sellCandidates.reduce((sum, c) => {
+        if (!passesQualificationGate(c, sellGate, qualificationMode)) return sum;
+        return sum + maxLegQty(c) * c.execPrice;
+      }, 0),
+    [sellCandidates, sellGate, qualificationMode],
+  );
+  const buyFullGateCash = useMemo(
+    () =>
+      buyCandidates.reduce((sum, c) => {
+        if (!passesQualificationGate(c, buyGate, qualificationMode)) return sum;
+        return sum + maxLegQty(c) * c.execPrice;
+      }, 0),
+    [buyCandidates, buyGate, qualificationMode],
+  );
+
+  useEffect(() => {
+    // Only clamp once gate cash is known — avoid wiping a restored budget at cash=0.
+    if (sellFullGateCash > 0 && sellBudget > sellFullGateCash) {
+      setSellBudget(Math.round(sellFullGateCash));
+    }
+  }, [sellFullGateCash, sellBudget]);
+
+  useEffect(() => {
+    if (buyFullGateCash > 0 && buyBudget > buyFullGateCash) {
+      setBuyBudget(Math.round(buyFullGateCash));
+    }
+  }, [buyFullGateCash, buyBudget]);
+
+  const proposedSells = useMemo(
+    () => proposeCandidates(sellCandidates, sellGate, qualificationMode, sellGateMax, sellBudget),
+    [sellCandidates, sellGate, qualificationMode, sellGateMax, sellBudget],
   );
   const proposedBuys = useMemo(
-    () =>
-      buyCandidates.map((row) => {
-        const proposedQty = proposedQtyFromThreshold(row, buyGate, qualificationMode, buyGateMax);
-        const ratio = row.qty > 0 ? proposedQty / row.qty : 0;
-        return {
-          ...row,
-          proposedQty,
-          proposedCash: row.cash * ratio,
-          proposedPnl: null,
-        } as ProposedCandidate;
-      }),
-    [buyCandidates, buyGate, qualificationMode, buyGateMax],
+    () => proposeCandidates(buyCandidates, buyGate, qualificationMode, buyGateMax, buyBudget),
+    [buyCandidates, buyGate, qualificationMode, buyGateMax, buyBudget],
   );
 
   const qualifiedSells = useMemo(() => proposedSells.filter((row) => row.proposedQty > 0), [proposedSells]);
@@ -490,6 +741,13 @@ export default function TradePlanScreen() {
     />
   );
 
+  function sortArrowFor(mode: ListMode, metric: QualificationMode): string {
+    if (qualificationMode !== metric) return "";
+    // Sell Rank asc (↑), Buy SAI desc (↓), Prox closest-first (↑).
+    if (metric === "score" && mode === "buy") return "↓ ";
+    return "↑ ";
+  }
+
   const renderSell = () => {
     if (!sellCandidates.length) return <Text style={styles.empty}>No sell candidates in scope.</Text>;
     const browseSymbols = proposedSells.map((cand) => cand.symbol);
@@ -497,6 +755,8 @@ export default function TradePlanScreen() {
       const qualifies = row.proposedQty > 0;
       const maxTxt = row.pnl == null ? "—" : formatMoney(row.pnl, true);
       const propTxt = row.proposedPnl == null ? "—" : formatMoney(row.proposedPnl, true);
+      const proxSortLabel = `${sortArrowFor("sell", "proximity")}Prox`;
+      const rankSortLabel = `${sortArrowFor("sell", "score")}Sell Rank`;
       return (
         <Pressable
           key={`${row.symbol}-sell-${row.thresholdPrice}`}
@@ -530,10 +790,10 @@ export default function TradePlanScreen() {
                 </Text>
               </Text>
               <View style={styles.compactHintRow}>
-                <GlossaryHint signal="proximity" label="Prox" style={styles.metricLabel} />
+                <GlossaryHint signal="proximity" label={proxSortLabel} style={styles.metricLabel} />
                 <Text style={styles.metricValue}>{` ${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%`}</Text>
                 <Text style={styles.metricLabel}>  · </Text>
-                <GlossaryHint signal="planSellRank" label="Sell Rank" style={styles.metricLabel} />
+                <GlossaryHint signal="planSellRank" label={rankSortLabel} style={styles.metricLabel} />
                 <Text style={styles.metricValue}>{` ${Math.round(row.planSellRank)}`}</Text>
               </View>
             </View>
@@ -558,11 +818,11 @@ export default function TradePlanScreen() {
                 </Text>
               </View>
               <View style={[styles.metric, { flex: wideCards ? 1.15 : 1.35 }]}>
-                <GlossaryHint signal="proximity" style={styles.metricLabel} />
+                <GlossaryHint signal="proximity" label={proxSortLabel} style={styles.metricLabel} />
                 <Text style={styles.metricValue}>{wideCards ? `${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%` : proximityDetailText(row)}</Text>
               </View>
               <View style={[styles.metric, { flex: wideCards ? 1.0 : 0.85 }]}>
-                <GlossaryHint signal="planSellRank" label="Sell Rank" style={styles.metricLabel} />
+                <GlossaryHint signal="planSellRank" label={rankSortLabel} style={styles.metricLabel} />
                 <Text style={styles.metricValue}>{Math.round(row.planSellRank)}</Text>
                 {wideCards ? null : (
                   <Pressable
@@ -588,6 +848,8 @@ export default function TradePlanScreen() {
     const browseSymbols = proposedBuys.map((cand) => cand.symbol);
     return proposedBuys.map((row) => {
       const qualifies = row.proposedQty > 0;
+      const proxSortLabel = `${sortArrowFor("buy", "proximity")}Prox`;
+      const saiSortLabel = `${sortArrowFor("buy", "score")}SAI`;
       return (
         <Pressable
           key={`${row.symbol}-buy-${row.thresholdPrice}`}
@@ -619,10 +881,10 @@ export default function TradePlanScreen() {
                 </Text>
               </Text>
               <View style={styles.compactHintRow}>
-                <GlossaryHint signal="proximity" label="Prox" style={styles.metricLabel} />
+                <GlossaryHint signal="proximity" label={proxSortLabel} style={styles.metricLabel} />
                 <Text style={styles.metricValue}>{` ${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%`}</Text>
                 <Text style={styles.metricLabel}>  · </Text>
-                <GlossaryHint signal="saiScore" label="SAI" style={styles.metricLabel} />
+                <GlossaryHint signal="saiScore" label={saiSortLabel} style={styles.metricLabel} />
                 <Text style={styles.metricValue}>
                   {` ${row.saiScore == null ? "—" : Math.round(row.saiScore)}`}
                 </Text>
@@ -643,11 +905,11 @@ export default function TradePlanScreen() {
                 </Text>
               </View>
               <View style={[styles.metric, { flex: wideCards ? 1.15 : 1.45 }]}>
-                <GlossaryHint signal="proximity" style={styles.metricLabel} />
+                <GlossaryHint signal="proximity" label={proxSortLabel} style={styles.metricLabel} />
                 <Text style={styles.metricValue}>{wideCards ? `${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%` : proximityDetailText(row)}</Text>
               </View>
               <View style={[styles.metric, { flex: wideCards ? 1.0 : 0.85 }]}>
-                <GlossaryHint signal="saiScore" style={styles.metricLabel} />
+                <GlossaryHint signal="saiScore" label={saiSortLabel} style={styles.metricLabel} />
                 <Text style={styles.metricValue}>
                   {row.saiScore == null ? "—" : Math.round(row.saiScore)}
                 </Text>
@@ -671,16 +933,24 @@ export default function TradePlanScreen() {
           </Pressable>
           <View style={styles.qualModeWrap}>
             <Pressable
-              style={[styles.qualModeBtn, qualificationMode === "proximity" ? styles.qualModeBtnActive : null]}
+              style={[styles.qualModeBtn, qualificationMode === "proximity" ? styles.qualModeBtnActive : styles.qualModeBtnIdle]}
               onPress={() => setQualificationMode("proximity")}
               onLongPress={() => Alert.alert("Proximity", signalTooltip("proximity"))}
               delayLongPress={280}
+              accessibilityState={{ selected: qualificationMode === "proximity" }}
               accessibilityHint={signalTooltip("proximity")}
             >
-              <Text style={styles.qualModeText}>Proximity</Text>
+              <Text
+                style={[
+                  styles.qualModeText,
+                  qualificationMode === "proximity" ? styles.qualModeTextActive : styles.qualModeTextIdle,
+                ]}
+              >
+                Proximity
+              </Text>
             </Pressable>
             <Pressable
-              style={[styles.qualModeBtn, qualificationMode === "score" ? styles.qualModeBtnActive : null]}
+              style={[styles.qualModeBtn, qualificationMode === "score" ? styles.qualModeBtnActive : styles.qualModeBtnIdle]}
               onPress={() => setQualificationMode("score")}
               onLongPress={() =>
                 Alert.alert(
@@ -689,9 +959,17 @@ export default function TradePlanScreen() {
                 )
               }
               delayLongPress={280}
+              accessibilityState={{ selected: qualificationMode === "score" }}
               accessibilityHint="Buy uses SAI Score. Sell uses Plan Sell Rank."
             >
-              <Text style={styles.qualModeText}>SAI / Rank</Text>
+              <Text
+                style={[
+                  styles.qualModeText,
+                  qualificationMode === "score" ? styles.qualModeTextActive : styles.qualModeTextIdle,
+                ]}
+              >
+                SAI / Rank
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -700,6 +978,8 @@ export default function TradePlanScreen() {
           <PoolCard
             title="Sell Pool"
             tone="sell"
+            selected={listMode === "sell"}
+            onSelectPool={() => setListMode("sell")}
             helperText={`${qualifiedSells.length} of ${sellCandidates.length} qualified`}
             totalNode={
               <>
@@ -723,8 +1003,9 @@ export default function TradePlanScreen() {
               </>
             }
             cashLine={`CASH ${formatMoney(sellCash, true)}`}
-            sliderLabel={qualificationMode === "score" ? "Sell Rank ≤" : "Sell Proximity ≤"}
+            sliderLabel={qualificationMode === "score" ? "Sell Rank" : "Sell Proximity"}
             sliderHint={qualificationMode === "score" ? "planSellRank" : "proximity"}
+            sliderComparator="≤"
             sliderValue={sellGate}
             sliderMax={sellGateMax}
             valueSuffix={qualificationMode === "score" ? "" : "%"}
@@ -732,69 +1013,32 @@ export default function TradePlanScreen() {
             trackColor="#60a5fa"
             cashFirst
             wide={wideCards}
+            budgetLabel="Sell Budget"
+            budgetValue={sellBudget}
+            budgetMax={Math.max(sellFullGateCash, 0)}
+            onBudgetChange={setSellBudget}
           />
           <PoolCard
             title="Buy Pool"
             tone="buy"
+            selected={listMode === "buy"}
+            onSelectPool={() => setListMode("buy")}
             helperText={`${qualifiedBuys.length} of ${buyCandidates.length} qualified`}
             cashLine={`CASH ${formatMoney(buyCash, true)}`}
-            sliderLabel={qualificationMode === "score" ? "SAI Score ≥" : "Buy Proximity ≤"}
+            sliderLabel={qualificationMode === "score" ? "SAI Score" : "Buy Proximity"}
             sliderHint={qualificationMode === "score" ? "saiScore" : "proximity"}
+            sliderComparator={qualificationMode === "score" ? "≥" : "≤"}
             sliderValue={buyGate}
             sliderMax={buyGateMax}
             valueSuffix={qualificationMode === "score" ? "" : "%"}
             onChange={qualificationMode === "score" ? setBuyScoreThreshold : setBuyProxThreshold}
             trackColor="#fb923c"
             wide={wideCards}
+            budgetLabel="Buy Budget"
+            budgetValue={buyBudget}
+            budgetMax={Math.max(buyFullGateCash, 0)}
+            onBudgetChange={setBuyBudget}
           />
-        </View>
-        <View style={styles.segRow}>
-          <Pressable
-            style={[
-              styles.pill,
-              styles.flexPill,
-              pillStyle(listMode === "sell"),
-              styles.sellToggle,
-              listMode === "sell" ? styles.sellToggleActive : null,
-            ]}
-            onPress={() => {
-              if (listMode === "sell") toggleSortFor("sell");
-              else setListMode("sell");
-            }}
-            onLongPress={() =>
-              Alert.alert(
-                "Sell sort",
-                sellSortMetric === "score"
-                  ? signalTooltip("planSellRank")
-                  : signalTooltip("proximity"),
-              )
-            }
-            delayLongPress={280}
-          >
-            <Text style={styles.pillText}>{listButtonLabel("sell")}</Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.pill,
-              styles.flexPill,
-              pillStyle(listMode === "buy"),
-              styles.buyToggle,
-              listMode === "buy" ? styles.buyToggleActive : null,
-            ]}
-            onPress={() => {
-              if (listMode === "buy") toggleSortFor("buy");
-              else setListMode("buy");
-            }}
-            onLongPress={() =>
-              Alert.alert(
-                "Buy sort",
-                buySortMetric === "score" ? signalTooltip("saiScore") : signalTooltip("proximity"),
-              )
-            }
-            delayLongPress={280}
-          >
-            <Text style={styles.pillText}>{listButtonLabel("buy")}</Text>
-          </Pressable>
         </View>
       </View>
 
@@ -842,21 +1086,28 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radii.md,
     overflow: "hidden",
-  },
-  qualModeBtn: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
     backgroundColor: colors.surface,
   },
+  qualModeBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+  },
+  qualModeBtnIdle: {
+    backgroundColor: "transparent",
+  },
   qualModeBtnActive: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.accent,
   },
   qualModeText: {
-    color: colors.text,
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
   },
-  flexPill: { flex: 1, alignItems: "center" },
+  qualModeTextIdle: {
+    color: colors.textMuted,
+  },
+  qualModeTextActive: {
+    color: "#0b1220",
+  },
   pillText: { color: colors.text, fontWeight: "600", fontSize: 13 },
   scopeHint: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
   poolRow: { flexDirection: "row", gap: spacing.sm },
@@ -868,12 +1119,20 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   poolCardSell: {
-    backgroundColor: "rgba(59,130,246,0.09)",
-    borderColor: "rgba(96,165,250,0.35)",
+    backgroundColor: "rgba(59,130,246,0.08)",
+    borderColor: "rgba(96,165,250,0.4)",
   },
   poolCardBuy: {
-    backgroundColor: "rgba(251,146,60,0.09)",
-    borderColor: "rgba(251,146,60,0.35)",
+    backgroundColor: "rgba(251,146,60,0.08)",
+    borderColor: "rgba(251,146,60,0.4)",
+  },
+  poolCardSellActive: {
+    borderColor: "rgba(147,197,253,0.85)",
+    backgroundColor: "rgba(59,130,246,0.16)",
+  },
+  poolCardBuyActive: {
+    borderColor: "rgba(253,186,116,0.85)",
+    backgroundColor: "rgba(251,146,60,0.16)",
   },
   poolHead: { flexDirection: "row", justifyContent: "space-between", gap: spacing.xs, alignItems: "flex-start" },
   poolTitle: { color: colors.textMuted, fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.4 },
@@ -881,9 +1140,17 @@ const styles = StyleSheet.create({
   poolTotal: { color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 4 },
   poolCash: { color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 2 },
   poolTopLine: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: spacing.sm },
-  sliderHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 6 },
-  sliderLabel: { color: colors.text, fontSize: 12, fontWeight: "600" },
-  sliderValue: { fontSize: 14, fontWeight: "800" },
+  sliderHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 6, gap: spacing.sm },
+  sliderLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+    flexShrink: 1,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  sliderValue: { fontSize: 14, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  sliderComparator: { fontSize: 14, fontWeight: "800" },
   slider: { width: "100%", height: 32 },
   list: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xl * 2 },
   card: { borderWidth: 1, borderRadius: radii.md, padding: spacing.md, gap: spacing.sm },
@@ -917,22 +1184,6 @@ const styles = StyleSheet.create({
   gainText: { color: colors.buy },
   lossText: { color: colors.sell },
   neutralText: { color: colors.text },
-  sellToggle: {
-    borderColor: "rgba(96,165,250,0.4)",
-    backgroundColor: "rgba(59,130,246,0.08)",
-  },
-  sellToggleActive: {
-    borderColor: "rgba(147,197,253,0.85)",
-    backgroundColor: "rgba(59,130,246,0.16)",
-  },
-  buyToggle: {
-    borderColor: "rgba(251,146,60,0.4)",
-    backgroundColor: "rgba(251,146,60,0.08)",
-  },
-  buyToggleActive: {
-    borderColor: "rgba(253,186,116,0.85)",
-    backgroundColor: "rgba(251,146,60,0.16)",
-  },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.lg },
   error: { color: colors.danger, textAlign: "center" },
   retryBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, paddingHorizontal: spacing.md, paddingVertical: 8 },

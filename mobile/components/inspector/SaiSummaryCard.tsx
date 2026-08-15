@@ -93,7 +93,7 @@ export function SaiSummaryCard({ data }: SaiSummaryCardProps) {
                   accessibilityLabel={`SAI Fit Band ${fitBand}`}
                 >
                   <Text style={[styles.fitBandText, { color: fitBandTone.color }]} numberOfLines={1}>
-                    fit {fitBand}
+                    {fitBand}
                   </Text>
                 </View>
               ) : null}

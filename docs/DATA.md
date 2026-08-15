@@ -49,6 +49,23 @@ Google OAuth identity and preferences (`prefer_computed_trends`, `preferences_js
     "targetAnnualDividend": 5000,
     "volatilityPreference": "moderate",
     "maxSingleNameWeightPct": 15
+  },
+  "taxTrim": {
+    "pricingMode": "current",
+    "lossScoreThreshold": 0,
+    "trimScoreThreshold": 0,
+    "matchLossPool": true
+  },
+  "tradePlan": {
+    "pricingMode": "current",
+    "qualificationMode": "proximity",
+    "sellProxThreshold": 10,
+    "buyProxThreshold": 10,
+    "sellScoreThreshold": 40,
+    "buyScoreThreshold": 45,
+    "sellBudget": 0,
+    "buyBudget": 0,
+    "listMode": "sell"
   }
 }
 ```

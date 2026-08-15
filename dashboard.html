@@ -27,8 +27,8 @@
       --radius: 10px;
       --portfolio-tab-accent: #3b82f6;
       --portfolio-tab-accent-dim: rgba(59, 130, 246, 0.28);
-      --symbol-tab-accent: #38bdf8;
-      --symbol-tab-accent-dim: rgba(56, 189, 248, 0.28);
+      --symbol-tab-accent: #14b8a6;
+      --symbol-tab-accent-dim: rgba(20, 184, 166, 0.3);
       --vp-filter: #a78bfa;
       --vp-filter-dim: rgba(167, 139, 250, 0.16);
       --vp-filter-border: rgba(167, 139, 250, 0.42);
@@ -1233,7 +1233,17 @@
     .sim-kpi-value { font-size: 0.95rem; font-weight: 700; white-space: nowrap; }
     .sim-kpi.lead .sim-kpi-value { font-size: 1.05rem; }
     .sim-caption { margin-top: 0.6rem; font-size: 0.72rem; color: var(--muted); }
-    .sim-legs-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 0.35rem; }
+    /* Match main-menu .nav-divider between Sim filter / legs / pricing / Tax&Trim. */
+    .sim-legs-sep {
+      width: 3px;
+      align-self: stretch;
+      min-height: 1.85rem;
+      background: rgba(203, 213, 225, 0.55);
+      margin: 0.05rem 0.35rem;
+      flex: none;
+      border-radius: 2px;
+      box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.18);
+    }
     .sim-warn { color: var(--warn); font-weight: 700; }
     .sim-noqty { color: var(--muted); font-size: 0.82rem; }
     @media (max-width: 960px) {
@@ -1869,7 +1879,20 @@
     .rec-sort-caption:nth-child(2) { min-width: 6.4rem; }
     .rec-sort-caption:nth-child(3) { min-width: 4.2rem; }
     .rec-sort-caption:nth-child(4) { min-width: 5.1rem; }
-    table.data th.sai-sort-group { cursor: default; }
+    table.data th.sai-sort-group {
+      cursor: default;
+      text-align: center;
+    }
+    table.data th.sai-sort-group .th-label {
+      display: block;
+      text-align: center;
+      width: 100%;
+    }
+    table.data th.sai-sort-group .th-sublabel.rec-head-captions {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+    }
     .screening-inspector-link {
       display: inline-flex;
       align-items: center;
@@ -4094,6 +4117,7 @@
       right: 0;
       transform: none;
     }
+    .nav-group-label-text {
       position: absolute;
       width: 1px;
       height: 1px;
@@ -4106,25 +4130,26 @@
     }
     .nav-group-portfolio .nav-group-label {
       color: #93c5fd;
-      background: rgba(59, 130, 246, 0.14);
-      border-color: rgba(59, 130, 246, 0.32);
+      background: rgba(59, 130, 246, 0.16);
+      border-color: rgba(59, 130, 246, 0.42);
     }
     .nav-group-symbol .nav-group-label {
-      color: #7dd3fc;
-      background: rgba(56, 189, 248, 0.12);
-      border-color: rgba(56, 189, 248, 0.3);
+      color: #5eead4;
+      background: rgba(20, 184, 166, 0.16);
+      border-color: rgba(20, 184, 166, 0.42);
     }
     .nav-group-agents .nav-group-label {
       color: #c4b5fd;
-      background: rgba(139, 92, 246, 0.14);
-      border-color: rgba(139, 92, 246, 0.32);
+      background: rgba(139, 92, 246, 0.16);
+      border-color: rgba(139, 92, 246, 0.42);
     }
     .nav-group-label svg {
       display: block;
       flex: none;
       width: 14px;
       height: 14px;
-      opacity: 0.95;
+      opacity: 1;
+      color: inherit;
     }
     .nav-group-tabs {
       display: flex;
@@ -4137,18 +4162,20 @@
       font-size: 0.82rem;
     }
     .nav-divider {
-      width: 2px;
+      width: 3px;
       align-self: stretch;
-      background: rgba(154, 168, 188, 0.32);
-      margin: 0.05rem 0.15rem;
+      min-height: 1.85rem;
+      background: rgba(203, 213, 225, 0.55);
+      margin: 0.05rem 0.35rem;
       flex: none;
-      border-radius: 1px;
+      border-radius: 2px;
+      box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.18);
     }
     .nav-group-portfolio .nav-group-tabs {
-      border: 1px solid rgba(59, 130, 246, 0.24);
+      border: 1px solid rgba(59, 130, 246, 0.28);
       border-radius: var(--radius);
       padding: 0.14rem;
-      background: rgba(59, 130, 246, 0.07);
+      background: rgba(59, 130, 246, 0.08);
       position: relative;
     }
     .nav-group-portfolio .nav-group-tabs button {
@@ -4186,10 +4213,10 @@
       box-shadow: inset 0 3px 0 var(--portfolio-tab-accent);
     }
     .nav-group-symbol .nav-group-tabs {
-      border: 1px solid rgba(56, 189, 248, 0.24);
+      border: 1px solid rgba(20, 184, 166, 0.3);
       border-radius: var(--radius);
       padding: 0.14rem;
-      background: rgba(56, 189, 248, 0.07);
+      background: rgba(20, 184, 166, 0.08);
       position: relative;
     }
     .nav-group-symbol .nav-group-tabs button {
@@ -4197,9 +4224,9 @@
       border-radius: 6px;
     }
     .nav-group-symbol .nav-group-tabs button.active {
-      background: rgba(56, 189, 248, 0.22);
-      color: #e0f7ff;
-      border-color: rgba(56, 189, 248, 0.42);
+      background: rgba(20, 184, 166, 0.24);
+      color: #e6fffb;
+      border-color: rgba(20, 184, 166, 0.45);
     }
     .nav-group-symbol .nav-group-tabs button.active::after {
       content: "";
@@ -9285,6 +9312,13 @@
     const SAI_ACTION_RANK = { buy: 4, watch: 3, hold: 2, sell: 1 };
     // Fit Band uses same High/Medium/Low vocabulary as Conf (raw Score; Conf may soften).
     const SAI_FIT_BAND_RANK = { high: 4, medium: 3, low: 2, unknown: 1, strong: 4, mid: 3, weak: 2 };
+    const SAI_INTENT_RANK = {
+      divest: 5,
+      tactical: 4,
+      accumulate: 3,
+      core: 2,
+      core_accumulate: 1,
+    };
     const SAI_CONFIDENCE_RANK = { high: 3, medium: 2, low: 1 };
     const SAI_SENTIMENT_RANK = { bullish: 3, neutral: 2, bearish: 1 };
 
@@ -11891,7 +11925,7 @@
       return String(rec?.proposal?.confidence || rec?.confidence || "medium").toLowerCase();
     }
 
-    function renderRecommendationChipRow(rec, { wrapperClass = "", bare = false } = {}) {
+    function renderRecommendationChipRow(rec, { wrapperClass = "", bare = false, includeIntent = true } = {}) {
       const action = rec?.action || "hold";
       const confidence = saiPublishedConfidence(rec);
       const sentiment = rec?.sentiment || "neutral";
@@ -11919,12 +11953,12 @@
       const actionText = attentionFlag ? `${action} !` : action;
       const actionClass = attentionFlag ? `${action} attention` : action;
       const intent = rec?.proposal?.intent;
-      const intentChip = renderIntentChip(intent);
+      const intentChip = includeIntent ? renderIntentChip(intent) : "";
       const fitRange = saiFitBandRange(fitBand);
       const fitBandTitle = hasScore && fitRange
         ? `Fit Band: ${fitBand.toUpperCase()} (${Math.round(total)}: ${fitRange.low} - ${fitRange.high})`
         : "Fit Band: UNKNOWN (proposal score missing)";
-      const fitBandChip = `<span class="chip fitband-${fitBand}" title="${escapeHtml(fitBandTitle)}">fit ${escapeHtml(fitBand)}</span>`;
+      const fitBandChip = `<span class="chip fitband-${fitBand}" title="${escapeHtml(fitBandTitle)}">${escapeHtml(fitBand)}</span>`;
       const chips = `
           <span class="chip ${actionClass}" title="${actionTitle}">${escapeHtml(actionText)}</span>
           <span class="chip ${confClass}${hasScore ? " has-score" : ""}" title="${confTitle}">${escapeHtml(confLabel)}</span>
@@ -12136,7 +12170,17 @@
       if (!rec) {
         return `<span class="empty" style="font-size:0.78rem;">—</span>`;
       }
-      return renderRecommendationChipRow(rec, { wrapperClass: "screening-rec-chips" });
+      // Screening: Intent is its own column — omit from SAI chip row.
+      return renderRecommendationChipRow(rec, { wrapperClass: "screening-rec-chips", includeIntent: false });
+    }
+
+    function screeningIntentCode(row) {
+      return String(row?.recommendation?.proposal?.intent?.code || "").toLowerCase() || "unknown";
+    }
+
+    function renderScreeningIntentCell(row) {
+      const chip = renderIntentChip(row?.recommendation?.proposal?.intent);
+      return chip || `<span class="empty">—</span>`;
     }
 
     function screeningNoteIcon() {
@@ -12466,7 +12510,8 @@
     }
 
     const TECH_STANCE_HELP = "Confluence agent's purely technical read (independent of the SAI):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 scale (left = bearish, center = neutral, right = bullish)\n• Strength — how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume)";
-    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — the only Action chip: Buy / Watch / Hold / Sell (from last Assess). A trailing ! means live SAI Score maps to a different Buy/Watch/Sell on the action ladder below — often stale Assess vs moved Score. ! is not Conf vs Fit Band.\n• ACTION LADDER (from live SAI Score) — ≥75 Strong buy / size-up · 60–74 Buy / add · 45–59 Watch / hold · 30–44 Hold / trim · <30 Sell / avoid\n• CONF · SCORE — Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit). Base Label cuts: ≥75 High · ≥35 Medium · else Low; Label may soften one notch.\n• FIT BAND — same High/Medium/Low cuts on raw Score (no softening). Compare Conf vs Fit Band to see soften impact — both are conviction, not Action.\n• SENTIMENT — news reaction (else notes)\n• INTENT (offset, role glyph) — Portfolio Intent from holdings + planned trades (or your override): tactical / accumulate / core / core_accumulate / divest — color + icon by role; separate from the SAI signals\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), Fit Band, or Sentiment";
+    const INTENT_HELP = "Portfolio Intent (role for this name in the book):\n• From holdings + planned trades, or your Target override\n• Roles — tactical / accumulate / core / core_accumulate / divest\n• Color + glyph by role; separate from SAI Action / Conf / Fit / Sentiment";
+    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — the only Action chip: Buy / Watch / Hold / Sell (from last Assess). A trailing ! means live SAI Score maps to a different Buy/Watch/Sell on the action ladder below — often stale Assess vs moved Score. ! is not Conf vs Fit Band.\n• ACTION LADDER (from live SAI Score) — ≥75 Strong buy / size-up · 60–74 Buy / add · 45–59 Watch / hold · 30–44 Hold / trim · <30 Sell / avoid\n• CONF · SCORE — Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit). Base Label cuts: ≥75 High · ≥35 Medium · else Low; Label may soften one notch.\n• FIT BAND — same High/Medium/Low cuts on raw Score (no softening). Compare Conf vs Fit Band to see soften impact — both are conviction, not Action.\n• SENTIMENT — news reaction (else notes)\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), Fit Band, or Sentiment\n• INTENT — own Screening column (not under SAI)";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
     const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
@@ -12534,6 +12579,14 @@
           },
         ],
         render: (row) => renderScreeningRecommendationCell(row),
+      },
+      {
+        key: "intent",
+        label: "Intent",
+        help: INTENT_HELP,
+        sortValue: (row) => saiFieldRank(screeningIntentCode(row), SAI_INTENT_RANK),
+        compare: saiFieldCompare(SAI_INTENT_RANK, screeningIntentCode),
+        render: (row) => renderScreeningIntentCell(row),
       },
       {
         key: "techStance",
@@ -17553,8 +17606,8 @@
       --radius: 10px;
       --portfolio-tab-accent: #3b82f6;
       --portfolio-tab-accent-dim: rgba(59, 130, 246, 0.28);
-      --symbol-tab-accent: #38bdf8;
-      --symbol-tab-accent-dim: rgba(56, 189, 248, 0.28);
+      --symbol-tab-accent: #14b8a6;
+      --symbol-tab-accent-dim: rgba(20, 184, 166, 0.3);
       --vp-filter: #a78bfa;
       --vp-filter-dim: rgba(167, 139, 250, 0.16);
       --vp-filter-border: rgba(167, 139, 250, 0.42);
