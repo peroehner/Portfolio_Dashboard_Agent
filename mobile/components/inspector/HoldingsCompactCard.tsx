@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { ScrollView, StyleSheet, Text, View, type ViewStyle } from "react-native";
 
 import { getPositionDisplay } from "@/lib/inspectorHelpers";
 import { formatEntryDate, formatMoney, formatPct, pctColor } from "@/lib/format";
@@ -61,34 +61,41 @@ export function HoldingsCompactCard({ data, style }: HoldingsCompactCardProps) {
   return (
     <View style={[styles.card, style]}>
       <Text style={styles.title}>Holdings</Text>
-      {!pos.hasPosition ? (
-        <Text style={styles.muted}>No holding recorded.</Text>
-      ) : (
-        <View style={styles.grid}>
-          <View style={styles.colLeft}>
-            <ColCell label="Entry" value={pos.entryDate ? formatEntryDate(pos.entryDate) : "—"} />
-            <ColCell label="Shares" value={formatShares(pos.shares)} />
-            <ColCell label="Investment" value={formatMoney(pos.investment)} />
+      <ScrollView
+        nestedScrollEnabled
+        style={styles.bodyScroll}
+        contentContainerStyle={styles.bodyScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {!pos.hasPosition ? (
+          <Text style={styles.muted}>No holding recorded.</Text>
+        ) : (
+          <View style={styles.grid}>
+            <View style={styles.colLeft}>
+              <ColCell label="Entry" value={pos.entryDate ? formatEntryDate(pos.entryDate) : "—"} />
+              <ColCell label="Shares" value={formatShares(pos.shares)} />
+              <ColCell label="Investment" value={formatMoney(pos.investment)} />
+            </View>
+            <View style={styles.colMid}>
+              <ColCell label="Value" value={formatMoney(pos.currentValue)} singleLine />
+              <ColCell label="Gain" value={gainTxt} valueColor={pctColor(pos.gainPct)} singleLine />
+              <ColCell
+                label="Target"
+                value={tgtTxt}
+                valueColor={pos.personalUpsidePct != null ? pctColor(pos.personalUpsidePct) : undefined}
+                singleLine
+              />
+            </View>
+            <View style={styles.colRight}>
+              <ColCell
+                label="Est. Div"
+                value={pos.estDividend != null && pos.estDividend > 0 ? formatMoney(pos.estDividend) : "—"}
+                valueColor={pos.estDividend != null && pos.estDividend > 0 ? colors.buy : undefined}
+              />
+            </View>
           </View>
-          <View style={styles.colMid}>
-            <ColCell label="Value" value={formatMoney(pos.currentValue)} singleLine />
-            <ColCell label="Gain" value={gainTxt} valueColor={pctColor(pos.gainPct)} singleLine />
-            <ColCell
-              label="Target"
-              value={tgtTxt}
-              valueColor={pos.personalUpsidePct != null ? pctColor(pos.personalUpsidePct) : undefined}
-              singleLine
-            />
-          </View>
-          <View style={styles.colRight}>
-            <ColCell
-              label="Est. Div"
-              value={pos.estDividend != null && pos.estDividend > 0 ? formatMoney(pos.estDividend) : "—"}
-              valueColor={pos.estDividend != null && pos.estDividend > 0 ? colors.buy : undefined}
-            />
-          </View>
-        </View>
-      )}
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -108,6 +115,13 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 15,
     fontWeight: "700",
+  },
+  bodyScroll: {
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  bodyScrollContent: {
+    flexGrow: 1,
   },
   muted: {
     color: colors.textMuted,

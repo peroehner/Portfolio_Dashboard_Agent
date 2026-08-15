@@ -21,10 +21,10 @@ import type { FundamentalsSortState, FundamentalsTab } from "@/lib/fundamentalsT
 import { colors, radii, spacing } from "@/lib/theme";
 import { useApiQuery } from "@/lib/useApiQuery";
 
-function tabStyle(active: boolean) {
+function pillActiveStyle(active: boolean) {
   return active
-    ? { backgroundColor: colors.surfaceAlt, borderColor: colors.accent }
-    : { backgroundColor: colors.surface, borderColor: colors.border };
+    ? { backgroundColor: colors.surfaceAlt, borderColor: colors.accent, opacity: 1 }
+    : { backgroundColor: colors.surface, borderColor: colors.border, opacity: 0.9 };
 }
 
 export default function FundamentalsScreen() {
@@ -68,26 +68,23 @@ export default function FundamentalsScreen() {
             lastFilter={lastFilter}
           />
           <StarFilterButton filter={filter} onChangeFilter={setFilter} />
-        </View>
-
-        <View style={styles.tabRow}>
           <Pressable
-            style={[styles.tabBtn, tabStyle(tab === "val")]}
+            style={[styles.pill, pillActiveStyle(tab === "val")]}
             onPress={() => {
               setTab("val");
               setSort({ key: "range52", direction: "desc" });
             }}
           >
-            <Text style={styles.tabText}>Val · Growth</Text>
+            <Text style={styles.pillText}>Val · Growth</Text>
           </Pressable>
           <Pressable
-            style={[styles.tabBtn, tabStyle(tab === "health")]}
+            style={[styles.pill, pillActiveStyle(tab === "health")]}
             onPress={() => {
               setTab("health");
               setSort({ key: null, direction: null });
             }}
           >
-            <Text style={styles.tabText}>Health · Analyst</Text>
+            <Text style={styles.pillText}>Analyst · Health</Text>
           </Pressable>
         </View>
 
@@ -135,22 +132,15 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 13,
   },
-  tabRow: {
-    flexDirection: "row",
-    gap: spacing.xs,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  tabBtn: {
-    flex: 1,
+  pill: {
     borderWidth: 1,
-    borderRadius: radii.md,
-    paddingVertical: 8,
-    alignItems: "center",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  tabText: {
+  pillText: {
     color: colors.text,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
   },
   empty: {

@@ -12,6 +12,7 @@ const OVERVIEW_TIMEOUT_MS = 45000;
 const NEWS_FEED_TIMEOUT_MS = 45000;
 const FUNDAMENTALS_TIMEOUT_MS = 45000;
 const NOTE_SAVE_TIMEOUT_MS = 45000;
+const ASSESS_TIMEOUT_MS = 90000;
 /** Coalesce first authenticated reads after login (Summary + stars race). */
 const PORTFOLIO_WARM_TTL_MS = 20000;
 
@@ -389,6 +390,20 @@ export const api = {
     }>(`/symbols/${encodeURIComponent(symbol)}/news-sentiment`),
   assessmentsOverview: () =>
     apiFetch<{ assessments: import("./types").Assessment[] }>("/assessments/overview"),
+  listAssessments: (symbol: string, limit = 5) =>
+    apiFetch<{ assessments: import("./types").Assessment[] }>(
+      `/assessments?symbol=${encodeURIComponent(symbol)}&limit=${limit}`,
+    ),
+  deleteAssessment: (assessmentId: number, symbol: string) =>
+    apiFetch<{ status: string; id: number }>(
+      `/assessments/${assessmentId}?symbol=${encodeURIComponent(symbol)}`,
+      { method: "DELETE" },
+    ),
+  assessSymbol: (symbol: string) =>
+    apiFetch<import("./types").Assessment>(`/symbols/${encodeURIComponent(symbol)}/assess`, {
+      method: "POST",
+      timeoutMs: ASSESS_TIMEOUT_MS,
+    }),
   sync: () => apiFetch("/sync", { method: "POST" }),
   preferences: () =>
     apiFetch<{

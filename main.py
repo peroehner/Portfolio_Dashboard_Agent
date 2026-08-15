@@ -275,20 +275,40 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Headers"] = (
         "Content-Type, Authorization, ngrok-skip-browser-warning"
     )
+    try:
+        from services.deploy_info import deploy_fingerprint
+
+        fp = deploy_fingerprint()
+        if fp.get("build"):
+            response.headers["X-PDA-Build"] = str(fp["build"])
+        if fp.get("environment"):
+            response.headers["X-PDA-Env"] = str(fp["environment"])
+    except Exception:
+        pass
     return response
 
 
 @app.route("/health")
 def health():
     """Simple readiness check for deployment/ngrok verification."""
+    from services.deploy_info import deploy_fingerprint
     from services.llm_client import LLMClient
 
     client = LLMClient()
+    deploy = deploy_fingerprint()
     return jsonify({
         "status": "ok",
-        "version": "1.0",
+        "version": deploy.get("appVersion") or "1.0",
         "api": "/api/v1",
         "assessmentProvider": client.active_provider(),
+        "build": deploy.get("build"),
+        "environment": deploy.get("environment"),
+        "host": deploy.get("host"),
+        "gitCommit": deploy.get("gitCommit"),
+        "gitBranch": deploy.get("gitBranch"),
+        "serviceId": deploy.get("serviceId"),
+        "serviceName": deploy.get("serviceName"),
+        "deploy": deploy,
     })
 
 

@@ -88,11 +88,11 @@ export function allocationSourceLabel(source: AllocationSource): string {
     case "personal":
       return "Personal targets";
     case "simulation":
-      return "Planned trades (current weights)";
+      return "PLANNED TRADES EXECUTED";
     case "1M":
-      return "1M ago holdings";
+      return "1M AGO";
     case "3M":
-      return "3M ago holdings";
+      return "3M AGO";
     case "ath":
       return "Portfolio ATH";
     case "current":

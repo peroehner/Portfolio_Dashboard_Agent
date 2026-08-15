@@ -20,11 +20,20 @@ OpenAPI spec: `GET /api/v1/openapi.json`
 
 ### `GET /config`
 
-Runtime settings for clients (no secrets).
+Runtime settings for clients (no secrets). Includes a **deploy fingerprint** so Web/Mobile About can confirm which server you are talking to (local vs Render).
 
 ```json
 {
   "version": "v1",
+  "appVersion": "1.0",
+  "build": "d1a4f4c995e7",
+  "environment": "render",
+  "host": "portfolio-dashboard-agent.onrender.com",
+  "gitCommit": "d1a4f4c995e7…",
+  "gitBranch": "main",
+  "serviceId": "srv-…",
+  "serviceName": "portfolio-dashboard-agent",
+  "deploy": { "label": "d1a4f4c995e7 · render · …", "…": "…" },
   "assessmentProvider": "rules",
   "assessmentMode": "auto",
   "llmConfigured": false,
@@ -35,6 +44,10 @@ Runtime settings for clients (no secrets).
 ```
 
 `assessmentProvider`: `rules` | `openai` | `gemini`
+
+**Matching a Render deploy:** compare `build` / `gitCommit` to the commit on that deploy, and `serviceId` to the service id in the Render dashboard. Short UI-only deploy codes are not available in the process environment.
+
+Public (no auth): `GET /health` and `GET /api/v1/health` also return the same fingerprint fields. Responses include `X-PDA-Build` / `X-PDA-Env` headers.
 
 ---
 

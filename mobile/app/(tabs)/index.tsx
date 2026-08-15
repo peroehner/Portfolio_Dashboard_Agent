@@ -267,7 +267,7 @@ export default function OverviewScreen() {
     },
     {
       key: "planned" as const,
-      label: "Projected valuation if planned trades execute",
+      label: "PLANNED TRADES EXECUTED",
       value: data?.simulation?.projectedValuation,
       pct: data?.simulation?.projectedUpsidePct,
       color: colors.link,

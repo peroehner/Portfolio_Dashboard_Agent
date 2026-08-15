@@ -87,26 +87,10 @@ def _portfolio_enrichment(
     return merged
 
 
-def _app_build_id() -> str | None:
-    """Short git/deploy id for the About panel (env on Render, else local git)."""
-    for key in ("BUILD_SHA", "RENDER_GIT_COMMIT", "GIT_COMMIT"):
-        val = (os.environ.get(key) or "").strip()
-        if val:
-            return val[:12]
-    try:
-        import subprocess
-        from pathlib import Path
+def _deploy_payload() -> dict:
+    from services.deploy_info import deploy_fingerprint
 
-        root = Path(__file__).resolve().parents[1]
-        out = subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"],
-            cwd=root,
-            stderr=subprocess.DEVNULL,
-            text=True,
-        ).strip()
-        return out or None
-    except Exception:
-        return None
+    return deploy_fingerprint()
 
 
 def _author_email() -> str:
@@ -151,10 +135,20 @@ def _engine():
 @v1_bp.route("/health", methods=["GET"])
 def health():
     client = LLMClient()
+    deploy = _deploy_payload()
     return jsonify({
         "status": "ok",
         "version": "v1",
+        "appVersion": deploy.get("appVersion") or "1.0",
+        "build": deploy.get("build"),
+        "environment": deploy.get("environment"),
+        "host": deploy.get("host"),
+        "gitCommit": deploy.get("gitCommit"),
+        "gitBranch": deploy.get("gitBranch"),
+        "serviceId": deploy.get("serviceId"),
+        "serviceName": deploy.get("serviceName"),
         "assessmentProvider": client.active_provider(),
+        "deploy": deploy,
     })
 
 
@@ -200,10 +194,18 @@ def preferences():
 def get_config():
     client = LLMClient()
     provider = client.active_provider()
+    deploy = _deploy_payload()
     return jsonify({
         "version": "v1",
-        "appVersion": "1.0",
-        "build": _app_build_id(),
+        "appVersion": deploy.get("appVersion") or "1.0",
+        "build": deploy.get("build"),
+        "environment": deploy.get("environment"),
+        "host": deploy.get("host"),
+        "gitCommit": deploy.get("gitCommit"),
+        "gitBranch": deploy.get("gitBranch"),
+        "serviceId": deploy.get("serviceId"),
+        "serviceName": deploy.get("serviceName"),
+        "deploy": deploy,
         "assessmentProvider": provider,
         "assessmentMode": client.mode,
         "llmConfigured": provider != "rules",
