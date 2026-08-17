@@ -302,7 +302,7 @@ class FundamentalsService:
         symbol = symbol.upper()
         cached = self.market_data_service.get_fundamentals(symbol)
         if cached is not None:
-            return self._with_history_52w(symbol, cached)
+            return self._with_approx_peg(self._with_history_52w(symbol, cached))
 
         data = self._fetch_live_fundamentals(symbol)
         data = self._with_history_52w(symbol, data)
@@ -366,7 +366,45 @@ class FundamentalsService:
                 for key, value in targets.items():
                     analyst.setdefault(key, value)
                 data["analyst"] = analyst
-        return data
+        return self._with_approx_peg(data)
+
+    @staticmethod
+    def _with_approx_peg(data: dict[str, Any]) -> dict[str, Any]:
+        """Fill missing PEG from positive P/E (prefer trailing) ÷ earnings growth %.
+
+        Yahoo often omits ``pegRatio`` from ``.info`` even when Key Statistics still
+        shows it. Classic PEG uses growth in percent points (PE 20 / 15% ≈ 1.33).
+        Only approximates when PE and earnings growth are both positive.
+        """
+        if not isinstance(data, dict):
+            return data
+        valuation = dict(data.get("valuation") or {})
+        if valuation.get("pegRatio") is not None:
+            return data
+        pe = valuation.get("trailingPe")
+        pe_source = "trailingPe"
+        if not isinstance(pe, (int, float)) or pe <= 0:
+            pe = valuation.get("forwardPe")
+            pe_source = "forwardPe"
+        if not isinstance(pe, (int, float)) or pe <= 0:
+            return data
+        growth = (data.get("growthProfitability") or {}).get("earningsGrowth")
+        if not isinstance(growth, (int, float)) or growth <= 0:
+            return data
+        # yfinance / our Finnhub path store growth as a fraction (0.15 = 15%).
+        # Guard against an already-percent value (> ~2 → treat as percent points).
+        growth_pct = float(growth) if growth > 2.0 else float(growth) * 100.0
+        if growth_pct <= 0:
+            return data
+        peg = round(float(pe) / growth_pct, 4)
+        if peg <= 0 or peg > 100:
+            return data
+        valuation["pegRatio"] = peg
+        valuation["pegRatioApprox"] = True
+        valuation["pegRatioApproxFrom"] = pe_source
+        out = dict(data)
+        out["valuation"] = valuation
+        return out
 
     def _cached_finnhub_fundamentals(self, symbol: str) -> dict[str, Any]:
         """Finnhub fundamentals with caching of successful (non-empty) results only.
