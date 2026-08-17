@@ -7,6 +7,7 @@ import { emphasizeDriverText } from "@/lib/driverHighlight";
 import {
   getRecommendationDrivers,
   getRecommendationText,
+  getWatchItems,
   headlineForAction,
   sentimentStyle,
 } from "@/lib/inspectorHelpers";
@@ -29,8 +30,10 @@ export function SaiSummaryCard({ data }: SaiSummaryCardProps) {
   const proposal = rec?.proposal;
   const body = getRecommendationText(data);
   const drivers = getRecommendationDrivers(data);
+  const watchItems = getWatchItems(data);
   const sentiment = rec?.sentiment ?? "neutral";
-  const headline = rec?.headline?.trim() || headlineForAction(rec?.action, sentiment);
+  const headline =
+    rec?.headline?.trim() || headlineForAction(rec?.action, sentiment, watchItems);
   const assessedAt = rec?.assessedAt ? formatShortDateTime(rec.assessedAt) : "";
   const attention = resolveSaiAttention(rec?.action, proposal);
   const confLabel = saiConfidenceLabel(rec?.confidence, proposal);
@@ -131,6 +134,23 @@ export function SaiSummaryCard({ data }: SaiSummaryCardProps) {
               <View style={styles.driverTextWrap}>
                 <AlertMessageText
                   message={emphasizeDriverText(reason)}
+                  style={styles.driverText}
+                  boldStyle={styles.bodyBold}
+                />
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {watchItems.length > 0 ? (
+        <View style={styles.watch}>
+          <Text style={styles.watchLabel}>What to watch</Text>
+          {watchItems.map((item, idx) => (
+            <View key={idx} style={styles.driverRow}>
+              <Text style={styles.driverBullet}>·</Text>
+              <View style={styles.driverTextWrap}>
+                <AlertMessageText
+                  message={emphasizeDriverText(item)}
                   style={styles.driverText}
                   boldStyle={styles.bodyBold}
                 />
@@ -251,6 +271,21 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     paddingTop: spacing.sm,
+  },
+  watch: {
+    marginTop: spacing.xs,
+    gap: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    paddingTop: spacing.sm,
+  },
+  watchLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    marginBottom: 2,
   },
   driverRow: {
     flexDirection: "row",

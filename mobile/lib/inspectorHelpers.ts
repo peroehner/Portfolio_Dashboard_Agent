@@ -90,7 +90,17 @@ export function getPositionDisplay(
   };
 }
 
-export function headlineForAction(action?: string | null, sentiment?: string | null): string {
+export function getWatchItems(data?: InspectorPayload | null): string[] {
+  return (data?.recommendation?.watchItems || [])
+    .map((item) => String(item).trim())
+    .filter(Boolean);
+}
+
+export function headlineForAction(
+  action?: string | null,
+  sentiment?: string | null,
+  watchItems?: string[] | null,
+): string {
   const labels: Record<string, string> = {
     buy: "Consider adding on confirmed setup",
     sell: "Consider taking profits or reducing",
@@ -98,7 +108,11 @@ export function headlineForAction(action?: string | null, sentiment?: string | n
     hold: "Maintain current positioning",
   };
   const key = String(action || "hold").toLowerCase();
-  const base = labels[key] || "Review positioning";
+  const hasWatchList = (watchItems || []).some((item) => String(item).trim());
+  const base =
+    key === "watch" && hasWatchList
+      ? "Monitor — catalysts in What to watch"
+      : labels[key] || "Review positioning";
   const sent = String(sentiment || "neutral").toLowerCase();
   if (sent === "bullish" && (key === "hold" || key === "watch")) {
     return `${base} · bullish growth thesis`;

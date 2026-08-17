@@ -211,6 +211,7 @@ class AssessmentOverlayService:
 
         return {
             "symbol": context.get("symbol"),
+            "companyName": context.get("companyName"),
             "currentPrice": price,
             "baseAssessment": {
                 "action": base.get("action"),

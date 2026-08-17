@@ -652,14 +652,22 @@ class InspectorService:
         }
 
     @staticmethod
-    def _headline_for_action(action: str, sentiment: str) -> str:
+    def _headline_for_action(
+        action: str,
+        sentiment: str,
+        watch_items: list[str] | None = None,
+    ) -> str:
         labels = {
             "buy": "Consider adding on confirmed setup",
             "sell": "Consider taking profits or reducing",
             "watch": "Monitor — catalysts approaching",
             "hold": "Maintain current positioning",
         }
-        base = labels.get(action, "Review positioning")
+        has_watch_list = any(str(item).strip() for item in (watch_items or []))
+        if action == "watch" and has_watch_list:
+            base = "Monitor — catalysts in What to watch"
+        else:
+            base = labels.get(action, "Review positioning")
         if sentiment == "bullish" and action in ("hold", "watch"):
             return f"{base} · bullish growth thesis"
         if sentiment == "bearish":
@@ -826,7 +834,7 @@ def build_symbol_recommendation(
                 f"({nearest_fib.get('distancePct', '—')}%)"
             )
 
-    headline = InspectorService._headline_for_action(action, sentiment)
+    headline = InspectorService._headline_for_action(action, sentiment, watch_items)
     action_hint = _action_sentiment_hint(action)
     sentiment_guard = None
     if (action_hint == "bullish" and sentiment == "bearish") or (
@@ -909,5 +917,14 @@ def build_symbol_recommendation(
         "assessedAt": latest.get("createdAt") if latest else None,
         "provider": latest.get("provider") if latest else None,
         "upsidePct": screening.get("upsidePct"),
+        "upsideSource": (
+            "1YT"
+            if isinstance(screen_block.get("analystTarget1y"), (int, float))
+            else (
+                "PT"
+                if isinstance(screen_block.get("personalTarget"), (int, float))
+                else "target"
+            )
+        ),
         "proposal": proposal,
     }

@@ -341,13 +341,31 @@ class LLMClient:
             raise RuntimeError("Overlay LLM requires an OpenAI or Gemini provider.")
         return self._normalize_overlay_assessment(raw, provider=provider)
 
-    def _overlay_system_prompt(self) -> str:
+    def _subject_lock_instruction(self, symbol: str) -> str:
+        name = str(symbol or "").strip().upper() or "THIS SYMBOL"
+        return (
+            f"Write ONLY about {name}. Do not name other tickers or companies, and do not "
+            "import another name's earnings, products, or guidance into this thesis. "
+            "If notes or news mention another company, ignore that content unless it is an "
+            f"explicit comparison to {name} — then label it as a peer comparison in one "
+            "short clause."
+        )
+
+    def _metric_emphasis_instruction(self) -> str:
+        return (
+            "Wrap each figure WITH the nearby words that state its meaning (unit or label), "
+            "e.g. **unrealized gain of 460%**, **180x forward P/E**, **1.1% of portfolio**, "
+            "**7.55% upside to target (1YT)**. Do not bold whole sentences."
+        )
+
+    def _overlay_system_prompt(self, symbol: str = "") -> str:
         return (
             "You are a portfolio assistant writing a PERSONAL overlay on top of a "
             "locked symbol-level market assessment. The market ACTION is already "
             "decided — do not re-pick Buy vs Sell from Fit, Intent, tax, or notes. "
             "You may only nudge Hold → Watch when personal alerts, notes, or a large "
             "personal-target gap make attention useful. "
+            f"{self._subject_lock_instruction(symbol)} "
             "Write rationale in two beats: (1) the market thesis in brief, (2) what "
             "it means in THIS book (levels, notes, Intent, weight vs cap, dividend "
             "gap, harvest/tax facts). "
@@ -355,6 +373,7 @@ class LLMClient:
             "Intent, harvest alert, note catalyst) — not generic market commentary. "
             "Never invent holdings, alerts, or news. Never include Score totals or "
             "action bands. "
+            f"{self._metric_emphasis_instruction()} "
             "Respond only with JSON: action, confidence, rationale, factors, watchItems. "
             "action: buy | sell | hold | watch (must match lockedAction unless Hold→Watch). "
             "confidence: high | medium | low (you may soften vs base for book constraints; "
@@ -382,6 +401,7 @@ class LLMClient:
             )
         return (
             "Personalize this market assessment for the investor's book.\n\n"
+            f"{self._subject_lock_instruction(str(packet.get('symbol') or ''))}\n\n"
             f"Context JSON:\n{json.dumps(packet, indent=2)}"
             f"{constraint}"
         )
@@ -390,7 +410,7 @@ class LLMClient:
         payload = {
             "model": self.openai_model,
             "messages": [
-                {"role": "system", "content": self._overlay_system_prompt()},
+                {"role": "system", "content": self._overlay_system_prompt(str(packet.get("symbol") or ""))},
                 {"role": "user", "content": self._overlay_user_prompt(packet)},
             ],
             "temperature": 0.2,
@@ -411,7 +431,7 @@ class LLMClient:
         payload = {
             "contents": [{
                 "parts": [{
-                    "text": self._overlay_system_prompt()
+                    "text": self._overlay_system_prompt(str(packet.get("symbol") or ""))
                     + "\n\n"
                     + self._overlay_user_prompt(packet),
                 }],
@@ -519,6 +539,9 @@ class LLMClient:
             "notes — only shared market data: live price, analyst consensus, Fibonacci "
             "levels, fundamentals, recent news headlines, and computed technical signals. "
             "Weigh valuation vs growth, technical confluence, and news sentiment. "
+            f"{self._metric_emphasis_instruction()} "
+            "The assessment is for the symbol in the context JSON only — do not name other "
+            "tickers or companies, and do not import another name's earnings into this thesis. "
             "Respond only with JSON: action, confidence, rationale, factors, noteSynthesis. "
             "action: buy | sell | hold | watch (market-level stance, not position sizing). "
             "confidence: high | medium | low. "
@@ -1014,12 +1037,15 @@ class LLMClient:
             "revenueProjections: array of {target, timeline, segments} — revenue run-rate or milestones. "
             "catalystsToWatch: array of {period, metric, threshold, significance} — what to verify "
             "in future quarters (e.g. Q2 2026 security growth >= 25% YoY). "
-            "sentiment: bullish | neutral | bearish."
+            "sentiment: bullish | neutral | bearish. "
+            "Attribute facts only to the symbol named in the user prompt. If the note mentions "
+            "other companies, do not treat their results as this symbol's."
         )
 
     def _synthesis_user_prompt(self, symbol: str, note: dict[str, Any]) -> str:
         return (
-            f"Synthesize this personal note for {symbol}.\n\n"
+            f"Synthesize this personal note for {symbol}. Attribute facts only to {symbol}. "
+            "If the note mentions other companies, do not treat their results as this symbol's.\n\n"
             f"Date: {note.get('date') or note.get('note_date') or 'unspecified'}\n"
             f"Source: {note.get('source') or 'unspecified'}\n\n"
             f"Raw note:\n{note.get('text', '')}"
@@ -1060,6 +1086,9 @@ class LLMClient:
             "factor when it is decisive. It still modulates, never overrides, the fundamental thesis. "
             "Technical signals modulate timing and confidence; fundamentals and notes drive "
             "the core thesis. "
+            f"{self._metric_emphasis_instruction()} "
+            "Stay on the symbol in the context JSON: do not name other tickers or companies, "
+            "and do not import another name's earnings into this thesis. "
             "Respond only with JSON using keys: action, confidence, rationale, factors, noteSynthesis. "
             "action: buy | sell | hold | watch. "
             "confidence: high | medium | low. "

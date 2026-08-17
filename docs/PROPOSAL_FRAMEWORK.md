@@ -46,7 +46,7 @@ Screening’s **Conf · Score** chip shows **two measures**, not one duplicated 
 |---------|--------------|------|
 | **Label** (High / Medium / Low) | **SAI Conf** — published Conviction | Bet-S-Hit weight factor (3 / 2 / 1) |
 | **Score** (0–100) | **SAI Score** — State + Trigger + Fit | Setup quality; scales Bet-S-Hit via `(1 + score/100)`; also **Buy Plan** Score mode |
-| **Fit Band** (High / Medium / Low) | Raw Score with **same cuts** as Conf base (≥75 / ≥35 / else) | Inspector SAI chip + track-record slice — **not** softened; not on Screening or mobile SAI |
+| **Fit Band** (High / Medium / Low) | Raw Score with **same cuts** as Conf base (≥75 / ≥35 / else) | Agent Signal Record slice — **not** softened; not on Screening, Inspector SAI, or mobile SAI |
 
 **Base Label / Fit Band from Score alone:** ≥75 High, ≥35 Medium, else Low — then **only Label** may be **softened one notch** (stability gate / unconfirmed flip, or warn/block vetoes). **Score does not drop with that soften**, so Score can **lag behind** a lower Label. Fit Band always follows raw Score (same vocabulary as Conf).
 
@@ -58,7 +58,7 @@ Screening’s **Conf · Score** chip shows **two measures**, not one duplicated 
 | `Medium · 40` | Floor of Medium band (≥35); sorts above any Low when Conf · Score is sorted Label-first |
 | `Low · 63` | Score alone → Medium, but Label Low after soften — **Score may lag Label**; hover lists stability/guardrail when known |
 
-**Hover (Conf · Score):** published Conviction first (`Medium Conviction…`), then Score (State·Trigger·Fit) + action band, Bet-S-Hit weight using the **same** published Label as the chip, crisp Drivers, then soften note when assessment or score-implied Label is higher. Fit Band hover: `Fit Band: HIGH (80: 75 - 100)`.
+**Hover (Conf · Score):** published Conviction first (`Medium Conviction…`), then Score (State·Trigger·Fit) + action band, Bet-S-Hit weight using the **same** published Label as the chip, crisp Drivers, then soften note when assessment or score-implied Label is higher. Inspector SAI does not show a separate Fit Band chip or Proposal Fit bars — Score lives on Conf.
 
 Agent Signal Record **Bet-S-Hit** uses the same pair: `confidence_weight × (1 + fit_total/100)` where `fit_total` is proposal **SAI Score** total (naming gotcha — not Fit pillar alone). See [signal_track_record.md](./signal_track_record.md). Compare **SAI by confidence** (published) vs **SAI by Fit band** (raw) to judge softening.
 

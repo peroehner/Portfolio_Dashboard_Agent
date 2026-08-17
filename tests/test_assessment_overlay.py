@@ -187,6 +187,7 @@ class AssessmentOverlayTests(unittest.TestCase):
         }
         personal = {
             "symbol": "NVDA",
+            "companyName": "NVIDIA Corporation",
             "currentPrice": 100,
             "buyBelow": 90,
             "sellAbove": 130,
@@ -210,6 +211,7 @@ class AssessmentOverlayTests(unittest.TestCase):
         self.assertNotIn("scores", packet)
         self.assertNotIn("technical", packet.get("personal") or {})
         self.assertEqual(packet["constraints"]["lockedAction"], "hold")
+        self.assertEqual(packet["companyName"], "NVIDIA Corporation")
         self.assertEqual(packet["personal"]["alerts"][0]["type"], "winner_trim_candidate")
         self.assertEqual(packet["personal"]["dividend"]["gapVsTarget"], 4000)
 

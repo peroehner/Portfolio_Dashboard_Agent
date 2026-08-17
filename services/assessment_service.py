@@ -392,6 +392,7 @@ class AssessmentService:
 
         return {
             "symbol": symbol,
+            "companyName": symbol_data.get("companyName"),
             "currentPrice": symbol_data.get("currentPrice"),
             "targetPrice": symbol_data.get("targetPrice"),
             "analystTarget1y": symbol_data.get("analystTarget1y"),

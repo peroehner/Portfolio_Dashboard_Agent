@@ -2028,7 +2028,8 @@
     .confluence-watch.is-watch .confluence-watch-label { color: var(--accent-2); }
     .confluence-watch.is-risk .confluence-watch-label { color: #fb923c; }
     #inspector-recommendation.inspector-section-focus,
-    #inspector-alerts.inspector-section-focus {
+    #inspector-alerts.inspector-section-focus,
+    #sai-watch-list.inspector-section-focus {
       outline: 2px solid rgba(96, 165, 250, 0.55);
       outline-offset: 4px;
       border-radius: 10px;
@@ -2100,59 +2101,20 @@
       line-height: 1.5;
       color: #e2e8f0;
     }
-    .proposal-scorecard {
-      margin: 0.65rem 0 0.85rem;
-      padding: 0.55rem 0.65rem;
-      border-radius: 8px;
-      background: rgba(15, 23, 42, 0.35);
-      border: 1px solid rgba(148, 163, 184, 0.22);
+    .recommendation-card .sai-metric,
+    .rec-summary-body .sai-metric {
+      color: #f8fafc;
+      font-weight: 800;
     }
-    .proposal-scorecard-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 0.5rem;
-      margin-bottom: 0.4rem;
-      font-size: 0.72rem;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--muted);
+    .sai-watch-jump {
+      color: inherit;
+      font-weight: 700;
+      text-decoration: underline;
+      text-decoration-color: rgba(96, 165, 250, 0.75);
+      text-underline-offset: 0.18em;
     }
-    .proposal-scorecard-total {
-      font-size: 0.85rem;
-      font-weight: 600;
-      letter-spacing: 0;
-      text-transform: none;
-      color: #e2e8f0;
-    }
-    .proposal-bar-row {
-      display: grid;
-      grid-template-columns: 4.5rem 1fr 2rem;
-      gap: 0.35rem;
-      align-items: center;
-      margin: 0.22rem 0;
-      font-size: 0.78rem;
-    }
-    .proposal-bar-label { color: var(--muted); }
-    .proposal-bar-track {
-      height: 6px;
-      border-radius: 999px;
-      background: rgba(148, 163, 184, 0.2);
-      overflow: hidden;
-    }
-    .proposal-bar-fill {
-      height: 100%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #60a5fa, #34d399);
-    }
-    .proposal-bar-fill.trigger { background: linear-gradient(90deg, #fbbf24, #fb7185); }
-    .proposal-bar-fill.fit { background: linear-gradient(90deg, #a78bfa, #60a5fa); }
-    .proposal-bar-val { text-align: right; color: #cbd5e1; font-variant-numeric: tabular-nums; }
-    .chip.proposal-total {
-      background: rgba(96, 165, 250, 0.18);
-      border: 1px solid rgba(96, 165, 250, 0.45);
-      color: #bfdbfe;
-      font-variant-numeric: tabular-nums;
+    .sai-watch-jump:hover {
+      color: #93c5fd;
     }
     .proposal-prefs-panel {
       margin-top: 1rem;
@@ -11788,14 +11750,18 @@
 
     // JS mirror of inspector_service._headline_for_action so the recommendation
     // headline stays consistent once news sentiment overrides the note fallback.
-    function headlineForAction(action, sentiment) {
+    function headlineForAction(action, sentiment, watchItems) {
       const labels = {
         buy: "Consider adding on confirmed setup",
         sell: "Consider taking profits or reducing",
         watch: "Monitor — catalysts approaching",
         hold: "Maintain current positioning",
       };
-      const base = labels[action] || "Review positioning";
+      const hasWatchList = (watchItems || []).some((item) => String(item || "").trim());
+      const base =
+        action === "watch" && hasWatchList
+          ? "Monitor — catalysts in What to watch"
+          : labels[action] || "Review positioning";
       if (sentiment === "bullish" && (action === "hold" || action === "watch")) {
         return `${base} · bullish growth thesis`;
       }
@@ -11812,7 +11778,7 @@
       rec.sentiment = newsSentiment.sentiment || "neutral";
       rec.sentimentSource = "news";
       rec.sentimentDetail = newsSentiment.detail || "From recent market news";
-      if (rec.action) rec.headline = headlineForAction(rec.action, rec.sentiment);
+      if (rec.action) rec.headline = headlineForAction(rec.action, rec.sentiment, rec.watchItems);
       return rec;
     }
 
@@ -11920,7 +11886,7 @@
       return String(rec?.proposal?.confidence || rec?.confidence || "medium").toLowerCase();
     }
 
-    function renderRecommendationChipRow(rec, { wrapperClass = "", bare = false, includeIntent = true, includeFitBand = true } = {}) {
+    function renderRecommendationChipRow(rec, { wrapperClass = "", bare = false, includeIntent = true, includeFitBand = false } = {}) {
       const action = rec?.action || "hold";
       const confidence = saiPublishedConfidence(rec);
       const sentiment = rec?.sentiment || "neutral";
@@ -12167,7 +12133,7 @@
       if (!rec) {
         return `<span class="empty" style="font-size:0.78rem;">—</span>`;
       }
-      // Screening: Intent is its own column; Fit Band stays Inspector-only.
+      // Screening: Intent is its own column; Fit Band is track-record only.
       return renderRecommendationChipRow(rec, {
         wrapperClass: "screening-rec-chips",
         includeIntent: false,
@@ -12512,7 +12478,7 @@
 
     const TECH_STANCE_HELP = "Confluence agent's purely technical read (independent of the SAI):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 scale (left = bearish, center = neutral, right = bullish)\n• Strength — how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume)";
     const INTENT_HELP = "Portfolio Intent (role for this name in the book):\n• From holdings + planned trades, or your Target override\n• Roles — tactical / accumulate / core / core_accumulate / divest\n• Color + glyph by role; separate from SAI Action / Conf / Sentiment";
-    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — the only Action chip: Buy / Watch / Hold / Sell (from last Assess). A trailing ! means live SAI Score maps to a different Buy/Watch/Sell on the action ladder below — often stale Assess vs moved Score. ! is not Conf vs Score.\n• ACTION LADDER (from live SAI Score) — ≥75 Strong buy / size-up · 60–74 Buy / add · 45–59 Watch / hold · 30–44 Hold / trim · <30 Sell / avoid\n• CONF · SCORE — Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit). Base Label cuts: ≥75 High · ≥35 Medium · else Low; Label may soften one notch.\n• SENTIMENT — news reaction (else notes)\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), or Sentiment\n• INTENT — own Screening column (not under SAI)\n• Fit Band (raw Score, no soften) is Inspector-only — not in this grid";
+    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — the only Action chip: Buy / Watch / Hold / Sell (from last Assess). A trailing ! means live SAI Score maps to a different Buy/Watch/Sell on the action ladder below — often stale Assess vs moved Score. ! is not Conf vs Score.\n• ACTION LADDER (from live SAI Score) — ≥75 Strong buy / size-up · 60–74 Buy / add · 45–59 Watch / hold · 30–44 Hold / trim · <30 Sell / avoid\n• CONF · SCORE — Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit). Hover Conf for State / Trigger / Fit. Base Label cuts: ≥75 High · ≥35 Medium · else Low; Label may soften one notch.\n• SENTIMENT — news reaction (else notes)\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), or Sentiment\n• INTENT — own Screening column (not under SAI)";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
     const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
@@ -15863,43 +15829,237 @@
       renderFibMapView();
     }
 
-    function renderProposalScorecard(proposal, { compact = false } = {}) {
-      if (!proposal || !proposal.scores) return "";
-      const s = proposal.scores;
-      const state = Number(s.state) || 0;
-      const trigger = Number(s.trigger) || 0;
-      const fit = Number(s.portfolioFit) || 0;
-      const total = Number(s.total) || state + trigger + fit;
-      const pct = (v, max) => Math.max(0, Math.min(100, (Number(v) / max) * 100));
-      return `
-        <div class="proposal-scorecard${compact ? " snap-proposal" : ""}">
-          <div class="proposal-scorecard-head">
-            <span>Proposal fit</span>
-            <span class="proposal-scorecard-total">${total}/100</span>
-          </div>
-          <div class="proposal-bar-row"><span class="proposal-bar-label">State</span><div class="proposal-bar-track"><div class="proposal-bar-fill" style="width:${pct(state, 50)}%"></div></div><span class="proposal-bar-val">${state}</span></div>
-          <div class="proposal-bar-row"><span class="proposal-bar-label">Trigger</span><div class="proposal-bar-track"><div class="proposal-bar-fill trigger" style="width:${pct(trigger, 30)}%"></div></div><span class="proposal-bar-val">${trigger}</span></div>
-          <div class="proposal-bar-row"><span class="proposal-bar-label">Fit</span><div class="proposal-bar-track"><div class="proposal-bar-fill fit" style="width:${pct(fit, 20)}%"></div></div><span class="proposal-bar-val">${fit}</span></div>
-        </div>`;
+    function emphasizeMetricText(text) {
+      const raw = String(text || "").trim();
+      if (!raw) return raw;
+      const NUMBER_RE = /\$[\d,]+(?:\.\d+)?(?:\s*[KMBkmb])?|[+\-]?\d+(?:\.\d+)?%|\d+(?:\.\d+)?x\b|\b\d+(?:,\d{3})+(?:\.\d+)?\b|\b\d+(?:\.\d+)?\b/g;
+      const WORD_RE = /^(?:P\/E|1YT|[A-Za-z][A-Za-z0-9/.-]*)/;
+      const STOP_LEFT = new Set([
+        "a","an","the","is","are","was","were","be","been","being",
+        "and","but","or","nor","with","from","by","as","if","than","then",
+        "that","this","these","those","it","its","their","his","her",
+        "very","extremely","currently","still","also","only","just",
+        "about","nearly","almost","now","already","has","have","had",
+        "holding","approaching","positioned","trading","sitting",
+        "remains","remaining","stretched","expensive","cheap",
+        "significant","significantly","while","when","where","which",
+        "who","whose","into","onto","for","on","in","at","so","yet","not",
+        "valuation","monitor","consider","maintain","review",
+      ]);
+      const LEFT_CONNECTOR = new Set(["of","vs","versus","exceeding","above","below","around","to"]);
+      const STOP_RIGHT = new Set([
+        "and","but","or","nor","while","which","that","with","because",
+        "although","however","when","where","if","so","yet","as",
+        "is","are","was","were","has","have","had","not","than","then",
+        "who","whose","whom","also","still","already","now",
+        "consider","maintain","monitor","in","for","on","at",
+      ]);
+      const RIGHT_CONNECTOR = new Set(["of","to","vs","versus","per","above","below","around"]);
+      const RIGHT_ARTICLE = new Set(["the","a","an"]);
+      const isYearToken = (token) => /^(?:19|20)\d{2}$/.test(token);
+      const isPureNumberToken = (token) => {
+        const t = String(token || "").trim();
+        return (
+          /^\$[\d,]+(?:\.\d+)?(?:\s*[KMBkmb])?$/i.test(t) ||
+          /^[+\-]?\d+(?:\.\d+)?%$/.test(t) ||
+          /^\d+(?:\.\d+)?x$/i.test(t) ||
+          /^\d+(?:,\d{3})+(?:\.\d+)?$/.test(t) ||
+          /^\d+(?:\.\d+)?$/.test(t)
+        );
+      };
+      const hasUnitSuffix = (token) => {
+        const t = String(token || "").trim();
+        return /^\$/.test(t) || /%$/.test(t) || /x$/i.test(t);
+      };
+      const lastWord = (str, end) => {
+        let i = end;
+        while (i > 0 && /[ \t]/.test(str[i - 1])) i -= 1;
+        if (i <= 0) return null;
+        const found = str.slice(0, i).match(/(P\/E|1YT|[A-Za-z][A-Za-z0-9/.-]*)$/);
+        if (!found) return null;
+        return { word: found[1], start: i - found[1].length };
+      };
+      const expandLeft = (str, start) => {
+        let pos = start;
+        let content = 0;
+        let lastGood = start;
+        while (content < 4) {
+          const word = lastWord(str, pos);
+          if (!word) break;
+          if (!/^[\s]*$/.test(str.slice(word.start + word.word.length, pos))) break;
+          const key = word.word.toLowerCase();
+          if (LEFT_CONNECTOR.has(key)) {
+            pos = word.start;
+            lastGood = pos;
+            continue;
+          }
+          if (STOP_LEFT.has(key)) break;
+          pos = word.start;
+          lastGood = pos;
+          content += 1;
+        }
+        return lastGood;
+      };
+      const expandRight = (str, end) => {
+        let i = end;
+        let content = 0;
+        let lastGood = end;
+        let lastWasConnector = false;
+        while (content < 5) {
+          let j = i;
+          while (j < str.length && /[ \t]/.test(str[j])) j += 1;
+          if (j >= str.length) break;
+          if (str[j] === "(") {
+            const close = str.indexOf(")", j + 1);
+            if (close > j && close - j <= 28) {
+              i = close + 1;
+              lastGood = i;
+              lastWasConnector = false;
+              content += 1;
+              continue;
+            }
+            break;
+          }
+          if (/[.,;:!?—–]/.test(str[j])) break;
+          const found = str.slice(j).match(WORD_RE);
+          if (!found) break;
+          const key = found[0].toLowerCase();
+          if (STOP_RIGHT.has(key)) break;
+          if (RIGHT_ARTICLE.has(key) && !lastWasConnector) break;
+          i = j + found[0].length;
+          if (RIGHT_CONNECTOR.has(key) || RIGHT_ARTICLE.has(key)) {
+            lastWasConnector = true;
+            continue;
+          }
+          lastWasConnector = false;
+          lastGood = i;
+          content += 1;
+        }
+        return lastGood;
+      };
+      const wrapMetricPhrases = (segment) => {
+        const spans = [];
+        const re = new RegExp(NUMBER_RE.source, "g");
+        let found;
+        while ((found = re.exec(segment)) !== null) {
+          const token = found[0];
+          if (isYearToken(token)) continue;
+          const numStart = found.index;
+          const numEnd = numStart + token.length;
+          const start = expandLeft(segment, numStart);
+          const end = expandRight(segment, numEnd);
+          if (!hasUnitSuffix(token) && start === numStart && end === numEnd) continue;
+          spans.push({ start, end });
+        }
+        if (!spans.length) return segment;
+        spans.sort((a, b) => a.start - b.start);
+        const merged = [];
+        for (const span of spans) {
+          const prev = merged[merged.length - 1];
+          if (prev && span.start <= prev.end) prev.end = Math.max(prev.end, span.end);
+          else merged.push({ start: span.start, end: span.end });
+        }
+        let out = segment;
+        for (let i = merged.length - 1; i >= 0; i -= 1) {
+          const { start, end } = merged[i];
+          const slice = out.slice(start, end).trimEnd();
+          if (!slice || slice.includes("**")) continue;
+          out = `${out.slice(0, start)}**${slice}**${out.slice(start + slice.length)}`;
+        }
+        return out;
+      };
+      const pullContextIntoBold = (marked) => {
+        const parts = marked.split(/(\*\*[^*]+\*\*)/);
+        const out = [];
+        for (let i = 0; i < parts.length; i += 1) {
+          const part = parts[i];
+          const bold = /^\*\*([^*]+)\*\*$/.exec(part);
+          if (!bold) {
+            out.push(part);
+            continue;
+          }
+          let inner = bold[1];
+          if (!isPureNumberToken(inner)) {
+            out.push(part);
+            continue;
+          }
+          const prev = out.length ? out[out.length - 1] : "";
+          let next = parts[i + 1] || "";
+          if (next.startsWith("**")) next = "";
+          const fake = `${prev}${inner}${next}`;
+          const numStart = prev.length;
+          const numEnd = numStart + inner.length;
+          const left = expandLeft(fake, numStart);
+          const right = expandRight(fake, numEnd);
+          if (out.length) out[out.length - 1] = prev.slice(0, left);
+          if (parts[i + 1] != null && !String(parts[i + 1]).startsWith("**")) {
+            parts[i + 1] = next.slice(right - numEnd);
+          }
+          inner = fake.slice(left, right);
+          out.push(`**${inner}**`);
+        }
+        return out.join("");
+      };
+      const wrapped = raw
+        .split(/(\*\*[^*]+\*\*)/)
+        .map((part) => (/^\*\*[^*]+\*\*$/.test(part) ? part : wrapMetricPhrases(part)))
+        .join("");
+      return pullContextIntoBold(wrapped);
     }
+
+    function saiUpsideMeta(rec) {
+      if (rec == null || rec.upsidePct == null) return null;
+      const src = rec.upsideSource === "PT" ? "PT" : rec.upsideSource === "target" ? "target" : "1YT";
+      return `${rec.upsidePct}% upside to target (${src})`;
+    }
+
+    function renderSaiProse(text) {
+      return emphasizeMetricText(String(text || "")).split(/(\*\*[^*]+\*\*)/).map((part) => {
+        const marked = /^\*\*([^*]+)\*\*$/.exec(part);
+        if (marked) return `<strong class="sai-metric">${escapeHtml(marked[1])}</strong>`;
+        return escapeHtml(part);
+      }).join("");
+    }
+
+    function renderSaiHeadline(headline, hasWatch) {
+      const raw = String(headline || "");
+      const escaped = escapeHtml(raw);
+      if (!hasWatch || !/What to watch/i.test(raw)) {
+        return `<div class="rec-headline">${escaped}</div>`;
+      }
+      const linked = escaped.replace(
+        /What to watch/gi,
+        `<a href="#sai-watch-list" class="sai-watch-jump" onclick="jumpToSaiWatch(event)">What to watch</a>`
+      );
+      return `<div class="rec-headline">${linked}</div>`;
+    }
+
+    function jumpToSaiWatch(event) {
+      if (event) event.preventDefault();
+      const el = document.getElementById("sai-watch-list");
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("inspector-section-focus");
+      window.setTimeout(() => el.classList.remove("inspector-section-focus"), 1800);
+    }
+    window.jumpToSaiWatch = jumpToSaiWatch;
 
     function renderRecommendationCard(rec) {
       if (!rec || !rec.headline) {
         return `<div class="recommendation-card" id="inspector-recommendation"><h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3><div class="empty">No Synthesized Agent Insight yet — synthesize notes and run Assess Symbol.</div></div>`;
       }
       const drivers = (rec.drivers || [])
-        .map((d) => `<li>${d}</li>`)
+        .map((d) => `<li>${renderSaiProse(d)}</li>`)
         .join("");
       const watch = (rec.watchItems || [])
-        .map((w) => `<li>${w}</li>`)
+        .map((w) => `<li>${renderSaiProse(w)}</li>`)
         .join("");
       const chips = renderRecommendationChipRow(rec, { bare: true });
       const assessedAt = formatInspectorAssessedAt(rec.assessedAt);
       const meta = [
         rec.provider || null,
-        rec.upsidePct != null ? `${rec.upsidePct}% upside to target` : null,
+        saiUpsideMeta(rec),
       ].filter(Boolean).join(" · ");
-      const scorecard = renderProposalScorecard(rec.proposal);
       const sentimentGuard = rec.sentimentGuard
         ? `<div class="empty" style="margin-top:0.45rem;color:var(--warn);">${escapeHtml(rec.sentimentGuard)}</div>`
         : "";
@@ -15912,12 +16072,11 @@
             </div>
             ${assessedAt ? `<div class="rec-assessed-at">${escapeHtml(assessedAt)}</div>` : ""}
           </div>
-          <div class="rec-headline">${rec.headline || ""}</div>
-          ${scorecard}
-          <div class="rec-rationale">${rec.rationale || ""}</div>
+          ${renderSaiHeadline(rec.headline, Boolean(watch))}
+          <div class="rec-rationale">${renderSaiProse(rec.rationale || "")}</div>
           ${sentimentGuard}
           ${drivers ? `<ul class="watch-list">${drivers}</ul>` : ""}
-          ${watch ? `<div style="margin-top:0.75rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;">What to watch</div><ul class="watch-list">${watch}</ul>` : ""}
+          ${watch ? `<div id="sai-watch-list" style="margin-top:0.75rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;">What to watch</div><ul class="watch-list">${watch}</ul>` : ""}
           ${meta ? `<div class="empty" style="margin-top:0.6rem;">${meta}</div>` : ""}
         </div>`;
     }
@@ -16526,7 +16685,7 @@
       const safeSymbol = String(data.symbol || "").replace(/'/g, "\\'");
       const bodyInner = [
         headline ? `<div class="rec-summary-lead">${escapeHtml(headline)}</div>` : "",
-        rationale ? `<p>${escapeHtml(rationale)}</p>` : "",
+        rationale ? `<p>${renderSaiProse(rationale)}</p>` : "",
       ].join("");
       const bodyHtml = bodyInner
         ? `<div class="rec-summary-body" role="button" tabindex="0" title="Open full Inspector"
@@ -17480,25 +17639,23 @@
         return `<div class="recommendation-card snap-sai-card" id="inspector-recommendation"><h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3><div class="empty">No Synthesized Agent Insight yet — synthesize notes and run Assess Symbol.</div></div>`;
       }
       const drivers = (rec.drivers || [])
-        .map((d) => `<li>${escapeHtml(d)}</li>`)
+        .map((d) => `<li>${renderSaiProse(d)}</li>`)
         .join("");
       const watch = (rec.watchItems || [])
-        .map((w) => `<li>${escapeHtml(w)}</li>`)
+        .map((w) => `<li>${renderSaiProse(w)}</li>`)
         .join("");
       const meta = [
         rec.assessedAt ? `Read ${escapeHtml(rec.assessedAt)}` : null,
         rec.provider ? escapeHtml(rec.provider) : null,
-        rec.upsidePct != null ? `${rec.upsidePct}% upside to target` : null,
+        saiUpsideMeta(rec),
       ].filter(Boolean).join(" · ");
-      const scorecard = renderProposalScorecard(rec.proposal, { compact: true });
       return `
         <div class="recommendation-card snap-sai-card" id="inspector-recommendation">
           <h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3>
-          <div class="rec-headline">${escapeHtml(rec.headline || "")}</div>
-          ${scorecard}
-          <div class="rec-rationale">${escapeHtml(rec.rationale || "")}</div>
+          ${renderSaiHeadline(rec.headline, Boolean(watch))}
+          <div class="rec-rationale">${renderSaiProse(rec.rationale || "")}</div>
           ${drivers ? `<ul class="watch-list snap-sai-drivers">${drivers}</ul>` : ""}
-          ${watch ? `<div class="snap-watch-label">What to watch</div><ul class="watch-list snap-sai-watch">${watch}</ul>` : ""}
+          ${watch ? `<div id="sai-watch-list" class="snap-watch-label">What to watch</div><ul class="watch-list snap-sai-watch">${watch}</ul>` : ""}
           ${meta ? `<div class="snap-sai-meta">${meta}</div>` : ""}
         </div>`;
     }

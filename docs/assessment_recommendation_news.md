@@ -223,14 +223,14 @@ The action labels are exactly the assessment's: **Buy / Watch / Hold / Sell**
 
 ### The headline string
 
-`_headline_for_action(action, sentiment)` (lines ~472–484) maps the action to a
+`_headline_for_action(action, sentiment, watch_items)` maps the action to a
 plain-English headline, optionally suffixed by sentiment:
 
 | Action | Base headline |
 |--------|---------------|
 | `buy` | "Consider adding on confirmed setup" |
 | `sell` | "Consider taking profits or reducing" |
-| `watch` | "Monitor — catalysts approaching" |
+| `watch` | "Monitor — catalysts in What to watch" when `watchItems` exist; else "Monitor — catalysts approaching" |
 | `hold` | "Maintain current positioning" |
 
 If `sentiment == "bullish"` and the action is `hold`/`watch`, it appends
@@ -386,9 +386,10 @@ This is exactly what the Recommendation prefers for its sentiment chip
 `renderRecommendationChipRow` (lines ~5188–5205) renders three chips:
 **ACTION** (`buy`/`watch`/`hold`/`sell`) · **CONFIDENCE** (`high`/`medium`/`low`)
 · **SENTIMENT** (`bullish`/`neutral`/`bearish`, colored, with the sourcing detail
-on hover). The full card (`renderRecommendationCard`) adds the headline,
-rationale, the `drivers` list, a "What to watch" list, and a meta footer:
-`Read <date> · <provider> · <upside>% upside to target`. The Screening table
+on hover). The full card (`renderRecommendationCard`) adds the headline
+(Watch headlines link to **What to watch**), rationale with figure+unit
+highlights, the `drivers` list, a "What to watch" list, and a meta footer:
+`Read <date> · <provider> · <upside>% upside to target (1YT)` (falls back to `(PT)` when only a personal target is on file). The Screening table
 shows the same chips per row and a separate **"Read On"** date cell
 (`renderScreeningAssessedCell`, lines ~5237–5241).
 

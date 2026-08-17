@@ -10,9 +10,9 @@ Live glossary (mobile Buy/Sell Plan tooltips): [`mobile/lib/signalGlossary.ts`](
 
 | Name | Formula (short) | Used in | Not the same as |
 |------|-----------------|---------|-----------------|
-| **SAI Score** | State + Trigger + Fit → 0–100 | SAI Conf·Score chip, Fit Band, Bet-S-Hit scale, **Buy Plan** Score mode, web Sim **Buy Score** | Plan Attract / Sell Rank / Trim |
+| **SAI Score** | State + Trigger + Fit → 0–100 | SAI Conf·Score chip, Bet-S-Hit scale, **Buy Plan** Score mode, web Sim **Buy Score** | Plan Attract / Sell Rank / Trim |
 | **SAI Conf** | High ≥75 · Med ≥35 · else Low (may **soften**) | Conf chip, Bet-S-Hit **Label** weight (3/2/1) | Fit Band (raw; same cuts) |
-| **Fit Band** | High ≥75 · Med ≥35 · else Low (**raw** Score) | Inspector SAI chip, Agent Signal Record `byFitBand` | SAI Conf (softened Label) |
+| **Fit Band** | High ≥75 · Med ≥35 · else Low (**raw** Score) | Agent Signal Record `byFitBand` | SAI Conf (softened Label) |
 | **Proximity** | \|price − threshold\| / price × 100% | Buy/Sell Plan Prox mode, web Sim **Close %** | Scores |
 | **Plan Attract** | P(proximity) + T(triggered) + S(size) ≈ 0–80 | Sell Plan breakdown (P/T/S) | SAI Score |
 | **Plan Sell Rank** | 80 − Plan Attract | **Sell Plan** Score mode, web Sim **Sell Rank** | Trim Score |
@@ -55,9 +55,9 @@ Label may be **softened one notch** (stability / vetoes). **Score does not drop*
 | medium | 35–74 |
 | low | 0–34 |
 
-Hover (Inspector): `Fit Band: HIGH (80: 75 - 100)`. Not shown on Screening or mobile SAI — those use **Conf · Score** only.
+Hover Conf · Score (Inspector): State / Trigger / Fit sit on that chip. Fit Band is **not** shown on Screening, Inspector SAI, or mobile SAI — those use **Conf · Score** only. Agent Signal Record still slices `byFitBand`.
 
-**Why both chips (Inspector)?** Conf = published (may soften); Fit Band = raw control. Comparing them isolates softening’s effect on recommendation / Bet-S-Hit quality. Action bands (Buy/Watch/Sell) use a separate threshold ladder and are unchanged.
+**Why Fit Band still exists:** Conf = published (may soften); Fit Band = raw control for Bet-S-Hit quality. Action bands (Buy/Watch/Sell) use a separate threshold ladder and are unchanged.
 
 ### Bet-S-Hit (Agent Signal Record)
 

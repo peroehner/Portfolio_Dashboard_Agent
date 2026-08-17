@@ -304,6 +304,7 @@ export interface InspectorPayload {
     thesis?: string;
     drivers?: string[];
     reasons?: string[];
+    watchItems?: string[];
     sentiment?: string;
     sentimentSource?: string;
     sentimentDetail?: string;
