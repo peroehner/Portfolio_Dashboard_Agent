@@ -803,18 +803,28 @@ def build_symbol_recommendation(
         drivers = [thesis]
 
     watch_items = []
-    for catalyst in catalysts:
-        period = catalyst.get("period") or "Upcoming"
-        metric = catalyst.get("metric") or "Growth"
-        threshold = catalyst.get("threshold") or ""
-        watch_items.append(f"{period}: {metric}" + (f" — target {threshold}" if threshold else ""))
-    for alert in alerts[:3]:
-        watch_items.append(alert["message"])
-    if nearest_fib and nearest_fib.get("level"):
-        watch_items.append(
-            f"Price near Fib {nearest_fib['level'].get('label', '')} "
-            f"({nearest_fib.get('distancePct', '—')}%)"
-        )
+    stored_watch = None
+    if latest:
+        stored_watch = (latest.get("noteSynthesis") or {}).get("overlayWatchItems")
+        if not stored_watch:
+            stored_watch = latest.get("watchItems")
+    if isinstance(stored_watch, list) and stored_watch:
+        watch_items = [str(item).strip() for item in stored_watch if str(item).strip()]
+    else:
+        for catalyst in catalysts:
+            period = catalyst.get("period") or "Upcoming"
+            metric = catalyst.get("metric") or "Growth"
+            threshold = catalyst.get("threshold") or ""
+            watch_items.append(
+                f"{period}: {metric}" + (f" — target {threshold}" if threshold else "")
+            )
+        for alert in alerts[:3]:
+            watch_items.append(alert["message"])
+        if nearest_fib and nearest_fib.get("level"):
+            watch_items.append(
+                f"Price near Fib {nearest_fib['level'].get('label', '')} "
+                f"({nearest_fib.get('distancePct', '—')}%)"
+            )
 
     headline = InspectorService._headline_for_action(action, sentiment)
     action_hint = _action_sentiment_hint(action)

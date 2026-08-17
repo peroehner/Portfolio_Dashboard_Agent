@@ -109,13 +109,18 @@ class AssessmentService:
             "track_record_summary": track_summary,
         }
 
-    def _compute_assessment(self, symbol: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    def _compute_assessment(
+        self, symbol: str, extras: dict[str, Any] | None = None
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Build context and run assessment (shared base + personal overlay when enabled)."""
         symbol = symbol.upper()
         symbol_data = self.portfolio_service.get_symbol(symbol)
         if symbol_data is None:
             raise ValueError(f"Symbol {symbol} not found.")
+        extras = extras or self._proposal_extras()
         context = self._build_context(symbol_data)
+        context["fitPrefs"] = extras.get("fit_prefs")
+        context["portfolioAnnualDividend"] = extras.get("portfolio_annual_dividend")
         if DEDUP_BASE_ASSESSMENT:
             base = self.symbol_assessment_service.get_or_compute_today(symbol)
             result = self.overlay_service.apply(base, context)
@@ -159,9 +164,12 @@ class AssessmentService:
         # its own copy of the current context (captured here on the request
         # thread) — sharing one ctx.run across the pool raises "cannot enter
         # context: ... is already entered".
+        extras = self._proposal_extras()
         with ThreadPoolExecutor(max_workers=workers) as executor:
             future_map = {
-                executor.submit(contextvars.copy_context().run, self._compute_assessment, sym): sym
+                executor.submit(
+                    contextvars.copy_context().run, self._compute_assessment, sym, extras
+                ): sym
                 for sym in symbol_list
             }
             for future, sym in future_map.items():
@@ -504,10 +512,10 @@ class AssessmentService:
                 track_record_summary=extras["track_record_summary"],
                 portfolio_annual_dividend=extras["portfolio_annual_dividend"],
             )
-            stored_action = str(proposal.get("action") or result.get("action") or "watch").lower()
-            stored_confidence = str(
-                proposal.get("confidence") or result.get("confidence") or "medium"
-            ).lower()
+            # Persist overlay/Pass-1 action — not proposal band Action (that remains
+            # on proposal for Score / Attention). Pass 2 may only have nudged Hold→Watch.
+            stored_action = str(result.get("action") or "hold").lower()
+            stored_confidence = str(result.get("confidence") or "medium").lower()
             proposal_json = json.dumps(proposal)
             cursor = conn.execute(
                 """

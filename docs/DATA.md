@@ -106,7 +106,7 @@ One row per ticker across all users. Written by background price sync and option
 
 ### `symbol_assessment` (shared)
 
-One **base** LLM assessment per symbol per UTC day (`DEDUP_BASE_ASSESSMENT=1`). Personal thresholds and notes are applied afterward via `AssessmentOverlayService` and stored in per-user `assessments`.
+One **base** LLM assessment per symbol per UTC day (`DEDUP_BASE_ASSESSMENT=1`). Personal thresholds, notes, Intent, and harvest facts are applied afterward via `AssessmentOverlayService` (Pass-2 LLM narrator when `ASSESSMENT_OVERLAY_LLM=1`, else rules) and stored in per-user `assessments`.
 
 Pre-warmed by the daily assessment worker (`DAILY_ASSESSMENT_WORKER=1`) after price sync.
 

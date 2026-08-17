@@ -326,6 +326,136 @@ class LLMClient:
         result["actionSource"] = "rules_fallback"
         return result
 
+    def generate_overlay_assessment(self, packet: dict[str, Any]) -> dict[str, Any]:
+        """Personal narrator over a slim book-constraint packet (Pass 2).
+
+        Does not re-run market thesis. Action lock is enforced by
+        ``AssessmentOverlayService`` after this returns.
+        """
+        provider = self.active_provider()
+        if provider == "openai":
+            raw = self._call_openai_overlay_assessment(packet)
+        elif provider == "gemini":
+            raw = self._call_gemini_overlay_assessment(packet)
+        else:
+            raise RuntimeError("Overlay LLM requires an OpenAI or Gemini provider.")
+        return self._normalize_overlay_assessment(raw, provider=provider)
+
+    def _overlay_system_prompt(self) -> str:
+        return (
+            "You are a portfolio assistant writing a PERSONAL overlay on top of a "
+            "locked symbol-level market assessment. The market ACTION is already "
+            "decided — do not re-pick Buy vs Sell from Fit, Intent, tax, or notes. "
+            "You may only nudge Hold → Watch when personal alerts, notes, or a large "
+            "personal-target gap make attention useful. "
+            "Write rationale in two beats: (1) the market thesis in brief, (2) what "
+            "it means in THIS book (levels, notes, Intent, weight vs cap, dividend "
+            "gap, harvest/tax facts). "
+            "Watch-outs must cite specific personal facts (your sell-above, weight, "
+            "Intent, harvest alert, note catalyst) — not generic market commentary. "
+            "Never invent holdings, alerts, or news. Never include Score totals or "
+            "action bands. "
+            "Respond only with JSON: action, confidence, rationale, factors, watchItems. "
+            "action: buy | sell | hold | watch (must match lockedAction unless Hold→Watch). "
+            "confidence: high | medium | low (you may soften vs base for book constraints; "
+            "do not upgrade). "
+            "factors: short strings citing specific personal inputs. "
+            "rationale: 2–4 sentences. "
+            "watchItems: 3–6 short strings of what THIS investor should watch."
+        )
+
+    def _overlay_user_prompt(self, packet: dict[str, Any]) -> str:
+        locked = (packet.get("constraints") or {}).get("lockedAction") or "hold"
+        constraint = (
+            f'\n\nHARD CONSTRAINT — DO NOT VIOLATE: Return "action": "{locked}" '
+            "EXACTLY, unless lockedAction is hold and a personal attention nudge to "
+            "watch is clearly warranted."
+        )
+        if (packet.get("hardTrigger") or {}).get("action"):
+            hard_action = packet["hardTrigger"]["action"]
+            reason = packet["hardTrigger"].get("reason") or "a personal threshold was crossed"
+            constraint = (
+                "\n\nHARD CONSTRAINT — DO NOT VIOLATE: A personal price threshold has "
+                f'already decided the action as "{hard_action}" because {reason}. Return '
+                f'"action": "{hard_action}" EXACTLY. Explain whether the book context '
+                "supports or cautions against that override."
+            )
+        return (
+            "Personalize this market assessment for the investor's book.\n\n"
+            f"Context JSON:\n{json.dumps(packet, indent=2)}"
+            f"{constraint}"
+        )
+
+    def _call_openai_overlay_assessment(self, packet: dict[str, Any]) -> dict[str, Any]:
+        payload = {
+            "model": self.openai_model,
+            "messages": [
+                {"role": "system", "content": self._overlay_system_prompt()},
+                {"role": "user", "content": self._overlay_user_prompt(packet)},
+            ],
+            "temperature": 0.2,
+            "response_format": {"type": "json_object"},
+        }
+        response = self._post_json(
+            "https://api.openai.com/v1/chat/completions",
+            payload,
+            headers={"Authorization": f"Bearer {self.openai_api_key}"},
+        )
+        return json.loads(response["choices"][0]["message"]["content"])
+
+    def _call_gemini_overlay_assessment(self, packet: dict[str, Any]) -> dict[str, Any]:
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{self.gemini_model}:generateContent?key={self.gemini_api_key}"
+        )
+        payload = {
+            "contents": [{
+                "parts": [{
+                    "text": self._overlay_system_prompt()
+                    + "\n\n"
+                    + self._overlay_user_prompt(packet),
+                }],
+            }],
+            "generationConfig": {
+                "temperature": 0.2,
+                "responseMimeType": "application/json",
+            },
+        }
+        response = self._post_json(url, payload)
+        content = response["candidates"][0]["content"]["parts"][0]["text"]
+        return json.loads(content)
+
+    def _normalize_overlay_assessment(
+        self, result: dict[str, Any], provider: str
+    ) -> dict[str, Any]:
+        action = str(result.get("action", "hold")).strip().lower()
+        confidence = str(result.get("confidence", "medium")).strip().lower()
+        if action not in self.VALID_ACTIONS:
+            action = "hold"
+        if confidence not in self.VALID_CONFIDENCE:
+            confidence = "medium"
+        factors = result.get("factors", [])
+        if isinstance(factors, str):
+            factors = [factors]
+        if not isinstance(factors, list):
+            factors = []
+        watch = result.get("watchItems", [])
+        if isinstance(watch, str):
+            watch = [watch]
+        if not isinstance(watch, list):
+            watch = []
+        rationale = str(result.get("rationale", "")).strip()
+        if not rationale:
+            rationale = "No overlay rationale provided."
+        return {
+            "action": action,
+            "confidence": confidence,
+            "rationale": rationale,
+            "factors": [str(item).strip() for item in factors if str(item).strip()][:8],
+            "watchItems": [str(item).strip() for item in watch if str(item).strip()][:8],
+            "provider": provider,
+        }
+
     def _fallback_base_assessment(
         self,
         context: dict[str, Any],

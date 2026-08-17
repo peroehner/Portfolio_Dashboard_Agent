@@ -70,6 +70,149 @@ class AssessmentOverlayTests(unittest.TestCase):
         self.assertEqual(result["action"], "watch")
         self.assertTrue(any("personal target" in f.lower() for f in result["factors"]))
 
+    def _enable_overlay_llm(self) -> None:
+        self.llm.active_provider.return_value = "gemini"
+        self.llm._classify_llm_error.return_value = "LLM unavailable — used rules engine."
+
+    def test_overlay_llm_locks_buy_sell_but_allows_hold_to_watch(self) -> None:
+        self._enable_overlay_llm()
+        self.llm.generate_overlay_assessment.return_value = {
+            "action": "buy",
+            "confidence": "high",
+            "rationale": "Book overlay tried to upgrade.",
+            "factors": ["Weight 4% — room to add."],
+            "watchItems": ["Watch sell-above at 200."],
+            "provider": "gemini",
+        }
+        base = {
+            "action": "hold",
+            "confidence": "medium",
+            "rationale": "Market hold.",
+            "factors": ["Neutral tape."],
+            "provider": "gemini",
+            "asOfDate": "2026-08-17",
+            "actionSource": "llm",
+        }
+        personal = {
+            "symbol": "AAPL",
+            "currentPrice": 180,
+            "noteSyntheses": [],
+            "unsynthesizedNoteCount": 0,
+            "alerts": [],
+            "screening": {},
+        }
+        result = self.overlay.apply(base, personal)
+        self.assertEqual(result["action"], "hold")
+        self.assertEqual(result["confidence"], "medium")
+        self.assertEqual(result["actionSource"], "base_assessment+overlay_llm")
+        self.assertIn("Watch sell-above at 200.", result["watchItems"])
+
+        self.llm.generate_overlay_assessment.return_value["action"] = "watch"
+        self.llm.generate_overlay_assessment.return_value["confidence"] = "low"
+        watched = self.overlay.apply(base, personal)
+        self.assertEqual(watched["action"], "watch")
+        self.assertEqual(watched["confidence"], "low")
+
+    def test_overlay_llm_hard_trigger_still_owns_action(self) -> None:
+        self._enable_overlay_llm()
+        self.llm.hard_trigger.return_value = {
+            "action": "sell",
+            "confidence": "high",
+            "reason": "price is at or above your sell-above threshold (200)",
+        }
+        self.llm.generate_overlay_assessment.return_value = {
+            "action": "hold",
+            "confidence": "low",
+            "rationale": "Tried to ignore the threshold.",
+            "factors": ["Ignore me."],
+            "watchItems": ["Threshold already fired."],
+            "provider": "gemini",
+        }
+        base = {
+            "action": "hold",
+            "confidence": "medium",
+            "rationale": "Market hold.",
+            "factors": [],
+            "provider": "gemini",
+            "asOfDate": "2026-08-17",
+            "actionSource": "llm",
+        }
+        personal = {
+            "symbol": "AAPL",
+            "currentPrice": 205,
+            "sellAbove": 200,
+            "noteSyntheses": [],
+            "unsynthesizedNoteCount": 0,
+            "alerts": [],
+            "screening": {},
+        }
+        result = self.overlay.apply(base, personal)
+        self.assertEqual(result["action"], "sell")
+        self.assertEqual(result["confidence"], "high")
+        self.assertEqual(result["actionSource"], "rule_hard_trigger")
+
+    def test_overlay_llm_error_falls_back_to_rules(self) -> None:
+        self._enable_overlay_llm()
+        self.llm.generate_overlay_assessment.side_effect = RuntimeError("429 quota")
+        base = {
+            "action": "hold",
+            "confidence": "medium",
+            "rationale": "Market hold.",
+            "factors": [],
+            "provider": "gemini",
+            "asOfDate": "2026-08-17",
+            "actionSource": "llm",
+        }
+        personal = {
+            "symbol": "MSFT",
+            "currentPrice": 100,
+            "targetPrice": 150,
+            "noteSyntheses": [],
+            "unsynthesizedNoteCount": 0,
+            "alerts": [],
+            "screening": {},
+        }
+        result = self.overlay.apply(base, personal)
+        self.assertEqual(result["action"], "watch")
+        self.assertTrue(result.get("llmFallback"))
+        self.assertTrue(any("personal target" in f.lower() for f in result["factors"]))
+
+    def test_overlay_packet_is_slim(self) -> None:
+        base = {
+            "action": "hold",
+            "confidence": "medium",
+            "rationale": "Market hold.",
+            "factors": ["Tape mixed."],
+            "asOfDate": "2026-08-17",
+        }
+        personal = {
+            "symbol": "NVDA",
+            "currentPrice": 100,
+            "buyBelow": 90,
+            "sellAbove": 130,
+            "targetPrice": 140,
+            "fitPrefs": {"targetAnnualDividend": 12000, "maxSingleNameWeightPct": 20},
+            "portfolioAnnualDividend": 8000,
+            "holding": {"quantity": 10, "weightPct": 8.5, "gainPct": 12, "annualDividend": 0.4},
+            "alerts": [{"type": "winner_trim_candidate", "message": "Trim candidate"}],
+            "screening": {"upsidePct": 22, "fibDistancePct": 1.2},
+            "fundamentals": {"valuation": {}, "technical": {"shouldNot": "leak"}},
+            "noteSynthesis": {
+                "summary": "Notes",
+                "sentiment": "bullish",
+                "growthTrajectory": [],
+                "catalystsToWatch": [],
+            },
+        }
+        packet = self.overlay.build_overlay_packet(base, personal, personal["noteSynthesis"], None)
+        blob = str(packet)
+        self.assertNotIn("shouldNot", blob)
+        self.assertNotIn("scores", packet)
+        self.assertNotIn("technical", packet.get("personal") or {})
+        self.assertEqual(packet["constraints"]["lockedAction"], "hold")
+        self.assertEqual(packet["personal"]["alerts"][0]["type"], "winner_trim_candidate")
+        self.assertEqual(packet["personal"]["dividend"]["gapVsTarget"], 4000)
+
 
 if __name__ == "__main__":
     unittest.main()

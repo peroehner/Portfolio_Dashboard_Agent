@@ -170,6 +170,7 @@ With OAuth configured, each signed-in user has an isolated portfolio in that dat
 | `ALLOWED_EMAILS` | Optional | Comma-separated sign-in allowlist; empty = any Google account |
 | `GEMINI_API_KEY` / `OPENAI_API_KEY` | Optional | LLM assessments & note synthesis |
 | `DEDUP_BASE_ASSESSMENT` | Default `1` | Shared daily base assessment |
+| `ASSESSMENT_OVERLAY_LLM` | Default `1` | Pass-2 personal overlay LLM (falls back to rules) |
 | `DAILY_ASSESSMENT_WORKER` | Default `1` | Pre-warm `symbol_assessment` after sync |
 
 Register the redirect URI in [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → OAuth client → Authorized redirect URIs. If the app is in **Testing** mode, add each user email under Test users.

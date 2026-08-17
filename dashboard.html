@@ -2148,16 +2148,6 @@
     .proposal-bar-fill.trigger { background: linear-gradient(90deg, #fbbf24, #fb7185); }
     .proposal-bar-fill.fit { background: linear-gradient(90deg, #a78bfa, #60a5fa); }
     .proposal-bar-val { text-align: right; color: #cbd5e1; font-variant-numeric: tabular-nums; }
-    .proposal-scorecard-note {
-      margin-top: 0.35rem;
-      font-size: 0.72rem;
-      color: var(--muted);
-      line-height: 1.35;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.4rem;
-    }
     .chip.proposal-total {
       background: rgba(96, 165, 250, 0.18);
       border: 1px solid rgba(96, 165, 250, 0.45);
@@ -5980,7 +5970,7 @@
 
   <div id="view-screening" class="view" hidden>
     <div class="wide-panel portfolio-table-panel">
-      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs.</p>
+      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs. ⌘/Ctrl+Set Filter adds the selection to the existing filter.</p>
       <div class="screening-filter-bar">
         <button type="button" class="secondary filter-btn active" data-screen-filter="all" onclick="setScreeningFilter('all')">All</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
@@ -6020,7 +6010,7 @@
 
   <div id="view-fib" class="view" hidden>
     <div class="wide-panel portfolio-table-panel">
-      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs.</p>
+      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs. ⌘/Ctrl+Set Filter adds the selection to the existing filter.</p>
       <div class="fib-filter-bar">
         <button type="button" class="secondary filter-btn" data-fib-confirmed="1" onclick="toggleFibConfirmed()" title="Show only symbols whose chart pattern is confirmed — price has broken the key level in the pattern's direction (the measured-move target is active).">Confirmed Patterns</button>
         <input type="text" id="fibTickerFilter" class="fib-ticker-filter" placeholder="Filter by ticker..." oninput="setFibTickerFilter(this.value)">
@@ -6069,7 +6059,7 @@
 
   <main id="view-fundamentals" class="view" hidden>
     <section class="panel portfolio-table-panel">
-      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs.</p>
+      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs. ⌘/Ctrl+Set Filter adds the selection to the existing filter.</p>
       <div class="fundamentals-tabbar">
         <button class="fund-tab active" data-fund-tab="val" onclick="setFundamentalsTab('val')">Valuation · Growth · Profitability</button>
         <button class="fund-tab" data-fund-tab="health" onclick="setFundamentalsTab('health')">Health · Analyst</button>
@@ -7572,9 +7562,16 @@
         return;
       }
       const addMode = Boolean(event && (event.metaKey || event.ctrlKey));
-      btn.title = addMode
-        ? `Add ${count} selected symbol${count === 1 ? "" : "s"} to the cross-tab filter`
-        : `Save ${count} selected symbol${count === 1 ? "" : "s"} as the cross-tab filter`;
+      const hasFilter = selectionClipboard.length > 0;
+      if (addMode && hasFilter) {
+        btn.title = `Add ${count} selected to filter (⌘/Ctrl+Set Filter) — keeps existing members`;
+        return;
+      }
+      if (hasFilter) {
+        btn.title = `Replace filter with ${count} selected (hold ⌘/Ctrl and click to add instead)`;
+        return;
+      }
+      btn.title = `Save ${count} selected symbol${count === 1 ? "" : "s"} as the cross-tab filter`;
     }
 
     function initVpSetFilterHints() {
@@ -9310,8 +9307,6 @@
     }
 
     const SAI_ACTION_RANK = { buy: 4, watch: 3, hold: 2, sell: 1 };
-    // Fit Band uses same High/Medium/Low vocabulary as Conf (raw Score; Conf may soften).
-    const SAI_FIT_BAND_RANK = { high: 4, medium: 3, low: 2, unknown: 1, strong: 4, mid: 3, weak: 2 };
     const SAI_INTENT_RANK = {
       divest: 5,
       tactical: 4,
@@ -11925,7 +11920,7 @@
       return String(rec?.proposal?.confidence || rec?.confidence || "medium").toLowerCase();
     }
 
-    function renderRecommendationChipRow(rec, { wrapperClass = "", bare = false, includeIntent = true } = {}) {
+    function renderRecommendationChipRow(rec, { wrapperClass = "", bare = false, includeIntent = true, includeFitBand = true } = {}) {
       const action = rec?.action || "hold";
       const confidence = saiPublishedConfidence(rec);
       const sentiment = rec?.sentiment || "neutral";
@@ -11958,7 +11953,9 @@
       const fitBandTitle = hasScore && fitRange
         ? `Fit Band: ${fitBand.toUpperCase()} (${Math.round(total)}: ${fitRange.low} - ${fitRange.high})`
         : "Fit Band: UNKNOWN (proposal score missing)";
-      const fitBandChip = `<span class="chip fitband-${fitBand}" title="${escapeHtml(fitBandTitle)}">${escapeHtml(fitBand)}</span>`;
+      const fitBandChip = includeFitBand
+        ? `<span class="chip fitband-${fitBand}" title="${escapeHtml(fitBandTitle)}">${escapeHtml(fitBand)}</span>`
+        : "";
       const chips = `
           <span class="chip ${actionClass}" title="${actionTitle}">${escapeHtml(actionText)}</span>
           <span class="chip ${confClass}${hasScore ? " has-score" : ""}" title="${confTitle}">${escapeHtml(confLabel)}</span>
@@ -12170,8 +12167,12 @@
       if (!rec) {
         return `<span class="empty" style="font-size:0.78rem;">—</span>`;
       }
-      // Screening: Intent is its own column — omit from SAI chip row.
-      return renderRecommendationChipRow(rec, { wrapperClass: "screening-rec-chips", includeIntent: false });
+      // Screening: Intent is its own column; Fit Band stays Inspector-only.
+      return renderRecommendationChipRow(rec, {
+        wrapperClass: "screening-rec-chips",
+        includeIntent: false,
+        includeFitBand: false,
+      });
     }
 
     function screeningIntentCode(row) {
@@ -12510,8 +12511,8 @@
     }
 
     const TECH_STANCE_HELP = "Confluence agent's purely technical read (independent of the SAI):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 scale (left = bearish, center = neutral, right = bullish)\n• Strength — how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume)";
-    const INTENT_HELP = "Portfolio Intent (role for this name in the book):\n• From holdings + planned trades, or your Target override\n• Roles — tactical / accumulate / core / core_accumulate / divest\n• Color + glyph by role; separate from SAI Action / Conf / Fit / Sentiment";
-    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — the only Action chip: Buy / Watch / Hold / Sell (from last Assess). A trailing ! means live SAI Score maps to a different Buy/Watch/Sell on the action ladder below — often stale Assess vs moved Score. ! is not Conf vs Fit Band.\n• ACTION LADDER (from live SAI Score) — ≥75 Strong buy / size-up · 60–74 Buy / add · 45–59 Watch / hold · 30–44 Hold / trim · <30 Sell / avoid\n• CONF · SCORE — Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit). Base Label cuts: ≥75 High · ≥35 Medium · else Low; Label may soften one notch.\n• FIT BAND — same High/Medium/Low cuts on raw Score (no softening). Compare Conf vs Fit Band to see soften impact — both are conviction, not Action.\n• SENTIMENT — news reaction (else notes)\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), Fit Band, or Sentiment\n• INTENT — own Screening column (not under SAI)";
+    const INTENT_HELP = "Portfolio Intent (role for this name in the book):\n• From holdings + planned trades, or your Target override\n• Roles — tactical / accumulate / core / core_accumulate / divest\n• Color + glyph by role; separate from SAI Action / Conf / Sentiment";
+    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — the only Action chip: Buy / Watch / Hold / Sell (from last Assess). A trailing ! means live SAI Score maps to a different Buy/Watch/Sell on the action ladder below — often stale Assess vs moved Score. ! is not Conf vs Score.\n• ACTION LADDER (from live SAI Score) — ≥75 Strong buy / size-up · 60–74 Buy / add · 45–59 Watch / hold · 30–44 Hold / trim · <30 Sell / avoid\n• CONF · SCORE — Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit). Base Label cuts: ≥75 High · ≥35 Medium · else Low; Label may soften one notch.\n• SENTIMENT — news reaction (else notes)\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), or Sentiment\n• INTENT — own Screening column (not under SAI)\n• Fit Band (raw Score, no soften) is Inspector-only — not in this grid";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
     const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
@@ -12533,7 +12534,7 @@
     const FUND_FWD_PE_HELP = "Fwd P/E = Forward Price-to-Earnings ratio (price vs expected next-year EPS).";
     const FUND_PB_HELP = "P/B = Price-to-Book ratio (market value vs book value/equity).";
     const FUND_PS_HELP = "P/S = Price-to-Sales ratio (market value vs revenue).";
-    const FUND_PEG_HELP = "PEG = Price/Earnings-to-Growth ratio (P/E adjusted by expected earnings growth).";
+    const FUND_PEG_HELP = "PEG = Price/Earnings-to-Growth ratio (P/E adjusted by expected earnings growth).\n• Prefer Yahoo’s published pegRatio when present\n• Otherwise approximate as positive P/E (trailing, else forward) ÷ earnings-growth %\n• Blank when P/E or earnings growth is missing/≤0 (common for loss-makers)";
     const FUND_EVEBITDA_HELP = "EV/EBITDA = Enterprise Value-to-EBITDA multiple.";
     const FUND_REV_GROWTH_HELP = "Rev Growth = Revenue Growth (year-over-year).";
     const FUND_EARN_GROWTH_HELP = "Earn Growth = Earnings Growth (year-over-year).";
@@ -12558,18 +12559,6 @@
             label: "Conf · Score",
             sortValue: (row) => saiConfidenceStrengthSortValue(row),
             compare: saiConfidenceStrengthCompare,
-          },
-          {
-            key: "recFitBand",
-            label: "Fit Band",
-            sortValue: (row) => saiFieldRank(
-              saiFitBandFromProposal(row.recommendation?.proposal),
-              SAI_FIT_BAND_RANK
-            ),
-            compare: saiFieldCompare(
-              SAI_FIT_BAND_RANK,
-              (row) => saiFitBandFromProposal(row.recommendation?.proposal)
-            ),
           },
           {
             key: "recSentiment",
@@ -15874,7 +15863,7 @@
       renderFibMapView();
     }
 
-    function renderProposalScorecard(proposal, { compact = false, saiAction = null } = {}) {
+    function renderProposalScorecard(proposal, { compact = false } = {}) {
       if (!proposal || !proposal.scores) return "";
       const s = proposal.scores;
       const state = Number(s.state) || 0;
@@ -15882,35 +15871,6 @@
       const fit = Number(s.portfolioFit) || 0;
       const total = Number(s.total) || state + trigger + fit;
       const pct = (v, max) => Math.max(0, Math.min(100, (Number(v) / max) * 100));
-      const stab = proposal.stability || {};
-      const band = proposal.bandBias || {};
-      const legacy = proposal.legacySai || {};
-      const attentionResolved = resolveSaiAttention({
-        action: saiAction != null ? saiAction : (legacy.action || proposal.action),
-        proposal,
-      });
-      const intent = proposal.intent || {};
-      const notes = [];
-      if (attentionResolved?.flag && attentionResolved.message) {
-        notes.push(attentionResolved.message);
-      } else if (legacy.diverged && legacy.note) {
-        notes.push(legacy.note);
-      }
-      if (band.label) {
-        notes.push(`Band: ${band.label}${band.range ? ` [${band.range}]` : ""}`);
-      }
-      if (stab.gated) notes.push("Stability gate held prior action");
-      else if (stab.hysteresisHint) notes.push(stab.hysteresisHint);
-      const veto = (proposal.vetoes || []).find((v) => v.severity === "block" || v.severity === "warn");
-      if (veto) notes.push(veto.message);
-      const intentChip = renderIntentChip(intent);
-      const textNotes = notes.slice(0, intentChip ? 1 : 2);
-      const noteHtml =
-        intentChip || textNotes.length
-          ? `<div class="proposal-scorecard-note">${
-              intentChip ? `${intentChip}${textNotes.length ? " " : ""}` : ""
-            }${textNotes.length ? escapeHtml(textNotes.join(" · ")) : ""}</div>`
-          : "";
       return `
         <div class="proposal-scorecard${compact ? " snap-proposal" : ""}">
           <div class="proposal-scorecard-head">
@@ -15920,7 +15880,6 @@
           <div class="proposal-bar-row"><span class="proposal-bar-label">State</span><div class="proposal-bar-track"><div class="proposal-bar-fill" style="width:${pct(state, 50)}%"></div></div><span class="proposal-bar-val">${state}</span></div>
           <div class="proposal-bar-row"><span class="proposal-bar-label">Trigger</span><div class="proposal-bar-track"><div class="proposal-bar-fill trigger" style="width:${pct(trigger, 30)}%"></div></div><span class="proposal-bar-val">${trigger}</span></div>
           <div class="proposal-bar-row"><span class="proposal-bar-label">Fit</span><div class="proposal-bar-track"><div class="proposal-bar-fill fit" style="width:${pct(fit, 20)}%"></div></div><span class="proposal-bar-val">${fit}</span></div>
-          ${noteHtml}
         </div>`;
     }
 
@@ -15940,7 +15899,7 @@
         rec.provider || null,
         rec.upsidePct != null ? `${rec.upsidePct}% upside to target` : null,
       ].filter(Boolean).join(" · ");
-      const scorecard = renderProposalScorecard(rec.proposal, { saiAction: rec.action });
+      const scorecard = renderProposalScorecard(rec.proposal);
       const sentimentGuard = rec.sentimentGuard
         ? `<div class="empty" style="margin-top:0.45rem;color:var(--warn);">${escapeHtml(rec.sentimentGuard)}</div>`
         : "";
@@ -18618,7 +18577,13 @@
         { key: "fwdPe", label: "Fwd P/E", help: FUND_FWD_PE_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "forwardPe")), render: (r) => formatRatio(fundVal(r, "valuation", "forwardPe")) },
         { key: "pb", label: "P/B", help: FUND_PB_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "priceToBook")), render: (r) => formatRatio(fundVal(r, "valuation", "priceToBook")) },
         { key: "ps", label: "P/S", help: FUND_PS_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "priceToSales")), render: (r) => formatRatio(fundVal(r, "valuation", "priceToSales")) },
-        { key: "peg", label: "PEG", help: FUND_PEG_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "pegRatio")), render: (r) => { const v = fundVal(r, "valuation", "pegRatio"); return formatFundRatioTone(v, fundTonePeg(v)); } },
+        { key: "peg", label: "PEG", help: FUND_PEG_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "pegRatio")), render: (r) => {
+          const v = fundVal(r, "valuation", "pegRatio");
+          const approx = fundVal(r, "valuation", "pegRatioApprox");
+          const html = formatFundRatioTone(v, fundTonePeg(v));
+          if (html === "—" || !approx) return html;
+          return `<span title="Approximate PEG (Yahoo pegRatio missing)">${html}≈</span>`;
+        } },
         { key: "ev", label: "EV/EBITDA", help: FUND_EVEBITDA_HELP, sortValue: (r) => fundNum(fundVal(r, "valuation", "evToEbitda")), render: (r) => formatRatio(fundVal(r, "valuation", "evToEbitda")) },
         { key: "revG", label: "Rev Growth", help: FUND_REV_GROWTH_HELP, sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "revenueGrowth")), render: (r) => formatColoredRatioPercent(fundVal(r, "growthProfitability", "revenueGrowth")) },
         { key: "earnG", label: "Earn Growth", help: FUND_EARN_GROWTH_HELP, sortValue: (r) => fundNum(fundVal(r, "growthProfitability", "earningsGrowth")), render: (r) => formatColoredRatioPercent(fundVal(r, "growthProfitability", "earningsGrowth")) },

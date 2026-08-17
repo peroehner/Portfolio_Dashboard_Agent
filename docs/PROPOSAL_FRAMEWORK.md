@@ -46,7 +46,7 @@ Screening’s **Conf · Score** chip shows **two measures**, not one duplicated 
 |---------|--------------|------|
 | **Label** (High / Medium / Low) | **SAI Conf** — published Conviction | Bet-S-Hit weight factor (3 / 2 / 1) |
 | **Score** (0–100) | **SAI Score** — State + Trigger + Fit | Setup quality; scales Bet-S-Hit via `(1 + score/100)`; also **Buy Plan** Score mode |
-| **Fit Band** (High / Medium / Low) | Raw Score with **same cuts** as Conf base (≥75 / ≥35 / else) | Screening Fit chip + track-record slice — **not** softened |
+| **Fit Band** (High / Medium / Low) | Raw Score with **same cuts** as Conf base (≥75 / ≥35 / else) | Inspector SAI chip + track-record slice — **not** softened; not on Screening or mobile SAI |
 
 **Base Label / Fit Band from Score alone:** ≥75 High, ≥35 Medium, else Low — then **only Label** may be **softened one notch** (stability gate / unconfirmed flip, or warn/block vetoes). **Score does not drop with that soften**, so Score can **lag behind** a lower Label. Fit Band always follows raw Score (same vocabulary as Conf).
 
@@ -251,6 +251,7 @@ Mobile compact card is deferred; API fields remain optional for later clients.
 3. **Slice 3** — Portfolio Fit preferences + web compact scorecard (mobile deferred)  
 4. **Tune (no authority)** — valuation stretch in State; advisory `bandBias`; header total chip  
 5. **Slice 4** — scores become co-authority or primary; bands drive action with vetoes  
+6. **Pass-2 overlay** — market LLM stays Action baseline; a second LLM pass narrates portfolio constraints (Intent, dividend gap, harvest/tax facts, alerts). `ASSESSMENT_OVERLAY_LLM=1` (default). Action lock: Hold→Watch only; Buy↔Sell only via hard trigger. Rules overlay is the fallback. **After it ships:** re-validate Tax & Trim Loss/Trim, Buy Plan Score mode, Sell Rank, and Screening Action vs the ranks/thresholds tuned before Pass 2. See [SIGNAL_SCORES.md](./SIGNAL_SCORES.md#after-pass-2).  
 
 ### Tuning log (no authority)
 

@@ -1,0 +1,15 @@
+---
+description: After Pass-2 personal overlay LLM, re-validate Tax & Trim and Buy/Sell ranks
+globs: services/assessment_overlay_service.py,services/proposal_service.py,services/tax_trim_service.py,services/harvest_score.py,services/llm_client.py,mobile/app/trade-plan.tsx
+alwaysApply: false
+---
+
+# After Pass 2 — re-check ranks
+
+Pass 2 is implemented (`ASSESSMENT_OVERLAY_LLM`, default on): a **personal narrator** over book constraints. Market Pass 1 stays Action authority except hard trigger (Hold→Watch nudge allowed).
+
+When overlay outputs change SAI Action / Confidence / rationale:
+
+1. Re-check Tax & Trim pool order; Buy Plan Score-mode qualification; Sell Rank vs Proximity; Screening Action mix and Attention `!`.
+2. Expect **little formula change**. Conf-soften and Hold→Watch can still reshuffle lists that read SAI.
+3. Feed Pass 2 harvest **facts**, not Trim/Loss scores as a competing Action. Details: `docs/SIGNAL_SCORES.md` (§ After Pass 2).

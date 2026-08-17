@@ -422,6 +422,7 @@ toggle. In Fundamentals, after "Analyze", each article additionally shows a
 | `VALID_ACTIONS` | buy/sell/hold/watch | `llm_client.py` | Allowed action labels (clamped) |
 | `VALID_CONFIDENCE` | high/medium/low | `llm_client.py` | Allowed confidence labels (clamped) |
 | `ASSESSMENT_TECHNICALS` | on | `assessment_service.py` | Feed computed technicals + Confluence into context |
+| `ASSESSMENT_OVERLAY_LLM` | on | `assessment_overlay_service.py` | Pass-2 personal overlay LLM (rules fallback) |
 | `ASSESS_WORKERS` | 6 | `assessment_service.py` | Parallel LLM calls for portfolio assess |
 | `MAX_ASSESSMENTS_PER_SYMBOL` | 3 | `assessment_service.py` | History retained per symbol |
 | `TRACK_RECORD` / `TRACK_RECORD_HORIZON_DAYS` | on / 21 | `assessment_service.py` | Capture & later-score signal outcomes |

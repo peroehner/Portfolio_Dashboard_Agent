@@ -14,8 +14,6 @@ import { formatShortDateTime, titleCaseAction } from "@/lib/format";
 import {
   resolveSaiAttention,
   saiConfidenceLabel,
-  saiFitBandLabel,
-  saiFitBandStyle,
   saiIntentCode,
   saiIntentLabel,
 } from "@/lib/saiDisplay";
@@ -38,8 +36,6 @@ export function SaiSummaryCard({ data }: SaiSummaryCardProps) {
   const confLabel = saiConfidenceLabel(rec?.confidence, proposal);
   const intentCode = saiIntentCode(proposal);
   const intentLabel = saiIntentLabel(proposal);
-  const fitBand = saiFitBandLabel(proposal);
-  const fitBandTone = saiFitBandStyle(fitBand);
   const intentKey = String(intentCode || "").toLowerCase();
   const intentTone = intentKey.startsWith("divest")
     ? { icon: "exit-outline" as const, color: colors.sell, bg: "rgba(248,113,113,0.16)", border: "rgba(248,113,113,0.45)" }
@@ -83,19 +79,6 @@ export function SaiSummaryCard({ data }: SaiSummaryCardProps) {
                 >
                   {confLabel}
                 </Text>
-              ) : null}
-              {fitBand ? (
-                <View
-                  style={[
-                    styles.fitBandChip,
-                    { backgroundColor: fitBandTone.bg, borderColor: fitBandTone.border },
-                  ]}
-                  accessibilityLabel={`SAI Fit Band ${fitBand}`}
-                >
-                  <Text style={[styles.fitBandText, { color: fitBandTone.color }]} numberOfLines={1}>
-                    {fitBand}
-                  </Text>
-                </View>
               ) : null}
               <View
                 style={[
@@ -224,17 +207,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm,
     paddingHorizontal: 7,
     paddingVertical: 3,
-  },
-  fitBandChip: {
-    borderWidth: 1,
-    borderRadius: radii.sm,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  fitBandText: {
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "lowercase",
   },
   intentCodeText: {
     fontSize: 10,

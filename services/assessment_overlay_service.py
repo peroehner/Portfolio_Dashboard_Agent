@@ -1,16 +1,36 @@
 """Personalize a shared base assessment with per-user portfolio context.
 
-Runs cheaply (rules-only) on top of the once-per-day ``symbol_assessment`` row.
+Default path: rules overlay, or Pass-2 LLM narrator when
+``ASSESSMENT_OVERLAY_LLM=1`` and an LLM provider is active.
+
 Hard threshold triggers remain authoritative and override the base action.
+Pass 2 may only nudge Hold → Watch; it cannot flip Buy ↔ Sell from Fit.
 """
 
 from __future__ import annotations
 
+import logging
+import os
 from typing import Any
 
 from services.fib_roles import fib_context_from_alert
+from services.harvest_score import scores_for_holding_context
 from services.llm_client import LLMClient
 from services.one_yt_context import is_one_yt_alert_type, one_yt_context_from_alert
+from services.portfolio_intent import resolve_intent
+from services.proposal_service import _fund_get
+
+OVERLAY_LLM = os.environ.get("ASSESSMENT_OVERLAY_LLM", "1").lower() not in (
+    "0",
+    "false",
+    "no",
+    "off",
+)
+
+_CONF_RANK = {"high": 3, "medium": 2, "low": 1}
+_HARVEST_ALERTS = {"tax_loss_candidate", "winner_trim_candidate", "harvest_imbalance"}
+
+logger = logging.getLogger(__name__)
 
 
 class AssessmentOverlayService:
@@ -31,6 +51,33 @@ class AssessmentOverlayService:
         }
         hard = self.llm_client.hard_trigger(overlay_context)
 
+        if self._should_llm_overlay():
+            try:
+                packet = self.build_overlay_packet(base, overlay_context, combined, hard)
+                raw = self.llm_client.generate_overlay_assessment(packet)
+                return self._merge_llm_overlay(base, combined, hard, raw)
+            except Exception as exc:  # noqa: BLE001 - overlay must not fail Assess
+                logger.warning("Pass-2 overlay LLM failed, using rules overlay: %s", exc)
+                result = self._apply_rules_overlay(base, overlay_context, combined, hard)
+                result["llmFallback"] = True
+                result["llmError"] = self.llm_client._classify_llm_error(exc)
+                result["attemptedProvider"] = self.llm_client.active_provider()
+                return result
+
+        return self._apply_rules_overlay(base, overlay_context, combined, hard)
+
+    def _should_llm_overlay(self) -> bool:
+        if not OVERLAY_LLM:
+            return False
+        return self.llm_client.active_provider() in ("openai", "gemini")
+
+    def _apply_rules_overlay(
+        self,
+        base: dict[str, Any],
+        overlay_context: dict[str, Any],
+        combined: dict[str, Any],
+        hard: dict[str, Any] | None,
+    ) -> dict[str, Any]:
         factors = [str(item) for item in (base.get("factors") or [])]
         rationale = str(base.get("rationale") or "").strip()
         action = str(base.get("action", "hold")).lower()
@@ -71,6 +118,260 @@ class AssessmentOverlayService:
             "actionSource": action_source,
             "baseAssessmentDate": base.get("asOfDate"),
             "baseFromCache": base.get("fromCache"),
+        }
+
+    def _merge_llm_overlay(
+        self,
+        base: dict[str, Any],
+        combined: dict[str, Any],
+        hard: dict[str, Any] | None,
+        raw: dict[str, Any],
+    ) -> dict[str, Any]:
+        locked_action = str((hard or {}).get("action") or base.get("action") or "hold").lower()
+        llm_action = str(raw.get("action") or locked_action).lower()
+        action = locked_action
+        if hard is None and locked_action == "hold" and llm_action == "watch":
+            action = "watch"
+
+        base_conf = str(base.get("confidence") or "medium").lower()
+        llm_conf = str(raw.get("confidence") or base_conf).lower()
+        if hard is not None:
+            confidence = str(hard.get("confidence") or "high").lower()
+            action_source = "rule_hard_trigger"
+        else:
+            confidence = self._softer_confidence(base_conf, llm_conf)
+            action_source = "base_assessment+overlay_llm"
+
+        factors = [str(f) for f in (raw.get("factors") or []) if str(f).strip()]
+        if hard is not None:
+            hard_line = hard.get("reason", "Personal threshold crossed.")
+            if hard_line not in factors:
+                factors.insert(0, hard_line)
+        rationale = str(raw.get("rationale") or base.get("rationale") or "").strip()
+        watch_items = [str(w) for w in (raw.get("watchItems") or []) if str(w).strip()]
+        note_synthesis = {**combined, "overlayWatchItems": watch_items} if watch_items else combined
+
+        return {
+            "action": action,
+            "confidence": confidence,
+            "rationale": rationale or "No overlay rationale provided.",
+            "factors": factors or ["No active personal overlay factors."],
+            "watchItems": watch_items,
+            "noteSynthesis": note_synthesis,
+            "provider": raw.get("provider") or base.get("provider", "rules"),
+            "actionSource": action_source,
+            "baseAssessmentDate": base.get("asOfDate"),
+            "baseFromCache": base.get("fromCache"),
+        }
+
+    @staticmethod
+    def _softer_confidence(base: str, llm: str) -> str:
+        if llm not in _CONF_RANK:
+            return base if base in _CONF_RANK else "medium"
+        if base not in _CONF_RANK:
+            return llm
+        return llm if _CONF_RANK[llm] <= _CONF_RANK[base] else base
+
+    def build_overlay_packet(
+        self,
+        base: dict[str, Any],
+        context: dict[str, Any],
+        combined: dict[str, Any],
+        hard: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Slim book-constraint packet — no market technicals, news, or Score totals."""
+        locked = str((hard or {}).get("action") or base.get("action") or "hold").lower()
+        price = context.get("currentPrice")
+        buy_below = context.get("buyBelow")
+        sell_above = context.get("sellAbove")
+        holding = self._slim_holding(context.get("holding"))
+        screening = context.get("screening") or {}
+        intent = self._intent_block(context, holding)
+        harvest = self._harvest_facts(context, holding)
+        prefs = self._slim_fit_prefs(context.get("fitPrefs") or {})
+        portfolio_div = context.get("portfolioAnnualDividend")
+        target_div = prefs.get("targetAnnualDividend")
+        dividend = None
+        if isinstance(target_div, (int, float)) or isinstance(portfolio_div, (int, float)):
+            name_div = None
+            if holding:
+                per_sh = holding.get("annualDividend")
+                qty = holding.get("quantity") or 0
+                if isinstance(per_sh, (int, float)) and qty:
+                    name_div = round(float(per_sh) * float(qty), 2)
+            gap = None
+            if isinstance(target_div, (int, float)) and isinstance(portfolio_div, (int, float)):
+                gap = round(float(target_div) - float(portfolio_div), 2)
+            dividend = {
+                "targetAnnualDividend": target_div,
+                "portfolioAnnualDividend": portfolio_div,
+                "gapVsTarget": gap,
+                "nameAnnualDividend": name_div,
+            }
+
+        return {
+            "symbol": context.get("symbol"),
+            "currentPrice": price,
+            "baseAssessment": {
+                "action": base.get("action"),
+                "confidence": base.get("confidence"),
+                "rationale": base.get("rationale"),
+                "factors": (base.get("factors") or [])[:6],
+                "asOfDate": base.get("asOfDate"),
+            },
+            "hardTrigger": hard,
+            "constraints": {
+                "lockedAction": locked,
+                "allowHoldToWatch": hard is None and locked == "hold",
+                "forbidBuySellFlip": True,
+            },
+            "personal": {
+                "targetPrice": context.get("targetPrice"),
+                "buyBelow": buy_below,
+                "sellAbove": sell_above,
+                "distanceToBuyBelowPct": self._distance_pct(price, buy_below),
+                "distanceToSellAbovePct": self._distance_pct(price, sell_above),
+                "holding": holding,
+                "intent": intent,
+                "fitPrefs": prefs,
+                "dividend": dividend,
+                "harvest": harvest,
+                "alerts": self._slim_alerts(context.get("alerts") or []),
+                "noteSynthesis": {
+                    "summary": combined.get("summary"),
+                    "sentiment": combined.get("sentiment"),
+                    "growthTrajectory": (combined.get("growthTrajectory") or [])[:4],
+                    "catalystsToWatch": (combined.get("catalystsToWatch") or [])[:4],
+                },
+                "unsynthesizedNoteCount": context.get("unsynthesizedNoteCount", 0),
+                "analystUpsidePct": screening.get("upsidePct"),
+                "fibDistancePct": screening.get("fibDistancePct"),
+            },
+        }
+
+    @staticmethod
+    def _distance_pct(price: Any, level: Any) -> float | None:
+        if not isinstance(price, (int, float)) or not isinstance(level, (int, float)):
+            return None
+        if price == 0:
+            return None
+        return round((float(price) - float(level)) / float(price) * 100.0, 2)
+
+    @staticmethod
+    def _slim_holding(holding: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not holding:
+            return None
+        keys = ("quantity", "weightPct", "gainPct", "annualDividend", "costBasis")
+        out = {k: holding.get(k) for k in keys if holding.get(k) is not None}
+        return out or None
+
+    @staticmethod
+    def _slim_fit_prefs(prefs: dict[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for key in (
+            "targetAnnualDividend",
+            "volatilityPreference",
+            "maxSingleNameWeightPct",
+            "taxLotPreference",
+        ):
+            if prefs.get(key) is not None:
+                out[key] = prefs[key]
+        return out
+
+    @staticmethod
+    def _slim_alerts(alerts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        slim: list[dict[str, Any]] = []
+        for alert in alerts[:8]:
+            item: dict[str, Any] = {
+                "type": alert.get("type"),
+                "message": str(alert.get("message") or "")[:180],
+            }
+            if alert.get("type") in _HARVEST_ALERTS:
+                item["harvest"] = True
+            if alert.get("fib"):
+                item["fib"] = {
+                    k: alert["fib"].get(k)
+                    for k in ("label", "roleName", "distancePct", "side", "cue")
+                    if alert["fib"].get(k) is not None
+                }
+            if alert.get("oneYt"):
+                item["oneYt"] = {
+                    k: alert["oneYt"].get(k)
+                    for k in ("upsidePct", "category", "cue")
+                    if alert["oneYt"].get(k) is not None
+                }
+            slim.append(item)
+        return slim
+
+    def _intent_block(
+        self, context: dict[str, Any], holding: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        screening = context.get("screening") or {}
+        plan_row = {
+            "tradeBelowPrice": screening.get("tradeBelowPrice") or context.get("buyBelow"),
+            "tradeBelowShares": screening.get("tradeBelowShares")
+            if screening.get("tradeBelowShares") is not None
+            else context.get("tradeBelowShares"),
+            "tradeAbovePrice": screening.get("tradeAbovePrice") or context.get("sellAbove"),
+            "tradeAboveShares": screening.get("tradeAboveShares")
+            if screening.get("tradeAboveShares") is not None
+            else context.get("tradeAboveShares"),
+        }
+        from services.tax_trim_service import buy_plan_qty, sell_plan_qty
+        from services.proposal_service import ProposalService
+
+        buy_qty = buy_plan_qty(plan_row)
+        sell_qty = sell_plan_qty(plan_row)
+        held_qty = float((holding or {}).get("quantity") or 0)
+        override = context.get("intentOverride") or (holding or {}).get("intentOverride")
+        intent = resolve_intent(
+            held=held_qty,
+            buy_qty=buy_qty,
+            sell_qty=sell_qty,
+            buy_price=ProposalService._leg_price_for_side(plan_row, buy=True),
+            sell_price=ProposalService._leg_price_for_side(plan_row, buy=False),
+            override=override,
+        )
+        return {
+            "code": intent.get("code"),
+            "label": intent.get("label"),
+            "source": intent.get("source"),
+        }
+
+    def _harvest_facts(
+        self, context: dict[str, Any], holding: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        if not holding:
+            return None
+        fundamentals = context.get("fundamentals") or {}
+        high_52 = _fund_get(fundamentals, "high52w", "fiftyTwoWeekHigh", "week52High")
+        screening = context.get("screening") or {}
+        from services.tax_trim_service import buy_plan_qty, sell_plan_qty
+
+        plan_row = {
+            "tradeBelowPrice": screening.get("tradeBelowPrice") or context.get("buyBelow"),
+            "tradeBelowShares": screening.get("tradeBelowShares"),
+            "tradeAbovePrice": screening.get("tradeAbovePrice") or context.get("sellAbove"),
+            "tradeAboveShares": screening.get("tradeAboveShares"),
+        }
+        facts = scores_for_holding_context(
+            {
+                "holding": holding,
+                "currentPrice": context.get("currentPrice"),
+                "analystTarget1y": context.get("analystTarget1y"),
+                "personalTarget": context.get("targetPrice"),
+                "high52w": high_52,
+                "buyPlanQty": buy_plan_qty(plan_row),
+                "sellPlanQty": sell_plan_qty(plan_row),
+            }
+        )
+        return {
+            "lossScore": round(float(facts.get("lossScore") or 0), 1),
+            "trimScore": round(float(facts.get("trimScore") or 0), 1),
+            "residualLossPct": facts.get("residualLossPct"),
+            "peakPct": facts.get("peakPct"),
+            "analystUpsidePct": facts.get("analystUpsidePct"),
+            "personalUpsidePct": facts.get("personalUpsidePct"),
         }
 
     def _apply_personal_rules(
