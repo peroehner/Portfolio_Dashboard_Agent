@@ -38,6 +38,7 @@ _TRADE_ALERT_TYPES = frozenset(
 _HARVEST_ALERT_TYPES = frozenset(
     {"tax_loss_candidate", "winner_trim_candidate", "harvest_imbalance"}
 )
+_FIB_ALERT_TYPE = "fib_proximity"
 
 
 class AlertsService:
@@ -135,11 +136,20 @@ class AlertsService:
         reference_value: float | None,
         fib_level: str | None,
     ) -> tuple[str, str, float, str]:
-        """Stable identity of an alert condition: symbol + type + reference +
-        fib level. Mirrors the matching done in ``_active_alert_exists`` (NULL
-        reference → -1, NULL fib_level → "") and rounds the reference so a value
-        round-tripped through Postgres still matches the freshly-computed one."""
-        ref = -1.0 if reference_value is None else round(float(reference_value), 4)
+        """Stable identity of an alert condition.
+
+        Trade / harvest / 1YT: symbol + type + reference + fib level. NULL
+        reference → -1, NULL fib_level → "". Reference is rounded so a value
+        round-tripped through Postgres still matches the freshly-computed one.
+
+        Fib proximity: symbol + type + level label only. The exact ``$`` of a
+        redrawn swing is stored on the row (and refreshed in place) but is not
+        part of identity — otherwise every wiggle inserts a twin.
+        """
+        if alert_type == _FIB_ALERT_TYPE:
+            ref = -1.0
+        else:
+            ref = -1.0 if reference_value is None else round(float(reference_value), 4)
         return (str(symbol).upper(), alert_type, ref, fib_level or "")
 
     @staticmethod
@@ -825,6 +835,10 @@ class AlertsService:
             self._refresh_active_alert_message(
                 symbol, alert_type, reference_value, fib_level, message, price
             )
+            if alert_type == _FIB_ALERT_TYPE:
+                # Same live Fib identity: retire leftover Fib rows for this
+                # symbol (other labels, and stale $ twins of this label).
+                self._supersede_other_fib_alerts(symbol, keep_fib_level=fib_level)
             return None
 
         user_id = get_current_user_id()
@@ -833,7 +847,18 @@ class AlertsService:
             # alerts of the same symbol + type before inserting the new one.
             # 1YT categories are one family — Chance→Stretch swaps must retire
             # siblings (and legacy screener_upside) so chips stay exclusive.
-            if alert_type in ONE_YT_ALERT_FAMILY:
+            # Fib: a new live level retires older Fib for the symbol, including
+            # stale reprints that Inspector would otherwise keep listing.
+            if alert_type == _FIB_ALERT_TYPE:
+                conn.execute(
+                    """
+                    UPDATE alerts SET status = 'superseded'
+                    WHERE user_id = %s AND symbol = %s AND alert_type = %s
+                      AND status IN ('active', 'stale')
+                    """,
+                    (user_id, symbol, _FIB_ALERT_TYPE),
+                )
+            elif alert_type in ONE_YT_ALERT_FAMILY:
                 conn.execute(
                     """
                     UPDATE alerts SET status = 'superseded'
@@ -872,6 +897,32 @@ class AlertsService:
 
         return self._row_to_alert(row) if row is not None else None
 
+    def _supersede_other_fib_alerts(
+        self, symbol: str, keep_fib_level: str | None
+    ) -> int:
+        """Retire leftover Fib rows for ``symbol`` that aren't the live identity.
+
+        Keeps the active row matching ``keep_fib_level``; supersedes other
+        ``active``/``stale`` Fib rows (different labels, and stale $ twins of
+        the same label).
+        """
+        user_id = get_current_user_id()
+        with get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE alerts SET status = 'superseded'
+                WHERE user_id = %s AND symbol = %s AND alert_type = %s
+                  AND status IN ('active', 'stale')
+                  AND NOT (
+                      status = 'active'
+                      AND COALESCE(fib_level, '') = COALESCE(%s, '')
+                  )
+                """,
+                (user_id, symbol, _FIB_ALERT_TYPE, keep_fib_level or ""),
+            )
+            conn.commit()
+            return cursor.rowcount
+
     def _refresh_active_alert_message(
         self,
         symbol: str,
@@ -883,27 +934,56 @@ class AlertsService:
     ) -> None:
         user_id = get_current_user_id()
         with get_connection() as conn:
-            conn.execute(
-                """
-                UPDATE alerts
-                SET message = %s, price = %s
-                WHERE user_id = %s AND symbol = %s AND alert_type = %s AND status = 'active'
-                  AND COALESCE(reference_value, -1) = COALESCE(%s, -1)
-                  AND COALESCE(fib_level, '') = COALESCE(%s, '')
-                  AND (message IS DISTINCT FROM %s OR price IS DISTINCT FROM %s)
-                """,
-                (
-                    message,
-                    price,
-                    user_id,
-                    symbol,
-                    alert_type,
-                    reference_value,
-                    fib_level or "",
-                    message,
-                    price,
-                ),
-            )
+            if alert_type == _FIB_ALERT_TYPE:
+                # Match on level label only; write the current $ back onto the row.
+                conn.execute(
+                    """
+                    UPDATE alerts
+                    SET message = %s, price = %s, reference_value = %s
+                    WHERE user_id = %s AND symbol = %s AND alert_type = %s AND status = 'active'
+                      AND COALESCE(fib_level, '') = COALESCE(%s, '')
+                      AND (
+                          message IS DISTINCT FROM %s
+                          OR price IS DISTINCT FROM %s
+                          OR COALESCE(reference_value, -1)
+                             IS DISTINCT FROM COALESCE(%s, -1)
+                      )
+                    """,
+                    (
+                        message,
+                        price,
+                        reference_value,
+                        user_id,
+                        symbol,
+                        alert_type,
+                        fib_level or "",
+                        message,
+                        price,
+                        reference_value,
+                    ),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE alerts
+                    SET message = %s, price = %s
+                    WHERE user_id = %s AND symbol = %s AND alert_type = %s AND status = 'active'
+                      AND COALESCE(reference_value, -1) = COALESCE(%s, -1)
+                      AND COALESCE(fib_level, '') = COALESCE(%s, '')
+                      AND (message IS DISTINCT FROM %s OR price IS DISTINCT FROM %s)
+                    """,
+                    (
+                        message,
+                        price,
+                        user_id,
+                        symbol,
+                        alert_type,
+                        reference_value,
+                        fib_level or "",
+                        message,
+                        price,
+                    ),
+                )
             conn.commit()
 
     def _active_alert_exists(
@@ -915,15 +995,25 @@ class AlertsService:
     ) -> bool:
         user_id = get_current_user_id()
         with get_connection() as conn:
-            row = conn.execute(
-                """
-                SELECT id FROM alerts
-                WHERE user_id = %s AND symbol = %s AND alert_type = %s AND status = 'active'
-                  AND COALESCE(reference_value, -1) = COALESCE(%s, -1)
-                  AND COALESCE(fib_level, '') = COALESCE(%s, '')
-                """,
-                (user_id, symbol, alert_type, reference_value, fib_level),
-            ).fetchone()
+            if alert_type == _FIB_ALERT_TYPE:
+                row = conn.execute(
+                    """
+                    SELECT id FROM alerts
+                    WHERE user_id = %s AND symbol = %s AND alert_type = %s AND status = 'active'
+                      AND COALESCE(fib_level, '') = COALESCE(%s, '')
+                    """,
+                    (user_id, symbol, alert_type, fib_level or ""),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT id FROM alerts
+                    WHERE user_id = %s AND symbol = %s AND alert_type = %s AND status = 'active'
+                      AND COALESCE(reference_value, -1) = COALESCE(%s, -1)
+                      AND COALESCE(fib_level, '') = COALESCE(%s, '')
+                    """,
+                    (user_id, symbol, alert_type, reference_value, fib_level),
+                ).fetchone()
         return row is not None
 
     def _row_to_alert(self, row) -> dict[str, Any]:

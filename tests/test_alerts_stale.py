@@ -39,6 +39,23 @@ class SignatureTests(unittest.TestCase):
         b = AlertsService._signature("NVDA", "fib_proximity", 100.0, "0.5")
         self.assertNotEqual(a, b)
 
+    def test_fib_identity_ignores_reference_price(self):
+        # A redrawn swing high/low changes the exact $ of the same Fib label;
+        # that is a refresh, not a new identity.
+        a = AlertsService._signature(
+            "HUBS", "fib_proximity", 226.41, "38.2% Retracement"
+        )
+        b = AlertsService._signature(
+            "HUBS", "fib_proximity", 228.10, "38.2% Retracement"
+        )
+        self.assertEqual(a, b)
+        self.assertEqual(a[2], -1.0)
+
+    def test_trade_identity_still_includes_reference(self):
+        a = AlertsService._signature("AAPL", "trade_below", 150.0, None)
+        b = AlertsService._signature("AAPL", "trade_below", 155.0, None)
+        self.assertNotEqual(a, b)
+
 
 class StalenessTransitionTests(unittest.TestCase):
     def test_active_no_longer_true_becomes_stale(self):
@@ -79,6 +96,34 @@ class StalenessTransitionTests(unittest.TestCase):
         }
         changes = AlertsService._staleness_transitions(rows, true_sigs)
         self.assertEqual(changes, {2: "stale", 3: "superseded"})
+
+    def test_stale_fib_same_label_different_price_is_superseded(self):
+        # Old $ twin of the live Fib label is the same identity, so the stale
+        # reprint is retired rather than listed beside the refresh.
+        rows = [
+            _row(1, "HUBS", "fib_proximity", 226.41, "active", fib_level="38.2% Retracement"),
+            _row(2, "HUBS", "fib_proximity", 228.10, "stale", fib_level="38.2% Retracement"),
+            _row(3, "HUBS", "fib_proximity", 240.00, "stale", fib_level="50.0% Center Line"),
+        ]
+        true_sigs = {
+            AlertsService._signature(
+                "HUBS", "fib_proximity", 229.55, "38.2% Retracement"
+            ),
+        }
+        changes = AlertsService._staleness_transitions(rows, true_sigs)
+        self.assertEqual(changes, {2: "superseded"})
+
+    def test_active_fib_stays_when_price_wiggles(self):
+        rows = [
+            _row(1, "HUBS", "fib_proximity", 226.41, "active", fib_level="38.2% Retracement"),
+        ]
+        true_sigs = {
+            AlertsService._signature(
+                "HUBS", "fib_proximity", 229.55, "38.2% Retracement"
+            ),
+        }
+        changes = AlertsService._staleness_transitions(rows, true_sigs)
+        self.assertEqual(changes, {})
 
 
 class PlanClauseTests(unittest.TestCase):

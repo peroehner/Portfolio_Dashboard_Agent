@@ -3863,6 +3863,8 @@
       opacity: 0.62;
       border-left-color: var(--border);
       color: var(--muted);
+      padding-top: 0.4rem;
+      padding-bottom: 0.4rem;
     }
     .alert.alert-stale .alert-msg { color: var(--muted); }
     .alert-kind.stale {
@@ -8525,6 +8527,21 @@
           /(Net Cash\s+-?\$[\d,]+(?:\.\d+)?)/gi,
           '<strong class="alert-net-cash">$1</strong>',
         );
+    }
+
+    /** Drop the cue/plan clause after the first " — " (top line only). */
+    function alertTopLine(message) {
+      const text = String(message || "");
+      const cut = text.search(/\s+—\s+/);
+      return cut < 0 ? text : text.slice(0, cut).replace(/\s+$/, "");
+    }
+
+    /** Inspector: active alerts keep the explanation; others show the top line. */
+    function inspectorAlertMessage(alert) {
+      const message = String(alert?.message || "");
+      const status = alert?.status || "active";
+      if (status === "active") return message;
+      return alertTopLine(message);
     }
 
     function noteHasSynthesis(note) {
@@ -17619,10 +17636,10 @@
       }
     });
 
-    // Inspector "Alerts" panel: active alerts first (full-color glyph), then
-    // stale ones (triggering condition no longer holds) rendered muted/greyed
-    // with a dimmed glyph. The glyph reuses the Screening alert-kind abbreviation
-    // (alertKindAbbr), mapped by alert_type, so it's `<glyph> message`.
+    // Inspector "Alerts" panel: active alerts first (full-color glyph, full
+    // message including the " — cue" explanation), then stale ones muted
+    // with a dimmed glyph and the top line only. Glyph is Screening
+    // alertKindAbbr, so it's `<glyph> message`.
     function renderInspectorAlertsList(alerts) {
       const list = Array.isArray(alerts) ? alerts : [];
       if (!list.length) return `<div class="empty">No alerts.</div>`;
@@ -17633,7 +17650,8 @@
         .map((a) => {
           const stale = a.status === "stale";
           const glyph = `<span class="alert-kind ${stale ? "stale" : "info"}">${escapeHtml(alertKindAbbr(a.type))}</span>`;
-          return `<div class="alert${stale ? " alert-stale" : ""}">${glyph}<span class="alert-msg">${formatAlertMessageHtml(a.message)}</span></div>`;
+          const msg = inspectorAlertMessage(a);
+          return `<div class="alert${stale ? " alert-stale" : ""}">${glyph}<span class="alert-msg">${formatAlertMessageHtml(msg)}</span></div>`;
         })
         .join("");
     }
