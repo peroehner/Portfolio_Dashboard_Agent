@@ -51,10 +51,32 @@ class SignatureTests(unittest.TestCase):
         self.assertEqual(a, b)
         self.assertEqual(a[2], -1.0)
 
+    def test_fib_type_aliases_share_identity(self):
+        a = AlertsService._signature("HUBS", "fib_proximity", 226.95, "38.2%")
+        b = AlertsService._signature(
+            "HUBS", "fib_proximity", 229.56, "38.2% Retracement"
+        )
+        self.assertEqual(a, b)
+
     def test_trade_identity_still_includes_reference(self):
         a = AlertsService._signature("AAPL", "trade_below", 150.0, None)
         b = AlertsService._signature("AAPL", "trade_below", 155.0, None)
         self.assertNotEqual(a, b)
+
+
+class FibIdentityCollapseTests(unittest.TestCase):
+    def test_keeps_one_row_per_fib_type(self):
+        rows = [
+            _row(10, "HUBS", "fib_proximity", 216.01, "active", fib_level="50.0%"),
+            _row(9, "HUBS", "fib_proximity", 222.87, "stale", fib_level="50.0% Center Line"),
+            _row(8, "HUBS", "fib_proximity", 226.95, "stale", fib_level="38.2% Retracement"),
+            _row(5, "HUBS", "fib_proximity", 229.56, "stale", fib_level="38.2%"),
+            _row(4, "HUBS", "fib_proximity", 234.13, "stale", fib_level="38.2%"),
+            _row(7, "HUBS", "fib_proximity", 205.06, "stale", fib_level="61.8% Golden Pocket"),
+            _row(2, "HUBS", "fib_proximity", 211.12, "stale", fib_level="61.8%"),
+        ]
+        keep = AlertsService._fib_identity_keep_ids(rows)
+        self.assertEqual(keep, {10, 8, 7})
 
 
 class StalenessTransitionTests(unittest.TestCase):

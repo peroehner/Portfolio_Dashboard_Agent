@@ -6,6 +6,7 @@ stay aligned with the documented ladder.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 # role keys: high | shallow | retrace | center | golden | deep | base
@@ -66,10 +67,17 @@ def ratio_from_label(label: str | None) -> float | None:
     text = str(label).strip()
     if not text:
         return None
-    # Prefer percent form (production fib_level is "61.8%").
+    # Prefer percent form (production fib_level is "61.8%"; messages may
+    # continue as "38.2% Retracement").
     if text.endswith("%"):
         try:
             return round(float(text[:-1].strip()) / 100.0, 4)
+        except (TypeError, ValueError):
+            return None
+    pct = re.search(r"(\d+(?:\.\d+)?)\s*%", text)
+    if pct:
+        try:
+            return round(float(pct.group(1)) / 100.0, 4)
         except (TypeError, ValueError):
             return None
     try:

@@ -1798,7 +1798,7 @@
       color: #94a3b8;
       border-color: rgba(148, 163, 184, 0.35);
     }
-    /* Offset Portfolio Intent from the SAI signal chips (Action · Conf · Fit · Sentiment). */
+    /* Offset Portfolio Intent from the SAI signal chips (Action · Conf · Score · Sentiment). */
     .sai-intent-gap {
       display: inline-block;
       width: 0.85rem;
@@ -1975,6 +1975,11 @@
     .conf-mini-mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(230, 237, 246, 0.45); }
     .screening-tech-stance .conf-score { opacity: 0.7; font-weight: 500; font-size: 0.74rem; }
     /* Inspector Confluence card */
+    .confluence-card .inspector-chart-title-row {
+      margin-bottom: 0.15rem;
+    }
+    .confluence-card .inspector-chart-title-row h3 { margin: 0; }
+    .confluence-card .inspector-chart-title-row .pattern-caveat { font-weight: 400; }
     .confluence-card .confluence-head {
       display: flex; align-items: center; gap: 0.6rem; margin: 0.2rem 0 0.6rem;
     }
@@ -5164,7 +5169,7 @@
   <div id="patternsHelp" class="help-modal-backdrop" hidden onclick="onPatternsHelpBackdrop(event)">
     <div class="help-modal" role="dialog" aria-modal="true" aria-labelledby="patternsHelpTitle">
       <div class="help-modal-head">
-        <h3 id="patternsHelpTitle">Reading Patterns &amp; Tech Signals</h3>
+        <h3 id="patternsHelpTitle">Reading Patterns, Fibonacci &amp; Confluence</h3>
         <button type="button" class="help-modal-close" onclick="closePatternsHelp()" aria-label="Close">&times;</button>
       </div>
       <div class="help-modal-body">
@@ -5297,7 +5302,35 @@
           <tr><td><code>Neutral</code> (·)</td><td>No clear signal or insufficient separation.</td></tr>
         </table>
         <p>Use OBV as a confirmation layer, not a standalone trigger: strongest conviction usually comes when pattern/fib structure and OBV agree.</p>
-        <p style="margin-top:1rem;font-size:0.82rem;color:var(--muted,#9aa8bc);">Full guide: <code>docs/PATTERNS.md</code>.</p>
+
+        <h4 id="patternsHelpConfluence">10 · Technical Confluence</h4>
+        <p>The Inspector <strong>Technical Confluence</strong> card is a <em>fused technical verdict</em> — five independent lenses vote, then the agent reports one bias. It is <strong>not</strong> SAI Action (last Assess) and <strong>not</strong> the Fib Technical Stance in §8. Same caveat as patterns: one input among many, not a prediction.</p>
+        <p><strong>How to read the card</strong></p>
+        <table class="help-table">
+          <tr><th>Element</th><th>Meaning</th></tr>
+          <tr><td>Bias chip</td><td><code>Bullish</code> / <code>Lean Bullish</code> / <code>Mixed</code> / <code>Lean Bearish</code> / <code>Bearish</code> from the net score.</td></tr>
+          <tr><td>Meter (0–100)</td><td>0 = fully bearish, <strong>50 = neutral</strong> (mid tick), 100 = fully bullish.</td></tr>
+          <tr><td><code>Strong · 3/5 Agree</code></td><td>Strength (how far from 50 and how unanimous) · how many of the five lenses vote with the bias.</td></tr>
+          <tr><td>Vote chips (Trend, Structure, …)</td><td>↑ bullish, ↓ bearish, · flat. Hover a chip for the raw detail (e.g. MACD / RSI).</td></tr>
+          <tr><td>Agreeing / Conflicting</td><td>Lenses that share the bias vs those that push the other way.</td></tr>
+        </table>
+        <p><strong>The five voting lenses</strong> (heavier weight = more influence)</p>
+        <table class="help-table">
+          <tr><th>Lens</th><th>What it reads</th><th>Weight</th></tr>
+          <tr><td>Trend</td><td>Moving-average stack (20/50/200), golden/death cross, ~3-month slope.</td><td>1.0</td></tr>
+          <tr><td>Structure</td><td>Zig-zag swing structure: higher highs / rising lows vs lower highs / falling lows.</td><td>0.8</td></tr>
+          <tr><td>Momentum</td><td>MACD histogram state, else RSI(14) regime — see below.</td><td>0.5</td></tr>
+          <tr><td>Pattern</td><td>The chart pattern from §5, down-weighted if pending / weak / stale (volume Risk agent).</td><td>1.0</td></tr>
+          <tr><td>Volume</td><td>Relative volume regime plus OBV accumulation/distribution (§9).</td><td>0.6</td></tr>
+        </table>
+        <p><strong>Momentum: MACD and RSI</strong> — these are the two numbers behind a line like <code>Momentum: MACD bullish, RSI 54</code>.</p>
+        <table class="help-table">
+          <tr><th>Metric</th><th>What it is</th><th>How Confluence uses it</th></tr>
+          <tr><td><strong>MACD</strong></td><td>Moving Average Convergence/Divergence — the gap between a fast and a slow EMA of price, shown as a histogram. Positive histogram = short-term momentum stronger than the slower trend (constructive); negative = the opposite (caution).</td><td>If MACD state is clearly bullish or bearish, that vote is used first (stronger of the two momentum reads).</td></tr>
+          <tr><td><strong>RSI</strong></td><td>Relative Strength Index (14-day), scaled <strong>0–100</strong>. It is <em>not</em> a % return. Mid-range (~50) means recent gains and losses are roughly balanced. Classic rules of thumb: ≥70 often called overbought, ≤30 oversold — Confluence does <em>not</em> wait for those extremes.</td><td>If MACD is mixed, RSI steps in: <strong>≥55</strong> votes bullish, <strong>≤45</strong> votes bearish. <strong>RSI 54</strong> is essentially mid / slightly constructive — not a strong momentum call by itself.</td></tr>
+        </table>
+        <p>Momentum is the <em>lightest</em> of the five lenses (weight 0.5), so a lone RSI 54 will not flip a Bullish card if Trend, Structure, and Pattern already agree. Pattern, Fibonacci, and OBV detail stay in §§5–9 above.</p>
+        <p style="margin-top:1rem;font-size:0.82rem;color:var(--muted,#9aa8bc);">Full guide: <code>docs/PATTERNS.md</code> · confluence fusion: <code>docs/pattern_validation_confluence.md</code>.</p>
       </div>
     </div>
   </div>
@@ -5446,14 +5479,14 @@
           <tr>
             <td><strong>Hit</strong></td>
             <td>Unweighted “how often was the bet right?” — every win/loss counts equally.</td>
-            <td rowspan="2">Only when SAI bets carry <strong>confidence</strong> and/or <strong>Fit</strong>. Until then every weight is 1, so <strong>Hit = Bet-S-Hit</strong> (they look identical — that is expected, not a bug).</td>
+            <td rowspan="2">Only when SAI bets carry <strong>Conf</strong> and/or <strong>Score</strong>. Until then every weight is 1, so <strong>Hit = Bet-S-Hit</strong> (they look identical — that is expected, not a bug).</td>
           </tr>
           <tr>
             <td><strong>Bet-S-Hit</strong><br><span style="font-weight:500;color:var(--muted,#9aa8bc)">(Bet Strength Hit)</span></td>
-            <td>Strength-weighted hit rate — not a return. Stronger calls (high confidence × higher Fit) count more than weak ones.</td>
+            <td>Strength-weighted hit rate — not a return. Stronger calls (high Conf × higher Score) count more than weak ones.</td>
           </tr>
         </table>
-        <p><strong>Patterns</strong> and <strong>Confluence</strong> do not store confidence/Fit today, so Hit and Bet-S-Hit stay equal there. On <strong>SAI</strong>, new assessments fill strength; as that populates, Bet-S-Hit will pull away from Hit. If Bet-S-Hit ≫ Hit → prefer stronger signals; if ≪ Hit → stronger calls are underperforming.</p>
+        <p><strong>Patterns</strong> and <strong>Confluence</strong> do not store Conf/Score today, so Hit and Bet-S-Hit stay equal there. On <strong>SAI</strong>, new assessments fill strength; as that populates, Bet-S-Hit will pull away from Hit. If Bet-S-Hit ≫ Hit → prefer stronger signals; if ≪ Hit → stronger calls are underperforming.</p>
         <p>Color on Hit / Bet-S-Hit: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>.</p>
 
         <h4>Reading Price · Follow · Bet Strength Hit</h4>
@@ -5473,7 +5506,7 @@
         <p><strong>Weight for one bet</strong></p>
         <ul style="margin:0.35rem 0 0.55rem 1.1rem;padding:0;font-size:0.9rem;line-height:1.45;">
           <li><strong>Label</strong> (High / Medium / Low) → <code>3</code> / <code>2</code> / <code>1</code> (missing → 1)</li>
-          <li><strong>Score</strong> (proposal total 0–100 = State+Trigger+Fit — <em>not</em> the Fit pillar alone) → scale <code>1 + Score/100</code> (missing → 1)</li>
+          <li><strong>Score</strong> (proposal total 0–100 = State + Trigger + Fit pillar) → scale <code>1 + Score/100</code> (missing → 1)</li>
           <li><strong>Weight</strong> = Label × Score-scale</li>
         </ul>
         <p><strong>Bet-S-Hit</strong> = (sum of weights on <em>wins</em>) ÷ (sum of weights on wins+losses) × 100.</p>
@@ -5912,7 +5945,7 @@
             <textarea name="text" rows="7" placeholder="Your outlook, thesis, risks..." required></textarea>
             <div class="empty" style="margin-top:0.35rem;">Tip: start a note with <code>@prompt: …</code> or a <code>--- prompt: --- </code> block to steer synthesis for that note.</div>
             <div class="target-actions" style="margin-top:0.5rem;">
-              <button type="submit">Add Note</button>
+              <button type="submit" id="addNoteBtn">Add Note</button>
               <button type="button" class="secondary" onclick="setComposingNote(false)">Cancel</button>
             </div>
           </form>
@@ -5956,14 +5989,14 @@
         <button type="button" class="secondary filter-btn" data-sim-filter="far" onclick="setSimulationFilter('far')" title="Nearest planned-trade threshold is more than 100% from the current price (far from triggering)">Far Trades</button>
         <span class="sim-legs-sep" aria-hidden="true"></span>
         <button type="button" class="secondary filter-btn active" data-sim-legs="both" onclick="setSimulationLegs('both')" title="Include both buy and sell legs in the totals">Both</button>
-        <button type="button" class="secondary filter-btn" data-sim-legs="buys" onclick="setSimulationLegs('buys')" title="Only buy legs — shows Buy Score (SAI Score); hides Sell @ ×Sh">Buys</button>
-        <button type="button" class="secondary filter-btn" data-sim-legs="sells" onclick="setSimulationLegs('sells')" title="Only sell legs — shows Sell Rank (Plan Sell Rank); hides Buy @ ×Sh">Sells</button>
+        <button type="button" class="secondary filter-btn" data-sim-legs="buys" onclick="setSimulationLegs('buys')" title="Buy legs only. Buy Score: higher = stronger buy-to-fire (effective SAI Score after conviction penalty). Hides Sell @ ×Sh.">Buys</button>
+        <button type="button" class="secondary filter-btn" data-sim-legs="sells" onclick="setSimulationLegs('sells')" title="Sell legs only. Sell Rank: lower = stronger sell-to-fire (effective Plan Sell Rank after conviction penalty). Hides Buy @ ×Sh.">Sells</button>
         <span class="sim-legs-sep" aria-hidden="true"></span>
         <button type="button" class="secondary filter-btn active" data-sim-pricing="threshold" onclick="setSimulationPricingMode('threshold')" title="Execute planned sizes at their threshold prices (default). Tax & Trim cash uses sell-threshold prices when set.">Thresholds</button>
         <button type="button" class="secondary filter-btn" data-sim-pricing="current" onclick="setSimulationPricingMode('current')" title="Execute planned sizes at today's price. Tax & Trim cash marks to market.">Current Price</button>
         <span class="sim-legs-sep" aria-hidden="true"></span>
         <button type="button" class="secondary filter-btn" id="simTaxTrimBtn" onclick="toggleSimulationTaxTrim()" title="Show Tax-loss sell and Winner-trim boards. Requires sells — if Legs is Buys only, you'll be offered a switch to Both.">Tax &amp; Trim</button>
-        <button type="button" class="help-btn" id="simTaxProposalHelpBtn" onclick="openTaxLossProposalHelp()" title="Tax-loss selling & winner-trim proposal" aria-label="Tax-loss selling proposal help" hidden>?</button>
+        <button type="button" class="help-btn" id="simTaxProposalHelpBtn" onclick="openTaxLossProposalHelp()" title="Tax & Trim: higher Loss/Trim Score = stronger harvest candidate (not Sell Rank)" aria-label="Tax-loss selling proposal help" hidden>?</button>
         <button type="button" class="success" style="margin-left:auto;" onclick="saveSimulationSnapshot()">Save to Summary</button>
         <span class="sel-clip-actions" data-clip-tab="simulation" style="margin-left:0.4rem;"></span>
       </div>
@@ -8544,6 +8577,33 @@
       return alertTopLine(message);
     }
 
+    /** Same Fib type (38.2% Retracement vs 38.2%) regardless of exact $. */
+    function fibLevelIdentityKey(alert) {
+      const raw = String(alert?.fibLevel || alert?.message || "");
+      const pct = raw.match(/(\d+(?:\.\d+)?)\s*%/);
+      if (pct) return (Number(pct[1]) / 100).toFixed(4);
+      const n = Number(String(alert?.fibLevel || "").trim());
+      if (Number.isFinite(n)) return (n > 1 ? n / 100 : n).toFixed(4);
+      return raw.trim().toLowerCase();
+    }
+
+    function collapseInspectorFibDuplicates(alerts) {
+      const seen = new Set();
+      const out = [];
+      for (const a of alerts) {
+        const type = a.type || a.alert_type;
+        if (type !== "fib_proximity") {
+          out.push(a);
+          continue;
+        }
+        const key = `${String(a.symbol || "").toUpperCase()}|${fibLevelIdentityKey(a)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(a);
+      }
+      return out;
+    }
+
     function noteHasSynthesis(note) {
       return !!(note.synthesis && note.synthesis.summary);
     }
@@ -9132,7 +9192,9 @@
       event.preventDefault();
       if (!selectedSymbol) return;
       const form = event.target;
-      try {
+      const submitBtn = document.getElementById("addNoteBtn") || form.querySelector('button[type="submit"]');
+      const cancelBtn = form.querySelector(".target-actions .secondary");
+      const doAdd = async () => {
         const notePayload = {
           date: form.date.value,
           source: form.source.value,
@@ -9148,8 +9210,14 @@
         setComposingNote(false);
         await selectSymbol(selectedSymbol);
         setStatus("Note added.");
+      };
+      if (cancelBtn) cancelBtn.disabled = true;
+      try {
+        await withButtonPending(submitBtn, "Saving…", doAdd);
       } catch (error) {
-        setStatus(error.message);
+        setStatus(error.message, "error");
+      } finally {
+        if (cancelBtn) cancelBtn.disabled = false;
       }
     };
 
@@ -10751,7 +10819,7 @@
         <th class="tr-num tr-col-hit">Hit</th>
         <th class="tr-num tr-col-avg" title="Raw price move over the same episode">Price</th>
         <th class="tr-num tr-col-adj" title="Did following the call help? Sell/bearish flips the sign">Follow</th>
-        <th class="tr-num tr-col-cal" title="Bet Strength Hit: win rate weighted by confidence × Fit — not a return">Bet-S-Hit</th>
+        <th class="tr-num tr-col-cal" title="Bet Strength Hit: win rate weighted by Conf × Score — not a return">Bet-S-Hit</th>
       </tr></thead>`;
 
     function trackRecordRows(buckets, labelKey = "label") {
@@ -10927,7 +10995,7 @@
         const gap = strHit - hit;
         if (gap >= 5) {
           parts.push(
-            `Overall Bet Strength Hit (${Number(strHit).toFixed(1)}%) ≫ plain Hit (${hit}%) — prefer stronger (high confidence / Fit) signals.`
+            `Overall Bet Strength Hit (${Number(strHit).toFixed(1)}%) ≫ plain Hit (${hit}%) — prefer stronger (high Conf / Score) signals.`
           );
         } else if (gap <= -5) {
           parts.push(
@@ -11016,11 +11084,9 @@
       const confluence = (data.byLabel || []).filter((b) => b.kind === "confluence");
       const fibs = (data.byLabel || []).filter((b) => b.kind === "fib");
       const byConf = data.byConfidence || [];
-      const byFit = data.byFitBand || [];
       const byConfBand = data.byConfluenceBand || [];
       const byConfConflict = data.byConfluenceConflict || [];
       const showConf = trackRecordHasRealStrength(byConf, "confidence");
-      const showFit = trackRecordHasRealStrength(byFit, "fitBand");
       const showConfBand = trackRecordHasRealStrength(byConfBand, "confluenceBand");
       const showConfConflict = trackRecordHasRealStrength(byConfConflict, "conflictBucket");
 
@@ -11043,13 +11109,12 @@
           ${trackRecordSection("Confluence bias", confluence, { key: "confluence" })}
           ${fibs.length ? trackRecordSection("Fib levels", fibs, { key: "fib" }) : ""}
           ${showConf ? trackRecordSection("SAI by confidence", byConf.map((b) => ({ ...b, label: b.confidence })), { labelKey: "label", key: "by-confidence" }) : ""}
-          ${showFit ? trackRecordSection("SAI by Fit band", byFit.map((b) => ({ ...b, label: b.fitBand })), { labelKey: "label", key: "by-fit" }) : ""}
           ${showConfBand ? trackRecordSection("Confluence Lean vs Strong", byConfBand.map((b) => ({ ...b, label: b.confluenceBand })), { labelKey: "label", key: "by-conf-band" }) : ""}
           ${showConfConflict ? trackRecordSection("Confluence clean vs contested", byConfConflict.map((b) => ({ ...b, label: b.conflictBucket })), { labelKey: "label", key: "by-conf-conflict" }) : ""}
         </div>
-        ${!showConf && !showFit ? `<p class="tr-note">Confidence / Fit slices appear once new assessments store strength on SAI bets (older rows may still show as unknown until backfill links assessments).</p>` : ""}
+        ${!showConf ? `<p class="tr-note">Confidence slices appear once new assessments store strength on SAI bets (older rows may still show as unknown until backfill links assessments).</p>` : ""}
         ${!showConfBand ? `<p class="tr-note">Confluence Lean vs Strong / clean vs contested slices appear after new assessments store band, score, and conflict counts on confluence bets.</p>` : ""}
-        <p class="tr-note"><strong>Price</strong> = episode price move. <strong>Follow</strong> = did the buy/sell call help? <strong>Hit</strong> = unweighted bet hit. <strong>Bet-S-Hit</strong> = strength-weighted Hit (same as Hit until SAI confidence/Fit populate). Color: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>. Decisive sample: ${decided}.</p>`;
+        <p class="tr-note"><strong>Price</strong> = episode price move. <strong>Follow</strong> = did the buy/sell call help? <strong>Hit</strong> = unweighted bet hit. <strong>Bet-S-Hit</strong> = strength-weighted Hit (same as Hit until SAI Conf · Score populate). Color: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>. Decisive sample: ${decided}.</p>`;
     }
 
     async function loadTrackRecord() {
@@ -11866,7 +11931,7 @@
     /**
      * Pay-attention (!) when the Action chip (stored Assess) disagrees with what
      * the live SAI Score maps to on the action ladder. There is only one Action
-     * metric — ! is a stale/mismatch hint, not a second Action and not Conf vs Fit Band.
+     * metric — ! is a stale/mismatch hint, not a second Action and not Conf vs Score.
      */
     function resolveSaiAttention(rec) {
       const proposal = rec?.proposal || {};
@@ -11927,7 +11992,7 @@
       const attentionFlag = Boolean(attention?.flag);
       const actionTitle = attentionFlag
         ? escapeHtml(attention.message || "Pay attention: SAI Action (last Assess) differs from what Live Score shows")
-        : "Action";
+        : "SAI Action from last Assess. Trailing ! means live Score maps to a different Buy/Watch/Sell.";
       const actionText = attentionFlag ? `${action} !` : action;
       const actionClass = attentionFlag ? `${action} attention` : action;
       const intent = rec?.proposal?.intent;
@@ -12039,7 +12104,7 @@
       const lines = [];
 
       // Lead with the chip's conviction so hover matches what the eye just saw.
-      lines.push(`${confLabel} Conviction (High=3, Medium=2, Low=1)`);
+      lines.push(`${confLabel} Conviction — Score 0–100 is setup quality (does not drop if Conf softens).`);
 
       if (Number.isFinite(total)) {
         const state = Number(scores.state);
@@ -12150,7 +12215,7 @@
       if (!rec) {
         return `<span class="empty" style="font-size:0.78rem;">—</span>`;
       }
-      // Screening: Intent is its own column; Fit Band is track-record only.
+      // Screening: Intent is its own column; Conf · Score is the only SAI strength chip.
       return renderRecommendationChipRow(rec, {
         wrapperClass: "screening-rec-chips",
         includeIntent: false,
@@ -12494,15 +12559,15 @@
     }
 
     const TECH_STANCE_HELP = "Confluence agent's purely technical read (independent of the SAI):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 scale (left = bearish, center = neutral, right = bullish)\n• Strength — how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume)";
-    const INTENT_HELP = "Portfolio Intent (role for this name in the book):\n• From holdings + planned trades, or your Target override\n• Roles — tactical / accumulate / core / core_accumulate / divest\n• Color + glyph by role; separate from SAI Action / Conf / Sentiment";
-    const SAI_HELP = "Synthesized Agent Insight (SAI):\n• ACTION — the only Action chip: Buy / Watch / Hold / Sell (from last Assess). A trailing ! means live SAI Score maps to a different Buy/Watch/Sell on the action ladder below — often stale Assess vs moved Score. ! is not Conf vs Score.\n• ACTION LADDER (from live SAI Score) — ≥75 Strong buy / size-up · 60–74 Buy / add · 45–59 Watch / hold · 30–44 Hold / trim · <30 Sell / avoid\n• CONF · SCORE — Label (High/Medium/Low conviction) and Score (0–100 = State+Trigger+Fit). Hover Conf for State / Trigger / Fit. Base Label cuts: ≥75 High · ≥35 Medium · else Low; Label may soften one notch.\n• SENTIMENT — news reaction (else notes)\n• Score may lag Label — setup quality can stay high while Label is softened (stability/guardrails); hover shows why when that happens\n• Bet-S-Hit — weights bets by Label × (1+Score/100); hover shows weight + drivers\n• Sort — Action, Conf · Score (Label then Score), or Sentiment\n• INTENT — own Screening column (not under SAI)";
+    const INTENT_HELP = "Portfolio Intent — this name's role in the book (not SAI Action):\n• Auto from holdings + planned trades, or Target override\n• tactical / accumulate / core / core_accumulate / divest";
+    const SAI_HELP = "SAI = Action (last Assess) · Conf · Score · Sentiment.\n• Action: Buy / Watch / Hold / Sell. Trailing ! = live Score maps to a different action (stale Assess vs moved Score) — not Conf vs Score\n• Score ladder: ≥75 Strong buy · 60–74 Buy · 45–59 Watch · 30–44 Hold/trim · <30 Sell/avoid\n• Conf · Score: High/Med/Low (may soften one notch) · Score 0–100 = State+Trigger+Fit (Score does not drop when Conf softens — hover Conf for pillars)\n• Sentiment: news reaction (else notes). Intent is its own column";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
     const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
     const SIM_SYMBOL_HELP = "Ticker with at least one priced planned-trade threshold. Click to open in Target.";
-    const SIM_CLOSE_PCT_HELP = "Distance to the nearest in-scope planned-trade threshold:\n• Uses the active Buys / Sells / Both leg filter\n• Smaller % = closer to triggering\n• ▼ price above threshold · ▲ price below threshold\n• Sort ascending to surface trades about to fire";
-    const SIM_BUY_SCORE_HELP = "Buy Score = SAI Score (State + Trigger + Fit, 0–100).\n• Same as mobile Buy Plan Score mode\n• Higher = stronger buy lean\n• Low conviction applies a hidden strictness penalty (effective score shown in cell hover)\n• — when no published proposal score yet (run Assess)";
-    const SIM_SELL_RANK_HELP = "Sell Rank = Plan Sell Rank = 80 − Plan Attract (P+T+S).\n• Same as mobile Sell Plan Score mode\n• Lower = closer / triggered / larger → stronger sell-to-fire\n• Low conviction applies a hidden strictness penalty (effective rank shown in cell hover)\n• Not Trim Score (Tax & Trim)\n• Hover cell for P / T / S breakdown";
+    const SIM_CLOSE_PCT_HELP = "Rule of thumb: LOWER Close % = closer to firing.\n• Distance to nearest in-scope planned-trade threshold (Buys / Sells / Both)\n• ▼ price above threshold · ▲ below\n• Sort ascending to surface trades about to fire";
+    const SIM_BUY_SCORE_HELP = "Rule of thumb: HIGHER Buy Score = stronger buy-to-fire.\n• Effective = SAI Score − conviction penalty (High 0 · Med 6 · Low 12 · Attention ! +5)\n• Number shown is already effective — hover the cell for base vs penalty\n• Same as mobile Buy Plan Score mode. — if no Assess yet";
+    const SIM_SELL_RANK_HELP = "Rule of thumb: LOWER Sell Rank = stronger sell-to-fire.\n• Effective = (80 − Attract P/T/S) + conviction penalty (High 0 · Med 6 · Low 12 · Attention ! +5)\n• Number shown is already effective — hover the cell for P/T/S + penalty\n• Not Trim Score (Tax & Trim harvest). Same as mobile Sell Plan Score mode";
     const SIM_NET_GAINS_HELP = "Realized gain on in-scope SELL legs:\n• (avg sell price − cost/share) × shares sold\n• Cost/share — holding average cost when on file, otherwise share-weighted planned BUY threshold\n• — when no in-scope sells, or no derivable cost (UNKNOWN-WINS)";
     const SIM_WARN_HELP = "Warnings on planned-trade rows:\n• ⚠ — planned sell exceeds shares held (a paired buy leg may cover it)\n• $0 — priced leg has no share quantity set";
 
@@ -14233,7 +14298,7 @@
           if (row.buyScore == null) return "—";
           const penalty = Number(row.convictionPenalty) || 0;
           const effective = Math.max(0, row.buyScore - penalty);
-          const title = `SAI Score ${Math.round(row.buyScore)} − conviction penalty ${Math.round(penalty)} = effective ${Math.round(effective)}`;
+          const title = `Rule of thumb: HIGHER = stronger buy-to-fire.\nSAI Score ${Math.round(row.buyScore)} − conviction penalty ${Math.round(penalty)} = effective ${Math.round(effective)}`;
           return `<span title="${escapeHtml(title)}">${Math.round(effective)}</span>`;
         },
       },
@@ -14252,8 +14317,8 @@
           const effective = row.sellRank + penalty;
           const p = row.sellAttractParts;
           const title = p
-            ? `Plan Sell Rank ${Math.round(row.sellRank)} = 80 − Attract ${Math.round(p.planAttract)} (P${Math.round(p.proximityScore)} T${Math.round(p.triggerScore)} S${Math.round(p.sizeScore)}); + conviction penalty ${Math.round(penalty)} = effective ${Math.round(effective)}`
-            : `Plan Sell Rank ${Math.round(row.sellRank)} + conviction penalty ${Math.round(penalty)} = effective ${Math.round(effective)}`;
+            ? `Rule of thumb: LOWER = stronger sell-to-fire.\nPlan Sell Rank ${Math.round(row.sellRank)} = 80 − Attract ${Math.round(p.planAttract)} (P${Math.round(p.proximityScore)} T${Math.round(p.triggerScore)} S${Math.round(p.sizeScore)}); + conviction penalty ${Math.round(penalty)} = effective ${Math.round(effective)}`
+            : `Rule of thumb: LOWER = stronger sell-to-fire.\nPlan Sell Rank ${Math.round(row.sellRank)} + conviction penalty ${Math.round(penalty)} = effective ${Math.round(effective)}`;
           return `<span title="${escapeHtml(title)}">${Math.round(effective)}</span>`;
         },
       },
@@ -15248,7 +15313,7 @@
             <td style="text-align:right;" class="${upsideClass(cand.analystUpsidePct)}" title="1YT upside from today's price">${fmtUpside(cand.analystUpsidePct)}</td>
             <td style="text-align:right;" class="${upsideClass(cand.personalUpsidePct)}" title="Personal target upside from today's price">${fmtUpside(cand.personalUpsidePct)}</td>
             <td style="text-align:right;" title="Price as % of 52-week high">${cand.peakPct != null ? `${cand.peakPct.toFixed(1)}%` : "—"}</td>
-            <td style="text-align:right;" title="Trim-score from headroom exhaustion + 52W peak + weight + buy/sell intent">${Math.round(cand.trimScore || 0)}</td>
+            <td style="text-align:right;" title="Higher = better winner to harvest now. Trim-score = exhaustion + 52W peak + weight + Intent (not Sell Rank)">${Math.round(cand.trimScore || 0)}</td>
           </tr>`;
       }).join("");
     }
@@ -15285,7 +15350,7 @@
           <td style="text-align:right;" class="negative" title="Unrealized loss vs cost basis">${cand.lossPct != null ? `−${cand.lossPct.toFixed(1)}%` : "—"}</td>
           <td style="text-align:right;" class="${upsideClass}" title="1YT upside from today's price (missing treated as 0% for residual)">${Number.isFinite(cand.analystUpsidePct) ? `${cand.analystUpsidePct >= 0 ? "+" : ""}${cand.analystUpsidePct.toFixed(1)}%` : "—"}</td>
           <td style="text-align:right;" class="negative" title="Expected %-loss vs cost after hitting 1YT: 1 − (1 − L)×(1 + U)">${cand.residualLossPct != null ? `${cand.residualLossPct.toFixed(1)}%` : "—"}</td>
-          <td style="text-align:right;" title="Residual-loss rank points (${TAX_PROPOSAL_LOSS_SCORE_ANCHOR_PCT}% residual → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}, 100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT})">${Math.round(cand.lossScore || 0)}</td>
+          <td style="text-align:right;" title="Higher = more attractive tax-loss sell. Residual-loss rank (${TAX_PROPOSAL_LOSS_SCORE_ANCHOR_PCT}% residual → +${TAX_PROPOSAL_LOSS_SCORE_AT_GATE}, 100% → +${TAX_PROPOSAL_LOSS_SCORE_WEIGHT})">${Math.round(cand.lossScore || 0)}</td>
         </tr>`;
       }).join("");
     }
@@ -15295,7 +15360,7 @@
         id = "taxLossScoreThreshold",
         label = "Loss-score threshold",
         oninput = "onTaxLossScoreThresholdChange(this.value)",
-        title = "0 = all Simulation-scope loss candidates count. Raise to require higher residual loss after 1YT.",
+        title = "Higher Loss Score = more attractive tax-loss sell. 0 = all candidates. Raise to require higher residual loss after 1YT.",
         valId = "taxLossScoreThresholdVal",
         poolId = "taxLossScorePoolSummary",
         fallbackMax = TAX_PROPOSAL_LOSS_SCORE_WEIGHT,
@@ -15417,7 +15482,7 @@
                   <th style="text-align:right;">Loss %</th>
                   <th style="text-align:right;">1YT %</th>
                   <th style="text-align:right;">Residual %</th>
-                  <th style="text-align:right;" title="Residual-loss rank points">Score</th>
+                  <th style="text-align:right;" title="Rule of thumb: HIGHER Loss Score = more attractive tax-loss sell. Residual-loss rank after 1YT — not Sell Rank.">Score</th>
                 </tr>
               </thead>
               <tbody>${renderTaxLossSellCandidateRows(candidates, threshold)}</tbody>
@@ -15499,7 +15564,7 @@
             id: "taxTrimScoreThreshold",
             label: "Trim-score threshold",
             oninput: "onTaxTrimScoreThresholdChange(this.value)",
-            title: "0 = all winner-trim candidates in Simulation scope count. Raise to require thinner remaining 1YT/PT upside, nearer 52W highs, or heavier/sell-leaning names.",
+            title: "Higher Trim Score = better harvest now. 0 = all winners. Raise to require thinner 1YT/PT headroom, nearer 52W highs, or heavier/sell-leaning names.",
             valId: "taxTrimScoreThresholdVal",
             poolId: "taxTrimScorePoolSummary",
             fallbackMax: TAX_PROPOSAL_TRIM_SCORE_WEIGHT,
@@ -15518,7 +15583,7 @@
                   <th style="text-align:right;">1YT %</th>
                   <th style="text-align:right;">PT %</th>
                   <th style="text-align:right;">52W %</th>
-                  <th style="text-align:right;">Trim-score</th>
+                  <th style="text-align:right;" title="Rule of thumb: HIGHER Trim Score = better winner to harvest now. Exhaustion + 52W + weight + Intent — not Sell Rank.">Trim-score</th>
                 </tr>
               </thead>
               <tbody>${renderTaxProposalCandidateRows(candidates, picks, threshold)}</tbody>
@@ -15565,7 +15630,7 @@
     function taxLossProposalHelpHtml() {
       const taxPct = (SIM_TAX_RATE * 100).toFixed(3);
       return `
-        <p>Helps plan <strong>tax-loss harvesting</strong>: which underwater holdings are the most attractive sells, then which <strong>winner trims</strong> can offset those losses. Toggle <strong>Tax &amp; Trim</strong> on Simulation (works with Thresholds or Current Price; hidden while Buys-only). Planning aid only — not tax advice.</p>
+        <p><strong>Rule of thumb:</strong> higher Loss Score = more attractive tax-loss sell; higher Trim Score = better winner to harvest now. These are harvest ranks — not planned-trade Sell Rank (Sim Sells). Toggle <strong>Tax &amp; Trim</strong> on Simulation (hidden while Buys-only). Planning aid only — not tax advice.</p>
         <h4>Tax-loss sell candidates (residual loss after 1YT)</h4>
         <p>Thesis: a deep unrealized loss only justifies keeping if 1YT upside is large enough to recover toward cost. Loss-score ranks the <strong>expected residual %-loss vs cost after applying 1YT</strong> from today's price. All Simulation-scope symbols with computable unrealized losses qualify; the Loss-score slider is the manual filter.</p>
         <ul>
@@ -16663,7 +16728,11 @@
       const strengthTxt = [conf.strength, `${conf.agreeCount ?? 0}/${conf.totalSignals ?? 0} agree`].filter(Boolean).join(" · ");
       return `
         <section class="valuation-scoring confluence-card">
-          <h3 class="card-headline-accent">Technical Confluence <span class="pattern-caveat">fused agent verdict — one input among many</span></h3>
+          <div class="inspector-chart-title-row">
+            <h3 class="card-headline-accent">Technical Confluence</h3>
+            <button type="button" class="help-btn" onclick="openPatternsHelp('patternsHelpConfluence')" title="Technical Confluence help — MACD, RSI, voting lenses" aria-label="Technical Confluence help">?</button>
+            <span class="pattern-caveat">fused agent verdict — one input among many</span>
+          </div>
           <div class="confluence-head">
             <span class="confluence-bias conf-${cls}">${escapeHtml(conf.bias)}</span>
             <span class="confluence-strength">${escapeHtml(strengthTxt)}</span>
@@ -16844,7 +16913,7 @@
             <div class="inspector-chart-head">
               <div class="inspector-chart-title-row">
                 <h3 class="card-headline-accent">Performance &amp; Fibonacci</h3>
-                <button type="button" class="help-btn" onclick="openPatternsHelp('patternsHelpObv')" title="Patterns, Fibonacci &amp; OBV help" aria-label="Patterns, Fibonacci and OBV help">?</button>
+                <button type="button" class="help-btn" onclick="openPatternsHelp('patternsHelpObv')" title="Patterns, Fibonacci, OBV &amp; Confluence help" aria-label="Patterns, Fibonacci, OBV and Confluence help">?</button>
                 ${canSwitchChart
                   ? `<div class="inspector-chart-mode" data-panel="${panelId}">
                       <button type="button" class="inspector-mode-btn ${chartMode === "timeline" ? "active" : ""}" data-mode="timeline" onclick="setInspectorChartMode('timeline', '${panelId}')">Timeline &amp; Trends</button>
@@ -17645,7 +17714,9 @@
       if (!list.length) return `<div class="empty">No alerts.</div>`;
       // Stable sort keeps the server's newest-first order within each group.
       const rank = (a) => (a.status === "stale" ? 1 : 0);
-      const sorted = [...list].sort((a, b) => rank(a) - rank(b));
+      const sorted = collapseInspectorFibDuplicates(
+        [...list].sort((a, b) => rank(a) - rank(b)),
+      );
       return sorted
         .map((a) => {
           const stale = a.status === "stale";
@@ -18076,6 +18147,7 @@
     .alert-kind.info { color: #93c5fd; border-color: rgba(96,165,250,0.4); background: rgba(96,165,250,0.1); }
     .alert-kind.stale { color: var(--muted); background: transparent; }
     .pattern-validation-reasons { display: none; }
+    .help-btn { display: none; }
     .snap-chart-wrap figcaption { display: none; }
     .empty { color: var(--muted); font-size: 0.64rem; }
     .snap-footer { display: none; }

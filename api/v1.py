@@ -64,7 +64,7 @@ def _portfolio_enrichment(
     live = request.args.get("live", default=0, type=int) > 0
     upper = [s.upper() for s in symbols]
     if live:
-        return fundamentals_service.get_enrichment_bulk(upper)
+        return fundamentals_service.get_enrichment_bulk(upper, include_news=include_news)
 
     cached = fundamentals_service.get_enrichment_bulk_cached(upper)
     if not _enrichment_live_fallback_enabled():
@@ -76,14 +76,19 @@ def _portfolio_enrichment(
         fundamentals = data.get("fundamentals") or {}
         if not fundamentals:
             missing.append(symbol)
-            continue
-        if include_news and not (data.get("recentNews") or []):
-            missing.append(symbol)
     if not missing:
         return cached
-    live_fill = fundamentals_service.get_enrichment_bulk(missing)
+    # News is filled by the enrichment warmer. Live-filling empty headlines on
+    # /news-feed or /fundamentals was hanging Flask threads on Finnhub/Yahoo
+    # timeouts (20–30s each, then a Yahoo fallback).
+    live_fill = fundamentals_service.get_enrichment_bulk(missing, include_news=False)
     merged = dict(cached)
-    merged.update(live_fill)
+    for symbol, live in live_fill.items():
+        prev = cached.get(symbol, {})
+        merged[symbol] = {
+            "fundamentals": live.get("fundamentals") or prev.get("fundamentals") or {},
+            "recentNews": prev.get("recentNews") or [],
+        }
     return merged
 
 

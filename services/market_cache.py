@@ -268,7 +268,7 @@ _THROTTLED_PROPS = frozenset(
     {
         "info",
         "fast_info",
-        "news",
+        # News uses a dedicated fail-fast pool; do not occupy Yahoo quote slots.
         "analyst_price_targets",
         "balance_sheet",
         "income_stmt",

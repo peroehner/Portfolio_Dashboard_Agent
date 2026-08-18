@@ -11,8 +11,7 @@ Live glossary (mobile Buy/Sell Plan tooltips): [`mobile/lib/signalGlossary.ts`](
 | Name | Formula (short) | Used in | Not the same as |
 |------|-----------------|---------|-----------------|
 | **SAI Score** | State + Trigger + Fit → 0–100 | SAI Conf·Score chip, Bet-S-Hit scale, **Buy Plan** Score mode baseline, web Sim **Buy Score** baseline | Plan Attract / Sell Rank / Trim |
-| **SAI Conf** | High ≥75 · Med ≥35 · else Low (may **soften**) | Conf chip, Bet-S-Hit **Label** weight (3/2/1) | Fit Band (raw; same cuts) |
-| **Fit Band** | High ≥75 · Med ≥35 · else Low (**raw** Score) | Agent Signal Record `byFitBand` | SAI Conf (softened Label) |
+| **SAI Conf** | High ≥75 · Med ≥35 · else Low (may **soften**) | Conf chip, Bet-S-Hit **Label** weight (3/2/1) | Score (numeric; Conf can lag after soften) |
 | **Proximity** | \|price − threshold\| / price × 100% | Buy/Sell Plan Prox mode, web Sim **Close %** | Scores |
 | **Plan Attract** | P(proximity) + T(triggered) + S(size) ≈ 0–80 | Sell Plan breakdown (P/T/S) | SAI Score |
 | **Plan Sell Rank** | 80 − Plan Attract | **Sell Plan** Score mode baseline, web Sim **Sell Rank** baseline | Trim Score |
@@ -45,19 +44,7 @@ Full pillar detail and action bands: [PROPOSAL_FRAMEWORK.md](./PROPOSAL_FRAMEWOR
 
 Label may be **softened one notch** (stability / vetoes). **Score does not drop** with that soften — so Conf and Score can disagree. Screening Conf·Score hover uses **published** Conviction (`proposal.confidence`), matching the chip and Bet-S-Hit weight.
 
-### Fit Band
-
-**Same cuts and names as Conf base**, on **raw** Score (**not** softened):
-
-| Band | Score range |
-|------|-------------|
-| high | 75–100 |
-| medium | 35–74 |
-| low | 0–34 |
-
-Hover Conf · Score (Inspector): State / Trigger / Fit sit on that chip. Fit Band is **not** shown on Screening, Inspector SAI, or mobile SAI — those use **Conf · Score** only. Agent Signal Record still slices `byFitBand`.
-
-**Why Fit Band still exists:** Conf = published (may soften); Fit Band = raw control for Bet-S-Hit quality. Action bands (Buy/Watch/Sell) use a separate threshold ladder and are unchanged.
+A former **Fit Band** chip (raw Score with the same High/Med/Low cuts) is **no longer shown** in SAI UI. Conf · Score is the only user-facing strength pair.
 
 ### Bet-S-Hit (Agent Signal Record)
 
@@ -90,7 +77,9 @@ Mobile-first workflow: **Buy Plan** and **Sell Plan** pools (qualification + sor
 | **Proximity** | Gate / sort by distance to buy threshold | Gate / sort by distance to sell threshold |
 | **Score** | Gate / sort by **effective Buy Score** = `SAI Score − conviction penalty` (≥ threshold; higher = stronger) | Gate / sort by **effective Sell Rank** = `Plan Sell Rank + conviction penalty` (≤ threshold; lower = stronger) |
 
-Mode toggle label on mobile: **SAI / Rank**.
+Mode toggle label on mobile: **SAI / Rank\*** (`*` = effective after conviction penalty).
+
+**Thumb rules:** Buy Score — higher = stronger buy-to-fire. Sell Rank — lower = stronger sell-to-fire. Loss/Trim Score — higher = stronger harvest candidate.
 
 In Score mode, both mobile and web apply a hidden strictness penalty from published conviction (`proposal.confidence`) plus Attention `!`:
 
@@ -162,16 +151,17 @@ Pass 2 should consume harvest **facts** (loss/trim residual, `tax_loss_candidate
 
 ## Naming gotchas
 
-1. **Conf vs Fit Band** — same High/Medium/Low cuts on SAI Score; **only Conf softens**. Fit Band is the raw control.
+1. **Conf vs Score** — Conf may soften one notch; Score does not drop. They can disagree; hover Conf to see why.
 2. **Sell Rank ≠ Trim Score** — planned-leg readiness vs winner-harvest rank.
-3. **Buy Score (web/mobile Score mode) = SAI Score** — not Plan Attract.
-4. **`fit_total` in track-record storage = SAI Score total**, not Portfolio Fit alone.
+3. **Buy Score (web/mobile Score mode) = effective SAI Score** (minus conviction penalty) — not Plan Attract. **Higher = stronger buy-to-fire.**
+4. **Sell Rank (Score mode) = effective Plan Sell Rank** (plus conviction penalty). **Lower = stronger sell-to-fire.** Not Trim Score.
+5. **`fit_total` in track-record storage = SAI Score total**, not Portfolio Fit pillar alone.
 
 ---
 
 ## Related
 
 - [PROPOSAL_FRAMEWORK.md](./PROPOSAL_FRAMEWORK.md) — pillars, Conf vs Score, Intent, API shape  
-- [signal_track_record.md](./signal_track_record.md) — Bet-S-Hit, Fit Band tables  
+- [signal_track_record.md](./signal_track_record.md) — Bet-S-Hit, confidence slices  
 - [MOBILE.md](./MOBILE.md) — Trade Plan / SAI surfaces  
 - [API.md](./API.md) — proposal / assessment fields  

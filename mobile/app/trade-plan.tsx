@@ -1080,12 +1080,13 @@ export default function TradePlanScreen() {
               onLongPress={() =>
                 Alert.alert(
                   "Score mode",
-                  `${signalTooltip("saiScore")}\n\n${signalTooltip("planSellRank")}`,
+                  "Rule of thumb:\n• Buy Score — HIGHER = stronger buy-to-fire\n• Sell Rank — LOWER = stronger sell-to-fire\n\nNumbers shown are effective (conviction penalty already applied).\n\n" +
+                    `${signalTooltip("saiScore")}\n\n${signalTooltip("planSellRank")}`,
                 )
               }
               delayLongPress={280}
               accessibilityState={{ selected: qualificationMode === "score" }}
-              accessibilityHint="Buy uses SAI Score. Sell uses Plan Sell Rank. Low conviction tightens the score bar."
+              accessibilityHint="Buy Score: higher is stronger. Sell Rank: lower is stronger. Low conviction tightens automatically."
             >
               <Text
                 style={[
@@ -1093,14 +1094,14 @@ export default function TradePlanScreen() {
                   qualificationMode === "score" ? styles.qualModeTextActive : styles.qualModeTextIdle,
                 ]}
               >
-                SAI / Rank
+                SAI / Rank*
               </Text>
             </Pressable>
           </View>
         </View>
         {scopeLabel ? <Text style={styles.scopeHint}>Scope: {scopeLabel}</Text> : null}
         {qualificationMode === "score" ? (
-          <Text style={styles.scopeHint}>Low conviction legs require stronger setup (applied automatically).</Text>
+          <Text style={styles.scopeHint}>* Effective scores/ranks include an automatic conviction penalty.</Text>
         ) : null}
         <View style={styles.poolRow}>
           <PoolCard

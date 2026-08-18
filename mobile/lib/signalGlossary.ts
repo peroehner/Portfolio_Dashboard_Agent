@@ -3,7 +3,6 @@
 export type SignalKey =
   | "saiScore"
   | "saiConf"
-  | "fitBand"
   | "proximity"
   | "planAttract"
   | "planSellRank"
@@ -24,36 +23,29 @@ export const SIGNAL_GLOSSARY: Record<SignalKey, SignalDef> = {
     label: "SAI Score",
     shortLabel: "SAI",
     formula: "State + Trigger + Fit → 0–100",
-    meaning: "Published agent setup quality. High = stronger buy lean. Score mode applies a hidden conviction penalty before gating/ranking.",
+    meaning:
+      "Rule of thumb: HIGHER = stronger buy-to-fire. Score mode shows SAI Score minus a hidden conviction penalty (High 0 · Med 6 · Low 12 · Attention ! +5).",
   },
   saiConf: {
     key: "saiConf",
     label: "SAI Conf",
     shortLabel: "Conf",
     formula: "High ≥75 · Medium ≥35 · else Low (may soften for gates/vetoes)",
-    meaning: "Published conviction label from SAI Score.",
-  },
-  fitBand: {
-    key: "fitBand",
-    label: "Fit Band",
-    shortLabel: "Fit",
-    formula: "High ≥75 · Medium ≥35 · else Low (raw SAI Score; no soften)",
-    meaning: "Same cuts/names as SAI Conf base — compare to Conf to see softening impact.",
+    meaning: "Published conviction. Score does not drop when Conf softens.",
   },
   proximity: {
     key: "proximity",
     label: "Proximity",
     shortLabel: "Prox",
     formula: "|price − threshold| / price × 100%",
-    meaning: "Distance to this planned-trade threshold. Lower = closer to fire.",
+    meaning: "Rule of thumb: LOWER % = closer to firing this planned-trade threshold.",
   },
   planAttract: {
     key: "planAttract",
     label: "Plan Attract",
     shortLabel: "Attract",
     formula: "P(proximity) + T(triggered) + S(size) ≈ 0–80",
-    meaning:
-      "Planned-leg readiness (not SAI Score). Shown as P/T/S under Sell Rank. Sell Rank = 80 − Attract.",
+    meaning: "Leg readiness (not SAI Score). Sell Rank = 80 − Attract, then Score mode adds a conviction penalty.",
   },
   planSellRank: {
     key: "planSellRank",
@@ -61,21 +53,21 @@ export const SIGNAL_GLOSSARY: Record<SignalKey, SignalDef> = {
     shortLabel: "Sell Rank",
     formula: "80 − Plan Attract (P+T+S)",
     meaning:
-      "Sell-side planned-trade rank for Trade Above legs. Lower = closer/triggered/larger → stronger sell-to-fire. Score mode adds a hidden conviction penalty to this rank. Not Trim Score.",
+      "Rule of thumb: LOWER = stronger sell-to-fire. Score mode shows this rank plus a hidden conviction penalty. Not Trim Score.",
   },
   lossScore: {
     key: "lossScore",
     label: "Loss Score",
     shortLabel: "Loss",
     formula: "Residual loss vs cost after 1YT (0–50 curve)",
-    meaning: "Tax-loss harvest rank among losers.",
+    meaning: "Rule of thumb: HIGHER = more attractive tax-loss sell. Harvest rank — not planned-trade Sell Rank.",
   },
   trimScore: {
     key: "trimScore",
     label: "Trim Score",
     shortLabel: "Trim",
     formula: "Exhaustion + 52W peak + weight + Intent",
-    meaning: "Winner-harvest rank (Tax & Trim), not planned Sell Rank.",
+    meaning: "Rule of thumb: HIGHER = better winner to harvest now. Harvest rank — not planned-trade Sell Rank.",
   },
 };
 

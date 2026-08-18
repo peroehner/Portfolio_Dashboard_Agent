@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { GlossaryHint } from "@/components/GlossaryHint";
 import { ApiError, api } from "@/lib/api";
 import { parseSymbolFilter } from "@/lib/filters";
 import { formatMoney, formatPrice, formatQty } from "@/lib/format";
@@ -100,6 +101,7 @@ function PoolSliderCard({
   cashAmount,
   helperText,
   scoreLabel,
+  scoreHint,
   scoreValue,
   scoreMax,
   onScoreChange,
@@ -112,6 +114,7 @@ function PoolSliderCard({
   cashAmount: string;
   helperText?: string | null;
   scoreLabel: string;
+  scoreHint?: "lossScore" | "trimScore";
   scoreValue: number;
   scoreMax: number;
   onScoreChange: (next: number) => void;
@@ -142,7 +145,11 @@ function PoolSliderCard({
         </View>
       </View>
       <View style={styles.poolSliderHeader}>
-        <Text style={styles.poolSliderLabel}>{scoreLabel}</Text>
+        {scoreHint ? (
+          <GlossaryHint signal={scoreHint} label={scoreLabel} style={styles.poolSliderLabel} />
+        ) : (
+          <Text style={styles.poolSliderLabel}>{scoreLabel}</Text>
+        )}
         <Text style={[styles.poolSliderValue, { color: trackColor }]}>{Math.round(scoreValue)}</Text>
       </View>
       <Slider
@@ -684,6 +691,7 @@ export default function TaxTrimScreen() {
             cashAmount={formatMoney(lossPoolCash, true)}
             helperText={`${lossSelected} of ${lossTotal} qualified`}
             scoreLabel="Loss-score ≥"
+            scoreHint="lossScore"
             scoreValue={lossScoreThreshold}
             scoreMax={LOSS_SCORE_MAX}
             onScoreChange={setLossScoreThreshold}
@@ -699,6 +707,7 @@ export default function TaxTrimScreen() {
               matchLossPool ? " · Match Losses" : landscape || width >= 760 ? " · Full trim capacity" : ""
             }`}
             scoreLabel="Trim-score ≥"
+            scoreHint="trimScore"
             scoreValue={trimScoreThreshold}
             scoreMax={TRIM_SCORE_MAX}
             onScoreChange={setTrimScoreThreshold}

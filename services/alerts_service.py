@@ -8,6 +8,7 @@ from services.fib_roles import (
     fib_bet_label,
     fib_context_from_alert,
     format_fib_proximity_message,
+    ratio_from_label,
 )
 from services.fib_service import FibService
 from services.holdings_service import HoldingsService
@@ -112,6 +113,7 @@ class AlertsService:
 
     def evaluate_all(self, engine) -> list[dict[str, Any]]:
         self._dedupe_active_alerts()
+        self._collapse_fib_identity_alerts()
         created = []
         # Signatures whose triggering condition is TRUE this cycle. Collected in
         # _create_alert (called only when a condition holds) even when the insert
@@ -127,6 +129,7 @@ class AlertsService:
             # Harvest alerts are additive — never fail the whole Check Alerts run.
             pass
         self._apply_staleness(true_signatures)
+        self._collapse_fib_identity_alerts()
         return [alert for alert in created if alert is not None]
 
     @staticmethod
@@ -148,9 +151,37 @@ class AlertsService:
         """
         if alert_type == _FIB_ALERT_TYPE:
             ref = -1.0
+            level = AlertsService._fib_level_identity(fib_level)
         else:
             ref = -1.0 if reference_value is None else round(float(reference_value), 4)
-        return (str(symbol).upper(), alert_type, ref, fib_level or "")
+            level = fib_level or ""
+        return (str(symbol).upper(), alert_type, ref, level)
+
+    @staticmethod
+    def _fib_level_identity(fib_level: str | None) -> str:
+        """Coarse Fib type key: 38.2% Retracement and 38.2% are the same level."""
+        ratio = ratio_from_label(fib_level)
+        if ratio is not None:
+            return f"{ratio:.4f}"
+        return (fib_level or "").strip()
+
+    @staticmethod
+    def _fib_identity_keep_ids(rows: list[dict[str, Any]]) -> set[int]:
+        """One Fib row per symbol + level: prefer active, else newest id."""
+        groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        for row in rows:
+            key = (
+                str(row.get("symbol") or "").upper(),
+                AlertsService._fib_level_identity(row.get("fib_level")),
+            )
+            groups.setdefault(key, []).append(row)
+        keep: set[int] = set()
+        for members in groups.values():
+            active = [r for r in members if r.get("status") == "active"]
+            pool = active or members
+            best = max(pool, key=lambda r: int(r["id"]))
+            keep.add(best["id"])
+        return keep
 
     @staticmethod
     def _staleness_transitions(
@@ -219,6 +250,34 @@ class AlertsService:
                   )
                 """,
                 (user_id, user_id),
+            )
+            conn.commit()
+            return cursor.rowcount
+
+    def _collapse_fib_identity_alerts(self) -> int:
+        """Retire leftover Fib reprints of the same level (any $ / wording).
+
+        Inspector lists ``active`` + ``stale``. Same-type twins of a level that
+        is not currently live never become ``true``, so staleness will not
+        collapse them — this pass does.
+        """
+        user_id = get_current_user_id()
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, symbol, fib_level, status
+                FROM alerts
+                WHERE user_id = %s AND alert_type = %s AND status IN ('active', 'stale')
+                """,
+                (user_id, _FIB_ALERT_TYPE),
+            ).fetchall()
+            keep = self._fib_identity_keep_ids(rows)
+            ids = [row["id"] for row in rows if row["id"] not in keep]
+            if not ids:
+                return 0
+            cursor = conn.execute(
+                "UPDATE alerts SET status = 'superseded' WHERE id = ANY(%s)",
+                (ids,),
             )
             conn.commit()
             return cursor.rowcount
@@ -853,8 +912,7 @@ class AlertsService:
                 conn.execute(
                     """
                     UPDATE alerts SET status = 'superseded'
-                    WHERE user_id = %s AND symbol = %s AND alert_type = %s
-                      AND status IN ('active', 'stale')
+                    WHERE user_id = %s AND symbol = %s AND alert_type = %s AND status = 'active'
                     """,
                     (user_id, symbol, _FIB_ALERT_TYPE),
                 )
@@ -900,25 +958,33 @@ class AlertsService:
     def _supersede_other_fib_alerts(
         self, symbol: str, keep_fib_level: str | None
     ) -> int:
-        """Retire leftover Fib rows for ``symbol`` that aren't the live identity.
+        """Retire stale $ twins of the live Fib level; keep other Fib types.
 
-        Keeps the active row matching ``keep_fib_level``; supersedes other
-        ``active``/``stale`` Fib rows (different labels, and stale $ twins of
-        the same label).
+        38.2% reprints collapse; a muted 61.8% history row is left alone.
         """
         user_id = get_current_user_id()
+        keep_key = self._fib_level_identity(keep_fib_level)
         with get_connection() as conn:
-            cursor = conn.execute(
+            rows = conn.execute(
                 """
-                UPDATE alerts SET status = 'superseded'
+                SELECT id, fib_level, status
+                FROM alerts
                 WHERE user_id = %s AND symbol = %s AND alert_type = %s
                   AND status IN ('active', 'stale')
-                  AND NOT (
-                      status = 'active'
-                      AND COALESCE(fib_level, '') = COALESCE(%s, '')
-                  )
                 """,
-                (user_id, symbol, _FIB_ALERT_TYPE, keep_fib_level or ""),
+                (user_id, symbol, _FIB_ALERT_TYPE),
+            ).fetchall()
+            ids = [
+                row["id"]
+                for row in rows
+                if row["status"] != "active"
+                and self._fib_level_identity(row.get("fib_level")) == keep_key
+            ]
+            if not ids:
+                return 0
+            cursor = conn.execute(
+                "UPDATE alerts SET status = 'superseded' WHERE id = ANY(%s)",
+                (ids,),
             )
             conn.commit()
             return cursor.rowcount

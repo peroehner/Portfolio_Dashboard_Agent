@@ -18,6 +18,8 @@ class FibRoleMetaTests(unittest.TestCase):
         self.assertEqual(ratio_from_label("61.8%"), 0.618)
         self.assertEqual(ratio_from_label("0.618"), 0.618)
         self.assertEqual(ratio_from_label("50%"), 0.5)
+        self.assertEqual(ratio_from_label("38.2% Retracement"), 0.382)
+        self.assertEqual(ratio_from_label("61.8% Golden Pocket"), 0.618)
 
     def test_golden_pocket_metadata(self):
         meta = describe_fib_label("61.8%")

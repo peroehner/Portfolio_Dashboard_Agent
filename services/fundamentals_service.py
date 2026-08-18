@@ -23,6 +23,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from typing import Any
 
 import certifi
@@ -57,6 +58,17 @@ _finnhub_429_cooldown_seconds = float(
 _finnhub_429_until = [0.0]   # monotonic timestamp; 0 = not in cooldown
 _finnhub_429_lock = threading.Lock()
 
+# Network timeouts (Finnhub handshake / Yahoo curl 28) used to hold Flask
+# threads and the Yahoo semaphore for 20–30s per symbol, then fall back to
+# another 30s Yahoo news call. Fail fast and skip live news until cooldown.
+_news_http_timeout = float(os.environ.get("NEWS_HTTP_TIMEOUT_SECONDS", "4"))
+_news_timeout_cooldown_seconds = float(
+    os.environ.get("NEWS_TIMEOUT_COOLDOWN_SECONDS", "120")
+)
+_news_timeout_until = [0.0]
+_news_timeout_lock = threading.Lock()
+_news_fetch_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="news-fetch")
+
 
 def _finnhub_in_429_cooldown() -> bool:
     return time.monotonic() < _finnhub_429_until[0]
@@ -77,6 +89,30 @@ def _finnhub_throttle() -> None:
         if wait > 0:
             time.sleep(wait)
         _finnhub_last_call[0] = time.monotonic()
+
+
+def _news_timeout_cooling() -> bool:
+    return time.monotonic() < _news_timeout_until[0]
+
+
+def _news_mark_timeout() -> None:
+    if _news_timeout_cooldown_seconds <= 0:
+        return
+    with _news_timeout_lock:
+        _news_timeout_until[0] = time.monotonic() + _news_timeout_cooldown_seconds
+
+
+def _is_timeout_error(exc: BaseException) -> bool:
+    if isinstance(exc, TimeoutError):
+        return True
+    reason = getattr(exc, "reason", None)
+    if isinstance(reason, TimeoutError):
+        return True
+    text = str(exc).lower()
+    return any(
+        token in text
+        for token in ("timed out", "timeout", "curl: (28)", "handshake operation")
+    )
 
 
 # Yahoo's analyst price-target endpoint is reliable in isolation but drops calls
@@ -230,17 +266,19 @@ class FundamentalsService:
             return self.news_provider
         return "finnhub" if self.finnhub_api_key else "yfinance"
 
-    def get_enrichment(self, symbol: str) -> dict[str, Any]:
+    def get_enrichment(self, symbol: str, include_news: bool = True) -> dict[str, Any]:
         """Return {fundamentals, recentNews} for a symbol; empty dicts on failure."""
         if not self.enabled:
             return {"fundamentals": {}, "recentNews": []}
         symbol = symbol.upper()
         return {
             "fundamentals": self.fetch_fundamentals(symbol),
-            "recentNews": self.fetch_recent_news(symbol),
+            "recentNews": self.fetch_recent_news(symbol) if include_news else [],
         }
 
-    def get_enrichment_bulk(self, symbols: list[str]) -> dict[str, dict[str, Any]]:
+    def get_enrichment_bulk(
+        self, symbols: list[str], include_news: bool = True
+    ) -> dict[str, dict[str, Any]]:
         """Fetch enrichment for many symbols in parallel; keyed by upper-cased symbol."""
         unique = [s.upper() for s in dict.fromkeys(symbols)]
         if not unique:
@@ -251,7 +289,10 @@ class FundamentalsService:
         from services.market_cache import yf_pool
 
         results: dict[str, dict[str, Any]] = {}
-        for symbol, enrichment in zip(unique, yf_pool.map(self.get_enrichment, unique)):
+        for symbol, enrichment in zip(
+            unique,
+            yf_pool.map(lambda s: self.get_enrichment(s, include_news=include_news), unique),
+        ):
             results[symbol] = enrichment
         return results
 
@@ -727,7 +768,7 @@ class FundamentalsService:
         if self.news_limit <= 0:
             return []
         provider = self.active_news_provider()
-        if _in_cooldown(f"news:{symbol}"):
+        if _in_cooldown(f"news:{symbol}") or _news_timeout_cooling():
             return []
         # Skip Finnhub entirely while the portfolio-wide 429 circuit-breaker is open.
         if provider == "finnhub" and _finnhub_in_429_cooldown():
@@ -739,17 +780,39 @@ class FundamentalsService:
             return news_cache.get(f"yfinance:{symbol}", lambda: self._fetch_yfinance_news(symbol))
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to fetch news for %s via %s: %s", symbol, provider, exc)
+            if _is_timeout_error(exc):
+                _news_mark_timeout()
+                _mark_cooldown(f"news:{symbol}")
+                return []
             if provider == "finnhub":
-                # Open the circuit-breaker so remaining parallel calls skip Finnhub.
-                _finnhub_mark_429()
+                http_code = getattr(exc, "code", None)
+                if http_code == 429:
+                    _finnhub_mark_429()
                 try:
-                    return news_cache.get(f"yfinance:{symbol}", lambda: self._fetch_yfinance_news(symbol))
+                    return news_cache.get(
+                        f"yfinance:{symbol}", lambda: self._fetch_yfinance_news(symbol)
+                    )
                 except Exception as fallback_exc:  # noqa: BLE001
                     logger.warning("yfinance news fallback failed for %s: %s", symbol, fallback_exc)
+                    if _is_timeout_error(fallback_exc):
+                        _news_mark_timeout()
             _mark_cooldown(f"news:{symbol}")
             return []
 
     def _fetch_yfinance_news(self, symbol: str) -> list[dict[str, Any]]:
+        """Yahoo news with a short wait so a 30s curl hang cannot stall the UI.
+
+        The Yahoo price semaphore is not used here; hung news stays on the
+        dedicated news pool instead of blocking quotes.
+        """
+        timeout = max(0.5, _news_http_timeout)
+        future = _news_fetch_pool.submit(self._fetch_yfinance_news_blocking, symbol)
+        try:
+            return future.result(timeout=timeout)
+        except FuturesTimeout as exc:
+            raise TimeoutError(f"yfinance news timed out after {timeout:.0f}s") from exc
+
+    def _fetch_yfinance_news_blocking(self, symbol: str) -> list[dict[str, Any]]:
         raw = make_ticker(symbol).news or []
         return self._normalize_news(raw)
 
@@ -764,7 +827,7 @@ class FundamentalsService:
             f"&from={from_date.isoformat()}&to={to_date.isoformat()}"
             f"&token={urllib.parse.quote(self.finnhub_api_key)}"
         )
-        raw = self._get_json(url)
+        raw = self._get_json(url, timeout=_news_http_timeout, retries=0)
         return self._normalize_finnhub_news(raw)
 
     def _normalize_finnhub_news(self, raw: Any) -> list[dict[str, Any]]:
@@ -797,19 +860,20 @@ class FundamentalsService:
         return items
 
     @staticmethod
-    def _get_json(url: str) -> Any:
+    def _get_json(url: str, timeout: float = 20, retries: int | None = None) -> Any:
         ctx = ssl.create_default_context(cafile=certifi.where())
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
         is_finnhub = "finnhub.io" in url
-        # One immediate retry on 429 (short sleep). The portfolio-wide circuit-
-        # breaker in fetch_recent_news already prevents follow-on calls from
-        # stacking up, so we no longer need the old 3-attempt × 1.5s chain.
-        attempts = 2 if is_finnhub else 1
+        # News uses retries=0. Fundamentals keep one immediate 429 retry.
+        if retries is None:
+            attempts = 2 if is_finnhub else 1
+        else:
+            attempts = max(1, int(retries) + 1)
         for attempt in range(attempts):
             if is_finnhub:
                 _finnhub_throttle()
             try:
-                with urllib.request.urlopen(req, timeout=20, context=ctx) as response:
+                with urllib.request.urlopen(req, timeout=timeout, context=ctx) as response:
                     return json.loads(response.read().decode("utf-8"))
             except urllib.error.HTTPError as exc:
                 if exc.code == 429 and attempt < attempts - 1:

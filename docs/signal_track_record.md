@@ -194,7 +194,7 @@ Screening **Conf · Score** hover explains the pair; full model + cross-surface 
 **SAI strength metadata (P1 — implemented):** recommendation bets store
 `confidence`, `fit_total`, and `band_code` at capture (from the published
 proposal). Older rows are backfilled from `assessments` via `assessment_id` when
-Summary loads. Summary exposes `byConfidence` and `byFitBand` slices.
+Summary loads. Summary exposes `byConfidence` in the UI. `byFitBand` remains in the API only (not rendered).
 
 **Confluence band metadata:** confluence bets store `confluence_band`
 (`lean` | `strong`), `confluence_score`, `agree_count`, `conflict_count`, and
@@ -236,8 +236,9 @@ UI colors (green ≥ 60%, amber ≥ 40%) are display thresholds, not proven edge
 **When populated:**
 
 - Overall hit rate + evaluated / wins / losses / Price · Follow · Bet Strength Hit
-- Tables: **SAI actions**, **SAI by confidence**, **SAI by Fit band**, **Chart patterns**,
+- Tables: **SAI actions**, **SAI by confidence**, **Chart patterns**,
   **Fib levels**, **Confluence bias**
+  (API still exposes `byFitBand`; it is **not** shown in the UI.)
 
 Color bands (hit rate): green ≥ 60%, amber ≥ 40%, red below.
 

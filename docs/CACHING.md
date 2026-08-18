@@ -119,7 +119,9 @@ A daemon thread (`background_enrichment_warmer_loop` in `main.py`) paces fundame
 2. **Held** symbols (positive `holdings.quantity`)
 3. Remaining watchlist tickers
 
-User endpoints read **persisted** blobs first (`symbol_market.fundamentals_json`, `symbol_market.news_json`). Pass `?live=1` to force the old on-demand bulk fetch. When `ENRICHMENT_LIVE_FALLBACK=1` (default), symbols with no warm cache yet are still filled live on the first request.
+User endpoints read **persisted** blobs first (`symbol_market.fundamentals_json`, `symbol_market.news_json`). Pass `?live=1` to force the old on-demand bulk fetch. When `ENRICHMENT_LIVE_FALLBACK=1` (default), symbols **missing fundamentals** are filled live. **Empty news is not a live-fill trigger** — headlines come from the warmer so `/news-feed` cannot stall Flask on Finnhub/Yahoo timeouts.
+
+News HTTP timeout defaults to **4s** (`NEWS_HTTP_TIMEOUT_SECONDS`). A handshake/connect timeout opens a process-wide news cooldown (`NEWS_TIMEOUT_COOLDOWN_SECONDS`, default 120s) and **does not** fall back to a 30s Yahoo news call.
 
 ### Fundamentals
 
@@ -128,10 +130,10 @@ User endpoints read **persisted** blobs first (`symbol_market.fundamentals_json`
 ### News & Changes (`GET /news-feed`)
 
 1. Loads recommendation changes from Postgres (cheap)
-2. Reads **cached** enrichment per symbol (no burst unless `?live=1` or cache miss with live fallback)
+2. Reads **cached** news per symbol (warmer-filled). Missing headlines are **not** live-fetched on this request.
 3. Runs **`score_and_rank`** (bulk price history) to rank headlines by market reaction
 
-Mobile aborts at **45s** when live fallback must cold-fetch a large portfolio. After the warmer has cycled, opens are typically fast.
+Pass `?live=1` to force on-demand news. After a Finnhub/Yahoo timeout, live news is skipped for two minutes so the web client stays responsive.
 
 Web Summary throttles top news to ≤ every 5 minutes and often calls `/news-feed` with `skipChanges=1`.
 
@@ -157,7 +159,7 @@ Web Summary throttles top news to ≤ every 5 minutes and often calls `/news-fee
 | Fundamentals tab | Always API on tab open | Mount + pull-to-refresh |
 | Fundamentals client TTL | Simulation only (60s) | None |
 | Fundamentals server TTL | ~6h (+ 52W/15m overlays) | Same |
-| News | Throttled ≤5 min on Summary | Full `/news-feed` on mount; 45s timeout; Retry often OK |
+| News | Throttled ≤5 min on Summary | Cached feed; 4s news HTTP timeout; Retry after warmer |
 | Screening / Fib | 60s browser cache | Not in mobile v1 |
 
 ---
