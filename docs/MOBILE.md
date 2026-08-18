@@ -24,11 +24,11 @@ Use **TestFlight** when you are away from home. Expo Go still needs a Metro pack
 | **News** | `GET /news-feed` | SAI changes + ranked news |
 | **Alerts** | `GET /alerts`, `POST /alerts/{id}/dismiss` | Active alerts, dismiss |
 | **Symbol** (stack) | `GET /symbols/{symbol}/inspector` | Summary: SAI chips = Action/`!` · Conf · Score · Sentiment, then offset Portfolio Intent (**role glyph + label**, e.g. shield / Core + opportunistic); rationale with figure+unit emphasis; Drivers; **What to watch**; wide paired rows **Holdings ‖ Thresholds** and **Key Fundamentals ‖ Analyst · Health**. Compact **Delete Symbol** right-aligned. **Agent Reads** (Assess Symbol / Clear history). Alerts links to filtered **Alerts** / **News**. |
-| **Buy / Sell Plan** | Portfolio planned trades + SAI proposal | Mobile-only pools: Prox or Score mode. **Buy Score mode = SAI Score**; **Sell Score mode = Plan Sell Rank** (`80 − Attract`). Glossary long-press: [`mobile/lib/signalGlossary.ts`](../mobile/lib/signalGlossary.ts). See [SIGNAL_SCORES.md](./SIGNAL_SCORES.md). |
+| **Buy / Sell Plan** | Portfolio planned trades + SAI proposal | Mobile-only pools: Prox or Score mode. Score mode keeps one slider but applies hidden conviction strictness (Conf + Attention `!`): **effective Buy Score = SAI Score − penalty** and **effective Sell Rank = (80 − Attract) + penalty**. Glossary long-press: [`mobile/lib/signalGlossary.ts`](../mobile/lib/signalGlossary.ts). See [SIGNAL_SCORES.md](./SIGNAL_SCORES.md). |
 
 Inspector SAI uses live `recommendation.proposal` (same framework as web). Portfolio SAI badges use slim proposal from `GET /assessments/overview` when present (Attention `!` when Score-band ≠ Action).
 
-**Web parity:** Simulation **Buys / Sells** columns show **Buy Score** / **Sell Rank** beside Close %; there is not yet a dedicated Buy & Sell panel like Tax & Trim.
+**Web parity:** Simulation **Buys / Sells** columns show **effective Buy Score** / **effective Sell Rank** (same hidden conviction strictness as mobile) beside Close %; there is not yet a dedicated Buy & Sell panel like Tax & Trim.
 
 Comma-separated ticker filters work the same as the web app (`GH, ne` → GH and NET).
 

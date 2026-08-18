@@ -24,7 +24,7 @@ export const SIGNAL_GLOSSARY: Record<SignalKey, SignalDef> = {
     label: "SAI Score",
     shortLabel: "SAI",
     formula: "State + Trigger + Fit → 0–100",
-    meaning: "Published agent setup quality. High = stronger buy lean.",
+    meaning: "Published agent setup quality. High = stronger buy lean. Score mode applies a hidden conviction penalty before gating/ranking.",
   },
   saiConf: {
     key: "saiConf",
@@ -61,7 +61,7 @@ export const SIGNAL_GLOSSARY: Record<SignalKey, SignalDef> = {
     shortLabel: "Sell Rank",
     formula: "80 − Plan Attract (P+T+S)",
     meaning:
-      "Sell-side planned-trade rank for Trade Above legs. Lower = closer/triggered/larger → stronger sell-to-fire. Not Trim Score.",
+      "Sell-side planned-trade rank for Trade Above legs. Lower = closer/triggered/larger → stronger sell-to-fire. Score mode adds a hidden conviction penalty to this rank. Not Trim Score.",
   },
   lossScore: {
     key: "lossScore",

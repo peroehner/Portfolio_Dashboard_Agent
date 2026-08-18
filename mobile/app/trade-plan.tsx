@@ -58,6 +58,16 @@ type PlanCandidate = {
   planSellRank: number;
   /** SAI Score = State+Trigger+Fit (buy Score mode). */
   saiScore: number | null;
+  /** Published confidence (may be softened by Pass 2). */
+  saiConfidence: string | null;
+  /** Attention mismatch between stored Action and live Score band. */
+  attentionFlag: boolean;
+  /** Conviction model (0-100): score+confidence(+attention penalty). */
+  convictionScore: number;
+  /** Readiness model (0-100): normalized leg Attract. */
+  readinessScore: number;
+  /** Side-aware blend (0-100): Conviction + Readiness. */
+  executionScore: number;
 };
 
 type ProposedCandidate = PlanCandidate & {
@@ -97,6 +107,41 @@ function evalTradeLeg(price: number | null | undefined, shares: number | null | 
   return { price: Number(price), qty, buy };
 }
 
+function clamp01to100(value: number): number {
+  return Math.max(0, Math.min(100, value));
+}
+
+function confidenceBaseScore(confidence: string | null | undefined): number {
+  const conf = String(confidence || "").toLowerCase();
+  if (conf.startsWith("high")) return 85;
+  if (conf.startsWith("med")) return 60;
+  if (conf.startsWith("low")) return 35;
+  return 55;
+}
+
+function computeConvictionScore(
+  saiScore: number | null,
+  saiConfidence: string | null,
+  attentionFlag: boolean,
+): number {
+  const scorePart = saiScore == null ? 30 : saiScore;
+  const confPart = confidenceBaseScore(saiConfidence);
+  const attentionPenalty = attentionFlag ? 8 : 0;
+  return Math.round(clamp01to100(scorePart * 0.6 + confPart * 0.4 - attentionPenalty));
+}
+
+function computeReadinessScore(planAttract: number): number {
+  return Math.round(clamp01to100((planAttract / PLAN_ATTRACT_CEILING) * 100));
+}
+
+function computeExecutionScore(side: Side, convictionScore: number, readinessScore: number): number {
+  const blended =
+    side === "buy"
+      ? convictionScore * 0.55 + readinessScore * 0.45
+      : convictionScore * 0.45 + readinessScore * 0.55;
+  return Math.round(clamp01to100(blended));
+}
+
 function candidateFromRow(
   row: PortfolioRow,
   holdingBySymbol: Map<string, Holding>,
@@ -108,6 +153,8 @@ function candidateFromRow(
   const costBasis = Number(holdingBySymbol.get(row.symbol)?.costBasis);
   const saiTotal = Number(row.saiProposal?.scores?.total);
   const saiScore = Number.isFinite(saiTotal) ? Math.max(0, Math.min(SAI_SCORE_MAX, saiTotal)) : null;
+  const saiConfidence = row.saiConfidence == null ? null : String(row.saiConfidence);
+  const attentionFlag = Boolean(row.saiProposal?.attention?.flag);
   const below = evalTradeLeg(row.tradeBelowPrice ?? null, row.tradeBelowShares ?? null, "below");
   const above = evalTradeLeg(row.tradeAbovePrice ?? null, row.tradeAboveShares ?? null, "above");
   const legs = [below, above].filter((x) => !!x) as Array<{ price: number; qty: number; buy: boolean }>;
@@ -125,6 +172,9 @@ function candidateFromRow(
     const sizeScore = Math.min(15, (cash / 50_000) * 15);
     const planAttract = proximityScore + triggerScore + sizeScore;
     const planSellRank = Math.max(0, PLAN_ATTRACT_CEILING - planAttract);
+    const convictionScore = computeConvictionScore(saiScore, saiConfidence, attentionFlag);
+    const readinessScore = computeReadinessScore(planAttract);
+    const executionScore = computeExecutionScore(side, convictionScore, readinessScore);
     return {
       symbol: row.symbol,
       side,
@@ -144,6 +194,11 @@ function candidateFromRow(
       planAttract,
       planSellRank,
       saiScore,
+      saiConfidence,
+      attentionFlag,
+      convictionScore,
+      readinessScore,
+      executionScore,
     };
   });
 }
@@ -151,9 +206,21 @@ function candidateFromRow(
 /** Value used for Score-mode gate/sort: Buy → SAI Score, Sell → Plan Sell Rank. */
 function scoreModeValue(candidate: PlanCandidate): number {
   if (candidate.side === "buy") {
-    return candidate.saiScore == null ? -1 : candidate.saiScore;
+    if (candidate.saiScore == null) return -1;
+    return Math.max(0, candidate.saiScore - scoreThresholdPenalty(candidate));
   }
-  return candidate.planSellRank;
+  return candidate.planSellRank + scoreThresholdPenalty(candidate);
+}
+
+/** Hidden strictness penalty in Score mode (Option A): lower conviction raises the bar. */
+function scoreThresholdPenalty(candidate: PlanCandidate): number {
+  const conf = String(candidate.saiConfidence || "").toLowerCase();
+  let penalty = 6; // default medium-like strictness for unknown confidence
+  if (conf.startsWith("high")) penalty = 0;
+  else if (conf.startsWith("med")) penalty = 6;
+  else if (conf.startsWith("low")) penalty = 12;
+  if (candidate.attentionFlag) penalty += 5;
+  return penalty;
 }
 
 function passesQualificationGate(
@@ -169,6 +236,18 @@ function passesQualificationGate(
     return value >= 0 && value >= threshold;
   }
   return value <= threshold;
+}
+
+function scoreGateReason(candidate: PlanCandidate, threshold: number): string | null {
+  const value = scoreModeValue(candidate);
+  const penalty = scoreThresholdPenalty(candidate);
+  if (candidate.side === "buy") {
+    if (value < 0) return "No SAI Score yet";
+    if (value >= threshold) return null;
+    return `Needs Buy Score ${Math.round(threshold)} (effective ${Math.round(value)}, penalty ${penalty})`;
+  }
+  if (value <= threshold) return null;
+  return `Needs Sell Rank ${Math.round(threshold)} (effective ${Math.round(value)}, penalty ${penalty})`;
 }
 
 function maxLegQty(candidate: PlanCandidate): number {
@@ -196,7 +275,7 @@ function readinessWeight(
     return Math.max(0.15, Math.min(1, margin / Math.max(gateMax - threshold, 1)));
   }
   // Sell Rank: lower is stronger.
-  const margin = Math.max(0, threshold - candidate.planSellRank);
+  const margin = Math.max(0, threshold - scoreModeValue(candidate));
   return Math.max(0.15, Math.min(1, margin / Math.max(threshold, 1)));
 }
 
@@ -258,7 +337,9 @@ function proposeCandidates(
     const byWeight = [...pool].sort(
       (a, b) =>
         b.weight - a.weight ||
-        a.c.planSellRank - b.c.planSellRank ||
+        (a.c.side === "buy"
+          ? scoreModeValue(b.c) - scoreModeValue(a.c)
+          : scoreModeValue(a.c) - scoreModeValue(b.c)) ||
         a.c.proximityAbsPct - b.c.proximityAbsPct,
     );
     for (const item of byWeight) {
@@ -351,7 +432,7 @@ function PoolCard({
         }
       : {
           title: "Sell Budget",
-          body: "Off (0) = full planned qty for each qualified sell.\n\nSet a cash budget to soft-split among qualified legs by readiness (closer / stronger Sell Rank gets more), like Tax & Trim.",
+          body: "Off (0) = full planned qty for each qualified sell.\n\nSet a cash budget to soft-split among qualified legs by readiness (closer / stronger Sell Rank gets more). Low-conviction legs face a stricter hidden rank bar.",
         };
   return (
     <View
@@ -654,7 +735,7 @@ export default function TradePlanScreen() {
         .sort((a, b) => {
           // Sort follows Proximity / SAI·Rank switch.
           if (qualificationMode === "score") {
-            return a.planSellRank - b.planSellRank || a.proximityAbsPct - b.proximityAbsPct;
+            return scoreModeValue(a) - scoreModeValue(b) || a.proximityAbsPct - b.proximityAbsPct;
           }
           return a.proximityAbsPct - b.proximityAbsPct || a.planSellRank - b.planSellRank;
         }),
@@ -666,9 +747,7 @@ export default function TradePlanScreen() {
         .filter((row) => row.side === "buy")
         .sort((a, b) => {
           if (qualificationMode === "score") {
-            const aSai = a.saiScore ?? -1;
-            const bSai = b.saiScore ?? -1;
-            return bSai - aSai || a.proximityAbsPct - b.proximityAbsPct;
+            return scoreModeValue(b) - scoreModeValue(a) || a.proximityAbsPct - b.proximityAbsPct;
           }
           return a.proximityAbsPct - b.proximityAbsPct || (b.saiScore ?? -1) - (a.saiScore ?? -1);
         }),
@@ -752,7 +831,14 @@ export default function TradePlanScreen() {
     if (!sellCandidates.length) return <Text style={styles.empty}>No sell candidates in scope.</Text>;
     const browseSymbols = proposedSells.map((cand) => cand.symbol);
     return proposedSells.map((row) => {
+      const gatePasses = passesQualificationGate(row, sellGate, qualificationMode);
       const qualifies = row.proposedQty > 0;
+      const scoreReason =
+        qualificationMode === "score" && !gatePasses ? scoreGateReason(row, sellGate) : null;
+      const budgetReason =
+        qualificationMode === "score" && gatePasses && !qualifies && sellBudget > 0
+          ? "Qualified, but budget allocated to stronger legs"
+          : null;
       const maxTxt = row.pnl == null ? "—" : formatMoney(row.pnl, true);
       const propTxt = row.proposedPnl == null ? "—" : formatMoney(row.proposedPnl, true);
       const proxSortLabel = `${sortArrowFor("sell", "proximity")}Prox`;
@@ -794,8 +880,16 @@ export default function TradePlanScreen() {
                 <Text style={styles.metricValue}>{` ${row.proximitySignedPct >= 0 ? "+" : ""}${row.proximitySignedPct.toFixed(1)}%`}</Text>
                 <Text style={styles.metricLabel}>  · </Text>
                 <GlossaryHint signal="planSellRank" label={rankSortLabel} style={styles.metricLabel} />
-                <Text style={styles.metricValue}>{` ${Math.round(row.planSellRank)}`}</Text>
+                <Text style={styles.metricValue}>{` ${Math.round(scoreModeValue(row))}`}</Text>
               </View>
+              {qualificationMode === "score" ? (
+                <Text style={styles.metricSub}>
+                  C{row.convictionScore} · R{row.readinessScore} · E{row.executionScore}
+                </Text>
+              ) : null}
+              {scoreReason || budgetReason ? (
+                <Text style={styles.metricSub}>{scoreReason || budgetReason}</Text>
+              ) : null}
             </View>
           ) : (
             <View style={[styles.metricsRow, wideCards && styles.metricsRowWide]}>
@@ -823,7 +917,7 @@ export default function TradePlanScreen() {
               </View>
               <View style={[styles.metric, { flex: wideCards ? 1.0 : 0.85 }]}>
                 <GlossaryHint signal="planSellRank" label={rankSortLabel} style={styles.metricLabel} />
-                <Text style={styles.metricValue}>{Math.round(row.planSellRank)}</Text>
+                <Text style={styles.metricValue}>{Math.round(scoreModeValue(row))}</Text>
                 {wideCards ? null : (
                   <Pressable
                     onLongPress={() => Alert.alert("Plan Attract", signalTooltip("planAttract"))}
@@ -838,6 +932,14 @@ export default function TradePlanScreen() {
               </View>
             </View>
           )}
+          {qualificationMode === "score" ? (
+            <Text style={styles.metricSub}>
+              Conviction {row.convictionScore} · Readiness {row.readinessScore} · Execution {row.executionScore}
+            </Text>
+          ) : null}
+          {scoreReason || budgetReason ? (
+            <Text style={styles.metricSub}>{scoreReason || budgetReason}</Text>
+          ) : null}
         </Pressable>
       );
     });
@@ -847,7 +949,14 @@ export default function TradePlanScreen() {
     if (!buyCandidates.length) return <Text style={styles.empty}>No buy candidates in scope.</Text>;
     const browseSymbols = proposedBuys.map((cand) => cand.symbol);
     return proposedBuys.map((row) => {
+      const gatePasses = passesQualificationGate(row, buyGate, qualificationMode);
       const qualifies = row.proposedQty > 0;
+      const scoreReason =
+        qualificationMode === "score" && !gatePasses ? scoreGateReason(row, buyGate) : null;
+      const budgetReason =
+        qualificationMode === "score" && gatePasses && !qualifies && buyBudget > 0
+          ? "Qualified, but budget allocated to stronger legs"
+          : null;
       const proxSortLabel = `${sortArrowFor("buy", "proximity")}Prox`;
       const saiSortLabel = `${sortArrowFor("buy", "score")}SAI`;
       return (
@@ -886,9 +995,17 @@ export default function TradePlanScreen() {
                 <Text style={styles.metricLabel}>  · </Text>
                 <GlossaryHint signal="saiScore" label={saiSortLabel} style={styles.metricLabel} />
                 <Text style={styles.metricValue}>
-                  {` ${row.saiScore == null ? "—" : Math.round(row.saiScore)}`}
+                  {` ${row.saiScore == null ? "—" : Math.round(scoreModeValue(row))}`}
                 </Text>
               </View>
+              {qualificationMode === "score" ? (
+                <Text style={styles.metricSub}>
+                  C{row.convictionScore} · R{row.readinessScore} · E{row.executionScore}
+                </Text>
+              ) : null}
+              {scoreReason || budgetReason ? (
+                <Text style={styles.metricSub}>{scoreReason || budgetReason}</Text>
+              ) : null}
             </View>
           ) : (
             <View style={[styles.metricsRow, wideCards && styles.metricsRowWide]}>
@@ -911,11 +1028,19 @@ export default function TradePlanScreen() {
               <View style={[styles.metric, { flex: wideCards ? 1.0 : 0.85 }]}>
                 <GlossaryHint signal="saiScore" label={saiSortLabel} style={styles.metricLabel} />
                 <Text style={styles.metricValue}>
-                  {row.saiScore == null ? "—" : Math.round(row.saiScore)}
+                  {row.saiScore == null ? "—" : Math.round(scoreModeValue(row))}
                 </Text>
               </View>
             </View>
           )}
+          {qualificationMode === "score" ? (
+            <Text style={styles.metricSub}>
+              Conviction {row.convictionScore} · Readiness {row.readinessScore} · Execution {row.executionScore}
+            </Text>
+          ) : null}
+          {scoreReason || budgetReason ? (
+            <Text style={styles.metricSub}>{scoreReason || budgetReason}</Text>
+          ) : null}
         </Pressable>
       );
     });
@@ -960,7 +1085,7 @@ export default function TradePlanScreen() {
               }
               delayLongPress={280}
               accessibilityState={{ selected: qualificationMode === "score" }}
-              accessibilityHint="Buy uses SAI Score. Sell uses Plan Sell Rank."
+              accessibilityHint="Buy uses SAI Score. Sell uses Plan Sell Rank. Low conviction tightens the score bar."
             >
               <Text
                 style={[
@@ -974,6 +1099,9 @@ export default function TradePlanScreen() {
           </View>
         </View>
         {scopeLabel ? <Text style={styles.scopeHint}>Scope: {scopeLabel}</Text> : null}
+        {qualificationMode === "score" ? (
+          <Text style={styles.scopeHint}>Low conviction legs require stronger setup (applied automatically).</Text>
+        ) : null}
         <View style={styles.poolRow}>
           <PoolCard
             title="Sell Pool"

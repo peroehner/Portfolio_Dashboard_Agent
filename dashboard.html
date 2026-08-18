@@ -12484,8 +12484,8 @@
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
     const SIM_SYMBOL_HELP = "Ticker with at least one priced planned-trade threshold. Click to open in Target.";
     const SIM_CLOSE_PCT_HELP = "Distance to the nearest in-scope planned-trade threshold:\n• Uses the active Buys / Sells / Both leg filter\n• Smaller % = closer to triggering\n• ▼ price above threshold · ▲ price below threshold\n• Sort ascending to surface trades about to fire";
-    const SIM_BUY_SCORE_HELP = "Buy Score = SAI Score (State + Trigger + Fit, 0–100).\n• Same as mobile Buy Plan Score mode\n• Higher = stronger buy lean\n• — when no published proposal score yet (run Assess)";
-    const SIM_SELL_RANK_HELP = "Sell Rank = Plan Sell Rank = 80 − Plan Attract (P+T+S).\n• Same as mobile Sell Plan Score mode\n• Lower = closer / triggered / larger → stronger sell-to-fire\n• Not Trim Score (Tax & Trim)\n• Hover cell for P / T / S breakdown";
+    const SIM_BUY_SCORE_HELP = "Buy Score = SAI Score (State + Trigger + Fit, 0–100).\n• Same as mobile Buy Plan Score mode\n• Higher = stronger buy lean\n• Low conviction applies a hidden strictness penalty (effective score shown in cell hover)\n• — when no published proposal score yet (run Assess)";
+    const SIM_SELL_RANK_HELP = "Sell Rank = Plan Sell Rank = 80 − Plan Attract (P+T+S).\n• Same as mobile Sell Plan Score mode\n• Lower = closer / triggered / larger → stronger sell-to-fire\n• Low conviction applies a hidden strictness penalty (effective rank shown in cell hover)\n• Not Trim Score (Tax & Trim)\n• Hover cell for P / T / S breakdown";
     const SIM_NET_GAINS_HELP = "Realized gain on in-scope SELL legs:\n• (avg sell price − cost/share) × shares sold\n• Cost/share — holding average cost when on file, otherwise share-weighted planned BUY threshold\n• — when no in-scope sells, or no derivable cost (UNKNOWN-WINS)";
     const SIM_WARN_HELP = "Warnings on planned-trade rows:\n• ⚠ — planned sell exceeds shares held (a paired buy leg may cover it)\n• $0 — priced leg has no share quantity set";
 
@@ -13956,6 +13956,16 @@
       return Math.max(0, Math.min(100, total));
     }
 
+    function rowConvictionPenalty(row) {
+      const confRaw = String(row?.recommendation?.proposal?.confidence || row?.recommendation?.confidence || "").toLowerCase();
+      let penalty = 6; // default medium-like strictness for unknown confidence
+      if (confRaw.startsWith("high")) penalty = 0;
+      else if (confRaw.startsWith("med")) penalty = 6;
+      else if (confRaw.startsWith("low")) penalty = 12;
+      if (row?.recommendation?.proposal?.attention?.flag) penalty += 5;
+      return penalty;
+    }
+
     function computeTradePlan(rows, legFilter = "both", pricingMode = simulationPricingMode) {
       const atCurrent = pricingMode === "current";
       const keepLeg = (leg) =>
@@ -14013,6 +14023,7 @@
         totalInvested += cashInvested;
         totalGenerated += cashGenerated;
         const buyScore = rowSaiBuyScore(row);
+        const convictionPenalty = rowConvictionPenalty(row);
         // Strongest sell-to-fire among in-scope sell legs (lowest Plan Sell Rank).
         let sellRank = null;
         let sellAttractParts = null;
@@ -14082,6 +14093,7 @@
           buyLegList,
           sellLegList,
           buyScore,
+          convictionPenalty,
           sellRank,
           sellAttractParts,
         });
@@ -14196,10 +14208,16 @@
         key: "buyScore",
         label: "Buy Score",
         help: SIM_BUY_SCORE_HELP,
-        sortValue: (row) => (row.buyScore == null ? -1 : row.buyScore),
+        sortValue: (row) => {
+          if (row.buyScore == null) return -1;
+          return Math.max(0, row.buyScore - (Number(row.convictionPenalty) || 0));
+        },
         render: (row) => {
           if (row.buyScore == null) return "—";
-          return `<span title="SAI Score (State+Trigger+Fit)">${Math.round(row.buyScore)}</span>`;
+          const penalty = Number(row.convictionPenalty) || 0;
+          const effective = Math.max(0, row.buyScore - penalty);
+          const title = `SAI Score ${Math.round(row.buyScore)} − conviction penalty ${Math.round(penalty)} = effective ${Math.round(effective)}`;
+          return `<span title="${escapeHtml(title)}">${Math.round(effective)}</span>`;
         },
       },
       { key: "sell", label: "Sell @ ×Sh", sortValue: (row) => row.cashGenerated, render: (row) => simLegCell(row.sellLegList) },
@@ -14207,14 +14225,19 @@
         key: "sellRank",
         label: "Sell Rank",
         help: SIM_SELL_RANK_HELP,
-        sortValue: (row) => (row.sellRank == null ? Infinity : row.sellRank),
+        sortValue: (row) => {
+          if (row.sellRank == null) return Infinity;
+          return row.sellRank + (Number(row.convictionPenalty) || 0);
+        },
         render: (row) => {
           if (row.sellRank == null) return "—";
+          const penalty = Number(row.convictionPenalty) || 0;
+          const effective = row.sellRank + penalty;
           const p = row.sellAttractParts;
           const title = p
-            ? `Plan Sell Rank ${Math.round(row.sellRank)} = 80 − Attract ${Math.round(p.planAttract)} (P${Math.round(p.proximityScore)} T${Math.round(p.triggerScore)} S${Math.round(p.sizeScore)})`
-            : `Plan Sell Rank ${Math.round(row.sellRank)}`;
-          return `<span title="${escapeHtml(title)}">${Math.round(row.sellRank)}</span>`;
+            ? `Plan Sell Rank ${Math.round(row.sellRank)} = 80 − Attract ${Math.round(p.planAttract)} (P${Math.round(p.proximityScore)} T${Math.round(p.triggerScore)} S${Math.round(p.sizeScore)}); + conviction penalty ${Math.round(penalty)} = effective ${Math.round(effective)}`
+            : `Plan Sell Rank ${Math.round(row.sellRank)} + conviction penalty ${Math.round(penalty)} = effective ${Math.round(effective)}`;
+          return `<span title="${escapeHtml(title)}">${Math.round(effective)}</span>`;
         },
       },
       { key: "closePct", label: "Close %", help: SIM_CLOSE_PCT_HELP, sortValue: (row) => { const m = simClosestMeta(row); return m ? m.dist : Infinity; }, render: (row) => {

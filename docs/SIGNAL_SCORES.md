@@ -10,12 +10,12 @@ Live glossary (mobile Buy/Sell Plan tooltips): [`mobile/lib/signalGlossary.ts`](
 
 | Name | Formula (short) | Used in | Not the same as |
 |------|-----------------|---------|-----------------|
-| **SAI Score** | State + Trigger + Fit → 0–100 | SAI Conf·Score chip, Bet-S-Hit scale, **Buy Plan** Score mode, web Sim **Buy Score** | Plan Attract / Sell Rank / Trim |
+| **SAI Score** | State + Trigger + Fit → 0–100 | SAI Conf·Score chip, Bet-S-Hit scale, **Buy Plan** Score mode baseline, web Sim **Buy Score** baseline | Plan Attract / Sell Rank / Trim |
 | **SAI Conf** | High ≥75 · Med ≥35 · else Low (may **soften**) | Conf chip, Bet-S-Hit **Label** weight (3/2/1) | Fit Band (raw; same cuts) |
 | **Fit Band** | High ≥75 · Med ≥35 · else Low (**raw** Score) | Agent Signal Record `byFitBand` | SAI Conf (softened Label) |
 | **Proximity** | \|price − threshold\| / price × 100% | Buy/Sell Plan Prox mode, web Sim **Close %** | Scores |
 | **Plan Attract** | P(proximity) + T(triggered) + S(size) ≈ 0–80 | Sell Plan breakdown (P/T/S) | SAI Score |
-| **Plan Sell Rank** | 80 − Plan Attract | **Sell Plan** Score mode, web Sim **Sell Rank** | Trim Score |
+| **Plan Sell Rank** | 80 − Plan Attract | **Sell Plan** Score mode baseline, web Sim **Sell Rank** baseline | Trim Score |
 | **Loss Score** | Residual loss vs cost after 1YT (0–50 curve) | Tax & Trim (losers) | Sell Rank |
 | **Trim Score** | Exhaustion + 52W peak + weight + Intent | Tax & Trim (winners) | Sell Rank / Plan Attract |
 
@@ -88,9 +88,20 @@ Mobile-first workflow: **Buy Plan** and **Sell Plan** pools (qualification + sor
 | Mode | Buy Plan | Sell Plan |
 |------|----------|-----------|
 | **Proximity** | Gate / sort by distance to buy threshold | Gate / sort by distance to sell threshold |
-| **Score** | Gate / sort by **SAI Score** (≥ threshold, default ~45, max 100) | Gate / sort by **Plan Sell Rank** (≤ threshold; lower = stronger) |
+| **Score** | Gate / sort by **effective Buy Score** = `SAI Score − conviction penalty` (≥ threshold; higher = stronger) | Gate / sort by **effective Sell Rank** = `Plan Sell Rank + conviction penalty` (≤ threshold; lower = stronger) |
 
 Mode toggle label on mobile: **SAI / Rank**.
+
+In Score mode, both mobile and web apply a hidden strictness penalty from published conviction (`proposal.confidence`) plus Attention `!`:
+
+| Conviction state | Penalty |
+|------------------|--------:|
+| High | 0 |
+| Medium / unknown | 6 |
+| Low | 12 |
+| Attention `!` flag | +5 additional |
+
+This keeps a single user slider while tightening weak-conviction legs automatically.
 
 ### Plan Attract → Plan Sell Rank (sell legs only)
 
@@ -107,7 +118,7 @@ Plan Attract ≈ P + T + S          # ~0–80
 Plan Sell Rank = 80 − Attract     # lower = closer / triggered / larger
 ```
 
-**Buy Score mode does not use Attract** — it uses **SAI Score** (State+Trigger+Fit).
+**Buy Score mode does not use Attract** — it uses **SAI Score** (State+Trigger+Fit), then applies the conviction penalty in Score mode to form the effective score.
 
 ### Web Simulation (today)
 
@@ -116,8 +127,8 @@ Web has **no** dedicated Buy/Sell Plan panel (unlike Tax & Trim). Closest surfac
 | Legs filter | Columns |
 |-------------|---------|
 | **Both** | Buy @ ×Sh + Sell @ ×Sh + Close % (unchanged) |
-| **Sells** | Sell @ ×Sh + **Sell Rank** (Plan Sell Rank); **Buy @ ×Sh removed** |
-| **Buys** | Buy @ ×Sh + **Buy Score** (SAI Score); **Sell @ ×Sh removed** |
+| **Sells** | Sell @ ×Sh + **Sell Rank** (effective rank; base `80 − Attract` plus conviction penalty); **Buy @ ×Sh removed** |
+| **Buys** | Buy @ ×Sh + **Buy Score** (effective score; base SAI Score minus conviction penalty); **Sell @ ×Sh removed** |
 
 **Roadmap:** a dedicated **Buy & Sell** view (pools / gates like Tax & Trim and mobile Trade Plan) remains a next step.
 
