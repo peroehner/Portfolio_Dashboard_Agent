@@ -59,11 +59,14 @@ class PortfolioEngine:
         try:
             with yf_throttle():
                 # Pass session so bulk download shares the curl_cffi crumb path.
+                # threads=False: default True spins a ThreadPool per sync and
+                # amplifies curl_cffi/native churn on the background price loop.
                 data = yf.download(
                     tickers,
                     period="5d",
                     progress=False,
                     session=session,
+                    threads=False,
                 )
             if data is not None and not getattr(data, "empty", True):
                 for ticker in tickers:
@@ -203,6 +206,8 @@ class PortfolioEngine:
                 logging.warning("Intraday catch-up failed for %s: %s", symbol, exc)
                 return symbol, None
             if hist is None or getattr(hist, "empty", True) or "Close" not in hist.columns:
+                # Yahoo logs "possibly delisted" for OTC/foreign names with no
+                # 1d bars — treat as a quiet miss, not a sync failure.
                 return symbol, None
             closes = hist["Close"].dropna()
             if closes.empty:

@@ -2689,6 +2689,7 @@
     }
     .inspector-chart-mode {
       display: inline-flex;
+      flex-wrap: wrap;
       gap: 0.35rem;
       margin-top: 0;
       padding: 0.2rem;
@@ -2699,7 +2700,7 @@
     .inspector-mode-btn {
       border: none;
       border-radius: 999px;
-      padding: 0.32rem 0.7rem;
+      padding: 0.32rem 0.55rem;
       font-size: 0.72rem;
       font-weight: 600;
       color: var(--muted);
@@ -16833,10 +16834,13 @@
       const trendSource = data.trendWaveSource || (waves.length ? "import" : "none");
       const hasTrendWaves = (trendSource === "import" || trendSource === "computed") && waves.length > 0;
       const hasTimeline = (data.chartTimeline?.points || []).length > 0;
+      const hasFullTimeline = (data.chartTimelineFull?.points || []).length > 0;
       const chartMode = getInspectorChartMode(panelId, data);
       const canSwitchChart = isHoldingsPreview
-        ? hasTimeline
-        : hasTrendWaves;
+        ? (hasTimeline || hasFullTimeline)
+        : (hasTrendWaves || hasFullTimeline);
+      const showTimelineMode = isHoldingsPreview ? hasTimeline : hasTrendWaves;
+      const timelineChartHeight = (chartMode === "timeline" || chartMode === "full") && canSwitchChart;
       const fibToggleLevels = importedFibLevels.length
         ? importedFibLevels
         : (blueprint?.levels || []).map((level) => ({
@@ -16916,7 +16920,12 @@
                 <button type="button" class="help-btn" onclick="openPatternsHelp('patternsHelpObv')" title="Patterns, Fibonacci, OBV &amp; Confluence help" aria-label="Patterns, Fibonacci, OBV and Confluence help">?</button>
                 ${canSwitchChart
                   ? `<div class="inspector-chart-mode" data-panel="${panelId}">
-                      <button type="button" class="inspector-mode-btn ${chartMode === "timeline" ? "active" : ""}" data-mode="timeline" onclick="setInspectorChartMode('timeline', '${panelId}')">Timeline &amp; Trends</button>
+                      ${showTimelineMode
+                        ? `<button type="button" class="inspector-mode-btn ${chartMode === "timeline" ? "active" : ""}" data-mode="timeline" onclick="setInspectorChartMode('timeline', '${panelId}')">Timeline &amp; Trends</button>`
+                        : ""}
+                      ${hasFullTimeline
+                        ? `<button type="button" class="inspector-mode-btn ${chartMode === "full" ? "active" : ""}" data-mode="full" onclick="setInspectorChartMode('full', '${panelId}')">Full Timeline</button>`
+                        : ""}
                       <button type="button" class="inspector-mode-btn ${chartMode === "blueprint" ? "active" : ""}" data-mode="blueprint" onclick="setInspectorChartMode('blueprint', '${panelId}')">Basis · Current · Target</button>
                     </div>`
                   : ""}
@@ -16940,7 +16949,7 @@
                 </div>`
               : ""}
             ${patternVolumeRow}
-            <div class="inspector-chart-wrap" style="${chartMode === "timeline" && canSwitchChart ? "height:320px;" : ""}" ondblclick="openInspectorChartFullscreen('${panelId}')" title="Double-click to zoom full screen">
+            <div class="inspector-chart-wrap" style="${timelineChartHeight ? "height:320px;" : ""}" ondblclick="openInspectorChartFullscreen('${panelId}')" title="Double-click to zoom full screen">
               <canvas id="inspectorChart-${panelId}" aria-label="Fibonacci and trend timeline chart for ${data.symbol}"></canvas>
             </div>
             ${canSwitchChart && !isHoldingsPreview
@@ -17256,12 +17265,13 @@
       legend.innerHTML = items.join("");
     }
 
-    function renderInspectorTimelineChart(canvas, panelId, data, timeline, waves, blueprint) {
+    function renderInspectorTimelineChart(canvas, panelId, data, timeline, waves, blueprint, options = {}) {
       const extents = inspectorChartExtents(timeline, waves);
       if (!extents.min || !extents.max) return false;
 
       const isFullscreen = panelId === INSPECTOR_FS_PANEL;
       const tradeLevels = inspectorTradeThresholdLevels(data);
+      const priceLabel = options.priceLabel || "Window price";
       const datasets = [];
 
       // Volume bars pinned to the bottom of the chart (under the price), green on
@@ -17293,7 +17303,7 @@
 
       if (timeline?.points?.length) {
         datasets.push({
-          label: "Window price",
+          label: priceLabel,
           data: timeline.points.map((point) => ({ x: point.date, y: point.price })),
           borderColor: "#c4b5fd",
           backgroundColor(context) {
@@ -17571,11 +17581,30 @@
       const hasTrends = (data.trendWaveSource === "import" || data.trendWaveSource === "computed")
         && (data.trendWaves || []).length > 0;
       const hasTimeline = (data.chartTimeline?.points || []).length > 0;
+      const hasFullTimeline = (data.chartTimelineFull?.points || []).length > 0;
       const preferTimeline = isHoldingsPreview ? hasTimeline : hasTrends;
       if (!inspectorChartMode[panelId]) {
-        inspectorChartMode[panelId] = preferTimeline ? "timeline" : "blueprint";
+        if (preferTimeline) inspectorChartMode[panelId] = "timeline";
+        else if (hasFullTimeline) inspectorChartMode[panelId] = "full";
+        else inspectorChartMode[panelId] = "blueprint";
       }
-      return inspectorChartMode[panelId];
+      const mode = inspectorChartMode[panelId];
+      if (mode === "timeline" && !preferTimeline && hasFullTimeline) {
+        inspectorChartMode[panelId] = "full";
+        return "full";
+      }
+      if (mode === "full" && !hasFullTimeline) {
+        inspectorChartMode[panelId] = preferTimeline ? "timeline" : "blueprint";
+        return inspectorChartMode[panelId];
+      }
+      return mode;
+    }
+
+    function resolveInspectorTimeline(data, mode) {
+      if (mode === "full" && (data.chartTimelineFull?.points || []).length) {
+        return data.chartTimelineFull;
+      }
+      return data.chartTimeline;
     }
 
     function setInspectorChartMode(mode, panelId) {
@@ -17588,7 +17617,7 @@
       const legend = document.getElementById(`inspectorTrendLegend-${panelId}`);
       if (legend) legend.hidden = mode !== "timeline";
       const wrap = document.querySelector(`#${panelId} .inspector-chart-wrap`);
-      if (wrap) wrap.style.height = mode === "timeline" ? "320px" : "";
+      if (wrap) wrap.style.height = (mode === "timeline" || mode === "full") ? "320px" : "";
       renderInspectorChart(data, panelId);
     }
 
@@ -17605,17 +17634,29 @@
       const blueprint = data.fibBlueprint;
       const isHoldingsPreview = isHoldingsInspectorPanel(panelId);
       const waves = isHoldingsPreview ? [] : (data.trendWaves || []);
-      const timeline = data.chartTimeline;
       const mode = getInspectorChartMode(panelId, data);
+      const timeline = resolveInspectorTimeline(data, mode);
       const hasTimeline = (timeline?.points || []).length > 0;
-      const useTimeline = mode === "timeline" && (
-        isHoldingsPreview
+      const useTimeline = (mode === "timeline" || mode === "full") && (
+        mode === "full"
           ? hasTimeline
-          : (data.trendWaveSource === "import" || data.trendWaveSource === "computed") && waves.length > 0
+          : (
+            isHoldingsPreview
+              ? hasTimeline
+              : (data.trendWaveSource === "import" || data.trendWaveSource === "computed") && waves.length > 0
+          )
       );
 
       if (useTimeline) {
-        const rendered = renderInspectorTimelineChart(canvas, panelId, data, timeline, waves, blueprint);
+        const rendered = renderInspectorTimelineChart(
+          canvas,
+          panelId,
+          data,
+          timeline,
+          mode === "full" ? [] : waves,
+          blueprint,
+          { priceLabel: mode === "full" ? "Price" : "Window price" },
+        );
         if (rendered) return;
       }
 
@@ -17629,17 +17670,24 @@
     function openInspectorChartFullscreen(panelId) {
       const data = inspectorChartData[panelId];
       if (!data || typeof Chart === "undefined") return;
-      const timeline = data.chartTimeline;
+      const mode = getInspectorChartMode(panelId, data);
+      const timeline = resolveInspectorTimeline(data, mode === "blueprint" ? "full" : mode)
+        || data.chartTimelineFull
+        || data.chartTimeline;
       if (!(timeline?.points || []).length) {
         if (typeof setStatus === "function") setStatus("No timeline history to zoom into for this symbol.");
         return;
       }
       const isHoldingsPreview = isHoldingsInspectorPanel(panelId);
-      const waves = isHoldingsPreview ? [] : (data.trendWaves || []);
+      const usingFull = mode === "full" || timeline === data.chartTimelineFull;
+      const waves = (isHoldingsPreview || usingFull) ? [] : (data.trendWaves || []);
+      const priceLabel = usingFull ? "Price" : "Window price";
 
       const overlay = document.getElementById("inspectorChartFullscreen");
       const titleEl = document.getElementById("inspectorFsTitle");
-      if (titleEl) titleEl.textContent = `${data.symbol || "Chart"} · Timeline`;
+      if (titleEl) {
+        titleEl.textContent = `${data.symbol || "Chart"} · ${usingFull ? "Full Timeline" : "Timeline"}`;
+      }
       overlay.hidden = false;
 
       // Wait for layout so the scroll container has a measurable width.
@@ -17667,7 +17715,15 @@
           inspectorCharts[INSPECTOR_FS_PANEL].destroy();
           inspectorCharts[INSPECTOR_FS_PANEL] = null;
         }
-        renderInspectorTimelineChart(canvas, INSPECTOR_FS_PANEL, data, timeline, waves, data.fibBlueprint);
+        renderInspectorTimelineChart(
+          canvas,
+          INSPECTOR_FS_PANEL,
+          data,
+          timeline,
+          waves,
+          data.fibBlueprint,
+          { priceLabel },
+        );
 
         // Open scrolled to the most recent price action (right edge).
         scroll.scrollLeft = scroll.scrollWidth;

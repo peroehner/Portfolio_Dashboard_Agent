@@ -126,8 +126,17 @@ class TechnicalSignalsService:
                 if _history_fail_ttl > 0:
                     _history_fail_cache.put(key, True)
             else:
+                history = self._slim_history_frame(history)
                 _history_cache.put(key, history)
             return history
+
+    @staticmethod
+    def _slim_history_frame(history: "pd.DataFrame") -> "pd.DataFrame":
+        """Keep only OHLCV columns so the TTL cache stays Render-friendly."""
+        keep = [c for c in ("Open", "High", "Low", "Close", "Volume") if c in history.columns]
+        if not keep or list(history.columns) == keep:
+            return history
+        return history.loc[:, keep].copy()
 
     def get_signals(self, symbol: str) -> dict[str, Any] | None:
         df = self._history(symbol)
@@ -144,6 +153,17 @@ class TechnicalSignalsService:
         return self.compute_chart(
             df, symbol=symbol, period=self.period, max_waves=self.max_waves, **self._pivot_kwargs()
         )
+
+    def get_full_timeline(self, symbol: str) -> dict[str, Any] | None:
+        """Full downloaded price history for the Inspector (TECHNICAL_SIGNALS_PERIOD),
+        independent of zig-zag trend windows / Fib anchors."""
+        df = self._history(symbol)
+        if df is None or getattr(df, "empty", True) or "Close" not in df:
+            return None
+        close = df["Close"].astype(float).dropna()
+        if close.empty:
+            return None
+        return self._timeline_from_close(df, close)
 
     @staticmethod
     def clear_cache() -> None:
@@ -283,25 +303,15 @@ class TechnicalSignalsService:
             )
 
         first_idx = selected[0][0]
-        vol_series = (
-            pd.to_numeric(df["Volume"], errors="coerce").reindex(close.index).fillna(0.0)
-            if "Volume" in df
-            else None
-        )
-        points = [
-            {
-                "date": dates[j],
-                "price": round(prices[j], 2),
-                **({"volume": int(vol_series.iloc[j])} if vol_series is not None else {}),
-            }
-            for j in range(first_idx, len(prices))
-        ]
+        timeline_full = TechnicalSignalsService._timeline_from_close(df, close)
+        points = (timeline_full or {}).get("points") or []
+        window_points = points[first_idx:] if first_idx > 0 else points
         timeline = {
             "windowStart": dates[first_idx][:7],
             "windowEnd": dates[-1][:7],
             "startDate": dates[first_idx],
             "endDate": dates[-1],
-            "points": points,
+            "points": window_points,
         }
 
         swing = _swing_block(close, price, threshold, pivots=pivots)
@@ -341,12 +351,46 @@ class TechnicalSignalsService:
         return {
             "trendWaves": waves,
             "chartTimeline": timeline,
+            "chartTimelineFull": timeline_full,
             "fib": fib,
             "swing": swing,
             "patterns": patterns,
             "volume": vol_block,
             "volumeProfile": profile,
             "confluence": confluence,
+        }
+
+    @staticmethod
+    def _timeline_from_close(df: pd.DataFrame, close: pd.Series) -> dict[str, Any] | None:
+        """Build a chartTimeline-shaped payload covering every bar in ``close``."""
+        if close is None or getattr(close, "empty", True):
+            return None
+        prices = [float(v) for v in close.to_numpy()]
+        dates = [
+            d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d) for d in close.index
+        ]
+        if not dates:
+            return None
+        vol_series = (
+            pd.to_numeric(df["Volume"], errors="coerce").reindex(close.index).fillna(0.0)
+            if df is not None and "Volume" in df
+            else None
+        )
+        points = [
+            {
+                "date": dates[j],
+                "price": round(prices[j], 2),
+                **({"volume": int(vol_series.iloc[j])} if vol_series is not None else {}),
+            }
+            for j in range(len(prices))
+        ]
+        return {
+            "windowStart": dates[0][:7],
+            "windowEnd": dates[-1][:7],
+            "startDate": dates[0],
+            "endDate": dates[-1],
+            "points": points,
+            "span": "full",
         }
 
 

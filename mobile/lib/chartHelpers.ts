@@ -229,9 +229,15 @@ function fibLevelsFromPayload(data?: InspectorPayload | null): ImportedFibLevel[
   return enrichFibLevels(built);
 }
 
-export function buildInspectorChartModel(data?: InspectorPayload | null): InspectorChartModel {
-  const timeline = data?.chartTimeline?.points ?? [];
-  const waves = data?.trendWaves ?? [];
+export function buildInspectorChartModel(
+  data?: InspectorPayload | null,
+  opts?: { timelineMode?: "window" | "full" },
+): InspectorChartModel {
+  const useFull = opts?.timelineMode === "full";
+  const timeline = useFull
+    ? (data?.chartTimelineFull?.points ?? data?.chartTimeline?.points ?? [])
+    : (data?.chartTimeline?.points ?? []);
+  const waves = useFull ? [] : (data?.trendWaves ?? []);
   const fibSource = fibLevelsFromPayload(data);
 
   const quote = data?.quote;

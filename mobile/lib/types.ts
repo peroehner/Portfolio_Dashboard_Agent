@@ -385,6 +385,14 @@ export interface InspectorPayload {
     windowEnd?: string;
     points?: { date?: string; price?: number; volume?: number }[];
   } | null;
+  chartTimelineFull?: {
+    windowStart?: string;
+    windowEnd?: string;
+    startDate?: string;
+    endDate?: string;
+    points?: { date?: string; price?: number; volume?: number }[];
+    span?: string;
+  } | null;
   alerts?: Alert[];
   assessments?: Assessment[];
 }

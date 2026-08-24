@@ -121,6 +121,7 @@ function mergeInspector(
     holding: full.holding ?? lite.holding,
     // Chart fields: never keep lite empties over a populated full payload.
     chartTimeline: full.chartTimeline ?? lite.chartTimeline,
+    chartTimelineFull: full.chartTimelineFull ?? lite.chartTimelineFull,
     chartPatterns: full.chartPatterns?.length ? full.chartPatterns : lite.chartPatterns,
     trendWaves: full.trendWaves?.length ? full.trendWaves : lite.trendWaves,
     importedFibLevels:

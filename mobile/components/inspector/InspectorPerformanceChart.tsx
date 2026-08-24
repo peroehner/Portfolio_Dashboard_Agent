@@ -53,6 +53,10 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
   const [fsHoverPoint, setFsHoverPoint] = useState<ChartPoint | null>(null);
   const [zoom, setZoom] = useState(1);
   const [scrubbing, setScrubbing] = useState(false);
+  const hasWindowTimeline = (data?.chartTimeline?.points?.length ?? 0) > 0;
+  const hasFullTimeline = (data?.chartTimelineFull?.points?.length ?? 0) > 0;
+  const canSwitchTimeline = hasWindowTimeline && hasFullTimeline;
+  const [timelineMode, setTimelineMode] = useState<"window" | "full">("window");
   const fsScrollRef = useRef<ScrollView>(null);
   const lastTapRef = useRef(0);
   const pinchRef = useRef<{ dist: number; zoom: number } | null>(null);
@@ -65,7 +69,34 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
   const fsScrollXRef = useRef(0);
   const lastFsChartWRef = useRef(0);
   const fsPrimedRef = useRef(false);
-  const model = useMemo(() => buildInspectorChartModel(data), [data]);
+  const symbolKey = data?.symbol ?? "";
+
+  // Prefer the trend window when available; fall back to full history.
+  // Reset when the symbol changes so browsing doesn't stick on Full.
+  useEffect(() => {
+    setTimelineMode(hasWindowTimeline ? "window" : "full");
+  }, [symbolKey, hasWindowTimeline]);
+
+  const effectiveMode: "window" | "full" =
+    timelineMode === "full" && hasFullTimeline
+      ? "full"
+      : hasWindowTimeline
+        ? "window"
+        : hasFullTimeline
+          ? "full"
+          : "window";
+  const model = useMemo(
+    () => buildInspectorChartModel(data, { timelineMode: effectiveMode }),
+    [data, effectiveMode],
+  );
+  const windowLabel =
+    effectiveMode === "full"
+      ? data?.chartTimelineFull?.windowStart && data?.chartTimelineFull?.windowEnd
+        ? `${data.chartTimelineFull.windowStart} → ${data.chartTimelineFull.windowEnd}`
+        : null
+      : data?.chartTimeline?.windowStart && data?.chartTimeline?.windowEnd
+        ? `${data.chartTimeline.windowStart} → ${data.chartTimeline.windowEnd}`
+        : null;
   const isLandscape = windowWidth > windowHeight;
   const wasLandscapeRef = useRef(isLandscape);
 
@@ -312,11 +343,29 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
     <>
       <View style={styles.card} onLayout={onLayout}>
         <Text style={styles.title}>Performance & Fibonacci</Text>
-        {data?.chartTimeline?.windowStart && data?.chartTimeline?.windowEnd ? (
-          <Text style={styles.window}>
-            {data.chartTimeline.windowStart} → {data.chartTimeline.windowEnd}
-          </Text>
+        {canSwitchTimeline ? (
+          <View style={styles.modeRow}>
+            <Pressable
+              style={[styles.modeBtn, effectiveMode === "window" && styles.modeBtnActive]}
+              onPress={() => setTimelineMode("window")}
+            >
+              <Text style={[styles.modeBtnText, effectiveMode === "window" && styles.modeBtnTextActive]}>
+                Timeline & Trends
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modeBtn, effectiveMode === "full" && styles.modeBtnActive]}
+              onPress={() => setTimelineMode("full")}
+            >
+              <Text style={[styles.modeBtnText, effectiveMode === "full" && styles.modeBtnTextActive]}>
+                Full Timeline
+              </Text>
+            </Pressable>
+          </View>
+        ) : hasFullTimeline && !hasWindowTimeline ? (
+          <Text style={styles.window}>Full Timeline</Text>
         ) : null}
+        {windowLabel ? <Text style={styles.window}>{windowLabel}</Text> : null}
         <Pressable
           style={styles.chartWrap}
           onLongPress={(e) =>
@@ -379,10 +428,8 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
         <View style={styles.fsRoot}>
           <View style={styles.fsHeader}>
             <Text style={styles.fsTitle} numberOfLines={1}>
-              {data?.symbol ?? ""} · Timeline
-              {data?.chartTimeline?.windowStart
-                ? ` · ${data.chartTimeline.windowStart} → ${data.chartTimeline.windowEnd}`
-                : ""}
+              {data?.symbol ?? ""} · {effectiveMode === "full" ? "Full Timeline" : "Timeline"}
+              {windowLabel ? ` · ${windowLabel}` : ""}
             </Text>
             <View style={styles.zoomRow}>
               <Pressable
@@ -511,6 +558,33 @@ const styles = StyleSheet.create({
   window: {
     color: colors.textMuted,
     fontSize: 11,
+  },
+  modeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    alignSelf: "flex-start",
+    padding: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "rgba(15, 23, 42, 0.35)",
+  },
+  modeBtn: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  modeBtnActive: {
+    backgroundColor: "rgba(139, 92, 246, 0.28)",
+  },
+  modeBtnText: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  modeBtnTextActive: {
+    color: colors.text,
   },
   chartWrap: {
     borderRadius: radii.sm,

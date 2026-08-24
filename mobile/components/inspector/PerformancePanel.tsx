@@ -43,7 +43,9 @@ export function PerformancePanel({ data }: PerformancePanelProps) {
         </View>
       ) : null}
 
-      {!hasExtras && !data?.chartTimeline?.points?.length ? (
+      {!hasExtras &&
+      !data?.chartTimeline?.points?.length &&
+      !data?.chartTimelineFull?.points?.length ? (
         <View style={styles.card}>
           <Text style={styles.muted}>No performance data available for this symbol.</Text>
         </View>

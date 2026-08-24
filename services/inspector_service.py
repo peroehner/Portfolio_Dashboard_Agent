@@ -168,6 +168,7 @@ class InspectorService:
                 "trendWaveSource": "lite",
                 "importedFibLevels": [],
                 "chartTimeline": None,
+                "chartTimelineFull": None,
                 "technicalAdvisory": technical_advisory,
                 "chartPatterns": [],
                 "volume": None,
@@ -203,6 +204,7 @@ class InspectorService:
                 if imported_trends
                 else (computed_chart or {}).get("chartTimeline")
             ),
+            "chartTimelineFull": self._resolve_chart_timeline_full(symbol, computed_chart),
             "technicalAdvisory": technical_advisory,
             "chartPatterns": chart_patterns,
             "volume": volume_meta,
@@ -330,6 +332,21 @@ class InspectorService:
         if computed_chart and computed_chart.get("trendWaves"):
             return "computed"
         return "none"
+
+    def _resolve_chart_timeline_full(
+        self,
+        symbol: str,
+        computed_chart: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        """Full TECHNICAL_SIGNALS_PERIOD history for the Inspector Full Timeline mode."""
+        if computed_chart and computed_chart.get("chartTimelineFull"):
+            return computed_chart.get("chartTimelineFull")
+        if not ASSESSMENT_TECHNICALS:
+            return None
+        try:
+            return self.technical_signals_service.get_full_timeline(symbol)
+        except Exception:  # noqa: BLE001 - chart extras are best-effort
+            return None
 
     def _build_fib_blueprint(
         self,

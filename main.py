@@ -191,6 +191,17 @@ def background_sync_loop():
                         logging.info("Daily assessments: %s", assess_result)
             except Exception:  # noqa: BLE001 - never block price sync
                 logging.exception("Daily assessment worker failed")
+            # Sync-scoped native cleanup: drop this thread's curl_cffi session and
+            # collect after the metronomic Yahoo cycle (primary RSS climb driver).
+            try:
+                import gc
+
+                from services.market_cache import reset_yf_session
+
+                reset_yf_session()
+                gc.collect()
+            except Exception:  # noqa: BLE001 - never block the sync loop
+                logging.exception("Post-sync session/gc cleanup failed")
         time.sleep(300)
 
 
