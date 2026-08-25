@@ -57,6 +57,16 @@ class NewsFetchFailFastTests(unittest.TestCase):
         finnhub.assert_not_called()
         yfinance.assert_not_called()
 
+    @patch.object(FundamentalsService, "_fetch_yfinance_news")
+    @patch.object(FundamentalsService, "_fetch_finnhub_news")
+    def test_http_403_skips_yfinance_fallback(self, finnhub, yfinance):
+        err = URLError("HTTP Error 403: Forbidden")
+        err.code = 403
+        finnhub.side_effect = err
+        news = self.svc.fetch_recent_news("OBH.F")
+        self.assertEqual(news, [])
+        yfinance.assert_not_called()
+
     @patch.object(FundamentalsService, "_fetch_yfinance_news", return_value=[{"title": "ok"}])
     @patch.object(FundamentalsService, "_fetch_finnhub_news")
     def test_http_429_still_falls_back(self, finnhub, yfinance):

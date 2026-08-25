@@ -53,10 +53,10 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
   const [fsHoverPoint, setFsHoverPoint] = useState<ChartPoint | null>(null);
   const [zoom, setZoom] = useState(1);
   const [scrubbing, setScrubbing] = useState(false);
+  const [timelineMode, setTimelineMode] = useState<"window" | "full">("window");
   const hasWindowTimeline = (data?.chartTimeline?.points?.length ?? 0) > 0;
   const hasFullTimeline = (data?.chartTimelineFull?.points?.length ?? 0) > 0;
   const canSwitchTimeline = hasWindowTimeline && hasFullTimeline;
-  const [timelineMode, setTimelineMode] = useState<"window" | "full">("window");
   const fsScrollRef = useRef<ScrollView>(null);
   const lastTapRef = useRef(0);
   const pinchRef = useRef<{ dist: number; zoom: number } | null>(null);
@@ -69,13 +69,8 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
   const fsScrollXRef = useRef(0);
   const lastFsChartWRef = useRef(0);
   const fsPrimedRef = useRef(false);
+  const wasLandscapeRef = useRef<boolean | null>(null);
   const symbolKey = data?.symbol ?? "";
-
-  // Prefer the trend window when available; fall back to full history.
-  // Reset when the symbol changes so browsing doesn't stick on Full.
-  useEffect(() => {
-    setTimelineMode(hasWindowTimeline ? "window" : "full");
-  }, [symbolKey, hasWindowTimeline]);
 
   const effectiveMode: "window" | "full" =
     timelineMode === "full" && hasFullTimeline
@@ -98,11 +93,20 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
         ? `${data.chartTimeline.windowStart} → ${data.chartTimeline.windowEnd}`
         : null;
   const isLandscape = windowWidth > windowHeight;
-  const wasLandscapeRef = useRef(isLandscape);
+
+  // Prefer the trend window when available; fall back to full history.
+  // Reset when the symbol changes so browsing doesn't stick on Full.
+  useEffect(() => {
+    setTimelineMode(hasWindowTimeline ? "window" : "full");
+  }, [symbolKey, hasWindowTimeline]);
 
   // Auto-enter fullscreen only when rotating into landscape — not when
   // browsing symbols while already landscape (or after the user exited FS).
   useEffect(() => {
+    if (wasLandscapeRef.current === null) {
+      wasLandscapeRef.current = isLandscape;
+      return;
+    }
     const wasLandscape = wasLandscapeRef.current;
     wasLandscapeRef.current = isLandscape;
     if (isLandscape && !wasLandscape) {

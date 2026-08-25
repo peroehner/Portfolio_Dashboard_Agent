@@ -52,6 +52,10 @@ NEWS_SENTIMENT_MIN_RELEVANCE = _env_int("NEWS_SENTIMENT_MIN_RELEVANCE", 25)
 NEWS_SENTIMENT_BAND = _env_float("NEWS_SENTIMENT_BAND", 0.20)
 
 _PRICE_CACHE = TtlCache(ttl_seconds=_CACHE_TTL, max_entries=8)
+# Cap how many tickers one /news-feed score pass may download. A full-book
+# yf.download of 6mo OHLCV was a sharp RSS spike on Render starter (512MB).
+_MAX_SCORE_SYMBOLS = max(5, int(os.environ.get("NEWS_RELEVANCE_MAX_SYMBOLS", "40")))
+_BULK_CHUNK = max(5, int(os.environ.get("NEWS_RELEVANCE_BULK_CHUNK", "15")))
 
 # --- Phase 2: on-demand, per-symbol intraday deep dive -----------------------
 # Yahoo only serves ~7-8 days of 1-minute bars, so the intraday tier only covers
@@ -95,28 +99,45 @@ def _parse_dt(value: Any) -> datetime | None:
     return dt
 
 
+def _download_chunk(symbols: list[str]) -> pd.DataFrame | None:
+    import yfinance as yf
+
+    try:
+        with yf_throttle():
+            data = yf.download(
+                symbols,
+                period=HISTORY_PERIOD,
+                progress=False,
+                auto_adjust=True,
+                group_by="column",
+            )
+        if data is None or data.empty:
+            return None
+        return data
+    except Exception:  # noqa: BLE001 - scoring is best-effort
+        return None
+
+
 def _bulk_history(symbols: tuple[str, ...]) -> pd.DataFrame | None:
-    """One throttled, cached bulk download of daily OHLCV for all symbols."""
+    """Throttled, cached bulk download of daily OHLCV — chunked to limit peak RAM."""
     if not symbols:
         return None
 
     def fetch() -> pd.DataFrame | None:
-        import yfinance as yf
-
-        try:
-            with yf_throttle():
-                data = yf.download(
-                    list(symbols),
-                    period=HISTORY_PERIOD,
-                    progress=False,
-                    auto_adjust=True,
-                    group_by="column",
-                )
-            if data is None or data.empty:
-                return None
-            return data
-        except Exception:  # noqa: BLE001 - scoring is best-effort
+        syms = list(symbols)
+        if len(syms) <= _BULK_CHUNK:
+            return _download_chunk(syms)
+        frames: list[pd.DataFrame] = []
+        for i in range(0, len(syms), _BULK_CHUNK):
+            chunk = _download_chunk(syms[i : i + _BULK_CHUNK])
+            if chunk is not None and not chunk.empty:
+                frames.append(chunk)
+        if not frames:
             return None
+        try:
+            return pd.concat(frames, axis=1)
+        except Exception:  # noqa: BLE001
+            return frames[0]
 
     return _PRICE_CACHE.get(symbols, fetch)
 
@@ -260,7 +281,24 @@ def score_and_rank(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for it in items:
         it["_published_dt"] = _parse_dt(it.get("published"))
 
-    symbols = tuple(sorted({str(it["symbol"]).upper() for it in items if it.get("symbol")}))
+    all_symbols = sorted({str(it["symbol"]).upper() for it in items if it.get("symbol")})
+    if len(all_symbols) > _MAX_SCORE_SYMBOLS:
+        # Prefer names that still have recent headlines so the feed stays useful.
+        latest: dict[str, str] = {}
+        for it in items:
+            sym = str(it.get("symbol") or "").upper()
+            if not sym:
+                continue
+            published = str(it.get("published") or "")
+            if published >= latest.get(sym, ""):
+                latest[sym] = published
+        all_symbols = [
+            sym
+            for sym, _ in sorted(latest.items(), key=lambda kv: kv[1], reverse=True)[
+                :_MAX_SCORE_SYMBOLS
+            ]
+        ]
+    symbols = tuple(all_symbols)
     download_symbols = tuple(sorted(set(symbols) | {INDEX_SYMBOL}))
     data = _bulk_history(download_symbols)
 

@@ -788,6 +788,12 @@ class FundamentalsService:
                 http_code = getattr(exc, "code", None)
                 if http_code == 429:
                     _finnhub_mark_429()
+                # 401/403 = key or venue rejected (common for .F / OTC). Do not
+                # chain into Yahoo — that doubles work and often also fails.
+                if http_code in (401, 403):
+                    news_cache.put(f"finnhub:{symbol}", [])
+                    _mark_cooldown(f"news:{symbol}")
+                    return []
                 try:
                     return news_cache.get(
                         f"yfinance:{symbol}", lambda: self._fetch_yfinance_news(symbol)
