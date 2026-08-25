@@ -425,6 +425,7 @@ export const api = {
         buyBudget?: number;
         listMode?: "sell" | "buy";
       };
+      tickerSegments?: Record<string, string>;
     }>("/preferences"),
   updatePreferences: (payload: {
     portfolioFit?: Record<string, unknown>;
@@ -445,6 +446,8 @@ export const api = {
       buyBudget?: number;
       listMode?: "sell" | "buy";
     };
+/** Upsert names; empty string deletes. */
+    tickerSegments?: Record<string, string>;
   }) =>
     apiFetch<{
       portfolioFit?: Record<string, unknown>;
@@ -465,6 +468,7 @@ export const api = {
         buyBudget?: number;
         listMode?: "sell" | "buy";
       };
+      tickerSegments?: Record<string, string>;
     }>("/preferences", {
       method: "PATCH",
       body: JSON.stringify(payload),

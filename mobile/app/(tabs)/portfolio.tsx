@@ -5,7 +5,6 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -16,8 +15,8 @@ import { PortfolioTable } from "@/components/PortfolioTable";
 import { RecallFilterButton } from "@/components/RecallFilterButton";
 import { Screen } from "@/components/Screen";
 import { StarFilterButton } from "@/components/StarFilterButton";
+import { TickerFilterInput } from "@/components/TickerFilterInput";
 import { api } from "@/lib/api";
-import { FILTER_PLACEHOLDER } from "@/lib/filters";
 import { usePersistedSymbolFilter } from "@/lib/usePersistedSymbolFilter";
 import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 import {
@@ -152,15 +151,7 @@ export default function PortfolioScreen() {
         }
       >
         <View style={styles.toolbar}>
-          <TextInput
-            style={styles.filter}
-            placeholder={FILTER_PLACEHOLDER}
-            placeholderTextColor={colors.textMuted}
-            value={filter}
-            onChangeText={setFilter}
-            autoCapitalize="characters"
-            autoCorrect={false}
-          />
+          <TickerFilterInput value={filter} onChangeFilter={setFilter} style={styles.filter} />
           <RecallFilterButton
             visible={canRecall}
             onPress={applyLast}

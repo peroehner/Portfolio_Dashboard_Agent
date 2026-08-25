@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,8 +18,8 @@ import { BackToSymbolButton } from "@/components/BackToSymbolButton";
 import { Screen } from "@/components/Screen";
 import { RecallFilterButton } from "@/components/RecallFilterButton";
 import { StarFilterButton } from "@/components/StarFilterButton";
+import { TickerFilterInput } from "@/components/TickerFilterInput";
 import { api } from "@/lib/api";
-import { FILTER_PLACEHOLDER } from "@/lib/filters";
 import { usePersistedSymbolFilter } from "@/lib/usePersistedSymbolFilter";
 import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 import {
@@ -221,15 +220,7 @@ export default function NewsScreen() {
         contentStyle={styles.screenContent}
       >
         <View style={styles.filterRow}>
-          <TextInput
-            style={styles.filter}
-            placeholder={FILTER_PLACEHOLDER}
-            placeholderTextColor={colors.textMuted}
-            value={filter}
-            onChangeText={setFilter}
-            autoCapitalize="characters"
-            autoCorrect={false}
-          />
+          <TickerFilterInput value={filter} onChangeFilter={setFilter} style={styles.filter} />
           <RecallFilterButton
             visible={canRecall}
             onPress={applyLast}

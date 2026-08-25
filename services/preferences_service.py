@@ -1,4 +1,4 @@
-"""Per-user preferences — Portfolio Fit + Tax & Trim + Buy/Sell Plan controls.
+"""Per-user preferences — Portfolio Fit + Tax & Trim + Buy/Sell Plan + ticker segments.
 
 Stored as JSONB on ``users.preferences_json``. Additive keys only; updates merge.
 See docs/PROPOSAL_FRAMEWORK.md (Slice 3).
@@ -10,6 +10,7 @@ import json
 from typing import Any
 
 from db.database import get_connection, get_current_user_id
+from services.ticker_segments import merge_segments, normalize_segments_map
 
 PORTFOLIO_FIT_KEYS = (
     "targetAnnualDividend",
@@ -67,10 +68,14 @@ class PreferencesService:
             "portfolioFit": self._portfolio_fit_from(data),
             "taxTrim": self._tax_trim_from(data),
             "tradePlan": self._trade_plan_from(data),
+            "tickerSegments": self._ticker_segments_from(data),
         }
 
     def get_portfolio_fit(self, user_id: int | None = None) -> dict[str, Any]:
         return self.get(user_id=user_id)["portfolioFit"]
+
+    def get_ticker_segments(self, user_id: int | None = None) -> dict[str, str]:
+        return self.get(user_id=user_id)["tickerSegments"]
 
     def update(self, payload: dict[str, Any], user_id: int | None = None) -> dict[str, Any]:
         uid = user_id if user_id is not None else get_current_user_id()
@@ -84,6 +89,7 @@ class PreferencesService:
             fit = self._portfolio_fit_from(data)
             tax_trim = self._tax_trim_from(data)
             trade_plan = self._trade_plan_from(data)
+            ticker_segments = self._ticker_segments_from(data)
 
             if "portfolioFit" in payload or any(k in payload for k in PORTFOLIO_FIT_KEYS):
                 incoming_fit = (
@@ -109,17 +115,26 @@ class PreferencesService:
                     trade_plan or _default_trade_plan(), incoming_plan
                 )
 
+            if "tickerSegments" in payload and payload.get("tickerSegments") is not None:
+                ticker_segments = merge_segments(ticker_segments, payload.get("tickerSegments"))
+
             blob = {**data, "portfolioFit": fit}
             if tax_trim is not None:
                 blob["taxTrim"] = tax_trim
             if trade_plan is not None:
                 blob["tradePlan"] = trade_plan
+            blob["tickerSegments"] = ticker_segments
             conn.execute(
                 "UPDATE users SET preferences_json = %s::jsonb WHERE id = %s",
                 (json.dumps(blob), uid),
             )
             conn.commit()
-        return {"portfolioFit": fit, "taxTrim": tax_trim, "tradePlan": trade_plan}
+        return {
+            "portfolioFit": fit,
+            "taxTrim": tax_trim,
+            "tradePlan": trade_plan,
+            "tickerSegments": ticker_segments,
+        }
 
     def _portfolio_fit_from(self, data: dict[str, Any]) -> dict[str, Any]:
         fit = _empty_portfolio_fit()
@@ -140,6 +155,10 @@ class PreferencesService:
         if not stored:
             return None
         return self._merge_trade_plan(_default_trade_plan(), stored)
+
+    @staticmethod
+    def _ticker_segments_from(data: dict[str, Any]) -> dict[str, str]:
+        return normalize_segments_map(data.get("tickerSegments"))
 
     def _merge_portfolio_fit(self, fit: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
         out = dict(fit)

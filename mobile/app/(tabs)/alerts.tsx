@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -16,6 +15,7 @@ import { BackToSymbolButton } from "@/components/BackToSymbolButton";
 import { RecallFilterButton } from "@/components/RecallFilterButton";
 import { Screen } from "@/components/Screen";
 import { StarFilterButton } from "@/components/StarFilterButton";
+import { TickerFilterInput } from "@/components/TickerFilterInput";
 import { api } from "@/lib/api";
 import {
   alertFilterGroupKey,
@@ -25,7 +25,6 @@ import {
   compareAlertTypeChipOrder,
   sortAlertFilterGroupEntries,
 } from "@/lib/alertTypes";
-import { FILTER_PLACEHOLDER } from "@/lib/filters";
 import { usePersistedSymbolFilter } from "@/lib/usePersistedSymbolFilter";
 import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 import { colors, radii, spacing } from "@/lib/theme";
@@ -116,15 +115,7 @@ export default function AlertsScreen() {
         leftAction={returnSymbol ? <BackToSymbolButton symbol={returnSymbol} /> : null}
       >
         <View style={styles.filterRow}>
-          <TextInput
-            style={styles.filter}
-            placeholder={FILTER_PLACEHOLDER}
-            placeholderTextColor={colors.textMuted}
-            value={filter}
-            onChangeText={setFilter}
-            autoCapitalize="characters"
-            autoCorrect={false}
-          />
+          <TickerFilterInput value={filter} onChangeFilter={setFilter} style={styles.filter} />
           <RecallFilterButton
             visible={canRecall}
             onPress={applyLast}

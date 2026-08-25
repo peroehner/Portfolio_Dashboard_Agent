@@ -182,7 +182,7 @@ def get_me():
 
 @v1_bp.route("/preferences", methods=["GET", "PATCH"])
 def preferences():
-    """Per-user preferences (Portfolio Fit targets for the proposal framework)."""
+    """Per-user preferences (Portfolio Fit, Tax & Trim, Buy/Sell Plan, ticker segments)."""
     from services.preferences_service import PreferencesService
 
     svc = PreferencesService()
@@ -193,6 +193,24 @@ def preferences():
         return jsonify(svc.update(payload))
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@v1_bp.route("/preferences/ticker-segments/export", methods=["GET"])
+def export_ticker_segments():
+    """Plain-text backup of named ticker segments (``@NAME=match`` per line)."""
+    from flask import Response
+
+    from services.preferences_service import PreferencesService
+    from services.ticker_segments import export_segments_text
+
+    text = export_segments_text(PreferencesService().get_ticker_segments())
+    return Response(
+        text,
+        mimetype="text/plain; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="ticker-segments.txt"',
+        },
+    )
 
 
 @v1_bp.route("/config", methods=["GET"])

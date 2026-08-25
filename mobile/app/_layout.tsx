@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { SignInScreen } from "@/components/SignInScreen";
 import { AuthProvider, needsSignIn, useAuth } from "@/lib/AuthContext";
 import { StarredSymbolsProvider } from "@/lib/StarredSymbolsContext";
+import { TickerSegmentsProvider } from "@/lib/TickerSegmentsContext";
 import { SymbolFilterProvider } from "@/lib/usePersistedSymbolFilter";
 import { colors } from "@/lib/theme";
 
@@ -25,16 +26,17 @@ function RootNavigator() {
 
   return (
     <StarredSymbolsProvider>
-      <SymbolFilterProvider>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerStyle: { backgroundColor: colors.bg },
-            headerTintColor: colors.text,
-            headerTitleStyle: { fontWeight: "600" },
-            contentStyle: { backgroundColor: colors.bg },
-          }}
-        >
+      <TickerSegmentsProvider>
+        <SymbolFilterProvider>
+          <StatusBar style="light" />
+          <Stack
+            screenOptions={{
+              headerStyle: { backgroundColor: colors.bg },
+              headerTintColor: colors.text,
+              headerTitleStyle: { fontWeight: "600" },
+              contentStyle: { backgroundColor: colors.bg },
+            }}
+          >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
             name="symbol/[symbol]"
@@ -60,7 +62,8 @@ function RootNavigator() {
             }}
           />
         </Stack>
-      </SymbolFilterProvider>
+        </SymbolFilterProvider>
+      </TickerSegmentsProvider>
     </StarredSymbolsProvider>
   );
 }

@@ -4,7 +4,6 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -13,8 +12,8 @@ import { FundamentalsTable } from "@/components/FundamentalsTable";
 import { RecallFilterButton } from "@/components/RecallFilterButton";
 import { Screen } from "@/components/Screen";
 import { StarFilterButton } from "@/components/StarFilterButton";
+import { TickerFilterInput } from "@/components/TickerFilterInput";
 import { api } from "@/lib/api";
-import { FILTER_PLACEHOLDER } from "@/lib/filters";
 import { usePersistedSymbolFilter } from "@/lib/usePersistedSymbolFilter";
 import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 import type { FundamentalsSortState, FundamentalsTab } from "@/lib/fundamentalsTable";
@@ -53,15 +52,7 @@ export default function FundamentalsScreen() {
         contentStyle={styles.screenContent}
       >
         <View style={styles.toolbar}>
-          <TextInput
-            style={styles.filter}
-            placeholder={FILTER_PLACEHOLDER}
-            placeholderTextColor={colors.textMuted}
-            value={filter}
-            onChangeText={setFilter}
-            autoCapitalize="characters"
-            autoCorrect={false}
-          />
+          <TickerFilterInput value={filter} onChangeFilter={setFilter} style={styles.filter} />
           <RecallFilterButton
             visible={canRecall}
             onPress={applyLast}

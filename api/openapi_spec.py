@@ -10,8 +10,11 @@ OPENAPI_SPEC = {
         "/health": {"get": {"summary": "API health check"}},
         "/config": {"get": {"summary": "Runtime configuration (provider, sync interval)"}},
         "/preferences": {
-            "get": {"summary": "User preferences (Portfolio Fit + Tax & Trim + Buy/Sell Plan)"},
+            "get": {"summary": "User preferences (Portfolio Fit + Tax & Trim + Buy/Sell Plan + ticker segments)"},
             "patch": {"summary": "Update user preferences"},
+        },
+        "/preferences/ticker-segments/export": {
+            "get": {"summary": "Export named ticker segments as plain text backup"},
         },
         "/overview": {"get": {"summary": "Portfolio KPIs, holdings summary, and pastProgress (1M/3M/ATH)"}},
         "/symbols": {

@@ -64,6 +64,7 @@ class PreferencesTaxTrimTests(unittest.TestCase):
 
         self.assertIsNone(result["taxTrim"])
         self.assertIsNone(result["tradePlan"])
+        self.assertEqual(result["tickerSegments"], {})
 
     def test_merge_trade_plan_preserves_tax_trim(self):
         svc = PreferencesService()

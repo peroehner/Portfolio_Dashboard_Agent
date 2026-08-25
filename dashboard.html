@@ -331,6 +331,51 @@
     .holdings-filter-bar .add-ticker-btn {
       margin-left: auto;
     }
+    .holdings-filter-bar .fib-ticker-filter {
+      flex: 0 1 14rem;
+      min-width: 10rem;
+    }
+    .ticker-segment-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 0 0 0.55rem;
+    }
+    .ticker-segment-chip {
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.45);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 0.2rem 0.55rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .ticker-segment-chip:hover {
+      color: var(--text);
+      border-color: rgba(167, 139, 250, 0.45);
+    }
+    .ticker-segment-chip.ticker-segment-export {
+      color: var(--accent-2);
+    }
+    .ticker-at-suggestions {
+      margin-top: 0.15rem;
+    }
+    .ticker-at-hint {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .news-changes-filter-bar {
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+    .news-changes-filter-bar .fib-ticker-filter {
+      flex: 1 1 16rem;
+      max-width: 28rem;
+    }
+    .news-changes-filter-bar .ticker-at-suggestions {
+      flex: 1 1 100%;
+    }
     .add-ticker-backdrop {
       position: fixed; inset: 0; z-index: 1100;
       background: rgba(3, 8, 15, 0.72);
@@ -5639,7 +5684,8 @@
     <div class="wide-panel" id="newsChangesPanel">
       <h2>Portfolio News and Changes</h2>
       <div class="news-changes-filter-bar">
-        <input type="text" id="newsChangesTickerFilter" class="fib-ticker-filter" placeholder="Filter by ticker (comma-separated)..." oninput="setNewsChangesTickerFilter(this.value)">
+        <input type="text" id="newsChangesTickerFilter" class="fib-ticker-filter" placeholder="Filter… @AI · -intc · @AI=… save · Tab" oninput="setNewsChangesTickerFilter(this.value)" onkeydown="onNewsTickerFilterKeydown(event)" onblur="onNewsTickerFilterCommit(this)" autocomplete="off">
+        <div id="newsTickerAtSuggestions" class="ticker-segment-chips ticker-at-suggestions" hidden></div>
       </div>
       <div class="news-changes-grid">
         <div class="news-changes-col">
@@ -5789,6 +5835,7 @@
         <button type="button" class="secondary filter-btn" data-holdings-filter="medium" onclick="setHoldingsFilter('medium')" title="Middle 60% by share count">Medium</button>
         <button type="button" class="secondary filter-btn" data-holdings-filter="small" onclick="setHoldingsFilter('small')" title="Bottom 20% by share count">Small</button>
         <button type="button" class="secondary filter-btn" data-holdings-filter="watch" onclick="setHoldingsFilter('watch')" title="Tracked symbols with no shares">Watch-only</button>
+        <input type="text" id="holdingsTickerFilter" class="fib-ticker-filter" placeholder="Filter… @AI · -intc · @AI=… save · Tab" oninput="onTrackedTickerFilterInput(this.value)" onkeydown="onTrackedTickerFilterKeydown(event)" onblur="onTrackedTickerFilterCommit(this)" aria-label="Filter holdings by ticker">
         <span class="sel-clip-actions" data-clip-tab="holdings"></span>
         <button type="button" class="add-ticker-btn" id="btnAddTicker" onclick="openAddTickerModal()" title="Search and add a ticker to your portfolio">Add ticker</button>
       </div>
@@ -5813,7 +5860,9 @@
   <main id="view-portfolio" class="view" hidden>
     <section class="panel symbol-sidebar">
       <h2>Tracked Symbols</h2>
-      <input type="text" id="targetSymbolFilter" class="fib-ticker-filter target-symbol-filter" placeholder="Filter by ticker..." oninput="setTargetSymbolFilter(this.value)" aria-label="Filter tracked symbols">
+      <input type="text" id="targetSymbolFilter" class="fib-ticker-filter target-symbol-filter" placeholder="Filter… @AI · -intc · @AI=… save · Tab" oninput="onTrackedTickerFilterInput(this.value)" onkeydown="onTrackedTickerFilterKeydown(event)" onblur="onTrackedTickerFilterCommit(this)" autocomplete="off" aria-label="Filter tracked symbols">
+      <div id="trackedTickerAtSuggestions" class="ticker-segment-chips ticker-at-suggestions" hidden></div>
+      <div id="tickerSegmentChips" class="ticker-segment-chips" hidden></div>
       <div class="symbol-list-scroll">
         <ul class="symbol-list" id="symbolList"></ul>
       </div>
@@ -6011,7 +6060,7 @@
       <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs. ⌘/Ctrl+Set Filter adds the selection to the existing filter.</p>
       <div class="fib-filter-bar">
         <button type="button" class="secondary filter-btn" data-fib-confirmed="1" onclick="toggleFibConfirmed()" title="Show only symbols whose chart pattern is confirmed — price has broken the key level in the pattern's direction (the measured-move target is active).">Confirmed Patterns</button>
-        <input type="text" id="fibTickerFilter" class="fib-ticker-filter" placeholder="Filter by ticker..." oninput="setFibTickerFilter(this.value)">
+        <input type="text" id="fibTickerFilter" class="fib-ticker-filter" placeholder="Filter… @AI · -intc · @AI=… save · Tab" oninput="onTrackedTickerFilterInput(this.value)" onkeydown="onTrackedTickerFilterKeydown(event)" onblur="onTrackedTickerFilterCommit(this)">
         <span class="fib-filter-label">Fib Proximity</span>
         <button type="button" class="secondary filter-btn active" data-fib-band="all" onclick="setFibMapBand('all')" title="Show all symbols regardless of distance to the nearest Fibonacci level.">All</button>
         <button type="button" class="secondary filter-btn" data-fib-band="critical" onclick="setFibMapBand('critical')" title="Critical (&lt;2% from nearest Fib): immediate target retest or breakout setup. High alert required.">Critical</button>
@@ -7283,6 +7332,344 @@
       fundamentals: null,
     };
 
+    /** Named ticker segments + comma filter (shared with mobile / preferences).
+     *  Match: includes OR, ``-term`` excludes, ``@Name`` expands a saved segment.
+     *  Commands (whole field): ``@Name=…`` save, ``@Name!`` delete. Tab completes ``@``. */
+    let tickerSegments = {};
+    let trackedTickerFilter = "";
+    const TICKER_SEGMENT_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
+    const TICKER_SEGMENT_MAX_DEPTH = 4;
+
+    function normalizeTickerSegmentName(name) {
+      const text = String(name || "").trim();
+      if (!text || !TICKER_SEGMENT_NAME_RE.test(text)) return null;
+      return text.toUpperCase();
+    }
+
+    function parseTickerSegmentCommand(raw) {
+      const text = String(raw || "").trim();
+      if (!text) return null;
+      const del = text.match(/^@([A-Za-z][A-Za-z0-9_]{0,31})!$/);
+      if (del) {
+        const name = normalizeTickerSegmentName(del[1]);
+        return name ? { op: "delete", name } : null;
+      }
+      const def = text.match(/^@([A-Za-z][A-Za-z0-9_]{0,31})=(.*)$/s);
+      if (def) {
+        const name = normalizeTickerSegmentName(def[1]);
+        if (!name) return null;
+        return { op: "define", name, match: String(def[2] || "").trim() };
+      }
+      return null;
+    }
+
+    function tickerFilterTerms(value) {
+      return String(value || "")
+        .split(",")
+        .map((term) => term.trim())
+        .filter(Boolean);
+    }
+
+    function expandTickerFilter(filterText, depth = 0, stack = null) {
+      const seen = stack || new Set();
+      const out = [];
+      for (const term of tickerFilterTerms(filterText)) {
+        // Bare ``@`` / in-progress ``@Ai`` while typing — skip (don't filter as literals).
+        if (term === "@" || /^@[A-Za-z0-9_]*$/.test(term)) {
+          const ref = term.match(/^@([A-Za-z][A-Za-z0-9_]{0,31})$/);
+          if (!ref) continue;
+          const name = ref[1].toUpperCase();
+          if (seen.has(name) || depth >= TICKER_SEGMENT_MAX_DEPTH) continue;
+          const body = tickerSegments[name];
+          if (body == null || body === "") continue; // unknown / incomplete name → ignore
+          const next = new Set(seen);
+          next.add(name);
+          out.push(...tickerFilterTerms(expandTickerFilter(body, depth + 1, next)));
+          continue;
+        }
+        out.push(term);
+      }
+      return out.join(", ");
+    }
+
+    function parseTickerMatchTerms(filterText) {
+      const includes = [];
+      const excludes = [];
+      let requireStarred = false;
+      for (const term of tickerFilterTerms(expandTickerFilter(filterText))) {
+        // Safety: never treat leftover @tokens as ticker substrings.
+        if (term.startsWith("@")) continue;
+        const lower = term.toLowerCase();
+        if (lower === "+*" || lower === "+star") {
+          requireStarred = true;
+          continue;
+        }
+        if (lower === "*" || lower === "star" || lower === "⭐") {
+          includes.push("*");
+          continue;
+        }
+        if (term.startsWith("-") && term.length > 1) {
+          excludes.push(term.slice(1).toLowerCase());
+          continue;
+        }
+        includes.push(lower);
+      }
+      return { includes, excludes, requireStarred };
+    }
+
+    function symbolMatchesTickerFilter(symbol, filterValue) {
+      const parsed = parseTickerMatchTerms(filterValue);
+      const sym = String(symbol || "").toUpperCase();
+      const symL = sym.toLowerCase();
+      // Web has no star set on these tables — ``*`` / ``+*`` are no-ops here.
+      if (parsed.requireStarred) return false;
+      for (const ex of parsed.excludes) {
+        if (ex && symL.includes(ex)) return false;
+      }
+      if (!parsed.includes.length) return true;
+      return parsed.includes.some((term) => term !== "*" && symL.includes(term));
+    }
+
+    /** True when the filter actually constrains symbols (incomplete ``@`` alone does not). */
+    function tickerFilterIsActive(filterValue) {
+      const parsed = parseTickerMatchTerms(filterValue);
+      return parsed.includes.length > 0 || parsed.excludes.length > 0 || parsed.requireStarred;
+    }
+
+    function listTickerSegmentNames(prefix) {
+      const needle = String(prefix || "").trim().toUpperCase();
+      return Object.keys(tickerSegments)
+        .filter((name) => !needle || name.startsWith(needle))
+        .sort();
+    }
+
+    function trailingAtToken(value) {
+      const text = String(value || "");
+      if (!/(?:^|,\s*)@[A-Za-z0-9_]*$/.test(text)) return null;
+      const at = text.lastIndexOf("@");
+      if (at < 0) return null;
+      return { start: at, prefix: text.slice(at + 1) };
+    }
+
+    function applyAtSuggestion(inputId, name, setterName) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      const token = trailingAtToken(input.value);
+      const next = token
+        ? `${input.value.slice(0, token.start)}@${name}`
+        : `@${name}`;
+      if (setterName === "news") setNewsChangesTickerFilter(next);
+      else setTrackedTickerFilter(next);
+      requestAnimationFrame(() => {
+        input.focus();
+        const pos = next.length;
+        input.setSelectionRange(pos, pos);
+      });
+    }
+
+    function renderTickerAtSuggestions(filterValue, hostId, inputId, setterName) {
+      const host = document.getElementById(hostId);
+      if (!host) return;
+      const token = trailingAtToken(filterValue);
+      if (!token) {
+        host.innerHTML = "";
+        host.hidden = true;
+        return;
+      }
+      const names = listTickerSegmentNames(token.prefix);
+      if (!names.length) {
+        host.innerHTML = Object.keys(tickerSegments).length
+          ? `<span class="ticker-at-hint">No segment matches @${escapeHtml(token.prefix)}</span>`
+          : `<span class="ticker-at-hint">No saved segments yet — use @NAME=tsm, mr to save</span>`;
+        host.hidden = false;
+        return;
+      }
+      host.hidden = false;
+      host.innerHTML = names.map((name) => {
+        const match = tickerSegments[name] || "";
+        return `<button type="button" class="ticker-segment-chip" title="${escapeHtml(match)}" onclick="applyAtSuggestion('${inputId}', '${name}', '${setterName}')">@${escapeHtml(name)}</button>`;
+      }).join("");
+    }
+
+    function syncTrackedTickerFilterInputs() {
+      for (const id of ["targetSymbolFilter", "holdingsTickerFilter", "fibTickerFilter", "newsChangesTickerFilter"]) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        // News filter is independent for content, but shares segment commands —
+        // only sync the three portfolio ticker boxes together.
+        if (id === "newsChangesTickerFilter") continue;
+        if (el.value !== trackedTickerFilter) el.value = trackedTickerFilter;
+      }
+      renderTickerSegmentChips();
+    }
+
+    function setTrackedTickerFilter(value) {
+      trackedTickerFilter = value || "";
+      syncTrackedTickerFilterInputs();
+      saveFilterState();
+      renderTickerAtSuggestions(
+        trackedTickerFilter,
+        "trackedTickerAtSuggestions",
+        "targetSymbolFilter",
+        "tracked"
+      );
+      rerenderSymbolNavLists();
+      if (typeof renderHoldingsView === "function") renderHoldingsView();
+      if (typeof renderFibMapView === "function") renderFibMapView();
+    }
+
+    async function loadTickerSegments() {
+      try {
+        const data = await api("/preferences");
+        tickerSegments = data.tickerSegments || {};
+        renderTickerSegmentChips();
+        renderTickerAtSuggestions(
+          newsChangesTickerFilter,
+          "newsTickerAtSuggestions",
+          "newsChangesTickerFilter",
+          "news"
+        );
+        renderTickerAtSuggestions(
+          trackedTickerFilter,
+          "trackedTickerAtSuggestions",
+          "targetSymbolFilter",
+          "tracked"
+        );
+        // Re-apply lists so ``@Name`` filters resolve after segments load.
+        if (typeof renderRecoChanges === "function") renderRecoChanges();
+        if (typeof renderLatestAssessments === "function") renderLatestAssessments();
+        if (typeof renderSummaryAlerts === "function") renderSummaryAlerts();
+        if (typeof renderTopNews === "function") renderTopNews();
+        if (typeof rerenderSymbolNavLists === "function") rerenderSymbolNavLists();
+        if (typeof renderHoldingsView === "function") renderHoldingsView();
+        if (typeof renderFibMapView === "function") renderFibMapView();
+      } catch (_) {
+        /* offline / unauth */
+      }
+    }
+
+    async function persistTickerSegmentPatch(patch) {
+      const data = await api("/preferences", {
+        method: "PATCH",
+        body: JSON.stringify({ tickerSegments: patch }),
+      });
+      tickerSegments = data.tickerSegments || {};
+      renderTickerSegmentChips();
+      return tickerSegments;
+    }
+
+    async function applyTickerSegmentCommand(raw) {
+      const cmd = parseTickerSegmentCommand(raw);
+      if (!cmd) return null;
+      if (cmd.op === "delete") {
+        if (!tickerSegments[cmd.name]) {
+          if (typeof setStatus === "function") setStatus(`@${cmd.name} is not saved.`, "info");
+          return "";
+        }
+        if (!window.confirm(`Delete segment @${cmd.name}?`)) return raw;
+        await persistTickerSegmentPatch({ [cmd.name]: "" });
+        if (typeof setStatus === "function") setStatus(`Deleted @${cmd.name}.`, "success");
+        return "";
+      }
+      const prev = tickerSegments[cmd.name];
+      if (prev != null && prev !== cmd.match) {
+        if (!window.confirm(
+          `Overwrite @${cmd.name}?\n\nCurrent: ${prev}\nNew: ${cmd.match || "(empty)"}`
+        )) {
+          return raw;
+        }
+      }
+      await persistTickerSegmentPatch({ [cmd.name]: cmd.match });
+      if (typeof setStatus === "function") {
+        setStatus(
+          cmd.match ? `Saved @${cmd.name}.` : `Deleted @${cmd.name}.`,
+          "success"
+        );
+      }
+      return cmd.match ? `@${cmd.name}` : "";
+    }
+
+    async function onTrackedTickerFilterInput(value) {
+      setTrackedTickerFilter(value);
+    }
+
+    async function onTrackedTickerFilterCommit(inputEl) {
+      const raw = inputEl ? inputEl.value : trackedTickerFilter;
+      const next = await applyTickerSegmentCommand(raw);
+      if (next != null) setTrackedTickerFilter(next);
+    }
+
+    function onTrackedTickerFilterKeydown(event) {
+      if (event.key !== "Tab") return;
+      const input = event.target;
+      if (!input || !input.value) return;
+      const token = trailingAtToken(input.value);
+      if (!token) return;
+      const names = listTickerSegmentNames(token.prefix);
+      if (!names.length) return;
+      event.preventDefault();
+      const name = names[0];
+      const body = tickerSegments[name];
+      // Exact name → expand match string; prefix → complete @NAME.
+      const exact = names.find((n) => n === token.prefix.toUpperCase()) || (token.prefix && names.length === 1 ? names[0] : null);
+      let next;
+      if (exact && body != null && event.shiftKey === false && token.prefix.toUpperCase() === exact) {
+        next = `${input.value.slice(0, token.start)}${body}`;
+      } else {
+        next = `${input.value.slice(0, token.start)}@${name}`;
+      }
+      setTrackedTickerFilter(next);
+      requestAnimationFrame(() => {
+        input.focus();
+        const pos = next.length;
+        input.setSelectionRange(pos, pos);
+      });
+    }
+
+    async function exportTickerSegments() {
+      try {
+        const response = await fetch(`${API}/preferences/ticker-segments/export`, {
+          credentials: "same-origin",
+        });
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || "Export failed");
+        }
+        const text = await response.text();
+        const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "ticker-segments.txt";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        if (typeof setStatus === "function") {
+          setStatus(text.trim() ? "Exported ticker segments." : "No ticker segments to export.", "success");
+        }
+      } catch (error) {
+        if (typeof setStatus === "function") setStatus(error.message || "Export failed", "error");
+      }
+    }
+
+    function renderTickerSegmentChips() {
+      const host = document.getElementById("tickerSegmentChips");
+      if (!host) return;
+      const names = Object.keys(tickerSegments).sort();
+      if (!names.length) {
+        host.innerHTML = "";
+        host.hidden = true;
+        return;
+      }
+      host.hidden = false;
+      host.innerHTML = names.map((name) => {
+        const match = tickerSegments[name] || "";
+        return `<button type="button" class="ticker-segment-chip" title="${escapeHtml(match)}" onclick="setTrackedTickerFilter('@${name}')">@${escapeHtml(name)}</button>`;
+      }).join("")
+        + `<button type="button" class="ticker-segment-chip ticker-segment-export" title="Export segments backup" onclick="exportTickerSegments()">Export</button>`;
+    }
+
     const FILTER_STATE_KEY = "pda.filterState";
     const FILTER_STATE_VERSION = 1;
 
@@ -7290,6 +7677,10 @@
       return {
         v: FILTER_STATE_VERSION,
         holdingsFilter,
+        trackedTickerFilter,
+        // Legacy keys kept for older clients reading the same storage blob.
+        holdingsTickerFilter: trackedTickerFilter,
+        fibMapTicker: trackedTickerFilter,
         screeningFilter,
         simulationFilter,
         simulationLegs,
@@ -7299,7 +7690,6 @@
         taxProposalTrimScoreThreshold,
         taxProposalMatchLossPool,
         fibMapBand,
-        fibMapTicker,
         fibConfirmedOnly,
         newsChangesTickerFilter,
         recoChangesDirFilter,
@@ -7330,6 +7720,14 @@
 
         const holdingsFilters = new Set(["all", "large", "medium", "small", "watch"]);
         if (holdingsFilters.has(saved.holdingsFilter)) holdingsFilter = saved.holdingsFilter;
+        // Prefer the shared key; fall back to older per-tab ticker filters.
+        if (typeof saved.trackedTickerFilter === "string") {
+          trackedTickerFilter = saved.trackedTickerFilter;
+        } else if (typeof saved.fibMapTicker === "string" && saved.fibMapTicker) {
+          trackedTickerFilter = saved.fibMapTicker;
+        } else if (typeof saved.holdingsTickerFilter === "string" && saved.holdingsTickerFilter) {
+          trackedTickerFilter = saved.holdingsTickerFilter;
+        }
 
         const screenFilters = new Set(["all", "upside", "close", "far"]);
         if (screenFilters.has(saved.screeningFilter)) screeningFilter = saved.screeningFilter;
@@ -7360,7 +7758,6 @@
 
         const fibBands = new Set(["all", "critical", "warning", "neutral"]);
         if (fibBands.has(saved.fibMapBand)) fibMapBand = saved.fibMapBand;
-        if (typeof saved.fibMapTicker === "string") fibMapTicker = saved.fibMapTicker;
         if (typeof saved.fibConfirmedOnly === "boolean") fibConfirmedOnly = saved.fibConfirmedOnly;
 
         if (typeof saved.newsChangesTickerFilter === "string") {
@@ -7407,8 +7804,7 @@
       updateNewsControlStates();
       updateRecoChangesControlStates();
       updateLeftInsightsPanelUi();
-      const fibInput = document.getElementById("fibTickerFilter");
-      if (fibInput) fibInput.value = fibMapTicker;
+      syncTrackedTickerFilterInputs();
       const newsInput = document.getElementById("newsChangesTickerFilter");
       if (newsInput) newsInput.value = newsChangesTickerFilter;
       document.querySelectorAll(".fund-tab").forEach((btn) => {
@@ -7487,7 +7883,10 @@
 
     function tabFilterLabel(tabId) {
       if (tabId === "holdings") {
-        return HOLDINGS_FILTER_LABELS[holdingsFilter] || holdingsFilter;
+        let label = HOLDINGS_FILTER_LABELS[holdingsFilter] || holdingsFilter;
+        const ticker = trackedTickerFilter.trim();
+        if (ticker) label += ` · ${ticker.toUpperCase()}`;
+        return label;
       }
       if (tabId === "simulation") {
         const filterLabels = { all: "All", close: "Close Trades", far: "Far Trades" };
@@ -7503,7 +7902,7 @@
         const bandLabels = { all: "All", critical: "Critical", warning: "Near", neutral: "Neutral" };
         let label = bandLabels[fibMapBand] || fibMapBand;
         if (fibConfirmedOnly) label = `Confirmed · ${label}`;
-        const ticker = fibMapTicker.trim();
+        const ticker = trackedTickerFilter.trim();
         if (ticker) label += ` · ${ticker.toUpperCase()}`;
         return label;
       }
@@ -7931,16 +8330,10 @@
       symbolNavRegistry[listId] = { symbols, onSelect };
       const list = document.getElementById(listId);
       if (!list) return;
-      const filter = listId === "symbolList" ? targetSymbolFilter : "";
-      const terms = filter
-        .split(",")
-        .map((t) => t.trim().toLowerCase())
-        .filter(Boolean);
+      const filter = listId === "symbolList" ? trackedTickerFilter : "";
+      const terms = tickerFilterTerms(filter);
       const visible = terms.length
-        ? symbols.filter((item) => {
-            const sym = String(item.symbol || "").toLowerCase();
-            return terms.some((term) => sym.includes(term));
-          })
+        ? symbols.filter((item) => symbolMatchesTickerFilter(item.symbol, filter))
         : symbols;
       list.innerHTML = "";
       if (!visible.length) {
@@ -8954,13 +9347,6 @@
           setStatus(planErrorMessage(error), "error");
         }
       });
-    }
-
-    let targetSymbolFilter = "";
-
-    function setTargetSymbolFilter(value) {
-      targetSymbolFilter = value || "";
-      rerenderSymbolNavLists();
     }
 
     let addTickerSelected = null;
@@ -10549,26 +10935,58 @@
     let recoChangesDirFilter = "";
 
     function newsChangesSymbolTerms() {
-      return newsChangesTickerFilter
-        .split(",")
-        .map((term) => term.trim().toLowerCase())
-        .filter(Boolean);
+      return tickerFilterTerms(newsChangesTickerFilter);
     }
 
     function newsChangesSymbolMatches(symbol) {
-      const terms = newsChangesSymbolTerms();
-      if (!terms.length) return true;
-      const sym = String(symbol || "").toLowerCase();
-      return terms.some((term) => sym.includes(term));
+      return symbolMatchesTickerFilter(symbol, newsChangesTickerFilter);
     }
 
     function setNewsChangesTickerFilter(value) {
       newsChangesTickerFilter = value || "";
       saveFilterState();
+      renderTickerAtSuggestions(
+        newsChangesTickerFilter,
+        "newsTickerAtSuggestions",
+        "newsChangesTickerFilter",
+        "news"
+      );
       renderRecoChanges();
       renderLatestAssessments();
       renderSummaryAlerts();
       renderTopNews();
+    }
+
+    async function onNewsTickerFilterCommit(inputEl) {
+      const raw = inputEl ? inputEl.value : newsChangesTickerFilter;
+      const next = await applyTickerSegmentCommand(raw);
+      if (next != null) setNewsChangesTickerFilter(next);
+    }
+
+    function onNewsTickerFilterKeydown(event) {
+      if (event.key !== "Tab") return;
+      const input = event.target;
+      if (!input || !input.value) return;
+      const token = trailingAtToken(input.value);
+      if (!token) return;
+      const names = listTickerSegmentNames(token.prefix);
+      if (!names.length) return;
+      event.preventDefault();
+      const name = names[0];
+      const body = tickerSegments[name];
+      const exact = names.find((n) => n === token.prefix.toUpperCase());
+      let next;
+      if (exact && body != null && token.prefix.toUpperCase() === exact) {
+        next = `${input.value.slice(0, token.start)}${body}`;
+      } else {
+        next = `${input.value.slice(0, token.start)}@${name}`;
+      }
+      setNewsChangesTickerFilter(next);
+      requestAnimationFrame(() => {
+        input.focus();
+        const pos = next.length;
+        input.setSelectionRange(pos, pos);
+      });
     }
 
     function recoChangeDirection(change) {
@@ -10602,7 +11020,7 @@
     }
 
     function recoChangesFiltersActive() {
-      return Boolean(newsChangesTickerFilter.trim() || recoChangesDirFilter);
+      return Boolean(tickerFilterIsActive(newsChangesTickerFilter) || recoChangesDirFilter);
     }
 
     function setNewsSort(mode) {
@@ -10666,7 +11084,7 @@
 
       newsEl.innerHTML = list.length
         ? `<div class="topnews-feed">${list.map(renderTopNewsItem).join("")}</div>`
-        : `<div class="empty">${topNewsAll.length && newsChangesTickerFilter.trim() ? "No news matches the current filter." : "No recent news."}</div>`;
+        : `<div class="empty">${topNewsAll.length && tickerFilterIsActive(newsChangesTickerFilter) ? "No news matches the current filter." : "No recent news."}</div>`;
     }
 
     function renderRecoChanges() {
@@ -11432,7 +11850,7 @@
       }
       body.innerHTML = list.length
         ? `<div class="topnews-feed">${list.map(renderSummaryAlertItem).join("")}</div>`
-        : `<div class="empty">${summaryAlertsAll.length && (newsChangesTickerFilter.trim() || summaryAlertsTypeFilter) ? "No alerts match the current filter." : "No active alerts."}</div>`;
+        : `<div class="empty">${summaryAlertsAll.length && (tickerFilterIsActive(newsChangesTickerFilter) || summaryAlertsTypeFilter) ? "No alerts match the current filter." : "No active alerts."}</div>`;
     }
 
     async function loadSummaryAlerts() {
@@ -11593,7 +12011,10 @@
     }
 
     function holdingsRowsForFilter() {
-      return applyVirtualSymbolFilter(holdingsCategoryRows(), "holdings");
+      const rows = holdingsCategoryRows().filter((row) =>
+        symbolMatchesTickerFilter(row.symbol, trackedTickerFilter)
+      );
+      return applyVirtualSymbolFilter(rows, "holdings");
     }
 
     function updateHoldingsFilterButtons() {
@@ -11746,6 +12167,9 @@
     function holdingsEmptyMessage(rows) {
       if (getVirtualSymbols("holdings") && !rows.length) {
         return virtualFilterNoMatchMessage("holdings");
+      }
+      if (tickerFilterTerms(trackedTickerFilter).length && !rows.length) {
+        return "No symbols match the ticker filter.";
       }
       return HOLDINGS_EMPTY_MESSAGES[holdingsFilter] || HOLDINGS_EMPTY_MESSAGES.all;
     }
@@ -12719,7 +13143,6 @@
 
     let fibMapData = [];
     let fibMapBand = "all";
-    let fibMapTicker = "";
     let fibConfirmedOnly = false;
 
     function fibLevelKind(level) {
@@ -12971,9 +13394,8 @@
     ];
 
     function applyFibMapFilters(rows) {
-      const ticker = fibMapTicker.trim().toLowerCase();
       const filtered = rows.filter((row) => {
-        if (ticker && !String(row.symbol || "").toLowerCase().includes(ticker)) {
+        if (!symbolMatchesTickerFilter(row.symbol, trackedTickerFilter)) {
           return false;
         }
         if (fibConfirmedOnly && !(row.pattern && row.pattern.status === "confirmed")) {
@@ -13009,12 +13431,6 @@
       fibConfirmedOnly = !fibConfirmedOnly;
       saveFilterState();
       updateFibFilterButtons();
-      renderFibMapView();
-    }
-
-    function setFibTickerFilter(value) {
-      fibMapTicker = value || "";
-      saveFilterState();
       renderFibMapView();
     }
 
@@ -19258,6 +19674,7 @@
     initVpSetFilterHints();
     restoreFilterState();
     applyPersistedFilterUi();
+    loadTickerSegments();
     void loadTaxTrimPrefsFromServer().then((changed) => {
       if (changed) applyPersistedFilterUi();
       else void syncTaxTrimPrefsToServer();
