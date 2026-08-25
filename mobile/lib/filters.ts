@@ -60,6 +60,14 @@ export function expandFilter(filter: string, segments?: TickerSegmentsMap | null
   }
   const out: string[] = [];
   for (const term of splitFilterTerms(filter)) {
+    // Live ``@Name=AMZN`` while defining — keep the RHS so comma-split
+    // ``@CL=AMZN,GOOG`` does not drop AMZN (glued to the @ token).
+    const defined = term.match(DEFINE_RE);
+    if (defined) {
+      const rest = (defined[2] || "").trim();
+      if (rest) out.push(...splitFilterTerms(expandFilter(rest, segs, depth, stack)));
+      continue;
+    }
     // Bare ``@`` / in-progress ``@Ai`` — skip until a known segment resolves.
     if (term === "@" || /^@[A-Za-z0-9_]*$/.test(term)) {
       const ref = term.match(REF_RE);

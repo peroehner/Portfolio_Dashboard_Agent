@@ -373,8 +373,11 @@
       flex: 1 1 16rem;
       max-width: 28rem;
     }
-    .news-changes-filter-bar .ticker-at-suggestions {
+    .news-changes-filter-bar .ticker-at-suggestions,
+    .holdings-filter-bar .ticker-at-suggestions,
+    .fib-filter-bar .ticker-at-suggestions {
       flex: 1 1 100%;
+      margin-bottom: 0;
     }
     .add-ticker-backdrop {
       position: fixed; inset: 0; z-index: 1100;
@@ -5838,6 +5841,7 @@
         <input type="text" id="holdingsTickerFilter" class="fib-ticker-filter" placeholder="Filter… @AI · -intc · @AI=… Enter to save · Tab" oninput="onTrackedTickerFilterInput(this.value)" onkeydown="onTrackedTickerFilterKeydown(event)" onblur="onTrackedTickerFilterCommit(this)" autocomplete="off" spellcheck="false" aria-label="Filter holdings by ticker">
         <span class="sel-clip-actions" data-clip-tab="holdings"></span>
         <button type="button" class="add-ticker-btn" id="btnAddTicker" onclick="openAddTickerModal()" title="Search and add a ticker to your portfolio">Add ticker</button>
+        <div id="holdingsTickerAtSuggestions" class="ticker-segment-chips ticker-at-suggestions" hidden></div>
       </div>
       <div id="holdingsTable" class="portfolio-table-scroll"></div>
     </section>
@@ -6071,6 +6075,7 @@
           <button type="button" class="secondary fib-refresh-btn" id="fibRefreshBtn" onclick="loadFibMap(true)" title="Refresh pattern and Fib signals for all symbols">Refresh</button>
           <button type="button" class="help-btn fib-help-btn" onclick="openPatternsHelp()" title="How to read this view" aria-label="How to read this view">?</button>
         </div>
+        <div id="fibTickerAtSuggestions" class="ticker-segment-chips ticker-at-suggestions" hidden></div>
       </div>
       <div id="fibMapTable" class="portfolio-table-scroll"></div>
     </div>
@@ -7378,6 +7383,14 @@
       const seen = stack || new Set();
       const out = [];
       for (const term of tickerFilterTerms(filterText)) {
+        // Live ``@Name=AMZN`` while defining — keep the RHS so comma-split
+        // ``@CL=AMZN,GOOG`` does not drop AMZN (glued to the @ token).
+        const defined = term.match(/^@([A-Za-z][A-Za-z0-9_]{0,31})=([\s\S]*)$/);
+        if (defined) {
+          const rest = String(defined[2] || "").trim();
+          if (rest) out.push(...tickerFilterTerms(expandTickerFilter(rest, depth, seen)));
+          continue;
+        }
         // Bare ``@`` / in-progress ``@Ai`` while typing — skip (don't filter as literals).
         if (term === "@" || /^@[A-Za-z0-9_]*$/.test(term)) {
           const ref = term.match(/^@([A-Za-z][A-Za-z0-9_]{0,31})$/);
@@ -7497,18 +7510,15 @@
     }
 
     function renderTrackedTickerAtSuggestions() {
-      renderTickerAtSuggestions(
-        trackedTickerFilter,
-        "trackedTickerAtSuggestions",
-        "targetSymbolFilter",
-        "tracked"
-      );
-      renderTickerAtSuggestions(
-        trackedTickerFilter,
-        "inspectorTickerAtSuggestions",
-        "inspectorSymbolFilter",
-        "tracked"
-      );
+      const hosts = [
+        { hostId: "trackedTickerAtSuggestions", inputId: "targetSymbolFilter" },
+        { hostId: "inspectorTickerAtSuggestions", inputId: "inspectorSymbolFilter" },
+        { hostId: "holdingsTickerAtSuggestions", inputId: "holdingsTickerFilter" },
+        { hostId: "fibTickerAtSuggestions", inputId: "fibTickerFilter" },
+      ];
+      for (const { hostId, inputId } of hosts) {
+        renderTickerAtSuggestions(trackedTickerFilter, hostId, inputId, "tracked");
+      }
     }
 
     function syncTrackedTickerFilterInputs() {

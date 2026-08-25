@@ -32,11 +32,12 @@ export function TickerFilterInput({
   const { segments, applyCommand, exportText } = useTickerSegments();
   const [focused, setFocused] = useState(false);
 
+  const atToken = useMemo(() => trailingAtToken(value), [value]);
   const suggestions = useMemo(() => {
-    const token = trailingAtToken(value);
-    if (!token || !focused) return [];
-    return matchingSegmentNames(token.prefix, segments).slice(0, 8);
-  }, [value, segments, focused]);
+    if (!atToken || !focused) return [];
+    return matchingSegmentNames(atToken.prefix, segments);
+  }, [atToken, segments, focused]);
+  const showAtHints = Boolean(atToken && focused);
 
   async function commitCommand() {
     if (!parseSegmentCommand(value)) return;
@@ -87,13 +88,21 @@ export function TickerFilterInput({
           <Text style={styles.exportText}>⇪</Text>
         </Pressable>
       </View>
-      {suggestions.length ? (
+      {showAtHints ? (
         <View style={styles.suggestRow}>
-          {suggestions.map((name) => (
-            <Pressable key={name} onPress={() => applySuggestion(name)} style={styles.chip}>
-              <Text style={styles.chipText}>@{name}</Text>
-            </Pressable>
-          ))}
+          {suggestions.length ? (
+            suggestions.map((name) => (
+              <Pressable key={name} onPress={() => applySuggestion(name)} style={styles.chip}>
+                <Text style={styles.chipText}>@{name}</Text>
+              </Pressable>
+            ))
+          ) : (
+            <Text style={styles.hint}>
+              {Object.keys(segments || {}).length
+                ? `No segment matches @${atToken?.prefix || ""}`
+                : "No saved segments yet — type @NAME=tsm, mr then Done"}
+            </Text>
+          )}
         </View>
       ) : null}
     </View>
@@ -129,4 +138,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   chipText: { color: colors.text, fontSize: 12, fontWeight: "600" },
+  hint: { color: colors.textMuted, fontSize: 12 },
 });

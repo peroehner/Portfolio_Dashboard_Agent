@@ -64,11 +64,21 @@ def expand_filter(
 
     Incomplete tokens (bare ``@`` / unknown ``@Name``) are dropped so typing
     toward a segment does not wipe the filtered list.
+
+    In-progress define tokens (``@Name=AMZN``) contribute the RHS so the first
+    ticker after ``=`` is not dropped when comma-splitting ``@Name=AMZN,GOOG``.
     """
     segs = {str(k).upper(): str(v) for k, v in (segments or {}).items() if v is not None}
     seen = stack or frozenset()
     out: list[str] = []
     for term in split_terms(filter_text):
+        # Live ``@Name=…`` while defining — use the match RHS, not the @ token.
+        defined = _DEFINE_RE.match(term)
+        if defined:
+            rest = defined.group(2).strip()
+            if rest:
+                out.extend(split_terms(expand_filter(rest, segs, depth=depth, stack=seen)))
+            continue
         if term == "@" or re.match(r"^@[A-Za-z0-9_]*$", term):
             ref = _REF_RE.match(term)
             if not ref:

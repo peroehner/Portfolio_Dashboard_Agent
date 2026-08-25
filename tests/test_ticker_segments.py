@@ -47,6 +47,16 @@ class TickerSegmentsTests(unittest.TestCase):
         self.assertFalse(symbol_matches_filter("AAPL", "@AI", segments=segs))
         self.assertTrue(symbol_matches_filter("AAPL", "@NOPE", segments=segs))
 
+    def test_live_define_keeps_first_ticker_after_equals(self):
+        # Comma-split turns ``@CL=AMZN,GOOG`` into ``@CL=AMZN`` + ``GOOG``;
+        # the RHS of the define token must still match AMZN.
+        raw = "@CL=AMZN,GOOG"
+        self.assertTrue(symbol_matches_filter("AMZN", raw))
+        self.assertTrue(symbol_matches_filter("GOOG", raw))
+        self.assertTrue(symbol_matches_filter("GOOGL", raw))
+        self.assertFalse(symbol_matches_filter("AAPL", raw))
+        self.assertEqual(expand_filter(raw, {}), "AMZN, GOOG")
+
     def test_exclude_only(self):
         self.assertTrue(symbol_matches_filter("AAPL", "-intc"))
         self.assertFalse(symbol_matches_filter("INTC", "-intc"))
