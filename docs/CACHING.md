@@ -131,9 +131,11 @@ News HTTP timeout defaults to **4s** (`NEWS_HTTP_TIMEOUT_SECONDS`). A handshake/
 
 1. Loads recommendation changes from Postgres (cheap)
 2. Reads **cached** news per symbol (warmer-filled). Missing headlines are **not** live-fetched on this request.
-3. Runs **`score_and_rank`** (bulk price history) to rank headlines by market reaction
+3. Runs **`score_and_rank`** (bulk price history) to rank headlines by market reaction — capped to `NEWS_RELEVANCE_MAX_SYMBOLS` (default 40) and downloaded in chunks (`NEWS_RELEVANCE_BULK_CHUNK`) so Render starter (~512MB) does not OOM on a large book.
 
-Pass `?live=1` to force on-demand news. After a Finnhub/Yahoo timeout, live news is skipped for two minutes so the web client stays responsive.
+Pass `?live=1` to force on-demand news. After a Finnhub/Yahoo timeout, live news is skipped for two minutes so the web client stays responsive. Finnhub **401/403** (unsupported venue / key) caches empty headlines and does **not** fall back to Yahoo.
+
+On Render (`render.yaml` starter), history/news cache sizes and `ASSESS_WORKERS` are capped below local defaults. Check **Consol → footprint** (`rssMb` + `technical_history`) after deploy if OOM emails return — upgrade instance type if RSS still rides the ceiling.
 
 Web Summary throttles top news to ≤ every 5 minutes and often calls `/news-feed` with `skipChanges=1`.
 
