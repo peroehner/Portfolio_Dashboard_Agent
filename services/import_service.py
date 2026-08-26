@@ -704,9 +704,23 @@ class ImportService:
             date = note.get("date") or note.get("note_date")
             source = note.get("source")
             key = (date, source, text)
+            linked = note.get("symbols") if isinstance(note.get("symbols"), list) else []
+            link_targets = [symbol, *[str(s).upper() for s in linked if str(s).strip()]]
+
+            # Global dedupe: same text may appear under multiple positions in an export.
+            existing = self.notes_service.find_note_by_content(date, source, str(text))
+            if existing:
+                self.notes_service.ensure_links(existing["id"], link_targets)
+                existing_keys.add(key)
+                continue
             if key in existing_keys:
                 continue
-            record = {"text": str(text), "date": date, "source": source or "import"}
+            record = {
+                "text": str(text),
+                "date": date,
+                "source": source or "import",
+                "symbols": link_targets,
+            }
             synthesis = note.get("synthesis")
             if synthesis:
                 record["synthesis"] = synthesis

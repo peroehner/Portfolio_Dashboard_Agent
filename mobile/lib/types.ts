@@ -476,6 +476,7 @@ export interface NoteSynthesis {
   growthTrajectory?: Array<{ metric?: string; growth?: string; period?: string }>;
   revenueProjections?: Array<{ target?: string; timeline?: string }>;
   catalystsToWatch?: Array<{ period?: string; metric?: string; threshold?: string }>;
+  relevantSymbols?: Array<{ symbol?: string; reason?: string }>;
   llmFallback?: boolean;
   llmError?: string;
   integratedSummary?: string;
@@ -484,6 +485,8 @@ export interface NoteSynthesis {
 export interface Note {
   id?: number;
   symbol?: string;
+  /** All linked portfolio tickers (M:N); includes provisional home. */
+  symbols?: string[];
   date?: string;
   source?: string;
   text?: string;

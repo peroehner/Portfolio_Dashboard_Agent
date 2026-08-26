@@ -26,6 +26,7 @@ import { QuoteHeader } from "@/components/inspector/QuoteHeader";
 import { TechnicalPanel } from "@/components/inspector/TechnicalPanel";
 import { SaiSummaryCard } from "@/components/inspector/SaiSummaryCard";
 import { SymbolTabBar, type SymbolTab } from "@/components/inspector/SymbolTabBar";
+import { NoteLinkChips } from "@/components/NoteLinkChips";
 import { NoteSynthesisView, noteHasSynthesis } from "@/components/NoteSynthesisView";
 import { SaiBadge } from "@/components/SaiBadge";
 import { Screen } from "@/components/Screen";
@@ -219,6 +220,7 @@ export default function SymbolDetailScreen() {
   const [expandedAssessmentKey, setExpandedAssessmentKey] = useState<string | null>(null);
   const [assessingSymbol, setAssessingSymbol] = useState(false);
   const [clearingHistory, setClearingHistory] = useState(false);
+  const [portfolioSymbols, setPortfolioSymbols] = useState<string[]>([]);
   const { width, height } = useWindowDimensions();
   const isWideSummaryLayout = width >= 980 || (width >= 760 && width > height);
   const notesCardYRef = useRef(0);
@@ -347,6 +349,24 @@ export default function SymbolDetailScreen() {
       clearTimeout(t2);
     };
   }, [sym, tab, data, fullLoading, fullData]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api
+      .portfolio()
+      .then((payload) => {
+        if (cancelled) return;
+        const tickers = (payload.symbols || [])
+          .map((item) => String(item.symbol || "").toUpperCase())
+          .filter(Boolean)
+          .sort();
+        setPortfolioSymbols(tickers);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1281,6 +1301,12 @@ export default function SymbolDetailScreen() {
                             </Pressable>
                           </View>
                         </View>
+                        <NoteLinkChips
+                          note={note}
+                          viewSymbol={sym}
+                          portfolioSymbols={portfolioSymbols}
+                          onUpdated={refreshLite}
+                        />
                         {hasSynthesis && note.synthesis ? (
                           <NoteSynthesisView synthesis={note.synthesis} expanded={expanded} />
                         ) : note.text ? (

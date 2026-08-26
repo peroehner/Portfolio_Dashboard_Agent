@@ -34,30 +34,41 @@ class LLMClient:
         return "rules"
 
     def synthesize_note(
-        self, symbol: str, note: dict[str, Any], guidance: str | None = None
+        self,
+        symbol: str,
+        note: dict[str, Any],
+        guidance: str | None = None,
+        portfolio_symbols: list[str] | None = None,
     ) -> dict[str, Any]:
         """Send one raw note + synthesis prompt to LLM; result is stored on the note."""
         text = (note.get("text") or "").strip()
         if not text:
             return self._empty_synthesis()
 
+        portfolio = [str(s).upper() for s in (portfolio_symbols or []) if str(s).strip()]
         provider = self.active_provider()
         if provider == "openai":
             try:
                 return self._normalize_synthesis(
-                    self._call_openai_note_synthesis(symbol, note, guidance), provider="openai"
+                    self._call_openai_note_synthesis(symbol, note, guidance, portfolio),
+                    provider="openai",
+                    portfolio_symbols=portfolio,
                 )
             except RuntimeError as exc:
-                return self._fallback_synthesis(symbol, note, provider, exc)
+                return self._fallback_synthesis(symbol, note, provider, exc, portfolio)
         if provider == "gemini":
             try:
                 return self._normalize_synthesis(
-                    self._call_gemini_note_synthesis(symbol, note, guidance), provider="gemini"
+                    self._call_gemini_note_synthesis(symbol, note, guidance, portfolio),
+                    provider="gemini",
+                    portfolio_symbols=portfolio,
                 )
             except RuntimeError as exc:
-                return self._fallback_synthesis(symbol, note, provider, exc)
+                return self._fallback_synthesis(symbol, note, provider, exc, portfolio)
         return self._normalize_synthesis(
-            self._rule_based_note_synthesis(symbol, note), provider="rules"
+            self._rule_based_note_synthesis(symbol, note),
+            provider="rules",
+            portfolio_symbols=portfolio,
         )
 
     @staticmethod
@@ -98,12 +109,19 @@ class LLMClient:
         return "LLM unavailable — used rules engine."
 
     def _fallback_synthesis(
-        self, symbol: str, note: dict[str, Any], provider: str, exc: RuntimeError
+        self,
+        symbol: str,
+        note: dict[str, Any],
+        provider: str,
+        exc: RuntimeError,
+        portfolio_symbols: list[str] | None = None,
     ) -> dict[str, Any]:
         """Use rules engine when LLM call fails (quota, SSL, network, etc.)."""
         logging.warning("LLM synthesis failed (%s), using rules fallback: %s", provider, exc)
         result = self._normalize_synthesis(
-            self._rule_based_note_synthesis(symbol, note), provider="rules"
+            self._rule_based_note_synthesis(symbol, note),
+            provider="rules",
+            portfolio_symbols=portfolio_symbols,
         )
         result["llmFallback"] = True
         # Store only a clean classified reason; the full error is in the log above.
@@ -645,13 +663,20 @@ class LLMClient:
         return self.provider == "gemini" or (not self.provider and bool(self.gemini_api_key))
 
     def _call_openai_note_synthesis(
-        self, symbol: str, note: dict[str, Any], guidance: str | None = None
+        self,
+        symbol: str,
+        note: dict[str, Any],
+        guidance: str | None = None,
+        portfolio_symbols: list[str] | None = None,
     ) -> dict[str, Any]:
         payload = {
             "model": self.openai_model,
             "messages": [
                 {"role": "system", "content": self._synthesis_system_prompt(guidance)},
-                {"role": "user", "content": self._synthesis_user_prompt(symbol, note)},
+                {
+                    "role": "user",
+                    "content": self._synthesis_user_prompt(symbol, note, portfolio_symbols),
+                },
             ],
             "temperature": 0.2,
             "response_format": {"type": "json_object"},
@@ -664,7 +689,11 @@ class LLMClient:
         return json.loads(response["choices"][0]["message"]["content"])
 
     def _call_gemini_note_synthesis(
-        self, symbol: str, note: dict[str, Any], guidance: str | None = None
+        self,
+        symbol: str,
+        note: dict[str, Any],
+        guidance: str | None = None,
+        portfolio_symbols: list[str] | None = None,
     ) -> dict[str, Any]:
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
@@ -673,7 +702,11 @@ class LLMClient:
         payload = {
             "contents": [{
                 "parts": [{
-                    "text": self._synthesis_system_prompt(guidance) + "\n\n" + self._synthesis_user_prompt(symbol, note),
+                    "text": (
+                        self._synthesis_system_prompt(guidance)
+                        + "\n\n"
+                        + self._synthesis_user_prompt(symbol, note, portfolio_symbols)
+                    ),
                 }],
             }],
             "generationConfig": {
@@ -1031,21 +1064,43 @@ class LLMClient:
             )
         return task + (
             "Respond only with JSON using keys: summary, growthTrajectory, revenueProjections, "
-            "catalystsToWatch, sentiment. "
+            "catalystsToWatch, sentiment, relevantSymbols. "
             "summary: one concise sentence capturing the growth thesis from THIS note. "
             "growthTrajectory: array of {metric, growth, period} — quantify segment growth where stated. "
             "revenueProjections: array of {target, timeline, segments} — revenue run-rate or milestones. "
             "catalystsToWatch: array of {period, metric, threshold, significance} — what to verify "
             "in future quarters (e.g. Q2 2026 security growth >= 25% YoY). "
             "sentiment: bullish | neutral | bearish. "
-            "Attribute facts only to the symbol named in the user prompt. If the note mentions "
-            "other companies, do not treat their results as this symbol's."
+            "relevantSymbols: array of {symbol, reason} for OTHER portfolio tickers (from the candidate "
+            "list in the user prompt) for which this note holds MATERIAL insight — a thesis, catalyst, "
+            "risk, valuation implication, or competitive effect that meaningfully informs that holding. "
+            "Do NOT include a ticker for a mere name-drop, casual comparison, or passing mention. "
+            "Each reason must briefly state why the note matters for that ticker. "
+            "Omit relevantSymbols (or use []) when no other portfolio ticker qualifies. "
+            "The provisional/home symbol in the user prompt is already linked — do not repeat it in "
+            "relevantSymbols unless you also have a distinct reason (repeating is fine but unnecessary). "
+            "Attribute quantitative facts carefully: do not treat another company's results as the "
+            "home symbol's results."
         )
 
-    def _synthesis_user_prompt(self, symbol: str, note: dict[str, Any]) -> str:
+    def _synthesis_user_prompt(
+        self,
+        symbol: str,
+        note: dict[str, Any],
+        portfolio_symbols: list[str] | None = None,
+    ) -> str:
+        portfolio = [str(s).upper() for s in (portfolio_symbols or []) if str(s).strip()]
+        portfolio_line = (
+            ", ".join(portfolio)
+            if portfolio
+            else "(no portfolio list provided — leave relevantSymbols empty)"
+        )
         return (
-            f"Synthesize this personal note for {symbol}. Attribute facts only to {symbol}. "
-            "If the note mentions other companies, do not treat their results as this symbol's.\n\n"
+            f"Synthesize this personal note. Provisional/home symbol: {symbol}.\n"
+            f"Candidate portfolio tickers for relevantSymbols (choose only from this list): "
+            f"{portfolio_line}.\n"
+            "Only list other tickers in relevantSymbols when the note materially informs that "
+            "holding — not for name-drops.\n\n"
             f"Date: {note.get('date') or note.get('note_date') or 'unspecified'}\n"
             f"Source: {note.get('source') or 'unspecified'}\n\n"
             f"Raw note:\n{note.get('text', '')}"
@@ -1124,7 +1179,12 @@ class LLMClient:
             f"{constraint}"
         )
 
-    def _normalize_synthesis(self, result: dict[str, Any], provider: str) -> dict[str, Any]:
+    def _normalize_synthesis(
+        self,
+        result: dict[str, Any],
+        provider: str,
+        portfolio_symbols: list[str] | None = None,
+    ) -> dict[str, Any]:
         sentiment = str(result.get("sentiment", "neutral")).strip().lower()
         if sentiment not in self.VALID_SENTIMENT:
             sentiment = "neutral"
@@ -1143,17 +1203,52 @@ class LLMClient:
         if not summary:
             summary = "Note reviewed; see structured fields for details."
 
+        portfolio = {
+            str(s).upper().strip()
+            for s in (portfolio_symbols or [])
+            if str(s).strip()
+        }
+        relevant = self._normalize_relevant_symbols(
+            result.get("relevantSymbols"), portfolio
+        )
+
         normalized = {
             "summary": summary,
             "growthTrajectory": [self._normalize_dict(item) for item in growth[:8]],
             "revenueProjections": [self._normalize_dict(item) for item in projections[:5]],
             "catalystsToWatch": [self._normalize_dict(item) for item in catalysts[:5]],
             "sentiment": sentiment,
+            "relevantSymbols": relevant,
             "provider": provider,
         }
         if result.get("integratedSummary"):
             normalized["integratedSummary"] = str(result["integratedSummary"]).strip()
         return normalized
+
+    @staticmethod
+    def _normalize_relevant_symbols(
+        raw: Any, portfolio: set[str]
+    ) -> list[dict[str, str]]:
+        if not isinstance(raw, list) or not portfolio:
+            return []
+        out: list[dict[str, str]] = []
+        seen: set[str] = set()
+        for item in raw:
+            if isinstance(item, str):
+                sym, reason = item, ""
+            elif isinstance(item, dict):
+                sym = item.get("symbol")
+                reason = str(item.get("reason") or "").strip()
+            else:
+                continue
+            sym_u = str(sym or "").strip().upper()
+            if not sym_u or sym_u in seen or sym_u not in portfolio:
+                continue
+            if not reason:
+                continue
+            seen.add(sym_u)
+            out.append({"symbol": sym_u, "reason": reason[:240]})
+        return out[:20]
 
     def _normalize_assessment(
         self,
@@ -1201,6 +1296,7 @@ class LLMClient:
             "revenueProjections": [],
             "catalystsToWatch": [],
             "sentiment": "neutral",
+            "relevantSymbols": [],
             "provider": "rules",
         }
 

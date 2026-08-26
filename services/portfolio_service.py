@@ -218,6 +218,10 @@ class PortfolioService:
     def delete_symbol(self, symbol: str) -> bool:
         symbol = symbol.upper()
         user_id = get_current_user_id()
+        from services.notes_service import NotesService
+
+        # Preserve multi-linked notes whose provisional home is this symbol.
+        NotesService().reassign_provisional_before_symbol_delete(symbol)
         with get_connection() as conn:
             cursor = conn.execute(
                 "DELETE FROM symbols WHERE user_id = %s AND symbol = %s",

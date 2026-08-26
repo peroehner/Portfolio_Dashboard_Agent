@@ -32,7 +32,7 @@ def held_symbols_with_shares(holdings: list[dict[str, Any]]) -> set[str]:
 
 
 def watchlist_only_count(symbols: list[dict[str, Any]], holdings: list[dict[str, Any]]) -> int:
-    """Tracked symbols with no shares — matches the Holdings Watch-only filter."""
+    """Tracked symbols with no shares — matches the Holdings Watch filter."""
     held = held_symbols_with_shares(holdings)
     return sum(1 for symbol in symbols if symbol["symbol"] not in held)
 

@@ -748,6 +748,7 @@ def export_portfolio():
                     "date": n.get("date"),
                     "source": n.get("source"),
                     "text": n.get("text"),
+                    "symbols": n.get("symbols") or [n.get("symbol") or ticker],
                     "synthesis": n.get("synthesis"),
                     "synthesisProvider": n.get("synthesisProvider"),
                     "synthesizedAt": n.get("synthesizedAt"),

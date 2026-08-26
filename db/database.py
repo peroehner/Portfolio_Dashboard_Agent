@@ -112,6 +112,15 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS note_links (
+        note_id BIGINT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        user_id BIGINT NOT NULL,
+        symbol TEXT NOT NULL,
+        PRIMARY KEY (note_id, symbol),
+        FOREIGN KEY (user_id, symbol) REFERENCES symbols(user_id, symbol) ON DELETE CASCADE
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS alerts (
         id BIGSERIAL PRIMARY KEY,
         user_id BIGINT NOT NULL,
@@ -272,6 +281,8 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
 # legacy tables (which only gain the column during _migrate_to_multiuser).
 INDEX_STATEMENTS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS idx_notes_user_symbol ON notes(user_id, symbol)",
+    "CREATE INDEX IF NOT EXISTS idx_note_links_user_symbol ON note_links(user_id, symbol)",
+    "CREATE INDEX IF NOT EXISTS idx_note_links_note ON note_links(note_id)",
     "CREATE INDEX IF NOT EXISTS idx_alerts_user_symbol ON alerts(user_id, symbol)",
     "CREATE INDEX IF NOT EXISTS idx_alerts_user_status ON alerts(user_id, status)",
     "CREATE INDEX IF NOT EXISTS idx_assessments_user_symbol ON assessments(user_id, symbol)",
@@ -337,6 +348,15 @@ MIGRATION_STATEMENTS: tuple[str, ...] = (
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_mobile_sessions_user ON mobile_sessions(user_id)",
+    """
+    CREATE TABLE IF NOT EXISTS note_links (
+        note_id BIGINT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        user_id BIGINT NOT NULL,
+        symbol TEXT NOT NULL,
+        PRIMARY KEY (note_id, symbol),
+        FOREIGN KEY (user_id, symbol) REFERENCES symbols(user_id, symbol) ON DELETE CASCADE
+    )
+    """,
 )
 
 BOOTSTRAP_USER_EMAIL = os.environ.get("BOOTSTRAP_USER_EMAIL", "local@portfolio.local")
@@ -701,11 +721,13 @@ def _run_data_migrations(conn: psycopg.Connection) -> None:
         ON CONFLICT (key) DO NOTHING
         """
     )
+    _backfill_note_links(conn)
     row = conn.execute(
         "SELECT 1 FROM app_meta WHERE key = %s",
         ("assessment_max3_cleanup_v1",),
     ).fetchone()
     if row is not None:
+        _backfill_symbol_market(conn)
         return
     conn.execute(
         """
@@ -728,6 +750,28 @@ def _run_data_migrations(conn: psycopg.Connection) -> None:
         ("assessment_max3_cleanup_v1",),
     )
     _backfill_symbol_market(conn)
+
+
+def _backfill_note_links(conn: psycopg.Connection) -> None:
+    """Ensure every existing note has a provisional note_links row."""
+    row = conn.execute(
+        "SELECT 1 FROM app_meta WHERE key = %s",
+        ("note_links_backfill_v1",),
+    ).fetchone()
+    if row is not None:
+        return
+    conn.execute(
+        """
+        INSERT INTO note_links (note_id, user_id, symbol)
+        SELECT id, user_id, symbol FROM notes
+        ON CONFLICT (note_id, symbol) DO NOTHING
+        """
+    )
+    conn.execute(
+        "INSERT INTO app_meta (key, value) VALUES (%s, app_now_text()) "
+        "ON CONFLICT (key) DO NOTHING",
+        ("note_links_backfill_v1",),
+    )
 
 
 def _symbols_has_market_columns(conn: psycopg.Connection) -> bool:
