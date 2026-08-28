@@ -16,7 +16,9 @@ import {
   chartCoord,
   pointsToPolyline,
   shortFibAxisLabel,
+  windowHighlightAreaPoints,
   xDateTicks,
+  yNormOnPriceLine,
   yTicks,
   type ChartPoint,
   type InspectorChartModel,
@@ -55,6 +57,7 @@ export function InspectorChartSvg({
   hoverPoint = null,
 }: InspectorChartSvgProps) {
   const gradId = `priceFill${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const windowGradId = `windowBand${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const pad = CHART_PAD;
   const padBottom = showXLabels ? CHART_PAD_BOTTOM : pad;
   const plotW = Math.max(1, width - padLeft - pad);
@@ -96,6 +99,11 @@ export function InspectorChartSvg({
           <Stop offset="0.55" stopColor="#93c5fd" stopOpacity={0.05} />
           <Stop offset="1" stopColor="#60a5fa" stopOpacity={0.01} />
         </LinearGradient>
+        <LinearGradient id={windowGradId} x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0" stopColor="#c4b5fd" stopOpacity={0.06} />
+          <Stop offset="0.5" stopColor="#c4b5fd" stopOpacity={0.18} />
+          <Stop offset="1" stopColor="#c4b5fd" stopOpacity={0.06} />
+        </LinearGradient>
       </Defs>
 
       {/* Grid */}
@@ -127,6 +135,40 @@ export function InspectorChartSvg({
 
       {/* Price fill sits behind volume, Fib, trends, and pattern overlays. */}
       {areaPoints ? <Polygon points={areaPoints} fill={`url(#${gradId})`} stroke="none" /> : null}
+
+      {model.windowHighlight ? (() => {
+        const left = xForNorm(model.windowHighlight.x1);
+        const right = xForNorm(model.windowHighlight.x2);
+        const baseY = pad + plotH;
+        const areaPointsWindow = windowHighlightAreaPoints(model, xForNorm, yForNorm, baseY);
+        const yLeft = yForNorm(yNormOnPriceLine(model, model.windowHighlight.x1));
+        const yRight = yForNorm(yNormOnPriceLine(model, model.windowHighlight.x2));
+        return (
+          <G key="window-highlight">
+            {areaPointsWindow ? <Polygon points={areaPointsWindow} fill={`url(#${windowGradId})`} stroke="none" /> : null}
+            <Line
+              x1={left}
+              y1={yLeft}
+              x2={left}
+              y2={baseY}
+              stroke="rgba(196, 181, 253, 0.68)"
+              strokeWidth={1.5}
+              strokeDasharray="5 4"
+            />
+            <Line
+              x1={right}
+              y1={yRight}
+              x2={right}
+              y2={baseY}
+              stroke="rgba(196, 181, 253, 0.68)"
+              strokeWidth={1.5}
+              strokeDasharray="5 4"
+            />
+            <Line x1={left} y1={baseY} x2={left} y2={baseY + 5} stroke="rgba(196, 181, 253, 0.42)" strokeWidth={1} />
+            <Line x1={right} y1={baseY} x2={right} y2={baseY + 5} stroke="rgba(196, 181, 253, 0.42)" strokeWidth={1} />
+          </G>
+        );
+      })() : null}
 
       {showYLabels
         ? ticks.map((price) => {

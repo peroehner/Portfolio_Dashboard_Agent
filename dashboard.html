@@ -2395,9 +2395,36 @@
       flex: 0 0 auto;
     }
     .chart-fs-title { font-weight: 700; font-size: 1.05rem; color: var(--text, #e6edf6); }
-    .chart-fs-hint { color: var(--muted, #9aa8bc); font-size: 0.8rem; }
-    .chart-fs-close {
+    .chart-fs-hint { color: var(--muted, #9aa8bc); font-size: 0.8rem; flex: 1 1 auto; min-width: 0; }
+    .chart-fs-zoom {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
       margin-left: auto;
+      flex: 0 0 auto;
+    }
+    .chart-fs-zoom-btn {
+      background: var(--panel-2, #1a2336);
+      color: var(--text, #e6edf6);
+      border: 1px solid var(--border, #2d3a4f);
+      border-radius: 8px;
+      width: 2rem;
+      height: 2rem;
+      cursor: pointer;
+      font-size: 1.1rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .chart-fs-zoom-btn:hover { background: #243049; }
+    .chart-fs-zoom-label {
+      color: var(--muted, #9aa8bc);
+      font-size: 0.78rem;
+      font-variant-numeric: tabular-nums;
+      min-width: 3rem;
+      text-align: center;
+    }
+    .chart-fs-close {
+      flex: 0 0 auto;
       background: var(--panel-2, #1a2336);
       color: var(--text, #e6edf6);
       border: 1px solid var(--border, #2d3a4f);
@@ -5263,7 +5290,12 @@
     <div class="chart-fs-inner">
       <div class="chart-fs-head">
         <span class="chart-fs-title" id="inspectorFsTitle">Chart</span>
-        <span class="chart-fs-hint">Scroll horizontally · ~2-month view</span>
+        <span class="chart-fs-hint">Scroll · Ctrl/⌘ + scroll or ± to zoom · double-click to exit</span>
+        <div class="chart-fs-zoom">
+          <button type="button" class="chart-fs-zoom-btn" onclick="adjustInspectorFsZoom(-0.25)" aria-label="Zoom out">−</button>
+          <span class="chart-fs-zoom-label" id="inspectorFsZoomLabel">100%</span>
+          <button type="button" class="chart-fs-zoom-btn" onclick="adjustInspectorFsZoom(0.25)" aria-label="Zoom in">+</button>
+        </div>
         <button type="button" class="chart-fs-close" onclick="closeInspectorChartFullscreen()" aria-label="Close">&times; Close</button>
       </div>
       <div class="chart-fs-body">
@@ -16881,7 +16913,6 @@
     const inspectorCharts = {};
     const inspectorChartData = {};
     const inspectorChartMode = {};
-    const inspectorChartSymbol = {};
     const inspectorFibToggles = {
       high: true,
       "fib-0.382": true,
@@ -17726,6 +17757,61 @@
       return { min: dates[0], max: dates[dates.length - 1] };
     }
 
+    /** Trend-window span within Full Timeline (Timeline & Trends sub-range). */
+    function inspectorTrendWindowHighlight(data, fullTimeline) {
+      const windowTimeline = data?.chartTimeline;
+      const waves = data?.trendWaves || [];
+      if (!fullTimeline?.points?.length) return null;
+
+      const fullStart = fullTimeline.startDate || fullTimeline.points[0]?.date;
+      const fullEnd = fullTimeline.endDate || fullTimeline.points[fullTimeline.points.length - 1]?.date;
+      if (!fullStart || !fullEnd) return null;
+
+      const combinedExtents = inspectorChartExtents(windowTimeline, waves);
+      let wStart = combinedExtents.min;
+      let wEnd = combinedExtents.max;
+
+      if (windowTimeline?.points?.length && waves.length) {
+        const timelineOnly = inspectorChartExtents(windowTimeline, []);
+        const waveOnly = inspectorChartExtents(null, waves);
+        if (timelineOnly.min && timelineOnly.max && waveOnly.min && waveOnly.max) {
+          const tlSpan = Date.parse(timelineOnly.max) - Date.parse(timelineOnly.min);
+          const waveSpan = Date.parse(waveOnly.max) - Date.parse(waveOnly.min);
+          if (tlSpan > 0 && waveSpan > 0 && waveSpan < tlSpan * 0.9) {
+            wStart = waveOnly.min;
+            wEnd = waveOnly.max;
+          }
+        }
+      }
+
+      if (!wStart || !wEnd) {
+        const waveOnly = inspectorChartExtents(null, waves);
+        wStart = waveOnly.min;
+        wEnd = waveOnly.max;
+      }
+      if (!wStart || !wEnd) return null;
+
+      const fullMs = Date.parse(fullEnd) - Date.parse(fullStart);
+      const winMs = Date.parse(wEnd) - Date.parse(wStart);
+      if (!Number.isFinite(fullMs) || !Number.isFinite(winMs) || fullMs <= 0 || winMs <= 0) return null;
+
+      const coversStart = Date.parse(wStart) <= Date.parse(fullStart) + fullMs * 0.02;
+      const coversEnd = Date.parse(wEnd) >= Date.parse(fullEnd) - fullMs * 0.02;
+      if (coversStart && coversEnd && winMs >= fullMs * 0.95) return null;
+
+      return { start: wStart, end: wEnd };
+    }
+
+    function xPixelForChartDate(xScale, dateStr) {
+      if (!xScale || !dateStr) return NaN;
+      const candidates = [dateStr, `${dateStr}T12:00:00`, new Date(`${dateStr}T12:00:00`)];
+      for (const value of candidates) {
+        const x = xScale.getPixelForValue(value);
+        if (Number.isFinite(x)) return x;
+      }
+      return NaN;
+    }
+
     function trendChartColor(wave, index) {
       const palette = wave.direction === "down" ? TREND_CHART_COLORS.down : TREND_CHART_COLORS.up;
       return palette[index % palette.length];
@@ -17774,6 +17860,105 @@
       const wrap = canvas?.parentElement;
       const layer = wrap?.querySelector(".trade-th-overlay");
       if (layer) layer.remove();
+    }
+
+    function inspectorPriceDataset(chart) {
+      return (chart.data?.datasets || []).find((ds) => ds._priceLine)
+        || (chart.data?.datasets || []).find((ds) => (
+          !ds._fibKey && !ds._trendKey && !ds._patternKey && !ds._volume
+          && ds.type !== "bar"
+          && Array.isArray(ds.data)
+          && ds.data.length > 1
+          && ds.fill
+        ));
+    }
+
+    function yOnPriceLineAtX(pixels, targetX) {
+      if (!pixels.length) return null;
+      if (targetX <= pixels[0].x) return pixels[0].y;
+      if (targetX >= pixels[pixels.length - 1].x) return pixels[pixels.length - 1].y;
+      for (let i = 1; i < pixels.length; i++) {
+        const a = pixels[i - 1];
+        const b = pixels[i];
+        if (targetX >= a.x && targetX <= b.x) {
+          const t = (targetX - a.x) / Math.max(b.x - a.x, 1);
+          return a.y + t * (b.y - a.y);
+        }
+      }
+      return pixels[pixels.length - 1].y;
+    }
+
+    /** Lavender fill under the price line within the Timeline & Trends window. */
+    function drawInspectorTrendWindowBand(chart) {
+      const range = chart.$windowHighlight;
+      const area = chart?.chartArea;
+      const xScale = chart?.scales?.x;
+      const yScale = chart?.scales?.y;
+      const ctx = chart?.ctx;
+      if (!range?.start || !range?.end || !area || !xScale || !yScale || !ctx) return;
+
+      const xRawStart = xPixelForChartDate(xScale, range.start);
+      const xRawEnd = xPixelForChartDate(xScale, range.end);
+      if (!Number.isFinite(xRawStart) || !Number.isFinite(xRawEnd)) return;
+
+      const leftPx = Math.max(area.left, Math.min(xRawStart, xRawEnd));
+      const rightPx = Math.min(area.right, Math.max(xRawStart, xRawEnd));
+      if (rightPx - leftPx < 6) return;
+
+      const ds = inspectorPriceDataset(chart);
+      if (!ds) return;
+      const pixels = ds.data
+        .map((pt) => {
+          const x = xPixelForChartDate(xScale, pt.x);
+          const y = yScale.getPixelForValue(pt.y);
+          return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.x - b.x);
+      if (!pixels.length) return;
+
+      const bottom = area.bottom;
+      const yLeft = yOnPriceLineAtX(pixels, leftPx);
+      const yRight = yOnPriceLineAtX(pixels, rightPx);
+      if (yLeft == null || yRight == null) return;
+
+      const bandPts = pixels.filter((p) => p.x >= leftPx - 0.5 && p.x <= rightPx + 0.5);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(leftPx, bottom);
+      ctx.lineTo(leftPx, yLeft);
+      bandPts.forEach((p) => ctx.lineTo(p.x, p.y));
+      ctx.lineTo(rightPx, yRight);
+      ctx.lineTo(rightPx, bottom);
+      ctx.closePath();
+
+      ctx.globalCompositeOperation = "destination-over";
+      const gradient = ctx.createLinearGradient(leftPx, area.top, rightPx, area.top);
+      gradient.addColorStop(0, "rgba(196, 181, 253, 0.06)");
+      gradient.addColorStop(0.5, "rgba(196, 181, 253, 0.18)");
+      gradient.addColorStop(1, "rgba(196, 181, 253, 0.06)");
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = "rgba(196, 181, 253, 0.68)";
+      ctx.lineWidth = 1.5;
+      if (leftPx > area.left + 2) {
+        ctx.beginPath();
+        ctx.moveTo(leftPx, yLeft);
+        ctx.lineTo(leftPx, bottom);
+        ctx.stroke();
+      }
+      if (rightPx < area.right - 2) {
+        ctx.beginPath();
+        ctx.moveTo(rightPx, yRight);
+        ctx.lineTo(rightPx, bottom);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      ctx.restore();
     }
 
     function updateTradeThresholdOverlay(chart, levels) {
@@ -17826,6 +18011,7 @@
     function inspectorChartAfterDraw(chart) {
       if (chart.$inspectorFsYaxis) syncInspectorFsYaxis(chart);
       if (chart.$tradeThresholds) updateTradeThresholdOverlay(chart, chart.$tradeThresholds);
+      drawInspectorTrendWindowBand(chart);
       drawInspectorFibLineLabels(chart);
       drawInspectorHoverCrosshair(chart);
     }
@@ -17963,6 +18149,7 @@
           pointHoverBackgroundColor: "#e9d5ff",
           borderWidth: 2.75,
           order: 25,
+          _priceLine: true,
         });
       }
 
@@ -18139,6 +18326,7 @@
       const chart = inspectorCharts[panelId];
       chart.$inspectorFsYaxis = isFullscreen;
       chart.$tradeThresholds = tradeLevels;
+      chart.$windowHighlight = options.windowHighlight || null;
       inspectorChartAfterDraw(chart);
       renderInspectorTrendLegend(panelId, waves, pattern, tradeLevels);
       return true;
@@ -18228,15 +18416,13 @@
         else if (hasFullTimeline) inspectorChartMode[panelId] = "full";
         else inspectorChartMode[panelId] = "blueprint";
       }
-      const mode = inspectorChartMode[panelId];
-      if (mode === "timeline" && !preferTimeline && hasFullTimeline) {
-        inspectorChartMode[panelId] = "full";
-        return "full";
+      let mode = inspectorChartMode[panelId];
+      if (mode === "timeline" && !preferTimeline) {
+        mode = hasFullTimeline ? "full" : "blueprint";
+      } else if (mode === "full" && !hasFullTimeline) {
+        mode = preferTimeline ? "timeline" : "blueprint";
       }
-      if (mode === "full" && !hasFullTimeline) {
-        inspectorChartMode[panelId] = preferTimeline ? "timeline" : "blueprint";
-        return inspectorChartMode[panelId];
-      }
+      inspectorChartMode[panelId] = mode;
       return mode;
     }
 
@@ -18288,6 +18474,9 @@
       );
 
       if (useTimeline) {
+        const windowHighlight = mode === "full"
+          ? inspectorTrendWindowHighlight(data, timeline)
+          : null;
         const rendered = renderInspectorTimelineChart(
           canvas,
           panelId,
@@ -18295,7 +18484,10 @@
           timeline,
           mode === "full" ? [] : waves,
           blueprint,
-          { priceLabel: mode === "full" ? "Price" : "Window price" },
+          {
+            priceLabel: mode === "full" ? "Price" : "Window price",
+            windowHighlight,
+          },
         );
         if (rendered) return;
       }
@@ -18306,6 +18498,115 @@
     // ---- Full-screen, horizontally-scrollable timeline (double-click to zoom) ----
     const INSPECTOR_FS_PANEL = "inspectorFullscreen";
     const INSPECTOR_FS_MONTHS_PER_VIEW = 2;
+    const INSPECTOR_FS_ZOOM_MIN = 0.1;
+    const INSPECTOR_FS_ZOOM_MAX = 4;
+    const inspectorFsState = {
+      panelId: null,
+      data: null,
+      timeline: null,
+      waves: [],
+      priceLabel: "Price",
+      windowHighlight: null,
+      totalDays: 1,
+      zoom: 1,
+      chartWidth: 0,
+      viewport: 0,
+    };
+    let inspectorFsWheelBound = false;
+
+    function clampInspectorFsZoom(value) {
+      return Math.max(
+        INSPECTOR_FS_ZOOM_MIN,
+        Math.min(INSPECTOR_FS_ZOOM_MAX, Math.round(value * 20) / 20),
+      );
+    }
+
+    function inspectorFsBaseWidth(viewport, totalDays) {
+      const daysPerView = INSPECTOR_FS_MONTHS_PER_VIEW * 31;
+      const pxPerDay = viewport / daysPerView;
+      return Math.max(viewport, Math.round(totalDays * pxPerDay));
+    }
+
+    function updateInspectorFsZoomLabel() {
+      const label = document.getElementById("inspectorFsZoomLabel");
+      if (label) label.textContent = `${Math.round(inspectorFsState.zoom * 100)}%`;
+    }
+
+    function renderInspectorFsChart() {
+      const canvas = document.getElementById(`inspectorChart-${INSPECTOR_FS_PANEL}`);
+      if (!canvas || !inspectorFsState.data || !inspectorFsState.timeline) return;
+
+      if (inspectorCharts[INSPECTOR_FS_PANEL]) {
+        clearTradeThresholdOverlay(inspectorCharts[INSPECTOR_FS_PANEL].canvas);
+        inspectorCharts[INSPECTOR_FS_PANEL].destroy();
+        inspectorCharts[INSPECTOR_FS_PANEL] = null;
+      }
+
+      renderInspectorTimelineChart(
+        canvas,
+        INSPECTOR_FS_PANEL,
+        inspectorFsState.data,
+        inspectorFsState.timeline,
+        inspectorFsState.waves,
+        inspectorFsState.data.fibBlueprint,
+        {
+          priceLabel: inspectorFsState.priceLabel,
+          windowHighlight: inspectorFsState.windowHighlight,
+        },
+      );
+    }
+
+    function applyInspectorFsLayout(preserveCenter = false) {
+      const scroll = document.getElementById("inspectorFsScroll");
+      const wrap = document.getElementById("inspectorFsCanvasWrap");
+      if (!scroll || !wrap || !inspectorFsState.timeline) return;
+
+      const viewport = scroll.clientWidth || wrap.clientWidth || 1000;
+      inspectorFsState.viewport = viewport;
+      const baseWidth = inspectorFsBaseWidth(viewport, inspectorFsState.totalDays);
+      const nextWidth = Math.round(baseWidth * inspectorFsState.zoom);
+      const prevWidth = inspectorFsState.chartWidth || nextWidth;
+      const prevScroll = scroll.scrollLeft;
+
+      wrap.style.width = `${nextWidth}px`;
+      inspectorFsState.chartWidth = nextWidth;
+      updateInspectorFsZoomLabel();
+
+      const chart = inspectorCharts[INSPECTOR_FS_PANEL];
+      if (chart) {
+        chart.resize();
+        inspectorChartAfterDraw(chart);
+      }
+
+      if (preserveCenter && prevWidth > 0) {
+        const centerRatio = Math.max(0, Math.min(1, (prevScroll + viewport / 2) / prevWidth));
+        const maxScroll = Math.max(0, nextWidth - viewport);
+        scroll.scrollLeft = Math.max(0, Math.min(maxScroll, centerRatio * nextWidth - viewport / 2));
+      }
+    }
+
+    function adjustInspectorFsZoom(delta) {
+      const overlay = document.getElementById("inspectorChartFullscreen");
+      if (!overlay || overlay.hidden) return;
+      inspectorFsState.zoom = clampInspectorFsZoom(inspectorFsState.zoom + delta);
+      applyInspectorFsLayout(true);
+    }
+
+    function bindInspectorFsWheelZoom() {
+      if (inspectorFsWheelBound) return;
+      const scroll = document.getElementById("inspectorFsScroll");
+      if (!scroll) return;
+      scroll.addEventListener("wheel", (event) => {
+        const overlay = document.getElementById("inspectorChartFullscreen");
+        if (!overlay || overlay.hidden) return;
+        if (!event.ctrlKey && !event.metaKey) return;
+        event.preventDefault();
+        const delta = event.deltaY > 0 ? -0.15 : 0.15;
+        inspectorFsState.zoom = clampInspectorFsZoom(inspectorFsState.zoom + delta);
+        applyInspectorFsLayout(true);
+      }, { passive: false });
+      inspectorFsWheelBound = true;
+    }
 
     function openInspectorChartFullscreen(panelId) {
       const data = inspectorChartData[panelId];
@@ -18323,49 +18624,38 @@
       const waves = (isHoldingsPreview || usingFull) ? [] : (data.trendWaves || []);
       const priceLabel = usingFull ? "Price" : "Window price";
 
+      const extents = inspectorChartExtents(timeline, waves);
+      const minMs = extents.min ? new Date(extents.min).getTime() : NaN;
+      const maxMs = extents.max ? new Date(extents.max).getTime() : NaN;
+      const totalDays = (Number.isFinite(minMs) && Number.isFinite(maxMs))
+        ? Math.max(1, (maxMs - minMs) / 86400000)
+        : 1;
+
+      inspectorFsState.panelId = panelId;
+      inspectorFsState.data = data;
+      inspectorFsState.timeline = timeline;
+      inspectorFsState.waves = waves;
+      inspectorFsState.priceLabel = priceLabel;
+      inspectorFsState.windowHighlight = usingFull ? inspectorTrendWindowHighlight(data, timeline) : null;
+      inspectorFsState.totalDays = totalDays;
+      inspectorFsState.zoom = 1;
+      inspectorFsState.chartWidth = 0;
+      inspectorFsState.viewport = 0;
+
       const overlay = document.getElementById("inspectorChartFullscreen");
       const titleEl = document.getElementById("inspectorFsTitle");
       if (titleEl) {
         titleEl.textContent = `${data.symbol || "Chart"} · ${usingFull ? "Full Timeline" : "Timeline"}`;
       }
       overlay.hidden = false;
+      bindInspectorFsWheelZoom();
+      updateInspectorFsZoomLabel();
 
-      // Wait for layout so the scroll container has a measurable width.
       requestAnimationFrame(() => {
         const scroll = document.getElementById("inspectorFsScroll");
-        const wrap = document.getElementById("inspectorFsCanvasWrap");
-        const canvas = document.getElementById(`inspectorChart-${INSPECTOR_FS_PANEL}`);
-        if (!scroll || !wrap || !canvas) return;
-
-        const extents = inspectorChartExtents(timeline, waves);
-        const minMs = extents.min ? new Date(extents.min).getTime() : NaN;
-        const maxMs = extents.max ? new Date(extents.max).getTime() : NaN;
-        const totalDays = (Number.isFinite(minMs) && Number.isFinite(maxMs))
-          ? Math.max(1, (maxMs - minMs) / 86400000)
-          : 1;
-
-        const viewport = scroll.clientWidth || wrap.clientWidth || 1000;
-        const daysPerView = INSPECTOR_FS_MONTHS_PER_VIEW * 31;
-        const pxPerDay = viewport / daysPerView;
-        const width = Math.max(viewport, Math.round(totalDays * pxPerDay));
-        wrap.style.width = `${width}px`;
-
-        if (inspectorCharts[INSPECTOR_FS_PANEL]) {
-          clearTradeThresholdOverlay(inspectorCharts[INSPECTOR_FS_PANEL].canvas);
-          inspectorCharts[INSPECTOR_FS_PANEL].destroy();
-          inspectorCharts[INSPECTOR_FS_PANEL] = null;
-        }
-        renderInspectorTimelineChart(
-          canvas,
-          INSPECTOR_FS_PANEL,
-          data,
-          timeline,
-          waves,
-          data.fibBlueprint,
-          { priceLabel },
-        );
-
-        // Open scrolled to the most recent price action (right edge).
+        if (!scroll) return;
+        renderInspectorFsChart();
+        applyInspectorFsLayout(false);
         scroll.scrollLeft = scroll.scrollWidth;
       });
     }
@@ -18378,6 +18668,14 @@
         inspectorCharts[INSPECTOR_FS_PANEL].destroy();
         inspectorCharts[INSPECTOR_FS_PANEL] = null;
       }
+      inspectorFsState.panelId = null;
+      inspectorFsState.data = null;
+      inspectorFsState.timeline = null;
+      inspectorFsState.waves = [];
+      inspectorFsState.windowHighlight = null;
+      inspectorFsState.zoom = 1;
+      inspectorFsState.chartWidth = 0;
+      inspectorFsState.viewport = 0;
       const wrap = document.getElementById("inspectorFsCanvasWrap");
       if (wrap) wrap.style.width = "";
       const yAxisEl = document.getElementById("inspectorFsYaxis");
@@ -18386,6 +18684,7 @@
         yAxisEl.innerHTML = "";
         yAxisEl.style.width = "";
       }
+      updateInspectorFsZoomLabel();
     }
 
     function onInspectorFsBackdrop(event) {
@@ -18395,9 +18694,19 @@
     }
 
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        const overlay = document.getElementById("inspectorChartFullscreen");
-        if (overlay && !overlay.hidden) closeInspectorChartFullscreen();
+      const overlay = document.getElementById("inspectorChartFullscreen");
+      const fsOpen = overlay && !overlay.hidden;
+      if (event.key === "Escape" && fsOpen) {
+        closeInspectorChartFullscreen();
+        return;
+      }
+      if (!fsOpen) return;
+      if (event.key === "+" || event.key === "=") {
+        event.preventDefault();
+        adjustInspectorFsZoom(0.25);
+      } else if (event.key === "-" || event.key === "_") {
+        event.preventDefault();
+        adjustInspectorFsZoom(-0.25);
       }
     });
 
@@ -19057,10 +19366,6 @@
       ]);
       const data = normalizeInspectorData(rawData);
       await applyNewsSentimentToInspector(symbol, data);
-      if (inspectorChartSymbol[panelId] !== symbol) {
-        delete inspectorChartMode[panelId];
-        inspectorChartSymbol[panelId] = symbol;
-      }
       inspectorChartData[panelId] = data;
       document.getElementById(panelId).innerHTML = renderInspectorHtml(data, panelId);
       renderInspectorChart(data, panelId);

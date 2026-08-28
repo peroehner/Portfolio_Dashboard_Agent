@@ -94,11 +94,14 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
         : null;
   const isLandscape = windowWidth > windowHeight;
 
-  // Prefer the trend window when available; fall back to full history.
-  // Reset when the symbol changes so browsing doesn't stick on Full.
+  // Keep chart mode when browsing symbols; fall back only if the new symbol lacks that view.
   useEffect(() => {
-    setTimelineMode(hasWindowTimeline ? "window" : "full");
-  }, [symbolKey, hasWindowTimeline]);
+    setTimelineMode((current) => {
+      if (current === "full" && hasFullTimeline) return "full";
+      if (current === "window" && hasWindowTimeline) return "window";
+      return hasWindowTimeline ? "window" : "full";
+    });
+  }, [symbolKey, hasWindowTimeline, hasFullTimeline]);
 
   // Auto-enter fullscreen only when rotating into landscape — not when
   // browsing symbols while already landscape (or after the user exited FS).

@@ -67,6 +67,8 @@ export interface InspectorChartModel {
   fibLines: ChartFibLine[];
   tradeLevels: ChartTradeLevel[];
   pattern?: ChartPatternOverlay;
+  /** Normalized x span (0–1) for Timeline & Trends window on Full Timeline. */
+  windowHighlight?: { x1: number; x2: number } | null;
   minPrice: number;
   maxPrice: number;
   minX: number;
@@ -107,6 +109,7 @@ function emptyModel(): InspectorChartModel {
     trendSegments: [],
     fibLines: [],
     tradeLevels: [],
+    windowHighlight: null,
     minPrice: 0,
     maxPrice: 1,
     minX: 0,
@@ -269,6 +272,71 @@ export function buildInspectorChartModel(
   const maxX = dates[dates.length - 1] || minX + 1;
   const xSpan = Math.max(maxX - minX, 1);
 
+  let windowHighlight: { x1: number; x2: number } | null = null;
+  if (useFull) {
+    const windowTimeline = data?.chartTimeline;
+    const trendWaves = data?.trendWaves ?? [];
+    const fullTimeline = data?.chartTimelineFull;
+    const fullStart = parseDate(fullTimeline?.startDate ?? fullTimeline?.points?.[0]?.date);
+    const fullEnd = parseDate(
+      fullTimeline?.endDate ?? fullTimeline?.points?.[fullTimeline.points.length - 1]?.date,
+    );
+
+    const windowDates: number[] = [];
+    for (const point of windowTimeline?.points ?? []) {
+      const ts = parseDate(point.date);
+      if (ts != null) windowDates.push(ts);
+    }
+    for (const wave of trendWaves) {
+      const start = parseDate(wave.startDate);
+      const end = parseDate(wave.endDate);
+      if (start != null) windowDates.push(start);
+      if (end != null) windowDates.push(end);
+    }
+    windowDates.sort((a, b) => a - b);
+
+    if (windowDates.length >= 2 && fullStart != null && fullEnd != null) {
+      let wStart = windowDates[0];
+      let wEnd = windowDates[windowDates.length - 1];
+
+      if ((windowTimeline?.points?.length ?? 0) > 0 && trendWaves.length) {
+        const timelineDates: number[] = [];
+        for (const point of windowTimeline?.points ?? []) {
+          const ts = parseDate(point.date);
+          if (ts != null) timelineDates.push(ts);
+        }
+        timelineDates.sort((a, b) => a - b);
+        const waveDatesOnly: number[] = [];
+        for (const wave of trendWaves) {
+          const start = parseDate(wave.startDate);
+          const end = parseDate(wave.endDate);
+          if (start != null) waveDatesOnly.push(start);
+          if (end != null) waveDatesOnly.push(end);
+        }
+        waveDatesOnly.sort((a, b) => a - b);
+        if (timelineDates.length >= 2 && waveDatesOnly.length >= 2) {
+          const tlSpan = timelineDates[timelineDates.length - 1] - timelineDates[0];
+          const waveSpan = waveDatesOnly[waveDatesOnly.length - 1] - waveDatesOnly[0];
+          if (tlSpan > 0 && waveSpan > 0 && waveSpan < tlSpan * 0.9) {
+            wStart = waveDatesOnly[0];
+            wEnd = waveDatesOnly[waveDatesOnly.length - 1];
+          }
+        }
+      }
+
+      const fullMs = fullEnd - fullStart;
+      const winMs = wEnd - wStart;
+      const coversStart = wStart <= fullStart + fullMs * 0.02;
+      const coversEnd = wEnd >= fullEnd - fullMs * 0.02;
+      if (fullMs > 0 && winMs > 0 && !(coversStart && coversEnd && winMs >= fullMs * 0.95)) {
+        windowHighlight = {
+          x1: (wStart - minX) / xSpan,
+          x2: (wEnd - minX) / xSpan,
+        };
+      }
+    }
+  }
+
   // Scale from price action + fib/pattern — not trade thresholds (edge markers instead).
   const prices: number[] = [];
   for (const point of timeline) {
@@ -423,6 +491,7 @@ export function buildInspectorChartModel(
     fibLines,
     tradeLevels,
     pattern: patternOverlay,
+    windowHighlight,
     minPrice: yMin,
     maxPrice: yMax,
     minX,
@@ -485,6 +554,49 @@ export function plotMetrics(
     pad,
     padBottom: bottom,
   };
+}
+
+export function yNormOnPriceLine(model: InspectorChartModel, targetX: number): number {
+  const line = model.priceLine;
+  if (!line.length) return 0.5;
+  if (targetX <= line[0].x) return line[0].y;
+  if (targetX >= line[line.length - 1].x) return line[line.length - 1].y;
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1];
+    const b = line[i];
+    if (targetX >= a.x && targetX <= b.x) {
+      const t = (targetX - a.x) / Math.max(b.x - a.x, 1e-9);
+      return a.y + t * (b.y - a.y);
+    }
+  }
+  return line[line.length - 1].y;
+}
+
+export function windowHighlightAreaPoints(
+  model: InspectorChartModel,
+  xForNorm: (x: number) => number,
+  yForNorm: (y: number) => number,
+  baseY: number,
+): string {
+  const wh = model.windowHighlight;
+  const line = model.priceLine;
+  if (!wh || line.length < 2) return "";
+
+  const x1 = wh.x1;
+  const x2 = wh.x2;
+  const leftX = xForNorm(x1);
+  const rightX = xForNorm(x2);
+  const leftY = yForNorm(yNormOnPriceLine(model, x1));
+  const rightY = yForNorm(yNormOnPriceLine(model, x2));
+  const mid = line.filter((p) => p.x >= x1 && p.x <= x2);
+
+  return [
+    `${leftX},${baseY}`,
+    `${leftX},${leftY}`,
+    ...mid.map((p) => `${xForNorm(p.x)},${yForNorm(p.y)}`),
+    `${rightX},${rightY}`,
+    `${rightX},${baseY}`,
+  ].join(" ");
 }
 
 /** Fullscreen chart content width so ~60 calendar days fill the viewport. */
