@@ -10002,10 +10002,20 @@
       if (typeof column.compare === "function") {
         return [...rows].sort((left, right) => column.compare(left, right, state.dir));
       }
-      const sorted = [...rows].sort((left, right) =>
-        compareSortValues(column.sortValue(left), column.sortValue(right))
-      );
-      return state.dir === "desc" ? sorted.reverse() : sorted;
+      // Apply asc/desc only among defined values so nulls/empty stay at the bottom
+      // in both directions (e.g. Watch rows with no Day $ on Holdings All).
+      const descending = state.dir === "desc";
+      return [...rows].sort((left, right) => {
+        const a = column.sortValue(left);
+        const b = column.sortValue(right);
+        const aNull = a == null || a === "";
+        const bNull = b == null || b === "";
+        if (aNull && bNull) return 0;
+        if (aNull) return 1;
+        if (bNull) return -1;
+        const cmp = compareSortValues(a, b);
+        return descending ? -cmp : cmp;
+      });
     }
 
     function formatHelpTooltip(help) {
