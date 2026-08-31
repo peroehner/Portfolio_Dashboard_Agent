@@ -226,6 +226,14 @@ Set `NOTE_SYNTHESIS_GUIDANCE` in env to append custom instructions to the synthe
 
 `proposal` is additive. Inspector attaches the same object at `recommendation.proposal` and renders State / Trigger / Fit bars on the web SAI card. Portfolio Fit prefs: `GET/PATCH /preferences`. Full schema: [PROPOSAL_FRAMEWORK.md](./PROPOSAL_FRAMEWORK.md).
 
+## Preferences
+
+`GET/PATCH /api/v1/preferences` — per-user blob including Portfolio Fit, Tax & Trim / Trade Plan UI state, and **`tickerSegments`** (named `@` filter shortcuts). PATCH merges: send `{ "tickerSegments": { "AI": "NVDA,AMD" } }` to upsert; `{ "AI": "" }` or `null` deletes that name.
+
+`GET /api/v1/preferences/ticker-segments/export` — plain text lines `@NAME=match` for backup / share.
+
+Usage and product intent (one portfolio, view-only segments; agents cover the full book): [TICKER_FILTERS.md](./TICKER_FILTERS.md). Persistence: [DATA.md](./DATA.md).
+
 **Actions:** `buy` | `sell` | `hold` | `watch`
 
 **Workflow:** Synthesize notes first → then Assess. Assessment merges stored syntheses with alerts, screening, and thresholds.

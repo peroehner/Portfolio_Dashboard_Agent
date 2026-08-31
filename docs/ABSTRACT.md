@@ -16,6 +16,8 @@ PDA ingests and cross-references several independent data streams, then fuses ("
 - **Technical structure:** chart patterns (forming vs. confirmed), adaptive trend waves, Fibonacci levels and proximity, and volume analytics (relative volume, point of control / value area).
 - **Your own inputs:** holdings and cost basis, personal price targets and thresholds, free-text notes, and optional technical-analysis imports.
 
+PDA keeps that book as **one portfolio**. Named **`@` filter segments** (for example `@AI` or `@CL`) are an easy, powerful way to focus thematic slices in tables and sidebars — without maintaining separate watchlists or duplicate portfolios. Background agents (prices, alerts, assessments, news, technicals) still run across **every** tracked symbol, held or not; filtering only changes what you are looking at. How to use them: **[TICKER_FILTERS.md](./TICKER_FILTERS.md)**.
+
 On top of this data, a layer of cooperating analytical "agents" — pattern, trend, volume/risk, and a **confluence agent** that consolidates the technical signals into a single bias and score — validates evidence *before* anything reaches the language model. The result feeds rules-based or AI-assisted (OpenAI/Gemini) **assessments and recommendations**, with changes tracked over time and a screening view that ranks the whole book on multiple factors. Headline figures — market value, weighted day change, unrealized gain, dividend income, and projected returns against analyst and personal targets — are summarized at a glance, with the ability to drill into any single name in the Inspector.
 
 ## The philosophy

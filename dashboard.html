@@ -335,6 +335,11 @@
       flex: 0 1 14rem;
       min-width: 10rem;
     }
+    .screening-filter-bar .fib-ticker-filter,
+    .fundamentals-tabbar .fib-ticker-filter {
+      flex: 0 1 14rem;
+      min-width: 10rem;
+    }
     .ticker-segment-chips {
       display: flex;
       flex-wrap: wrap;
@@ -375,7 +380,9 @@
     }
     .news-changes-filter-bar .ticker-at-suggestions,
     .holdings-filter-bar .ticker-at-suggestions,
-    .fib-filter-bar .ticker-at-suggestions {
+    .fib-filter-bar .ticker-at-suggestions,
+    .screening-filter-bar .ticker-at-suggestions,
+    .fundamentals-tabbar .ticker-at-suggestions {
       flex: 1 1 100%;
       margin-bottom: 0;
     }
@@ -6122,7 +6129,9 @@
         <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="close" onclick="setScreeningFilter('close')" title="Nearest planned-trade threshold is within 10% of the current price">Close Trades</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="far" onclick="setScreeningFilter('far')" title="Nearest planned-trade threshold is more than 100% from the current price">Far Trades</button>
+        <input type="text" id="screeningTickerFilter" class="fib-ticker-filter" placeholder="Filter… @AI · -intc · @AI=… Enter to save · Tab" oninput="onTrackedTickerFilterInput(this.value)" onkeydown="onTrackedTickerFilterKeydown(event)" onblur="onTrackedTickerFilterCommit(this)" autocomplete="off" spellcheck="false" aria-label="Filter screening by ticker">
         <span class="sel-clip-actions" data-clip-tab="screening"></span>
+        <div id="screeningTickerAtSuggestions" class="ticker-segment-chips ticker-at-suggestions" hidden></div>
       </div>
       <div id="screeningTable" class="portfolio-table-scroll"><div class="empty">Loading screening…</div></div>
     </div>
@@ -6214,10 +6223,12 @@
         <button class="fund-tab active" data-fund-tab="val" onclick="setFundamentalsTab('val')">Valuation · Growth · Profitability</button>
         <button class="fund-tab" data-fund-tab="health" onclick="setFundamentalsTab('health')">Health · Analyst</button>
         <button class="fund-tab" data-fund-tab="range" onclick="setFundamentalsTab('range')">52-Week · News</button>
+        <input type="text" id="fundamentalsTickerFilter" class="fib-ticker-filter" placeholder="Filter… @AI · -intc · @AI=… Enter to save · Tab" oninput="onTrackedTickerFilterInput(this.value)" onkeydown="onTrackedTickerFilterKeydown(event)" onblur="onTrackedTickerFilterCommit(this)" autocomplete="off" spellcheck="false" aria-label="Filter fundamentals by ticker">
         <div class="fundamentals-tabbar-end">
           <span class="sel-clip-actions" data-clip-tab="fundamentals"></span>
           <button type="button" class="help-btn" onclick="openFundamentalsHelp()" title="How to read Fundamentals" aria-label="How to read Fundamentals">?</button>
         </div>
+        <div id="fundamentalsTickerAtSuggestions" class="ticker-segment-chips ticker-at-suggestions" hidden></div>
       </div>
       <div id="fundamentalsTable"><div class="empty">Loading fundamentals…</div></div>
     </section>
@@ -7610,6 +7621,8 @@
         { hostId: "inspectorTickerAtSuggestions", inputId: "inspectorSymbolFilter" },
         { hostId: "holdingsTickerAtSuggestions", inputId: "holdingsTickerFilter" },
         { hostId: "fibTickerAtSuggestions", inputId: "fibTickerFilter" },
+        { hostId: "screeningTickerAtSuggestions", inputId: "screeningTickerFilter" },
+        { hostId: "fundamentalsTickerAtSuggestions", inputId: "fundamentalsTickerFilter" },
       ];
       for (const { hostId, inputId } of hosts) {
         renderTickerAtSuggestions(trackedTickerFilter, hostId, inputId, "tracked");
@@ -7622,6 +7635,8 @@
         "inspectorSymbolFilter",
         "holdingsTickerFilter",
         "fibTickerFilter",
+        "screeningTickerFilter",
+        "fundamentalsTickerFilter",
       ]) {
         const el = document.getElementById(id);
         if (!el) continue;
@@ -7638,6 +7653,8 @@
       rerenderSymbolNavLists();
       if (typeof renderHoldingsView === "function") renderHoldingsView();
       if (typeof renderFibMapView === "function") renderFibMapView();
+      if (viewDataCache.screening.data) renderScreeningView();
+      if (fundamentalsRows.length) renderFundamentalsTable();
     }
 
     async function loadTickerSegments() {
@@ -7660,6 +7677,8 @@
         if (typeof rerenderSymbolNavLists === "function") rerenderSymbolNavLists();
         if (typeof renderHoldingsView === "function") renderHoldingsView();
         if (typeof renderFibMapView === "function") renderFibMapView();
+        if (viewDataCache.screening.data) renderScreeningView();
+        if (fundamentalsRows.length) renderFundamentalsTable();
       } catch (_) {
         /* offline / unauth */
       }
@@ -8048,7 +8067,10 @@
       }
       if (tabId === "screening") {
         const filterLabels = { all: "All", upside: "High Upside", close: "Close Trades", far: "Far Trades" };
-        return filterLabels[screeningFilter] || screeningFilter;
+        let label = filterLabels[screeningFilter] || screeningFilter;
+        const ticker = trackedTickerFilter.trim();
+        if (ticker) label += ` · ${ticker.toUpperCase()}`;
+        return label;
       }
       if (tabId === "fib") {
         const bandLabels = { all: "All", critical: "Critical", warning: "Near", neutral: "Neutral" };
@@ -8060,7 +8082,10 @@
       }
       if (tabId === "fundamentals") {
         const tabLabels = { val: "Valuation", health: "Health", range: "52-Week" };
-        return tabLabels[fundamentalsTab] || fundamentalsTab;
+        let label = tabLabels[fundamentalsTab] || fundamentalsTab;
+        const ticker = trackedTickerFilter.trim();
+        if (ticker) label += ` · ${ticker.toUpperCase()}`;
+        return label;
       }
       return "active filters";
     }
@@ -13372,6 +13397,9 @@
       if (getVirtualSymbols("screening") && !rows.length) {
         return virtualFilterNoMatchMessage("screening");
       }
+      if (tickerFilterTerms(trackedTickerFilter).length && !rows.length) {
+        return "No symbols match the ticker filter.";
+      }
       return "No screening results.";
     }
 
@@ -14534,6 +14562,7 @@
           return Number.isFinite(d) && d > TRADE_FAR_PCT;
         });
       }
+      filtered = filtered.filter((row) => symbolMatchesTickerFilter(row.symbol, trackedTickerFilter));
       return applyVirtualSymbolFilter(filtered, "screening");
     }
 
@@ -20029,7 +20058,10 @@
     }
 
     function fundamentalsRowsForDisplay() {
-      return applyVirtualSymbolFilter(fundamentalsRows, "fundamentals");
+      const filtered = fundamentalsRows.filter((row) =>
+        symbolMatchesTickerFilter(row.symbol, trackedTickerFilter)
+      );
+      return applyVirtualSymbolFilter(filtered, "fundamentals");
     }
 
     function currentFundamentalsOrder() {
@@ -20042,6 +20074,9 @@
     function fundamentalsEmptyMessage(rows) {
       if (getVirtualSymbols("fundamentals") && !rows.length) {
         return virtualFilterNoMatchMessage("fundamentals");
+      }
+      if (tickerFilterTerms(trackedTickerFilter).length && !rows.length) {
+        return "No symbols match the ticker filter.";
       }
       return "No symbols to compare. Add symbols first.";
     }

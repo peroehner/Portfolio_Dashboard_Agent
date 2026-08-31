@@ -30,7 +30,7 @@ Inspector SAI uses live `recommendation.proposal` (same framework as web). Portf
 
 **Web parity:** Simulation **Buys / Sells** columns show **effective Buy Score** / **effective Sell Rank** (same hidden conviction strictness as mobile) beside Close %; there is not yet a dedicated Buy & Sell panel like Tax & Trim.
 
-Comma-separated ticker filters work the same as the web app (`GH, ne` → GH and NET).
+**Ticker filters & `@` segments** work the same as the web app: comma OR includes (`GH, ne`), `-term` excludes, saved `@NAME` shortcuts with autocomplete while typing `@`. Intention and full syntax: **[TICKER_FILTERS.md](./TICKER_FILTERS.md)**. Agents still analyze the whole portfolio; filters only change which rows you see.
 
 ### Loading & caching (mobile)
 

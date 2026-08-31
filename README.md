@@ -12,6 +12,10 @@ API-first portfolio screening, personal notes, alerts, holdings, and trade asses
 - **Inspector** — full single-stock context, chart patterns & trend waves
 - **Assessment runs + Agent Reads** — rules engine (default) or optional OpenAI/Gemini
 - **Import** — JSON/CSV analysis file upload
+- **`@` ticker segments** — reusable sub-portfolio views without separate watchlists (agents still cover the full book)
+
+Ticker filters & `@` shortcuts (web + mobile):
+**[docs/TICKER_FILTERS.md](docs/TICKER_FILTERS.md)**.
 
 Learning to read the charts (patterns, `forming`/`confirmed` labels, trend
 waves, technical stance): **[docs/PATTERNS.md](docs/PATTERNS.md)**.

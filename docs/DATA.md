@@ -41,7 +41,7 @@ Optional `ALLOWED_EMAILS` restricts who may sign in (comma-separated).
 
 Google OAuth identity and preferences (`prefer_computed_trends`, `preferences_json` for Portfolio Fit targets).
 
-`preferences_json` shape (Slice 3):
+`preferences_json` shape (Slice 3 + ticker segments):
 
 ```json
 {
@@ -66,11 +66,17 @@ Google OAuth identity and preferences (`prefer_computed_trends`, `preferences_js
     "sellBudget": 0,
     "buyBudget": 0,
     "listMode": "sell"
+  },
+  "tickerSegments": {
+    "AI": "NVDA,AVGO,AMD",
+    "CL": "AMZN,GOOG,MSFT"
   }
 }
 ```
 
-API: `GET/PATCH /api/v1/preferences`.
+`tickerSegments` maps uppercase names to match strings (`@AI` expands to that value). Empty / `null` on PATCH deletes a name. Segments are UI focus aids over one portfolio — not separate watchlists; agents still cover all symbols. See [TICKER_FILTERS.md](./TICKER_FILTERS.md).
+
+API: `GET/PATCH /api/v1/preferences`; export text: `GET /api/v1/preferences/ticker-segments/export`.
 
 ### `mobile_sessions` (per user)
 
