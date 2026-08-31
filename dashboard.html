@@ -10165,11 +10165,11 @@
       if (!valued.length) return null;
 
       const sorted = [...valued].sort((left, right) => right.marketValue - left.marketValue);
+      const total = sorted.reduce((sum, holding) => sum + holding.marketValue, 0);
 
       let individual;
       if (mode === "top75") {
-        const grandTotal = sorted.reduce((sum, holding) => sum + holding.marketValue, 0);
-        const target = grandTotal * 0.75;
+        const target = total * 0.75;
         individual = [];
         let cumulative = 0;
         for (const holding of sorted) {
@@ -10180,6 +10180,10 @@
       } else {
         individual = sorted.slice(0, 5);
       }
+
+      const focusValue = individual.reduce((sum, holding) => sum + holding.marketValue, 0);
+      const focusLabel = mode === "top75" ? "Top 75% holding" : "Top 5 holding";
+      const focusPct = total > 0 ? (focusValue / total) * 100 : 0;
 
       const others = sorted.slice(individual.length);
       const labels = individual.map((holding) => holding.symbol);
@@ -10205,7 +10209,7 @@
         values.push(...headValues, tailValue);
       }
 
-      return { labels, values };
+      return { labels, values, total, focusLabel, focusValue, focusPct };
     }
 
     function formatCompactMoney(value) {
@@ -10787,7 +10791,15 @@
       );
       renderAllocationLegend(payload, colors);
 
-      const allocationTotal = payload.values.reduce((sum, value) => sum + (Number(value) || 0), 0);
+      const allocationTotal = Number(payload.total) || payload.values.reduce((sum, value) => sum + (Number(value) || 0), 0);
+      const focusLabel = payload.focusLabel || (allocationMode === "top75" ? "Top 75% holding" : "Top 5 holding");
+      const focusValue = Number(payload.focusValue);
+      const focusPct = Number.isFinite(Number(payload.focusPct))
+        ? Number(payload.focusPct)
+        : (allocationTotal > 0 && Number.isFinite(focusValue) ? (focusValue / allocationTotal) * 100 : 0);
+      const focusLine = Number.isFinite(focusValue)
+        ? `${formatCompactMoney(focusValue)} (${focusPct.toFixed(1)}%)`
+        : "";
       const allocationCenterPlugin = {
         id: "allocationCenterTotal",
         afterDraw(chart) {
@@ -10799,11 +10811,19 @@
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.fillStyle = "#94a3b8";
-          ctx.font = "600 11px Inter, system-ui, sans-serif";
-          ctx.fillText("Total", cx, cy - 11);
+          ctx.font = "600 10px Inter, system-ui, sans-serif";
+          ctx.fillText("Total", cx, cy - 26);
           ctx.fillStyle = "#e2e8f0";
-          ctx.font = "700 15px Inter, system-ui, sans-serif";
-          ctx.fillText(formatCompactMoney(allocationTotal), cx, cy + 8);
+          ctx.font = "700 14px Inter, system-ui, sans-serif";
+          ctx.fillText(formatCompactMoney(allocationTotal), cx, cy - 10);
+          if (focusLine) {
+            ctx.fillStyle = "#94a3b8";
+            ctx.font = "600 9px Inter, system-ui, sans-serif";
+            ctx.fillText(focusLabel, cx, cy + 8);
+            ctx.fillStyle = "#cbd5e1";
+            ctx.font = "600 11px Inter, system-ui, sans-serif";
+            ctx.fillText(focusLine, cx, cy + 22);
+          }
           ctx.restore();
         },
       };

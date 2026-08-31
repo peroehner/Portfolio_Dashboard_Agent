@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import {
+  allocationFocusSummary,
   allocationSubtitle,
   buildAllocationSlices,
   type AllocationMode,
@@ -154,9 +155,10 @@ export function AllocationChart({
   hideAmounts = false,
 }: AllocationChartProps) {
   const slices = useMemo(() => buildAllocationSlices(holdings, mode), [holdings, mode]);
+  const focus = useMemo(() => allocationFocusSummary(holdings, mode), [holdings, mode]);
   const total = useMemo(
-    () => (slices ?? []).reduce((sum, slice) => sum + slice.value, 0),
-    [slices],
+    () => focus?.total ?? (slices ?? []).reduce((sum, slice) => sum + slice.value, 0),
+    [focus, slices],
   );
   const target = useMemo(
     () => (slices?.length && total ? targetArcs(slices, total) : []),
@@ -251,17 +253,33 @@ export function AllocationChart({
       <Text style={styles.subtitle}>{allocationSubtitle(mode)}</Text>
 
       <View style={styles.chartRow}>
-        <Svg width={CHART_SIZE} height={CHART_SIZE}>
-          {arcs.map((arc) => (
-            <Path
-              key={arc.label}
-              d={arc.path}
-              fill={arc.color}
-              stroke={colors.bg}
-              strokeWidth={2}
-            />
-          ))}
-        </Svg>
+        <View style={styles.chartWrap}>
+          <Svg width={CHART_SIZE} height={CHART_SIZE}>
+            {arcs.map((arc) => (
+              <Path
+                key={arc.label}
+                d={arc.path}
+                fill={arc.color}
+                stroke={colors.bg}
+                strokeWidth={2}
+              />
+            ))}
+          </Svg>
+          {focus ? (
+            <View style={styles.centerHole} pointerEvents="none">
+              <Text style={styles.centerLabel}>Total</Text>
+              <Text style={styles.centerTotal}>
+                {hideAmounts ? "••••" : formatMoney(focus.total, true)}
+              </Text>
+              <Text style={styles.centerFocusLabel}>{focus.focusLabel}</Text>
+              <Text style={styles.centerFocusValue}>
+                {hideAmounts
+                  ? "••••"
+                  : `${formatMoney(focus.focusValue, true)} (${focus.focusPct.toFixed(1)}%)`}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         <View style={styles.legend}>
           {arcs
             .filter((arc) => arc.value > 0.5 || arc.pct > 0.05)
@@ -322,6 +340,43 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
+  },
+  chartWrap: {
+    width: CHART_SIZE,
+    height: CHART_SIZE,
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  centerHole: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+    maxWidth: INNER_R * 2 - 12,
+    paddingHorizontal: 4,
+  },
+  centerLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  centerTotal: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  centerFocusLabel: {
+    color: colors.textMuted,
+    fontSize: 9,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  centerFocusValue: {
+    color: "#cbd5e1",
+    fontSize: 11,
+    fontWeight: "600",
+    textAlign: "center",
   },
   legend: {
     flex: 1,

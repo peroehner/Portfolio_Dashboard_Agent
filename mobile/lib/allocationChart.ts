@@ -170,6 +170,55 @@ export function holdingsForAllocationSource(
   return [];
 }
 
+export interface AllocationFocusSummary {
+  total: number;
+  focusLabel: string;
+  focusValue: number;
+  focusPct: number;
+}
+
+function selectAllocationIndividuals(
+  sorted: Holding[],
+  mode: AllocationMode,
+): Holding[] {
+  if (mode === "top75") {
+    const grandTotal = sorted.reduce((sum, holding) => sum + (holding.marketValue ?? 0), 0);
+    const target = grandTotal * 0.75;
+    const individual: Holding[] = [];
+    let cumulative = 0;
+    for (const holding of sorted) {
+      individual.push(holding);
+      cumulative += holding.marketValue ?? 0;
+      if (cumulative >= target) break;
+    }
+    return individual;
+  }
+  return sorted.slice(0, 5);
+}
+
+export function allocationFocusSummary(
+  holdings: Holding[] | undefined,
+  mode: AllocationMode = "top5",
+): AllocationFocusSummary | null {
+  const valued = (holdings ?? []).filter(
+    (holding) => holding.marketValue != null && holding.marketValue > 0,
+  );
+  if (!valued.length) return null;
+
+  const sorted = [...valued].sort(
+    (left, right) => (right.marketValue ?? 0) - (left.marketValue ?? 0),
+  );
+  const total = sorted.reduce((sum, holding) => sum + (holding.marketValue ?? 0), 0);
+  const individual = selectAllocationIndividuals(sorted, mode);
+  const focusValue = individual.reduce((sum, holding) => sum + (holding.marketValue ?? 0), 0);
+  return {
+    total,
+    focusLabel: mode === "top75" ? "Top 75% holding" : "Top 5 holding",
+    focusValue,
+    focusPct: total > 0 ? (focusValue / total) * 100 : 0,
+  };
+}
+
 export function buildAllocationSlices(
   holdings: Holding[] | undefined,
   mode: AllocationMode = "top5",
@@ -183,21 +232,7 @@ export function buildAllocationSlices(
     (left, right) => (right.marketValue ?? 0) - (left.marketValue ?? 0),
   );
 
-  let individual: Holding[];
-  if (mode === "top75") {
-    const grandTotal = sorted.reduce((sum, holding) => sum + (holding.marketValue ?? 0), 0);
-    const target = grandTotal * 0.75;
-    individual = [];
-    let cumulative = 0;
-    for (const holding of sorted) {
-      individual.push(holding);
-      cumulative += holding.marketValue ?? 0;
-      if (cumulative >= target) break;
-    }
-  } else {
-    individual = sorted.slice(0, 5);
-  }
-
+  const individual = selectAllocationIndividuals(sorted, mode);
   const others = sorted.slice(individual.length);
   const slices: AllocationSlice[] = individual.map((holding, index) => ({
     label: holding.symbol,
