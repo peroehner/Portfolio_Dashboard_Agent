@@ -505,15 +505,20 @@ function PoolCard({
           <Slider
             style={styles.slider}
             minimumValue={0}
-            maximumValue={Math.max(budgetCap, 1)}
-            step={Math.max(100, Math.round(Math.max(budgetCap, 1) / 100))}
-            value={Math.max(0, Math.min(budgetCap || 0, budgetAmt))}
+            maximumValue={Math.max(budgetCap, budgetAmt, 1)}
+            step={Math.max(100, Math.round(Math.max(budgetCap, budgetAmt, 1) / 100))}
+            value={
+              budgetCap > 0
+                ? Math.max(0, Math.min(budgetCap, budgetAmt))
+                : Math.max(0, budgetAmt)
+            }
             onValueChange={(v) => {
-              if (!(budgetCap > 0)) {
-                setBudget(0);
+              const cap = Math.max(budgetCap, 0);
+              if (!(cap > 0)) {
+                // No qualified legs at this gate — keep the user's budget intent.
                 return;
               }
-              setBudget(Math.max(0, Math.min(budgetCap, Math.round(v))));
+              setBudget(Math.max(0, Math.min(cap, Math.round(v))));
             }}
             minimumTrackTintColor={trackColor}
             maximumTrackTintColor={colors.surfaceAlt}
@@ -781,26 +786,70 @@ export default function TradePlanScreen() {
     [buyCandidates, buyGate, qualificationMode],
   );
 
-  useEffect(() => {
-    // Only clamp once gate cash is known — avoid wiping a restored budget at cash=0.
-    if (sellFullGateCash > 0 && sellBudget > sellFullGateCash) {
-      setSellBudget(Math.round(sellFullGateCash));
-    }
-  }, [sellFullGateCash, sellBudget]);
+  const prevSellFullGateCashRef = useRef(0);
+  const prevBuyFullGateCashRef = useRef(0);
+
+  /** Soft-split uses budget capped to qualified-leg cash (gate can be 0 briefly). */
+  const effectiveSellBudget = useMemo(() => {
+    if (!(sellBudget > 0)) return 0;
+    if (!(sellFullGateCash > 0)) return sellBudget;
+    return Math.min(sellBudget, Math.round(sellFullGateCash));
+  }, [sellBudget, sellFullGateCash]);
+
+  const effectiveBuyBudget = useMemo(() => {
+    if (!(buyBudget > 0)) return 0;
+    if (!(buyFullGateCash > 0)) return buyBudget;
+    return Math.min(buyBudget, Math.round(buyFullGateCash));
+  }, [buyBudget, buyFullGateCash]);
 
   useEffect(() => {
-    if (buyFullGateCash > 0 && buyBudget > buyFullGateCash) {
-      setBuyBudget(Math.round(buyFullGateCash));
-    }
-  }, [buyFullGateCash, buyBudget]);
+    const prevCap = prevSellFullGateCashRef.current;
+    const cap = sellFullGateCash;
+    setSellBudget((current) => {
+      if (cap > 0 && current > cap) return Math.round(cap);
+      // Rank gate loosened while budget was pinned to the prior max — follow the new max.
+      if (cap > prevCap && prevCap > 0 && current > 0 && current >= prevCap * 0.995) {
+        return Math.round(cap);
+      }
+      return current;
+    });
+    prevSellFullGateCashRef.current = cap;
+  }, [sellFullGateCash]);
+
+  useEffect(() => {
+    const prevCap = prevBuyFullGateCashRef.current;
+    const cap = buyFullGateCash;
+    setBuyBudget((current) => {
+      if (cap > 0 && current > cap) return Math.round(cap);
+      if (cap > prevCap && prevCap > 0 && current > 0 && current >= prevCap * 0.995) {
+        return Math.round(cap);
+      }
+      return current;
+    });
+    prevBuyFullGateCashRef.current = cap;
+  }, [buyFullGateCash]);
 
   const proposedSells = useMemo(
-    () => proposeCandidates(sellCandidates, sellGate, qualificationMode, sellGateMax, sellBudget),
-    [sellCandidates, sellGate, qualificationMode, sellGateMax, sellBudget],
+    () =>
+      proposeCandidates(
+        sellCandidates,
+        sellGate,
+        qualificationMode,
+        sellGateMax,
+        effectiveSellBudget,
+      ),
+    [sellCandidates, sellGate, qualificationMode, sellGateMax, effectiveSellBudget],
   );
   const proposedBuys = useMemo(
-    () => proposeCandidates(buyCandidates, buyGate, qualificationMode, buyGateMax, buyBudget),
-    [buyCandidates, buyGate, qualificationMode, buyGateMax, buyBudget],
+    () =>
+      proposeCandidates(
+        buyCandidates,
+        buyGate,
+        qualificationMode,
+        buyGateMax,
+        effectiveBuyBudget,
+      ),
+    [buyCandidates, buyGate, qualificationMode, buyGateMax, effectiveBuyBudget],
   );
 
   const qualifiedSells = useMemo(() => proposedSells.filter((row) => row.proposedQty > 0), [proposedSells]);
@@ -836,7 +885,7 @@ export default function TradePlanScreen() {
       const scoreReason =
         qualificationMode === "score" && !gatePasses ? scoreGateReason(row, sellGate) : null;
       const budgetReason =
-        qualificationMode === "score" && gatePasses && !qualifies && sellBudget > 0
+        qualificationMode === "score" && gatePasses && !qualifies && effectiveSellBudget > 0
           ? "Qualified, but budget allocated to stronger legs"
           : null;
       const maxTxt = row.pnl == null ? "—" : formatMoney(row.pnl, true);
@@ -954,7 +1003,7 @@ export default function TradePlanScreen() {
       const scoreReason =
         qualificationMode === "score" && !gatePasses ? scoreGateReason(row, buyGate) : null;
       const budgetReason =
-        qualificationMode === "score" && gatePasses && !qualifies && buyBudget > 0
+        qualificationMode === "score" && gatePasses && !qualifies && effectiveBuyBudget > 0
           ? "Qualified, but budget allocated to stronger legs"
           : null;
       const proxSortLabel = `${sortArrowFor("buy", "proximity")}Prox`;

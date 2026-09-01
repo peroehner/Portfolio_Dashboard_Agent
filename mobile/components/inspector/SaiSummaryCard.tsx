@@ -7,6 +7,7 @@ import { emphasizeDriverText } from "@/lib/driverHighlight";
 import {
   getRecommendationDrivers,
   getRecommendationText,
+  getPositionDisplay,
   getWatchItems,
   headlineForAction,
   sentimentStyle,
@@ -32,8 +33,10 @@ export function SaiSummaryCard({ data }: SaiSummaryCardProps) {
   const drivers = getRecommendationDrivers(data);
   const watchItems = getWatchItems(data);
   const sentiment = rec?.sentiment ?? "neutral";
-  const headline =
-    rec?.headline?.trim() || headlineForAction(rec?.action, sentiment, watchItems);
+  const hasHolding = getPositionDisplay(data, data?.quote, data?.holding).hasPosition;
+  // Always derive from action + position so sell/hold copy never implies a
+  // position the book does not have (even if a stale payload headline does).
+  const headline = headlineForAction(rec?.action, sentiment, watchItems, hasHolding);
   const assessedAt = rec?.assessedAt ? formatShortDateTime(rec.assessedAt) : "";
   const attention = resolveSaiAttention(rec?.action, proposal);
   const confLabel = saiConfidenceLabel(rec?.confidence, proposal);

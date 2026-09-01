@@ -226,12 +226,12 @@ The action labels are exactly the assessment's: **Buy / Watch / Hold / Sell**
 `_headline_for_action(action, sentiment, watch_items)` maps the action to a
 plain-English headline, optionally suffixed by sentiment:
 
-| Action | Base headline |
-|--------|---------------|
-| `buy` | "Consider adding on confirmed setup" |
-| `sell` | "Consider taking profits or reducing" |
-| `watch` | "Monitor — catalysts in What to watch" when `watchItems` exist; else "Monitor — catalysts approaching" |
-| `hold` | "Maintain current positioning" |
+| Action | Base headline (held) | Base headline (no holding) |
+|--------|----------------------|----------------------------|
+| `buy` | "Consider adding on confirmed setup" | same |
+| `sell` | "Consider taking profits or reducing" | "Avoid initiating a position" |
+| `watch` | "Monitor — catalysts in What to watch" when `watchItems` exist; else "Monitor — catalysts approaching" | same |
+| `hold` | "Maintain current positioning" | "Stay on the sidelines" |
 
 If `sentiment == "bullish"` and the action is `hold`/`watch`, it appends
 *"· bullish growth thesis"*; if `sentiment == "bearish"`, it appends

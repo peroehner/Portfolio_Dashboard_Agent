@@ -166,7 +166,18 @@ export default function SymbolDetailScreen() {
     rec.sentiment = newsSentiment.sentiment || rec.sentiment;
     rec.sentimentSource = "news";
     rec.sentimentDetail = newsSentiment.detail;
-    rec.headline = headlineForAction(rec.action, rec.sentiment);
+    const hasHolding =
+      Number(
+        (base.positionMechanics as { sharesOwned?: number } | undefined)?.sharesOwned ??
+          base.holding?.quantity ??
+          0,
+      ) > 0;
+    rec.headline = headlineForAction(
+      rec.action,
+      rec.sentiment,
+      rec.watchItems,
+      hasHolding,
+    );
     return { ...base, recommendation: rec };
   }, [liteData, fullData, newsSentiment]);
   const quote = data?.quote;

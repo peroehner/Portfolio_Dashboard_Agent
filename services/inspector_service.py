@@ -669,16 +669,35 @@ class InspectorService:
         }
 
     @staticmethod
+    def _has_open_position(holding: dict[str, Any] | None) -> bool:
+        if not holding:
+            return False
+        try:
+            return float(holding.get("quantity") or 0) > 0
+        except (TypeError, ValueError):
+            return False
+
+    @staticmethod
     def _headline_for_action(
         action: str,
         sentiment: str,
         watch_items: list[str] | None = None,
+        has_holding: bool | None = None,
     ) -> str:
+        held = True if has_holding is None else bool(has_holding)
         labels = {
             "buy": "Consider adding on confirmed setup",
-            "sell": "Consider taking profits or reducing",
+            "sell": (
+                "Consider taking profits or reducing"
+                if held
+                else "Avoid initiating a position"
+            ),
             "watch": "Monitor — catalysts approaching",
-            "hold": "Maintain current positioning",
+            "hold": (
+                "Maintain current positioning"
+                if held
+                else "Stay on the sidelines"
+            ),
         }
         has_watch_list = any(str(item).strip() for item in (watch_items or []))
         if action == "watch" and has_watch_list:
@@ -851,7 +870,12 @@ def build_symbol_recommendation(
                 f"({nearest_fib.get('distancePct', '—')}%)"
             )
 
-    headline = InspectorService._headline_for_action(action, sentiment, watch_items)
+    headline = InspectorService._headline_for_action(
+        action,
+        sentiment,
+        watch_items,
+        has_holding=InspectorService._has_open_position(holding),
+    )
     action_hint = _action_sentiment_hint(action)
     sentiment_guard = None
     if (action_hint == "bullish" and sentiment == "bearish") or (

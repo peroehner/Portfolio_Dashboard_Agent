@@ -100,12 +100,16 @@ export function headlineForAction(
   action?: string | null,
   sentiment?: string | null,
   watchItems?: string[] | null,
+  hasHolding?: boolean | null,
 ): string {
+  const held = hasHolding !== false;
   const labels: Record<string, string> = {
     buy: "Consider adding on confirmed setup",
-    sell: "Consider taking profits or reducing",
+    sell: held
+      ? "Consider taking profits or reducing"
+      : "Avoid initiating a position",
     watch: "Monitor — catalysts approaching",
-    hold: "Maintain current positioning",
+    hold: held ? "Maintain current positioning" : "Stay on the sidelines",
   };
   const key = String(action || "hold").toLowerCase();
   const hasWatchList = (watchItems || []).some((item) => String(item).trim());

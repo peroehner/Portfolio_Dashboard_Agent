@@ -12558,12 +12558,17 @@
 
     // JS mirror of inspector_service._headline_for_action so the recommendation
     // headline stays consistent once news sentiment overrides the note fallback.
-    function headlineForAction(action, sentiment, watchItems) {
+    function headlineForAction(action, sentiment, watchItems, hasHolding) {
+      const held = hasHolding !== false;
       const labels = {
         buy: "Consider adding on confirmed setup",
-        sell: "Consider taking profits or reducing",
+        sell: held
+          ? "Consider taking profits or reducing"
+          : "Avoid initiating a position",
         watch: "Monitor — catalysts approaching",
-        hold: "Maintain current positioning",
+        hold: held
+          ? "Maintain current positioning"
+          : "Stay on the sidelines",
       };
       const hasWatchList = (watchItems || []).some((item) => String(item || "").trim());
       const base =
@@ -12577,16 +12582,30 @@
       return base;
     }
 
+    function inspectorHasOpenPosition(inspectorData) {
+      const holding = inspectorData?.holding;
+      const pm = inspectorData?.positionMechanics;
+      const qty = Number(pm?.sharesOwned ?? pm?.quantity ?? holding?.quantity ?? 0);
+      return Number.isFinite(qty) && qty > 0;
+    }
+
     // Override a recommendation's sentiment with market-grounded news when there
     // is materially-relevant news, matching build_symbol_recommendation's
     // news-over-notes precedence (note/neutral fallback already came from the
     // backend's includeNews=false payload).
-    function applyNewsSentimentToRecommendation(rec, newsSentiment) {
+    function applyNewsSentimentToRecommendation(rec, newsSentiment, hasHolding) {
       if (!rec || !newsSentiment || !newsSentiment.count) return rec;
       rec.sentiment = newsSentiment.sentiment || "neutral";
       rec.sentimentSource = "news";
       rec.sentimentDetail = newsSentiment.detail || "From recent market news";
-      if (rec.action) rec.headline = headlineForAction(rec.action, rec.sentiment, rec.watchItems);
+      if (rec.action) {
+        rec.headline = headlineForAction(
+          rec.action,
+          rec.sentiment,
+          rec.watchItems,
+          hasHolding,
+        );
+      }
       return rec;
     }
 
@@ -12614,7 +12633,11 @@
     async function applyNewsSentimentToInspector(symbol, inspectorData) {
       if (!inspectorData || !inspectorData.recommendation) return inspectorData;
       const ns = await resolveNewsSentiment(symbol);
-      applyNewsSentimentToRecommendation(inspectorData.recommendation, ns);
+      applyNewsSentimentToRecommendation(
+        inspectorData.recommendation,
+        ns,
+        inspectorHasOpenPosition(inspectorData),
+      );
       return inspectorData;
     }
 
@@ -16871,8 +16894,17 @@
     }
     window.jumpToSaiWatch = jumpToSaiWatch;
 
-    function renderRecommendationCard(rec) {
-      if (!rec || !rec.headline) {
+    function renderRecommendationCard(rec, hasHolding) {
+      if (!rec || !(rec.headline || rec.action)) {
+        return `<div class="recommendation-card" id="inspector-recommendation"><h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3><div class="empty">No Synthesized Agent Insight yet — synthesize notes and run Assess Symbol.</div></div>`;
+      }
+      const headline = headlineForAction(
+        rec.action,
+        rec.sentiment,
+        rec.watchItems,
+        hasHolding,
+      ) || String(rec.headline || "").trim();
+      if (!headline) {
         return `<div class="recommendation-card" id="inspector-recommendation"><h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3><div class="empty">No Synthesized Agent Insight yet — synthesize notes and run Assess Symbol.</div></div>`;
       }
       const drivers = (rec.drivers || [])
@@ -16899,7 +16931,7 @@
             </div>
             ${assessedAt ? `<div class="rec-assessed-at">${escapeHtml(assessedAt)}</div>` : ""}
           </div>
-          ${renderSaiHeadline(rec.headline, Boolean(watch))}
+          ${renderSaiHeadline(headline, Boolean(watch))}
           <div class="rec-rationale">${renderSaiProse(rec.rationale || "")}</div>
           ${sentimentGuard}
           ${drivers ? `<ul class="watch-list">${drivers}</ul>` : ""}
@@ -17739,7 +17771,10 @@
       `;
       }
 
-      const saiCard = renderRecommendationCard(data.recommendation || {});
+      const saiCard = renderRecommendationCard(
+        data.recommendation || {},
+        inspectorHasOpenPosition(data),
+      );
       const holdingsCard = renderInspectorHoldingsCard(data, valuationMetricsHtml);
       const alertsSection = `
             <div class="inspector-section" id="inspector-alerts">
@@ -18800,8 +18835,17 @@
       window.setTimeout(() => target.classList.remove("inspector-section-focus"), 1800);
     }
 
-    function renderInspectorSnapshotSai(rec) {
-      if (!rec || !rec.headline) {
+    function renderInspectorSnapshotSai(rec, hasHolding) {
+      if (!rec || !(rec.headline || rec.action)) {
+        return `<div class="recommendation-card snap-sai-card" id="inspector-recommendation"><h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3><div class="empty">No Synthesized Agent Insight yet — synthesize notes and run Assess Symbol.</div></div>`;
+      }
+      const headline = headlineForAction(
+        rec.action,
+        rec.sentiment,
+        rec.watchItems,
+        hasHolding,
+      ) || String(rec.headline || "").trim();
+      if (!headline) {
         return `<div class="recommendation-card snap-sai-card" id="inspector-recommendation"><h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3><div class="empty">No Synthesized Agent Insight yet — synthesize notes and run Assess Symbol.</div></div>`;
       }
       const drivers = (rec.drivers || [])
@@ -18818,7 +18862,7 @@
       return `
         <div class="recommendation-card snap-sai-card" id="inspector-recommendation">
           <h3 class="card-headline-accent">Synthesized Agent Insight (SAI)</h3>
-          ${renderSaiHeadline(rec.headline, Boolean(watch))}
+          ${renderSaiHeadline(headline, Boolean(watch))}
           <div class="rec-rationale">${renderSaiProse(rec.rationale || "")}</div>
           ${drivers ? `<ul class="watch-list snap-sai-drivers">${drivers}</ul>` : ""}
           ${watch ? `<div id="sai-watch-list" class="snap-watch-label">What to watch</div><ul class="watch-list snap-sai-watch">${watch}</ul>` : ""}
@@ -19284,7 +19328,7 @@
 
       const confluenceHtml = renderInspectorConfluence(conf, advisory);
       const holdingsHtml = renderInspectorHoldingsCard(data, valuationMetricsHtml);
-      const saiHtml = renderInspectorSnapshotSai(rec);
+      const saiHtml = renderInspectorSnapshotSai(rec, inspectorHasOpenPosition(data));
       const alertsHtml = `
         <div class="inspector-section snap-alerts-section">
           <h3 class="card-headline-accent">Alerts</h3>
