@@ -17972,7 +17972,7 @@
       return pixels[pixels.length - 1].y;
     }
 
-    /** Lavender fill under the price line within the Timeline & Trends window. */
+    /** Lavender highlight for the Timeline & Trends window inside Full Timeline. */
     function drawInspectorTrendWindowBand(chart) {
       const range = chart.$windowHighlight;
       const area = chart?.chartArea;
@@ -17987,7 +17987,8 @@
 
       const leftPx = Math.max(area.left, Math.min(xRawStart, xRawEnd));
       const rightPx = Math.min(area.right, Math.max(xRawStart, xRawEnd));
-      if (rightPx - leftPx < 6) return;
+      const bandWidth = rightPx - leftPx;
+      if (bandWidth < 6) return;
 
       const ds = inspectorPriceDataset(chart);
       if (!ds) return;
@@ -18001,6 +18002,7 @@
         .sort((a, b) => a.x - b.x);
       if (!pixels.length) return;
 
+      const top = area.top;
       const bottom = area.bottom;
       const yLeft = yOnPriceLineAtX(pixels, leftPx);
       const yRight = yOnPriceLineAtX(pixels, rightPx);
@@ -18009,6 +18011,17 @@
       const bandPts = pixels.filter((p) => p.x >= leftPx - 0.5 && p.x <= rightPx + 0.5);
 
       ctx.save();
+
+      // Full-height column tint so the sub-window reads clearly on Full Timeline.
+      ctx.globalCompositeOperation = "destination-over";
+      const columnGrad = ctx.createLinearGradient(leftPx, top, rightPx, top);
+      columnGrad.addColorStop(0, "rgba(167, 139, 250, 0.05)");
+      columnGrad.addColorStop(0.5, "rgba(167, 139, 250, 0.16)");
+      columnGrad.addColorStop(1, "rgba(167, 139, 250, 0.05)");
+      ctx.fillStyle = columnGrad;
+      ctx.fillRect(leftPx, top, bandWidth, bottom - top);
+
+      // Stronger fill under the price line within the window.
       ctx.beginPath();
       ctx.moveTo(leftPx, bottom);
       ctx.lineTo(leftPx, yLeft);
@@ -18016,31 +18029,57 @@
       ctx.lineTo(rightPx, yRight);
       ctx.lineTo(rightPx, bottom);
       ctx.closePath();
-
-      ctx.globalCompositeOperation = "destination-over";
-      const gradient = ctx.createLinearGradient(leftPx, area.top, rightPx, area.top);
-      gradient.addColorStop(0, "rgba(196, 181, 253, 0.06)");
-      gradient.addColorStop(0.5, "rgba(196, 181, 253, 0.18)");
-      gradient.addColorStop(1, "rgba(196, 181, 253, 0.06)");
-      ctx.fillStyle = gradient;
+      const priceGrad = ctx.createLinearGradient(leftPx, top, rightPx, top);
+      priceGrad.addColorStop(0, "rgba(196, 181, 253, 0.10)");
+      priceGrad.addColorStop(0.5, "rgba(196, 181, 253, 0.30)");
+      priceGrad.addColorStop(1, "rgba(196, 181, 253, 0.10)");
+      ctx.fillStyle = priceGrad;
       ctx.fill();
       ctx.globalCompositeOperation = "source-over";
 
-      ctx.setLineDash([5, 4]);
-      ctx.strokeStyle = "rgba(196, 181, 253, 0.68)";
-      ctx.lineWidth = 1.5;
+      // Dashed frame around the whole Timeline & Trends span.
+      ctx.setLineDash([7, 4]);
+      ctx.strokeStyle = "rgba(196, 181, 253, 0.88)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(leftPx + 1, top + 1, bandWidth - 2, bottom - top - 2);
+
+      // Solid inner side accents (full height) when the window does not span the chart.
+      ctx.setLineDash([]);
+      ctx.lineWidth = 2.25;
+      ctx.strokeStyle = "rgba(167, 139, 250, 0.62)";
       if (leftPx > area.left + 2) {
         ctx.beginPath();
-        ctx.moveTo(leftPx, yLeft);
+        ctx.moveTo(leftPx, top);
         ctx.lineTo(leftPx, bottom);
         ctx.stroke();
       }
       if (rightPx < area.right - 2) {
         ctx.beginPath();
-        ctx.moveTo(rightPx, yRight);
+        ctx.moveTo(rightPx, top);
         ctx.lineTo(rightPx, bottom);
         ctx.stroke();
       }
+
+      // Small label so the highlighted band is identifiable at a glance.
+      if (bandWidth >= 72) {
+        const label = "Timeline & Trends";
+        ctx.font = '600 11px system-ui, -apple-system, "Segoe UI", sans-serif';
+        const textW = ctx.measureText(label).width;
+        const padX = 8;
+        const pillH = 18;
+        const pillW = textW + padX * 2;
+        const pillX = leftPx + Math.max(4, (bandWidth - pillW) / 2);
+        const pillY = top + 5;
+        ctx.fillStyle = "rgba(76, 29, 149, 0.82)";
+        ctx.fillRect(pillX, pillY, pillW, pillH);
+        ctx.strokeStyle = "rgba(221, 214, 254, 0.55)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(pillX + 0.5, pillY + 0.5, pillW - 1, pillH - 1);
+        ctx.fillStyle = "#f5f3ff";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, pillX + padX, pillY + pillH / 2 + 0.5);
+      }
+
       ctx.setLineDash([]);
       ctx.restore();
     }
