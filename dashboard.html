@@ -2504,18 +2504,18 @@
       width: 100%;
       height: 100%;
       box-sizing: border-box;
-      border: 2px dashed rgba(221, 214, 254, 0.95);
+      border: 2px dashed rgba(45, 212, 191, 0.92);
       border-radius: 5px;
       background: linear-gradient(
         180deg,
-        rgba(139, 92, 246, 0.28) 0%,
-        rgba(124, 58, 237, 0.14) 42%,
-        rgba(139, 92, 246, 0.22) 100%
+        rgba(45, 212, 191, 0.24) 0%,
+        rgba(20, 184, 166, 0.13) 42%,
+        rgba(45, 212, 191, 0.20) 100%
       );
       box-shadow:
-        inset 0 0 0 1px rgba(237, 233, 254, 0.45),
-        inset 0 0 36px rgba(139, 92, 246, 0.32),
-        0 0 18px rgba(139, 92, 246, 0.18);
+        inset 0 0 0 1px rgba(153, 246, 228, 0.55),
+        inset 0 0 40px rgba(45, 212, 191, 0.30),
+        0 0 20px rgba(45, 212, 191, 0.22);
       position: relative;
     }
     .trend-window-band::before,
@@ -2525,8 +2525,8 @@
       top: 0;
       bottom: 0;
       width: 4px;
-      background: linear-gradient(180deg, rgba(196, 181, 253, 0.95), rgba(139, 92, 246, 0.75));
-      box-shadow: 0 0 10px rgba(167, 139, 250, 0.65);
+      background: linear-gradient(180deg, rgba(94, 234, 212, 0.98), rgba(13, 148, 136, 0.85));
+      box-shadow: 0 0 12px rgba(45, 212, 191, 0.75);
     }
     .trend-window-band::before { left: -2px; border-radius: 2px 0 0 2px; }
     .trend-window-band::after { right: -2px; border-radius: 0 2px 2px 0; }
@@ -2535,14 +2535,14 @@
       top: 7px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(76, 29, 149, 0.94);
-      color: #faf5ff;
+      background: rgba(15, 118, 110, 0.96);
+      color: #ecfdf5;
       font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.04em;
       padding: 4px 11px;
       border-radius: 5px;
-      border: 1px solid rgba(221, 214, 254, 0.75);
+      border: 1px solid rgba(153, 246, 228, 0.85);
       white-space: nowrap;
       text-transform: uppercase;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
@@ -2883,6 +2883,15 @@
       height: 0;
       border-top: 3px solid currentColor;
       border-radius: 999px;
+    }
+    .inspector-chart-legend .legend-window-swatch {
+      display: inline-block;
+      width: 1.15rem;
+      height: 0.65rem;
+      border: 2px dashed rgba(45, 212, 191, 0.95);
+      border-radius: 3px;
+      background: rgba(45, 212, 191, 0.28);
+      box-shadow: inset 0 0 6px rgba(45, 212, 191, 0.35);
     }
     .inspector-chart-mode {
       display: inline-flex;
@@ -17758,7 +17767,7 @@
               <canvas id="inspectorChart-${panelId}" aria-label="Fibonacci and trend timeline chart for ${data.symbol}"></canvas>
             </div>
             ${canSwitchChart && !isHoldingsPreview
-              ? `<div class="inspector-chart-legend" id="inspectorTrendLegend-${panelId}" ${chartMode === "timeline" ? "" : "hidden"}></div>`
+              ? `<div class="inspector-chart-legend" id="inspectorTrendLegend-${panelId}" ${(chartMode === "timeline" || chartMode === "full") ? "" : "hidden"}></div>`
               : ""}
             ${isHoldingsPreview ? "" : `
             <div class="trend-waves-row">
@@ -18116,9 +18125,9 @@
       ctx.closePath();
       ctx.globalCompositeOperation = "destination-over";
       const priceGrad = ctx.createLinearGradient(leftPx, area.top, rightPx, area.top);
-      priceGrad.addColorStop(0, "rgba(196, 181, 253, 0.14)");
-      priceGrad.addColorStop(0.5, "rgba(196, 181, 253, 0.38)");
-      priceGrad.addColorStop(1, "rgba(196, 181, 253, 0.14)");
+      priceGrad.addColorStop(0, "rgba(45, 212, 191, 0.14)");
+      priceGrad.addColorStop(0.5, "rgba(45, 212, 191, 0.40)");
+      priceGrad.addColorStop(1, "rgba(45, 212, 191, 0.14)");
       ctx.fillStyle = priceGrad;
       ctx.fill();
       ctx.restore();
@@ -18233,17 +18242,24 @@
       ctx.restore();
     }
 
-    function renderInspectorTrendLegend(panelId, waves, pattern = null, tradeLevels = []) {
+    function renderInspectorTrendLegend(panelId, waves, pattern = null, tradeLevels = [], legendOpts = {}) {
       const legend = document.getElementById(`inspectorTrendLegend-${panelId}`);
       if (!legend) return;
-      const items = [
-        `<span><span class="legend-line" style="color:#c4b5fd;"></span>Window price</span>`,
+      const priceLabel = legendOpts.priceLabel || "Window price";
+      const items = [];
+      if (legendOpts.windowHighlight) {
+        items.push(
+          '<span><span class="legend-window-swatch"></span>Timeline &amp; Trends window</span>',
+        );
+      }
+      items.push(`<span><span class="legend-line" style="color:#c4b5fd;"></span>${escapeHtml(priceLabel)}</span>`);
+      items.push(
         ...waves.map((wave, index) => {
           const color = trendChartColor(wave, index);
           const arrow = wave.direction === "down" ? "↓" : "↑";
           return `<span><span class="legend-line" style="color:${color};"></span>${wave.label} ${arrow} ${wave.legPattern || wave.type || ""}</span>`;
         }),
-      ];
+      );
       if (pattern && (pattern.points || []).length >= 2) {
         items.push(`<span><span class="legend-line" style="color:#f59e0b;"></span>◆ ${escapeHtml(pattern.name)} (${escapeHtml(pattern.status || "")})</span>`);
       }
@@ -18494,7 +18510,10 @@
       chart.$tradeThresholds = tradeLevels;
       chart.$windowHighlight = options.windowHighlight || null;
       inspectorChartAfterDraw(chart);
-      renderInspectorTrendLegend(panelId, waves, pattern, tradeLevels);
+      renderInspectorTrendLegend(panelId, waves, pattern, tradeLevels, {
+        windowHighlight: options.windowHighlight || null,
+        priceLabel,
+      });
       return true;
     }
 
@@ -18607,7 +18626,7 @@
         btn.classList.toggle("active", btn.dataset.mode === mode);
       });
       const legend = document.getElementById(`inspectorTrendLegend-${panelId}`);
-      if (legend) legend.hidden = mode !== "timeline";
+      if (legend) legend.hidden = mode !== "timeline" && mode !== "full";
       const wrap = document.querySelector(`#${panelId} .inspector-chart-wrap`);
       if (wrap) wrap.style.height = (mode === "timeline" || mode === "full") ? "320px" : "";
       renderInspectorChart(data, panelId);
@@ -18619,6 +18638,7 @@
 
       if (inspectorCharts[panelId]) {
         clearTradeThresholdOverlay(inspectorCharts[panelId].canvas);
+        clearTrendWindowOverlay(inspectorCharts[panelId].canvas);
         inspectorCharts[panelId].destroy();
         inspectorCharts[panelId] = null;
       }
@@ -18704,6 +18724,7 @@
 
       if (inspectorCharts[INSPECTOR_FS_PANEL]) {
         clearTradeThresholdOverlay(inspectorCharts[INSPECTOR_FS_PANEL].canvas);
+        clearTrendWindowOverlay(inspectorCharts[INSPECTOR_FS_PANEL].canvas);
         inspectorCharts[INSPECTOR_FS_PANEL].destroy();
         inspectorCharts[INSPECTOR_FS_PANEL] = null;
       }
@@ -18831,6 +18852,7 @@
       if (overlay) overlay.hidden = true;
       if (inspectorCharts[INSPECTOR_FS_PANEL]) {
         clearTradeThresholdOverlay(inspectorCharts[INSPECTOR_FS_PANEL].canvas);
+        clearTrendWindowOverlay(inspectorCharts[INSPECTOR_FS_PANEL].canvas);
         inspectorCharts[INSPECTOR_FS_PANEL].destroy();
         inspectorCharts[INSPECTOR_FS_PANEL] = null;
       }
