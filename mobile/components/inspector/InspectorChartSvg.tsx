@@ -99,10 +99,17 @@ export function InspectorChartSvg({
           <Stop offset="0.55" stopColor="#93c5fd" stopOpacity={0.05} />
           <Stop offset="1" stopColor="#60a5fa" stopOpacity={0.01} />
         </LinearGradient>
+        {/* Full-height column wash (parity with web Full Timeline band). */}
         <LinearGradient id={windowGradId} x1="0" y1="0" x2="1" y2="0">
-          <Stop offset="0" stopColor="#c4b5fd" stopOpacity={0.06} />
-          <Stop offset="0.5" stopColor="#c4b5fd" stopOpacity={0.18} />
-          <Stop offset="1" stopColor="#c4b5fd" stopOpacity={0.06} />
+          <Stop offset="0" stopColor="#a78bfa" stopOpacity={0.05} />
+          <Stop offset="0.5" stopColor="#a78bfa" stopOpacity={0.16} />
+          <Stop offset="1" stopColor="#a78bfa" stopOpacity={0.05} />
+        </LinearGradient>
+        {/* Stronger under-price fill within the Timeline & Trends window. */}
+        <LinearGradient id={`${windowGradId}Price`} x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0" stopColor="#c4b5fd" stopOpacity={0.10} />
+          <Stop offset="0.5" stopColor="#c4b5fd" stopOpacity={0.30} />
+          <Stop offset="1" stopColor="#c4b5fd" stopOpacity={0.10} />
         </LinearGradient>
       </Defs>
 
@@ -138,12 +145,35 @@ export function InspectorChartSvg({
 
       {model.windowHighlight ? (() => {
         const left = xForNorm(model.windowHighlight.x1);
+        const right = xForNorm(model.windowHighlight.x2);
+        const bandW = Math.max(0, right - left);
+        const top = pad;
         const baseY = pad + plotH;
         const areaPointsWindow = windowHighlightAreaPoints(model, xForNorm, yForNorm, baseY);
         const yLeft = yForNorm(yNormOnPriceLine(model, model.windowHighlight.x1));
+        const showLabel = bandW >= 88;
+        const label = "Timeline & Trends";
+        const labelW = 118;
+        const labelH = 16;
+        const labelX = left + Math.max(4, (bandW - labelW) / 2);
+        const labelY = top + 4;
         return (
           <G key="window-highlight">
-            {areaPointsWindow ? <Polygon points={areaPointsWindow} fill={`url(#${windowGradId})`} stroke="none" /> : null}
+            {/* Full-height lavender column — matches web canvas destination-over tint. */}
+            {bandW > 4 ? (
+              <Rect
+                x={left}
+                y={top}
+                width={bandW}
+                height={plotH}
+                fill={`url(#${windowGradId})`}
+                stroke="none"
+              />
+            ) : null}
+            {areaPointsWindow ? (
+              <Polygon points={areaPointsWindow} fill={`url(#${windowGradId}Price)`} stroke="none" />
+            ) : null}
+            {/* Left dashed edge only: bottom → price line (no rectangular frame). */}
             {model.windowHighlight.x1 > 0.02 ? (
               <Line
                 x1={left}
@@ -154,6 +184,30 @@ export function InspectorChartSvg({
                 strokeWidth={2}
                 strokeDasharray="7 4"
               />
+            ) : null}
+            {showLabel ? (
+              <G>
+                <Rect
+                  x={labelX}
+                  y={labelY}
+                  width={labelW}
+                  height={labelH}
+                  rx={3}
+                  fill="rgba(76, 29, 149, 0.82)"
+                  stroke="rgba(221, 214, 254, 0.55)"
+                  strokeWidth={1}
+                />
+                <SvgText
+                  x={labelX + labelW / 2}
+                  y={labelY + 11}
+                  fill="#f5f3ff"
+                  fontSize="10"
+                  fontWeight="600"
+                  textAnchor="middle"
+                >
+                  {label}
+                </SvgText>
+              </G>
             ) : null}
           </G>
         );

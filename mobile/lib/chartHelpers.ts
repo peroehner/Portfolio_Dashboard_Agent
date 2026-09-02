@@ -282,57 +282,63 @@ export function buildInspectorChartModel(
       fullTimeline?.endDate ?? fullTimeline?.points?.[fullTimeline.points.length - 1]?.date,
     );
 
-    const windowDates: number[] = [];
-    for (const point of windowTimeline?.points ?? []) {
-      const ts = parseDate(point.date);
-      if (ts != null) windowDates.push(ts);
-    }
-    for (const wave of trendWaves) {
-      const start = parseDate(wave.startDate);
-      const end = parseDate(wave.endDate);
-      if (start != null) windowDates.push(start);
-      if (end != null) windowDates.push(end);
-    }
-    windowDates.sort((a, b) => a - b);
+    // Prefer the API's explicit Timeline & Trends window (parity with web).
+    const explicitStart = parseDate(windowTimeline?.startDate);
+    const explicitEnd = parseDate(windowTimeline?.endDate);
+    if (explicitStart != null && explicitEnd != null && explicitEnd > explicitStart) {
+      windowHighlight = {
+        x1: (explicitStart - minX) / xSpan,
+        x2: (explicitEnd - minX) / xSpan,
+      };
+    } else {
+      const windowDates: number[] = [];
+      for (const point of windowTimeline?.points ?? []) {
+        const ts = parseDate(point.date);
+        if (ts != null) windowDates.push(ts);
+      }
+      for (const wave of trendWaves) {
+        const start = parseDate(wave.startDate);
+        const end = parseDate(wave.endDate);
+        if (start != null) windowDates.push(start);
+        if (end != null) windowDates.push(end);
+      }
+      windowDates.sort((a, b) => a - b);
 
-    if (windowDates.length >= 2 && fullStart != null && fullEnd != null) {
-      let wStart = windowDates[0];
-      let wEnd = windowDates[windowDates.length - 1];
+      if (windowDates.length >= 2 && fullStart != null && fullEnd != null) {
+        let wStart = windowDates[0];
+        let wEnd = windowDates[windowDates.length - 1];
 
-      if ((windowTimeline?.points?.length ?? 0) > 0 && trendWaves.length) {
-        const timelineDates: number[] = [];
-        for (const point of windowTimeline?.points ?? []) {
-          const ts = parseDate(point.date);
-          if (ts != null) timelineDates.push(ts);
-        }
-        timelineDates.sort((a, b) => a - b);
-        const waveDatesOnly: number[] = [];
-        for (const wave of trendWaves) {
-          const start = parseDate(wave.startDate);
-          const end = parseDate(wave.endDate);
-          if (start != null) waveDatesOnly.push(start);
-          if (end != null) waveDatesOnly.push(end);
-        }
-        waveDatesOnly.sort((a, b) => a - b);
-        if (timelineDates.length >= 2 && waveDatesOnly.length >= 2) {
-          const tlSpan = timelineDates[timelineDates.length - 1] - timelineDates[0];
-          const waveSpan = waveDatesOnly[waveDatesOnly.length - 1] - waveDatesOnly[0];
-          if (tlSpan > 0 && waveSpan > 0 && waveSpan < tlSpan * 0.9) {
-            wStart = waveDatesOnly[0];
-            wEnd = waveDatesOnly[waveDatesOnly.length - 1];
+        if ((windowTimeline?.points?.length ?? 0) > 0 && trendWaves.length) {
+          const timelineDates: number[] = [];
+          for (const point of windowTimeline?.points ?? []) {
+            const ts = parseDate(point.date);
+            if (ts != null) timelineDates.push(ts);
+          }
+          timelineDates.sort((a, b) => a - b);
+          const waveDatesOnly: number[] = [];
+          for (const wave of trendWaves) {
+            const start = parseDate(wave.startDate);
+            const end = parseDate(wave.endDate);
+            if (start != null) waveDatesOnly.push(start);
+            if (end != null) waveDatesOnly.push(end);
+          }
+          waveDatesOnly.sort((a, b) => a - b);
+          if (timelineDates.length >= 2 && waveDatesOnly.length >= 2) {
+            const tlSpan = timelineDates[timelineDates.length - 1] - timelineDates[0];
+            const waveSpan = waveDatesOnly[waveDatesOnly.length - 1] - waveDatesOnly[0];
+            if (tlSpan > 0 && waveSpan > 0 && waveSpan < tlSpan * 0.9) {
+              wStart = waveDatesOnly[0];
+              wEnd = waveDatesOnly[waveDatesOnly.length - 1];
+            }
           }
         }
-      }
 
-      const fullMs = fullEnd - fullStart;
-      const winMs = wEnd - wStart;
-      const coversStart = wStart <= fullStart + fullMs * 0.02;
-      const coversEnd = wEnd >= fullEnd - fullMs * 0.02;
-      if (fullMs > 0 && winMs > 0 && !(coversStart && coversEnd && winMs >= fullMs * 0.95)) {
-        windowHighlight = {
-          x1: (wStart - minX) / xSpan,
-          x2: (wEnd - minX) / xSpan,
-        };
+        if (wEnd > wStart) {
+          windowHighlight = {
+            x1: (wStart - minX) / xSpan,
+            x2: (wEnd - minX) / xSpan,
+          };
+        }
       }
     }
   }
