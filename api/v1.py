@@ -25,7 +25,7 @@ from services.technical_service import TechnicalService
 from services.track_record_service import TrackRecordService
 from services.tax_trim_service import TaxTrimService
 from services.llm_client import LLMClient
-from services.plan_service import normalize_plan, plan_override
+from services.plan_service import normalize_plan, plan_override, set_user_plan, VALID_PLANS
 
 v1_bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
 
@@ -361,6 +361,44 @@ def consol_workload():
                 }
                 for row in usage_rows
             ],
+        }
+    )
+
+
+@v1_bp.route("/consol/users/<int:user_id>/plan", methods=["PATCH"])
+def consol_set_user_plan(user_id: int):
+    """Author-only: assign Free / Standard / Pro until Stripe billing is live.
+
+    Temporary admin path — remove once Stripe webhooks call ``set_user_plan``.
+    """
+    if not _author_console_allowed():
+        return jsonify({"error": "Not found"}), 404
+
+    user = get_user(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    raw_plan = body.get("plan")
+    try:
+        plan = set_user_plan(raw_plan, user_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "allowed": list(VALID_PLANS)}), 400
+
+    override = plan_override()
+    return jsonify(
+        {
+            "id": user_id,
+            "email": user.get("email"),
+            "tier": plan,
+            "planOverride": override,
+            "effectivePlan": override or plan,
+            "warning": (
+                f"USER_PLAN_OVERRIDE={override} is active — stored plan is {plan}, "
+                f"but all users are gated as {override} until the override is removed."
+                if override
+                else None
+            ),
         }
     )
 

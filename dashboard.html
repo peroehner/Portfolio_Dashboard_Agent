@@ -1706,6 +1706,37 @@
     .plan-badge.plan-free { border-color: #475569; color: #94a3b8; }
     .plan-badge.plan-standard { border-color: #2563eb; color: #93c5fd; background: #172554; }
     .plan-badge.plan-pro { border-color: #7c3aed; color: #c4b5fd; background: #2e1065; }
+    .consol-tier-select {
+      appearance: none;
+      -webkit-appearance: none;
+      padding: 0.15rem 1.35rem 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      background-color: #1e293b;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%2394a3b8' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.4rem center;
+      cursor: pointer;
+      max-width: 7.5rem;
+    }
+    .consol-tier-select:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .consol-tier-select.plan-free { border-color: #475569; color: #94a3b8; }
+    .consol-tier-select.plan-standard { border-color: #2563eb; color: #93c5fd; background-color: #172554; }
+    .consol-tier-select.plan-pro { border-color: #7c3aed; color: #c4b5fd; background-color: #2e1065; }
+    .consol-tier-note {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin: 0 0 0.45rem;
+    }
+    .consol-tier-note.warn { color: #fbbf24; }
     .consol-trend {
       margin-top: 0.85rem;
       padding: 0.85rem 0.95rem;
@@ -6537,6 +6568,63 @@
       return `<span class="plan-badge plan-${escapeHtml(plan)}">${escapeHtml(formatPlanLabel(plan))}</span>`;
     }
 
+    function renderConsolTierSelect(userId, tier, { disabled = false } = {}) {
+      const plan = (tier || "free").toLowerCase();
+      const opts = ["free", "standard", "pro"]
+        .map((value) => {
+          const selected = value === plan ? " selected" : "";
+          return `<option value="${value}"${selected}>${escapeHtml(formatPlanLabel(value))}</option>`;
+        })
+        .join("");
+      const disabledAttr = disabled ? " disabled" : "";
+      return (
+        `<select class="consol-tier-select plan-${escapeHtml(plan)}"`
+        + ` data-user-id="${Number(userId)}"`
+        + ` data-current="${escapeHtml(plan)}"`
+        + ` onchange="onConsolTierChange(this)"`
+        + ` title="Temporary admin control — replace with Stripe later"${disabledAttr}>`
+        + opts
+        + "</select>"
+      );
+    }
+
+    async function onConsolTierChange(selectEl) {
+      if (!selectEl || !authorConsoleEnabled) return;
+      const userId = Number(selectEl.dataset.userId);
+      const previous = selectEl.dataset.current || "free";
+      const plan = String(selectEl.value || "").toLowerCase();
+      if (!userId || !plan || plan === previous) return;
+      selectEl.disabled = true;
+      try {
+        const result = await api(`/consol/users/${userId}/plan`, {
+          method: "PATCH",
+          body: JSON.stringify({ plan }),
+        });
+        selectEl.dataset.current = result.tier || plan;
+        selectEl.className = `consol-tier-select plan-${result.tier || plan}`;
+        if (result.warning) {
+          showToast(result.warning, "info");
+        } else {
+          const email = result.email || `user ${userId}`;
+          showToast(`${email} → ${formatPlanLabel(result.tier || plan)}`, "success");
+        }
+        if (signedInUserId != null && Number(userId) === Number(signedInUserId)) {
+          try {
+            const me = await api("/me");
+            applyPlanFromMe(me);
+          } catch (_) {
+            /* badge refresh is best-effort */
+          }
+        }
+        loadConsol();
+      } catch (err) {
+        selectEl.value = previous;
+        showToast(err?.message || "Failed to update tier", "error");
+      } finally {
+        selectEl.disabled = false;
+      }
+    }
+
     function renderHeaderInfo(config) {
       const versionEl = document.getElementById("headerInfoVersion");
       const deploy = config.deploy || {};
@@ -7080,20 +7168,26 @@
     function renderConsolTables(data) {
       const usersEl = document.getElementById("consolUsersTable");
       const usageEl = document.getElementById("consolUsageTable");
+      const override = data?.planOverride;
+      const tierLocked = Boolean(override);
       if (usersEl) {
         const rows = Array.isArray(data?.users) ? data.users : [];
         if (!rows.length) {
           usersEl.innerHTML = '<div class="empty">No users found.</div>';
         } else {
+          const note = tierLocked
+            ? `<p class="consol-tier-note warn">USER_PLAN_OVERRIDE=${escapeHtml(override)} is active — dropdowns update DB, but all users are gated as ${escapeHtml(override)} until you remove the override on Render.</p>`
+            : `<p class="consol-tier-note">Tier dropdown is temporary admin control (author only). Remove after Stripe billing is wired.</p>`;
           usersEl.innerHTML = `
             <h3 style="margin:0 0 0.45rem;">Users · tier · symbols</h3>
+            ${note}
             <table>
               <thead><tr><th>User</th><th>Tier</th><th style="text-align:right;">Symbols</th></tr></thead>
               <tbody>
                 ${rows.map((row) => `
                   <tr>
                     <td>${escapeHtml(row.email || `User ${row.id}`)}</td>
-                    <td>${renderTierBadge(row.tier)}</td>
+                    <td>${renderConsolTierSelect(row.id, row.tier)}</td>
                     <td style="text-align:right;">${Number(row.symbolCount || 0).toLocaleString()}</td>
                   </tr>
                 `).join("")}

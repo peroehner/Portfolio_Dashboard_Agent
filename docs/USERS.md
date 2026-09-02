@@ -34,8 +34,12 @@ deduplicated across users.
   They open the web app → **Sign in with Google**. On success, a `users` row is created
    automatically with their own empty portfolio.
 4. **Optional plan**
-  Default `users.plan` is `free`. To change limits after first login, update `plan` to
-   `standard` or `pro` in Postgres (see `.env.example` plan notes).
+  Default `users.plan` is `free`. Until Stripe billing is live, the author can change a
+   user’s tier in **Consol → Users · tier · symbols** (dropdown: Free / Standard / Pro).
+   Only the account matching `AUTHOR_EMAIL` can open Consol.  
+   You can also update `plan` in Postgres (`free` | `standard` | `pro`).  
+   Do **not** set `USER_PLAN_OVERRIDE` on Render — that forces every user to one tier and
+   ignores Consol assignments.
 
 
 
