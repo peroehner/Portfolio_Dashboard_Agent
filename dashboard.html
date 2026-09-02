@@ -18195,13 +18195,12 @@
       const priceLabel = legendOpts.priceLabel || "Window price";
       const items = [
         `<span><span class="legend-line" style="color:#c4b5fd;"></span>${escapeHtml(priceLabel)}</span>`,
-      items.push(
         ...waves.map((wave, index) => {
           const color = trendChartColor(wave, index);
           const arrow = wave.direction === "down" ? "↓" : "↑";
           return `<span><span class="legend-line" style="color:${color};"></span>${wave.label} ${arrow} ${wave.legPattern || wave.type || ""}</span>`;
         }),
-      );
+      ];
       if (pattern && (pattern.points || []).length >= 2) {
         items.push(`<span><span class="legend-line" style="color:#f59e0b;"></span>◆ ${escapeHtml(pattern.name)} (${escapeHtml(pattern.status || "")})</span>`);
       }
