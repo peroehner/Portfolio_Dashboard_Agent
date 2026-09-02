@@ -2403,6 +2403,21 @@
     }
     .chart-fs-title { font-weight: 700; font-size: 1.05rem; color: var(--text, #e6edf6); }
     .chart-fs-hint { color: var(--muted, #9aa8bc); font-size: 0.8rem; flex: 1 1 auto; min-width: 0; }
+    .chart-fs-window-hint {
+      flex: 0 1 auto;
+      max-width: 100%;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #5eead4;
+      background: rgba(15, 118, 110, 0.35);
+      border: 1px solid rgba(45, 212, 191, 0.55);
+      border-radius: 999px;
+      padding: 0.2rem 0.65rem;
+      white-space: nowrap;
+    }
+    .chart-fs-window-hint[hidden] { display: none !important; }
     .chart-fs-zoom {
       display: inline-flex;
       align-items: center;
@@ -2497,11 +2512,21 @@
     .trend-window-overlay {
       position: absolute;
       pointer-events: none;
-      z-index: 2;
+      z-index: 12;
       box-sizing: border-box;
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      overflow: hidden;
+    }
+    .trend-window-dim {
+      flex: 0 0 auto;
+      height: 100%;
+      background: rgba(6, 10, 20, 0.52);
+      box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.35);
     }
     .trend-window-band {
-      width: 100%;
+      flex: 0 0 auto;
       height: 100%;
       box-sizing: border-box;
       border: 2px dashed rgba(45, 212, 191, 0.92);
@@ -5359,7 +5384,8 @@
     <div class="chart-fs-inner">
       <div class="chart-fs-head">
         <span class="chart-fs-title" id="inspectorFsTitle">Chart</span>
-        <span class="chart-fs-hint">Scroll · Ctrl/⌘ + scroll or ± to zoom · double-click to exit</span>
+        <span class="chart-fs-hint" id="inspectorFsHint">Scroll · Ctrl/⌘ + scroll or ± to zoom · double-click to exit</span>
+        <span class="chart-fs-window-hint" id="inspectorFsWindowHint" hidden></span>
         <div class="chart-fs-zoom">
           <button type="button" class="chart-fs-zoom-btn" onclick="adjustInspectorFsZoom(-0.25)" aria-label="Zoom out">−</button>
           <span class="chart-fs-zoom-label" id="inspectorFsZoomLabel">100%</span>
@@ -17945,6 +17971,28 @@
       return { start: wStart, end: wEnd };
     }
 
+    function formatTrendWindowHint(range, data) {
+      if (!range?.start || !range?.end) return "";
+      const tl = data?.chartTimeline;
+      const labelRange = tl?.windowStart && tl?.windowEnd
+        ? `${tl.windowStart} → ${tl.windowEnd}`
+        : `${String(range.start).slice(0, 10)} → ${String(range.end).slice(0, 10)}`;
+      return `Timeline & Trends · ${labelRange}`;
+    }
+
+    function updateInspectorFsWindowHint(range, data) {
+      const el = document.getElementById("inspectorFsWindowHint");
+      if (!el) return;
+      const text = formatTrendWindowHint(range, data);
+      if (!text) {
+        el.hidden = true;
+        el.textContent = "";
+        return;
+      }
+      el.textContent = text;
+      el.hidden = false;
+    }
+
     function xPixelForChartDate(xScale, dateStr) {
       if (!xScale || !dateStr) return NaN;
       const candidates = [dateStr, `${dateStr}T12:00:00`, new Date(`${dateStr}T12:00:00`)];
@@ -18029,8 +18077,9 @@
       }
       const left = Math.max(area.left, Math.min(xRawStart, xRawEnd));
       const right = Math.min(area.right, Math.max(xRawStart, xRawEnd));
-      const width = right - left;
-      if (width < 8) {
+      const bandWidth = right - left;
+      const chartWidth = area.right - area.left;
+      if (bandWidth < 8 || chartWidth < 8) {
         clearTrendWindowOverlay(canvas);
         return;
       }
@@ -18042,15 +18091,27 @@
         layer.setAttribute("aria-hidden", "true");
         wrap.appendChild(layer);
       }
-      layer.style.left = `${left}px`;
+      layer.style.left = `${area.left}px`;
       layer.style.top = `${area.top}px`;
-      layer.style.width = `${width}px`;
+      layer.style.width = `${chartWidth}px`;
       layer.style.height = `${Math.max(0, area.bottom - area.top)}px`;
-      layer.innerHTML = (
-        '<div class="trend-window-band">'
+
+      const leftDimW = Math.max(0, left - area.left);
+      const rightDimW = Math.max(0, area.right - right);
+      const parts = [];
+      if (leftDimW >= 1) {
+        parts.push(`<div class="trend-window-dim" style="width:${leftDimW}px"></div>`);
+      }
+      parts.push(
+        '<div class="trend-window-band" style="width:'
+        + `${bandWidth}px">`
         + '<span class="trend-window-label">Timeline &amp; Trends</span>'
-        + "</div>"
+        + "</div>",
       );
+      if (rightDimW >= 1) {
+        parts.push(`<div class="trend-window-dim" style="width:${rightDimW}px"></div>`);
+      }
+      layer.innerHTML = parts.join("");
     }
 
     function inspectorPriceDataset(chart) {
@@ -18079,7 +18140,7 @@
       return pixels[pixels.length - 1].y;
     }
 
-    /** Canvas under-price tint (HTML overlay carries the main frame). */
+    /** Canvas band + dim-outside (always painted on top — works in fullscreen too). */
     function drawInspectorTrendWindowBand(chart) {
       const range = chart.$windowHighlight;
       const area = chart?.chartArea;
@@ -18094,42 +18155,88 @@
 
       const leftPx = Math.max(area.left, Math.min(xRawStart, xRawEnd));
       const rightPx = Math.min(area.right, Math.max(xRawStart, xRawEnd));
-      if (rightPx - leftPx < 8) return;
+      const bandWidth = rightPx - leftPx;
+      if (bandWidth < 8) return;
 
-      const ds = inspectorPriceDataset(chart);
-      if (!ds) return;
-      const pixels = ds.data
-        .map((pt) => {
-          const x = xPixelForChartDate(xScale, pt.x);
-          const y = yScale.getPixelForValue(pt.y);
-          return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
-        })
-        .filter(Boolean)
-        .sort((a, b) => a.x - b.x);
-      if (!pixels.length) return;
-
+      const top = area.top;
       const bottom = area.bottom;
-      const yLeft = yOnPriceLineAtX(pixels, leftPx);
-      const yRight = yOnPriceLineAtX(pixels, rightPx);
-      if (yLeft == null || yRight == null) return;
-
-      const bandPts = pixels.filter((p) => p.x >= leftPx - 0.5 && p.x <= rightPx + 0.5);
+      const height = bottom - top;
 
       ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(leftPx, bottom);
-      ctx.lineTo(leftPx, yLeft);
-      bandPts.forEach((p) => ctx.lineTo(p.x, p.y));
-      ctx.lineTo(rightPx, yRight);
-      ctx.lineTo(rightPx, bottom);
-      ctx.closePath();
-      ctx.globalCompositeOperation = "destination-over";
-      const priceGrad = ctx.createLinearGradient(leftPx, area.top, rightPx, area.top);
-      priceGrad.addColorStop(0, "rgba(45, 212, 191, 0.14)");
-      priceGrad.addColorStop(0.5, "rgba(45, 212, 191, 0.40)");
-      priceGrad.addColorStop(1, "rgba(45, 212, 191, 0.14)");
-      ctx.fillStyle = priceGrad;
-      ctx.fill();
+
+      // Dim history outside the Timeline & Trends window.
+      ctx.fillStyle = "rgba(6, 10, 20, 0.48)";
+      if (leftPx > area.left + 2) {
+        ctx.fillRect(area.left, top, leftPx - area.left, height);
+      }
+      if (rightPx < area.right - 2) {
+        ctx.fillRect(rightPx, top, area.right - rightPx, height);
+      }
+
+      // Teal column + dashed frame (source-over so it is always visible).
+      ctx.fillStyle = "rgba(45, 212, 191, 0.16)";
+      ctx.fillRect(leftPx, top, bandWidth, height);
+      ctx.setLineDash([8, 5]);
+      ctx.strokeStyle = "rgba(45, 212, 191, 0.95)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(leftPx + 1, top + 1, bandWidth - 2, height - 2);
+      ctx.setLineDash([]);
+
+      // Side accent bars.
+      ctx.fillStyle = "rgba(94, 234, 212, 0.85)";
+      ctx.fillRect(leftPx, top, 3, height);
+      ctx.fillRect(rightPx - 3, top, 3, height);
+
+      if (bandWidth >= 80) {
+        const label = "Timeline & Trends";
+        ctx.font = '700 12px system-ui, -apple-system, "Segoe UI", sans-serif';
+        const textW = ctx.measureText(label).width;
+        const padX = 10;
+        const pillH = 20;
+        const pillW = textW + padX * 2;
+        const pillX = leftPx + Math.max(6, (bandWidth - pillW) / 2);
+        const pillY = top + 8;
+        ctx.fillStyle = "rgba(15, 118, 110, 0.94)";
+        ctx.fillRect(pillX, pillY, pillW, pillH);
+        ctx.strokeStyle = "rgba(153, 246, 228, 0.85)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(pillX + 0.5, pillY + 0.5, pillW - 1, pillH - 1);
+        ctx.fillStyle = "#ecfdf5";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, pillX + padX, pillY + pillH / 2 + 0.5);
+      }
+
+      // Under-price tint for extra depth.
+      const ds = inspectorPriceDataset(chart);
+      if (ds) {
+        const pixels = ds.data
+          .map((pt) => {
+            const x = xPixelForChartDate(xScale, pt.x);
+            const y = yScale.getPixelForValue(pt.y);
+            return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.x - b.x);
+        if (pixels.length) {
+          const yLeft = yOnPriceLineAtX(pixels, leftPx);
+          const yRight = yOnPriceLineAtX(pixels, rightPx);
+          if (yLeft != null && yRight != null) {
+            const bandPts = pixels.filter((p) => p.x >= leftPx - 0.5 && p.x <= rightPx + 0.5);
+            ctx.beginPath();
+            ctx.moveTo(leftPx, bottom);
+            ctx.lineTo(leftPx, yLeft);
+            bandPts.forEach((p) => ctx.lineTo(p.x, p.y));
+            ctx.lineTo(rightPx, yRight);
+            ctx.lineTo(rightPx, bottom);
+            ctx.closePath();
+            ctx.globalAlpha = 0.55;
+            ctx.fillStyle = "rgba(45, 212, 191, 0.35)";
+            ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+        }
+      }
+
       ctx.restore();
     }
 
