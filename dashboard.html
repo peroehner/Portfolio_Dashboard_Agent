@@ -18034,26 +18034,14 @@
       ctx.fill();
       ctx.globalCompositeOperation = "source-over";
 
-      // Dashed frame around the whole Timeline & Trends span.
-      ctx.setLineDash([7, 4]);
-      ctx.strokeStyle = "rgba(196, 181, 253, 0.88)";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(leftPx + 1, top + 1, bandWidth - 2, bottom - top - 2);
-
-      // Solid inner side accents (full height) when the window does not span the chart.
-      ctx.setLineDash([]);
-      ctx.lineWidth = 2.25;
-      ctx.strokeStyle = "rgba(167, 139, 250, 0.62)";
+      // Left edge marker only: dashed from the price line down to the plot bottom.
       if (leftPx > area.left + 2) {
+        ctx.setLineDash([7, 4]);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(196, 181, 253, 0.88)";
         ctx.beginPath();
-        ctx.moveTo(leftPx, top);
+        ctx.moveTo(leftPx, yLeft);
         ctx.lineTo(leftPx, bottom);
-        ctx.stroke();
-      }
-      if (rightPx < area.right - 2) {
-        ctx.beginPath();
-        ctx.moveTo(rightPx, top);
-        ctx.lineTo(rightPx, bottom);
         ctx.stroke();
       }
 

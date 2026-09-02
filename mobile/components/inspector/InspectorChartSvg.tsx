@@ -138,34 +138,23 @@ export function InspectorChartSvg({
 
       {model.windowHighlight ? (() => {
         const left = xForNorm(model.windowHighlight.x1);
-        const right = xForNorm(model.windowHighlight.x2);
         const baseY = pad + plotH;
         const areaPointsWindow = windowHighlightAreaPoints(model, xForNorm, yForNorm, baseY);
         const yLeft = yForNorm(yNormOnPriceLine(model, model.windowHighlight.x1));
-        const yRight = yForNorm(yNormOnPriceLine(model, model.windowHighlight.x2));
         return (
           <G key="window-highlight">
             {areaPointsWindow ? <Polygon points={areaPointsWindow} fill={`url(#${windowGradId})`} stroke="none" /> : null}
-            <Line
-              x1={left}
-              y1={yLeft}
-              x2={left}
-              y2={baseY}
-              stroke="rgba(196, 181, 253, 0.68)"
-              strokeWidth={1.5}
-              strokeDasharray="5 4"
-            />
-            <Line
-              x1={right}
-              y1={yRight}
-              x2={right}
-              y2={baseY}
-              stroke="rgba(196, 181, 253, 0.68)"
-              strokeWidth={1.5}
-              strokeDasharray="5 4"
-            />
-            <Line x1={left} y1={baseY} x2={left} y2={baseY + 5} stroke="rgba(196, 181, 253, 0.42)" strokeWidth={1} />
-            <Line x1={right} y1={baseY} x2={right} y2={baseY + 5} stroke="rgba(196, 181, 253, 0.42)" strokeWidth={1} />
+            {model.windowHighlight.x1 > 0.02 ? (
+              <Line
+                x1={left}
+                y1={yLeft}
+                x2={left}
+                y2={baseY}
+                stroke="rgba(196, 181, 253, 0.88)"
+                strokeWidth={2}
+                strokeDasharray="7 4"
+              />
+            ) : null}
           </G>
         );
       })() : null}
