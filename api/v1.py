@@ -145,12 +145,15 @@ def update_preferences():
 
 @v1_bp.route("/config", methods=["GET"])
 def get_config():
+    from auth import AUTH_ENABLED
+
     client = LLMClient()
     provider = client.active_provider()
     return jsonify({
         "version": "v1",
         "appVersion": "1.0",
         "build": _app_build_id(),
+        "authEnabled": AUTH_ENABLED,
         "assessmentProvider": provider,
         "assessmentMode": client.mode,
         "llmConfigured": provider != "rules",
@@ -169,6 +172,33 @@ def get_config():
             "openapi": "/api/v1/openapi.json",
         },
     })
+
+
+@v1_bp.route("/auth/google", methods=["POST"])
+def auth_google_mobile():
+    """Exchange a Google id_token (from Expo / native sign-in) for a per-user JWT."""
+    from auth import AUTH_ENABLED
+
+    if not AUTH_ENABLED:
+        return jsonify({"error": "Authentication is not enabled on this server."}), 503
+
+    body = request.get_json(silent=True) or {}
+    id_token = body.get("idToken") or body.get("id_token")
+    if not id_token:
+        return jsonify({"error": "idToken is required."}), 400
+
+    try:
+        from services.mobile_auth_service import exchange_google_id_token
+
+        result = exchange_google_id_token(str(id_token))
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 503
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 401
+
+    return jsonify(result), 200
 
 
 @v1_bp.route("/consol", methods=["GET"])

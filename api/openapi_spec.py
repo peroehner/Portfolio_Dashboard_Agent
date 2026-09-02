@@ -8,7 +8,9 @@ OPENAPI_SPEC = {
     "servers": [{"url": "/api/v1"}],
     "paths": {
         "/health": {"get": {"summary": "API health check"}},
-        "/config": {"get": {"summary": "Runtime configuration (provider, sync interval)"}},
+        "/config": {"get": {"summary": "Runtime configuration (provider, auth, sync interval)"}},
+        "/auth/google": {"post": {"summary": "Exchange Google id_token for per-user JWT (mobile)"}},
+        "/me": {"get": {"summary": "Current authenticated user"}},
         "/overview": {"get": {"summary": "Portfolio KPIs and holdings summary"}},
         "/symbols": {
             "get": {"summary": "List symbols"},

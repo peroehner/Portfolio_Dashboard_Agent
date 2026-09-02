@@ -2,8 +2,17 @@ export type SaiAction = "buy" | "sell" | "hold" | "watch" | string;
 
 export interface ApiConfig {
   version?: string;
+  authEnabled?: boolean;
   assessmentProvider?: string;
   syncIntervalSeconds?: number;
+}
+
+export interface AuthUser {
+  id: number;
+  email?: string | null;
+  name?: string | null;
+  picture?: string | null;
+  plan?: string | null;
 }
 
 export interface Overview {

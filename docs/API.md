@@ -25,6 +25,7 @@ Runtime settings for clients (no secrets).
 ```json
 {
   "version": "v1",
+  "authEnabled": true,
   "assessmentProvider": "rules",
   "assessmentMode": "auto",
   "llmConfigured": false,
@@ -33,6 +34,17 @@ Runtime settings for clients (no secrets).
   "docs": { "api": "/docs/api", "replit": "/docs/replit", "openapi": "/api/v1/openapi.json" }
 }
 ```
+
+`authEnabled`: when `true`, clients must authenticate (web: session; mobile: Google Sign-In → JWT).
+
+### `POST /auth/google` (mobile)
+
+Exchange a Google **id_token** (from Expo / native sign-in) for a per-user JWT. Public when OAuth is enabled. Same `ALLOWED_EMAILS` rules as web.
+
+Request: `{ "idToken": "..." }`  
+Response: `{ "accessToken": "...", "expiresIn": 604800, "tokenType": "Bearer", "user": { "id", "email", ... } }`
+
+Subsequent API calls: `Authorization: Bearer <accessToken>`. See [MOBILE.md](./MOBILE.md).
 
 `assessmentProvider`: `rules` | `openai` | `gemini`
 

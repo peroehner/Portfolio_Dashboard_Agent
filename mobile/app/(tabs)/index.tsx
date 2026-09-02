@@ -17,6 +17,7 @@ import { KpiCard } from "@/components/KpiCard";
 import { Screen } from "@/components/Screen";
 import type { AllocationMode } from "@/lib/allocationChart";
 import { api, getApiHostLabel, showApiHostInDev } from "@/lib/api";
+import { useAuth } from "@/lib/AuthContext";
 import { formatMoney, formatPct, formatShortDateTime, pctColor } from "@/lib/format";
 import { openSymbol } from "@/lib/symbolBrowseSession";
 import { colors, spacing } from "@/lib/theme";
@@ -32,6 +33,7 @@ function performerHint(gainPct?: number | null, gain?: number | null): string | 
 
 export default function OverviewScreen() {
   const router = useRouter();
+  const { authRequired, user, signOut } = useAuth();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const [allocationMode, setAllocationMode] = useState<AllocationMode>("top5");
@@ -95,6 +97,17 @@ export default function OverviewScreen() {
         loading={loading && !data}
         error={error}
         onRetry={() => void refresh()}
+        rightAction={
+          authRequired && user?.email ? (
+            <Pressable
+              onPress={() => void signOut()}
+              accessibilityRole="button"
+              accessibilityLabel="Sign out"
+            >
+              <Text style={styles.signOut}>Sign out</Text>
+            </Pressable>
+          ) : null
+        }
       >
         <ScrollView
           refreshControl={
@@ -229,6 +242,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   sectionLink: {
+    color: colors.link,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  signOut: {
     color: colors.link,
     fontSize: 14,
     fontWeight: "600",

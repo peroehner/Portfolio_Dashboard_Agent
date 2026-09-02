@@ -9,3 +9,4 @@ psycopg[binary]
 psycopg_pool
 Authlib
 requests
+PyJWT

@@ -45,8 +45,15 @@ _ALLOWED_EMAILS = {
 }
 
 # Paths reachable without a session.
-_PUBLIC_EXACT = {"/health", "/login", "/favicon.ico", "/manifest.webmanifest"}
-_PUBLIC_PREFIXES = ("/auth/", "/assets/", "/docs/")
+_PUBLIC_EXACT = {
+    "/health",
+    "/login",
+    "/favicon.ico",
+    "/manifest.webmanifest",
+    "/api/v1/health",
+    "/api/v1/config",
+}
+_PUBLIC_PREFIXES = ("/auth/", "/assets/", "/docs/", "/api/v1/auth/")
 
 auth_bp = Blueprint("auth", __name__)
 _oauth = None  # set in init_auth when enabled
@@ -95,6 +102,22 @@ def _mobile_dev_token_valid() -> bool:
         return False
     auth_header = request.headers.get("Authorization", "")
     return auth_header == f"Bearer {MOBILE_DEV_TOKEN}"
+
+
+def _jwt_user_id_from_request() -> int | None:
+    """Parse a mobile JWT from Authorization: Bearer (not the dev token)."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header[7:].strip()
+    if not token or (MOBILE_DEV_TOKEN and token == MOBILE_DEV_TOKEN):
+        return None
+    try:
+        from services.mobile_auth_service import user_id_from_access_token
+
+        return user_id_from_access_token(token)
+    except RuntimeError:
+        return None
 
 
 LOGIN_PAGE = """<!doctype html>
@@ -207,6 +230,10 @@ def init_auth(app) -> None:
             return None
         user_id = session.get("user_id")
         if user_id is None:
+            jwt_user_id = _jwt_user_id_from_request()
+            if jwt_user_id is not None:
+                g._user_ctx_token = set_current_user_id(jwt_user_id)
+                return None
             if _mobile_dev_token_valid():
                 g._user_ctx_token = set_current_user_id(_mobile_dev_user_id())
                 return None

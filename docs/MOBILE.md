@@ -25,6 +25,8 @@ Use **TestFlight** when you are away from home. Expo Go still needs a Metro pack
 | **Alerts** | `GET /alerts`, `POST /alerts/{id}/dismiss` | Active alerts, dismiss |
 | **Symbol** (stack) | `GET /symbols/{symbol}/inspector` | Price, position, thresholds, recommendation |
 
+When OAuth is enabled on the API, the app shows **Sign in with Google** first; each user sees only their portfolio (same accounts as web). See [Auth](#auth-web-and-mobile--same-users) below.
+
 Comma-separated ticker filters work the same as the web app (`GH, ne` → GH and NET).
 
 ---
@@ -58,14 +60,42 @@ In [Render Dashboard](https://dashboard.render.com) → your web service → **E
 
 | Key | Value |
 |-----|-------|
-| `MOBILE_DEV_TOKEN` | Same secret as below (e.g. `pda-render-mobile-dev`) |
-| `MOBILE_DEV_USER_EMAIL` | Your Google sign-in email |
+| `SESSION_SECRET` | Long random string (signs web sessions **and** mobile JWTs) |
+| `GOOGLE_OAUTH_CLIENT_ID` | Web OAuth client (same as today) |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Web OAuth secret |
+| `GOOGLE_OAUTH_IOS_CLIENT_ID` | **iOS OAuth client** for mobile (bundle `com.portfolio.dashboard`) |
+| `ALLOWED_EMAILS` | Comma-separated Gmail addresses allowed to sign in (web **and** mobile) |
+| `OAUTH_REDIRECT_URI` | Your Render callback, e.g. `https://portfolio-dashboard-agent.onrender.com/auth/callback` |
+| `SESSION_COOKIE_SECURE` | `1` |
 
-Use a **different** token than local dev if you prefer. Never expose this in a public App Store build — replace with proper OAuth later.
+**Do not rely on `MOBILE_DEV_TOKEN` / `MOBILE_DEV_USER_EMAIL` for multi-user testing** — those impersonate a single portfolio. Mobile now uses Google Sign-In → per-user JWT (same user rows as web).
 
 Restart the Render service after saving.
 
-### 3. Start Expo for iPhone
+### 3. Google Cloud Console (mobile client)
+
+1. [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → **Create credentials** → **OAuth client ID** → **iOS**
+2. Bundle ID: `com.portfolio.dashboard`
+3. Copy the client ID → Render `GOOGLE_OAUTH_IOS_CLIENT_ID` **and** mobile `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
+
+Optional: if you use **Expo Go** on a physical device, also set `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` in `mobile/.env` to your **Web** OAuth client ID.
+
+### 4. Mobile `.env` (Expo Go / local)
+
+```bash
+cd mobile
+cp .env.example .env
+```
+
+| Key | Purpose |
+|-----|---------|
+| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | iOS OAuth client (required when API auth is on) |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | Optional — Expo Go / web client fallback |
+| `EXPO_PUBLIC_API_BASE_URL` | Usually omitted (auto: simulator → localhost, device → Render) |
+
+For **EAS / TestFlight**, set the same `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` in [EAS environment variables](https://expo.dev) or `eas.json` `env` for the build profile.
+
+### 5. Start Expo for iPhone
 
 ```bash
 cd mobile
@@ -157,17 +187,37 @@ Production builds bake Render API URL + the current mobile Bearer token. Replace
 
 ---
 
-## Auth note
+## Auth (web and mobile — same users)
 
-When Google OAuth is enabled on the API, the mobile app uses `MOBILE_DEV_TOKEN` (Bearer header) for development. Matching vars:
+When Google OAuth is enabled on the API (`GOOGLE_OAUTH_CLIENT_*`), **each person signs in with their own Google account** and only sees their portfolio — on web (session cookie) and mobile (JWT Bearer).
+
+| Surface | Mechanism |
+|---------|-----------|
+| **Web** | Google OAuth → Flask session |
+| **Mobile** | Google Sign-In → `POST /api/v1/auth/google` with `idToken` → JWT stored in SecureStore |
+
+`ALLOWED_EMAILS` on Render applies to **both** web and mobile.
+
+### Mobile sign-in flow
+
+1. App loads `/api/v1/config` → `authEnabled: true` → login screen
+2. User taps **Sign in with Google** (native / system browser via `expo-auth-session`)
+3. App sends Google `id_token` to the API
+4. API verifies token, upserts `users` row (same as web callback), returns JWT
+5. All API calls use `Authorization: Bearer <jwt>`
+
+Sign out: delete the stored token (future UI) or reinstall the app; token expires after `MOBILE_JWT_TTL_SECONDS` (default 7 days).
+
+### Legacy dev token (single user only)
+
+For local debugging without Google UI, you may still set matching `MOBILE_DEV_TOKEN` (API) and `EXPO_PUBLIC_MOBILE_DEV_TOKEN` (mobile). That binds **one** email via `MOBILE_DEV_USER_EMAIL` — not suitable for multiple testers.
 
 | File | Variable |
 |------|----------|
-| repo `.env` (local) | `MOBILE_DEV_TOKEN` |
-| Render dashboard | `MOBILE_DEV_TOKEN` |
-| `mobile/.env` / `eas.json` | `EXPO_PUBLIC_MOBILE_DEV_TOKEN` |
+| repo `.env` (local API) | `MOBILE_DEV_TOKEN`, `MOBILE_DEV_USER_EMAIL` |
+| `mobile/.env` | `EXPO_PUBLIC_MOBILE_DEV_TOKEN` |
 
-Production App Store builds should use proper Google sign-in, not a dev token.
+Production / TestFlight builds should use Google Sign-In, not the dev token.
 
 ---
 
@@ -191,7 +241,7 @@ mobile/
 - Screening & Fib map tabs
 - Simulation / tax-loss proposal
 - Notes editor + assess actions
-- Google OAuth in mobile (replace dev token)
+- ~~Google OAuth in mobile (replace dev token)~~ — **done** (`POST /api/v1/auth/google` + login screen)
 
 ## API reference
 

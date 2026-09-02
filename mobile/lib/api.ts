@@ -11,6 +11,18 @@ const DEFAULT_TIMEOUT_MS = 12000;
 const NEWS_FEED_TIMEOUT_MS = 45000;
 const FUNDAMENTALS_TIMEOUT_MS = 45000;
 
+/** Per-user JWT from Google sign-in (preferred when auth is enabled). */
+let apiBearerToken: string | null = null;
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setApiBearerToken(token: string | null): void {
+  apiBearerToken = token?.trim() || null;
+}
+
+export function setApiUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
 function pointsAtLocalhost(url: string): boolean {
   return /localhost|127\.0\.0\.1/i.test(url);
 }
@@ -112,8 +124,9 @@ export async function apiFetch<T>(
     headers.set("Content-Type", "application/json");
   }
   const devToken = process.env.EXPO_PUBLIC_MOBILE_DEV_TOKEN?.trim();
-  if (devToken && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${devToken}`);
+  const token = apiBearerToken || devToken;
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
   const res = await fetchWithTimeout(
@@ -124,6 +137,10 @@ export async function apiFetch<T>(
     },
     timeoutMs,
   );
+
+  if (res.status === 401 && unauthorizedHandler) {
+    unauthorizedHandler();
+  }
 
   const data = await parseJson<{ error?: string; message?: string } & T>(res);
   if (!res.ok) {
