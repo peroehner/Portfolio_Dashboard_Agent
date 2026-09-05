@@ -191,6 +191,18 @@ def background_sync_loop():
                         logging.info("Daily assessments: %s", assess_result)
             except Exception:  # noqa: BLE001 - never block price sync
                 logging.exception("Daily assessment worker failed")
+            try:
+                from services.signal_record_weekly_assessment_service import (
+                    run_weekly_assessments,
+                    should_run_this_week,
+                )
+
+                if should_run_this_week():
+                    weekly_result = run_weekly_assessments()
+                    if not weekly_result.get("skipped"):
+                        logging.info("Weekly signal self-assessment: %s", weekly_result)
+            except Exception:  # noqa: BLE001 - never block price sync
+                logging.exception("Weekly signal self-assessment worker failed")
             # Sync-scoped native cleanup: drop this thread's curl_cffi session and
             # collect after the metronomic Yahoo cycle (primary RSS climb driver).
             try:

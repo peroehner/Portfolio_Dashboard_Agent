@@ -3553,6 +3553,17 @@
       border-left-color: #ef4444;
       background: rgba(239, 68, 68, 0.08);
     }
+    .tr-weekly {
+      margin: 0 0 0.75rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 6px;
+      background: rgba(148, 163, 184, 0.06);
+      font-size: 0.8rem;
+      color: var(--muted, #9aa8bc);
+      line-height: 1.4;
+    }
+    .tr-weekly strong { color: var(--text); font-weight: 650; }
     .tr-stack {
       display: flex;
       flex-direction: column;
@@ -5733,7 +5744,7 @@
         <h4>Summary card</h4>
         <p><strong>Overall hit</strong> uses decisive bets only. The insight line is a short <strong>Trust / Discount / Use</strong> briefing: which lanes to trust, which to discount, and how to size or read Follow vs Price.</p>
         <p>Category tables stay focused on <strong>SAI</strong>, <strong>Patterns</strong>, and <strong>Tech bias</strong> (collapsed until expanded). Tech bias = did the fused technical vote (Bullish / Bearish) call the next move? Fib levels and Lean/Strong or clean/contested confluence slices stay out of the default Summary — Conf slices appear only when enough non-unknown SAI strength exists.</p>
-        <p>The insight line is a short <strong>Trust / Discount / Use</strong> briefing for trade orientation, not a full scorecard essay.</p>
+        <p>The insight line is a short <strong>Trust / Discount / Use</strong> briefing for trade orientation, not a full scorecard essay. Once a week (UTC), the same rules run automatically and the latest snapshot appears as a <strong>Weekly review</strong> above the live briefing.</p>
 
         <h4>Accumulation</h4>
         <p>Hit rates accumulate across matured bets on/after the <strong>era cutoff</strong> (default <code>2026-08-02</code>, P0 episode + strength ship). Pre-era rows stay in the database but are excluded from Summary and proposal soft-weights. No rolling window in the UI yet.</p>
@@ -11718,7 +11729,47 @@
       });
     }
 
+    function trackRecordInsightFromServer(insight) {
+      if (!insight || insight.tone === "empty") return "";
+      const trust = insight.trust || [];
+      const discount = insight.discount || [];
+      const use = insight.use || [];
+      if (!trust.length && !discount.length && !use.length) return "";
+      const trustLine = trust.length
+        ? `<div class="tr-insight-line"><span class="tr-insight-k">Trust</span> ${trust.map(escapeHtml).join(" · ")}</div>`
+        : `<div class="tr-insight-line"><span class="tr-insight-k">Trust</span> No standout lane yet — treat the book as provisional</div>`;
+      const discountLine = discount.length
+        ? `<div class="tr-insight-line"><span class="tr-insight-k">Discount</span> ${discount.map(escapeHtml).join(" · ")}</div>`
+        : `<div class="tr-insight-line"><span class="tr-insight-k">Discount</span> No soft spot flagged at current sample</div>`;
+      const useLine = use.length
+        ? `<div class="tr-insight-line"><span class="tr-insight-k">Use</span> ${use.map(escapeHtml).join(" · ")}</div>`
+        : "";
+      const tone =
+        insight.tone === "warn"
+          ? "tr-insight-warn"
+          : insight.tone === "ok"
+            ? "tr-insight-ok"
+            : "";
+      return `<div class="tr-insight ${tone}">${trustLine}${discountLine}${useLine}</div>`;
+    }
+
+    function trackRecordWeeklyHtml(weekly) {
+      if (!weekly || !weekly.week) return "";
+      const insight = weekly.insight || {};
+      const headline = insight.headline
+        ? escapeHtml(String(insight.headline))
+        : "Weekly self-assessment stored.";
+      const when = weekly.generatedAt
+        ? ` · ${escapeHtml(String(weekly.generatedAt).replace("T", " ").replace("Z", " UTC"))}`
+        : "";
+      return `<div class="tr-weekly"><strong>Weekly review ${escapeHtml(String(weekly.week))}</strong>${when}<br>${headline}</div>`;
+    }
+
     function trackRecordInsightHtml(data, recos, patterns, confluence, _fibs, byConf) {
+      if (data && data.insight) {
+        const fromServer = trackRecordInsightFromServer(data.insight);
+        if (fromServer) return fromServer;
+      }
       const overall = data.overall || {};
       const decided = (overall.wins || 0) + (overall.losses || 0);
       const hit = overall.hitRate;
@@ -11761,13 +11812,37 @@
       }
       if (bullishConf && trackRecordDecided(bullishConf) >= 5 && bullStr != null) {
         const g = trackRecordGrade(bullStr);
-        if (g === "outstanding" || g === "good") trust.push(`Bullish confluence (${bullStr.toFixed(0)}%)`);
+        if (g === "outstanding" || g === "good") trust.push(`Bullish Tech bias (${bullStr.toFixed(0)}%)`);
+      }
+      if (bearishConf && trackRecordDecided(bearishConf) >= 5 && bearStr != null) {
+        const g = trackRecordGrade(bearStr);
+        if (g === "outstanding" || g === "good") trust.push(`Bearish Tech bias (${bearStr.toFixed(0)}%)`);
+      }
+
+      const high = (byConf || []).find((b) => String(b.confidence || b.label || "").toLowerCase() === "high");
+      const medium = (byConf || []).find((b) => String(b.confidence || b.label || "").toLowerCase() === "medium");
+      const low = (byConf || []).find((b) => String(b.confidence || b.label || "").toLowerCase() === "low");
+      const highStr = trackRecordStrength(high);
+      const medStr = trackRecordStrength(medium);
+      if (
+        high &&
+        medium &&
+        highStr != null &&
+        medStr != null &&
+        trackRecordDecided(high) >= 5 &&
+        trackRecordDecided(medium) >= 5 &&
+        medStr - highStr >= 8
+      ) {
+        discount.push(`SAI High Conf (${highStr.toFixed(0)}% Bet-S-Hit) trails Medium (${medStr.toFixed(0)}%)`);
+        use.push("Prefer Medium-Conf SAI over High until High earns its label");
+      } else if (high && highStr != null && trackRecordDecided(high) >= 5 && trackRecordGrade(highStr) === "weak") {
+        discount.push(`SAI High Conf (${highStr.toFixed(0)}% Bet-S-Hit)`);
       }
 
       if (bearishConf && trackRecordDecided(bearishConf) >= 5 && bearStr != null) {
         const g = trackRecordGrade(bearStr);
         if (g === "weak" || g === "mixed") {
-          discount.push(`Bearish confluence (${bearStr.toFixed(0)}% Bet-S-Hit)`);
+          discount.push(`Bearish Tech bias (${bearStr.toFixed(0)}% Bet-S-Hit)`);
         }
       }
       if (
@@ -11777,8 +11852,8 @@
           (patStr != null && confStr <= patStr - 8) ||
           (saiStr != null && confStr <= saiStr - 8))
       ) {
-        if (!discount.some((d) => d.includes("confluence"))) {
-          discount.push(`Tech bias (${confStr.toFixed(0)}%)`);
+        if (!discount.some((d) => d.includes("Tech bias"))) {
+          discount.push(`Tech bias overall (${confStr.toFixed(0)}%)`);
         }
       }
       if (buy && trackRecordDecided(buy) >= 10 && buy.hitRate != null && buy.hitRate < 45) {
@@ -11789,12 +11864,17 @@
       }
 
       if (strHit != null && hit != null && decided >= 15 && strHit - hit >= 5) {
-        use.push("Prefer higher Conf·Score SAI over weak labels");
+        if (!use.some((u) => u.includes("Medium-Conf"))) {
+          use.push("Prefer higher Conf·Score SAI when Bet-S-Hit leads Hit");
+        }
       }
-      const high = (byConf || []).find((b) => String(b.confidence || b.label || "").toLowerCase() === "high");
-      const low = (byConf || []).find((b) => String(b.confidence || b.label || "").toLowerCase() === "low");
       if (high && low && high.hitRate != null && low.hitRate != null) {
-        if (trackRecordDecided(high) >= 5 && trackRecordDecided(low) >= 5 && high.hitRate - low.hitRate >= 10) {
+        if (
+          trackRecordDecided(high) >= 5 &&
+          trackRecordDecided(low) >= 5 &&
+          high.hitRate - low.hitRate >= 10 &&
+          !use.some((u) => u.includes("Medium-Conf"))
+        ) {
           use.push(`Weight High-Conf SAI (${high.hitRate}% hit) over Low (${low.hitRate}%)`);
         }
       }
@@ -11807,7 +11887,7 @@
         trackRecordDecided(bearishConf) >= 5 &&
         bullStr - bearStr >= 10
       ) {
-        use.push("Treat bullish confluence as the bias edge; do not mirror bearish");
+        use.push("Treat bullish Tech bias as the edge; do not mirror weak bearish");
       }
       if (sell && sell.avgReturnAdj != null && sell.avgReturnAdj > 0 && sell.avgReturn != null && sell.avgReturn < 0) {
         use.push("Read Sell on Follow, not Price — Price understates working sells");
@@ -11891,6 +11971,7 @@
           </div>
         </div>`;
       body.innerHTML = `
+        ${trackRecordWeeklyHtml(data.weeklyAssessment)}
         ${trackRecordInsightHtml(data, recos, patterns, confluence, null, byConf)}
         <div class="tr-grid">
           ${trackRecordSection("SAI actions", recos, { key: "sai" })}
