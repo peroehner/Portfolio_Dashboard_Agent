@@ -21,7 +21,6 @@ from services.overview_service import OverviewService
 from services.portfolio_service import PortfolioService
 from services.screening_service import ScreeningService
 from services.simulation_service import SimulationService
-from services.technical_service import TechnicalService
 from services.track_record_service import TrackRecordService
 from services.tax_trim_service import TaxTrimService
 from services.llm_client import LLMClient
@@ -127,7 +126,6 @@ screening_service = ScreeningService()
 simulation_service = SimulationService()
 inspector_service = InspectorService()
 fundamentals_service = FundamentalsService()
-technical_service = TechnicalService()
 track_record_service = TrackRecordService()
 tax_trim_service = TaxTrimService()
 
@@ -815,19 +813,7 @@ def export_portfolio():
         }))
         if notes_out:
             position["notes"] = notes_out
-        # Technical-analysis snapshot (trend waves + Fibonacci levels) from the
-        # legacy TA-Analyst import — included so a replace-import restores it.
-        tech = technical_service.get_snapshot(ticker)
-        if tech:
-            technical_out = prune({
-                "windowStart": tech.get("windowStart"),
-                "windowEnd": tech.get("windowEnd"),
-                "fibAnchor": tech.get("fibAnchor"),
-                "trends": tech.get("trends"),
-                "fibLevels": tech.get("fibLevels"),
-            })
-            if technical_out.get("trends") or technical_out.get("fibLevels"):
-                position["technical"] = technical_out
+        # Imported TA snapshots are retired (computed technicals only).
         positions.append(position)
 
     document = {

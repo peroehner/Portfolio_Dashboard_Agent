@@ -52,24 +52,13 @@ class InspectorService:
         if symbol_data is None:
             return None
 
-        from db.database import get_prefer_computed_trends
-
         price = symbol_data.get("currentPrice")
-        prefer_computed = get_prefer_computed_trends()
-        technical_snapshot = self.technical_service.get_snapshot(symbol)
-        # When the user prefers computed trends, ignore the imported snapshot for
-        # trend/Fib resolution (it stays in the DB so the choice is reversible).
-        imported_trends = (
-            bool(technical_snapshot and technical_snapshot.get("trends"))
-            and not prefer_computed
-        )
+        # Imported TA snapshots are retired — always use computed chart/Fib.
+        technical_snapshot = None
+        imported_trends = False
 
-        # Compute trend waves / timeline / Fibonacci from price history when the
-        # user hasn't imported a hand-anchored TA export for this symbol (or has
-        # opted to prefer computed trends). The imported snapshot otherwise wins
-        # so curated anchors are preserved.
         computed_chart = None
-        if not lite and ASSESSMENT_TECHNICALS and not imported_trends:
+        if not lite and ASSESSMENT_TECHNICALS:
             computed_chart = self.technical_signals_service.get_chart(symbol)
 
         # Chart patterns and volume context are derived from price history and are
@@ -89,12 +78,10 @@ class InspectorService:
                 volume_profile_meta = source.get("volumeProfile")
                 confluence_meta = source.get("confluence")
 
-        # Fib precedence: imported anchor > computed swing > generic 90d lookback
-        # (imported anchor skipped when computed is preferred).
+        # Fib from computed swing / generic lookback (imported anchors removed).
         fib = None
         if not lite:
-            fib = None if prefer_computed else self.technical_service.fib_from_snapshot(symbol, technical_snapshot)
-            if not fib and computed_chart:
+            if computed_chart:
                 fib = computed_chart.get("fib")
             if not fib:
                 fib = self.fib_service.get_levels(symbol)
@@ -185,25 +172,18 @@ class InspectorService:
             "holding": holding,
             "alerts": ui_alerts,
             "fib": fib,
-            "fibBlueprint": self._build_fib_blueprint(fib, technical_snapshot),
-            "technicalSnapshot": technical_snapshot,
+            "fibBlueprint": self._build_fib_blueprint(fib, None),
+            "technicalSnapshot": None,
             "nearestFib": nearest,
             "screening": screen_row,
             "assessments": assessments,
             "recommendation": recommendation,
             "positionMechanics": self._position_mechanics(holding),
             "valuation": valuation,
-            "trendWaves": self._resolve_trend_waves(symbol, technical_snapshot, imported_trends, computed_chart),
-            "trendWaveSource": self._trend_wave_source(imported_trends, computed_chart),
-            "importedFibLevels": (
-                [] if prefer_computed
-                else self.technical_service.fib_levels_list(technical_snapshot)
-            ),
-            "chartTimeline": (
-                self.technical_service.chart_timeline(symbol, technical_snapshot)
-                if imported_trends
-                else (computed_chart or {}).get("chartTimeline")
-            ),
+            "trendWaves": self._resolve_trend_waves(symbol, None, False, computed_chart),
+            "trendWaveSource": self._trend_wave_source(False, computed_chart),
+            "importedFibLevels": [],
+            "chartTimeline": (computed_chart or {}).get("chartTimeline"),
             "chartTimelineFull": self._resolve_chart_timeline_full(symbol, computed_chart),
             "technicalAdvisory": technical_advisory,
             "chartPatterns": chart_patterns,
@@ -713,13 +693,10 @@ class InspectorService:
 
 def resolve_symbol_fib(
     symbol: str,
-    technical_service: TechnicalService,
+    technical_service: Any,
     fib_service: FibService,
 ) -> dict[str, Any] | None:
-    snapshot = technical_service.get_snapshot(symbol)
-    fib = technical_service.fib_from_snapshot(symbol, snapshot)
-    if fib:
-        return fib
+    """Resolve Fibonacci levels from computed lookback (imported TA removed)."""
     return fib_service.get_levels(symbol)
 
 

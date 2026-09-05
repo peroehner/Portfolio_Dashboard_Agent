@@ -7,7 +7,6 @@ from services.fundamentals_service import FundamentalsService
 from services.holdings_service import HoldingsService
 from services.notes_service import NotesService
 from services.portfolio_service import PortfolioService
-from services.technical_service import TechnicalService
 
 
 class ScreeningService:
@@ -17,7 +16,6 @@ class ScreeningService:
         self.alerts_service = AlertsService()
         self.notes_service = NotesService()
         self.fib_service = FibService()
-        self.technical_service = TechnicalService()
         self.fundamentals_service = FundamentalsService()
         self.fib_proximity_pct = float(os.environ.get("FIB_PROXIMITY_PCT", "1.0"))
         # Mirror AlertsService: how close (%) before a planned-trade threshold
@@ -404,7 +402,7 @@ class ScreeningService:
             tech_stance = compute_technical_advisory(
                 symbol,
                 price,
-                self.technical_service,
+                None,
                 self.fib_service,
             )["stance"]
 
@@ -591,8 +589,4 @@ class ScreeningService:
         return True
 
     def _resolve_fib(self, symbol: str) -> dict[str, Any] | None:
-        snapshot = self.technical_service.get_snapshot(symbol)
-        fib = self.technical_service.fib_from_snapshot(symbol, snapshot)
-        if fib:
-            return fib
         return self.fib_service.get_levels(symbol)

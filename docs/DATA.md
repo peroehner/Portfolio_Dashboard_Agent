@@ -39,7 +39,8 @@ Optional `ALLOWED_EMAILS` restricts who may sign in (comma-separated).
 
 ### `users`
 
-Google OAuth identity and preferences (`prefer_computed_trends`, `preferences_json` for Portfolio Fit targets).
+Google OAuth identity and preferences (`preferences_json` for Portfolio Fit targets).
+Legacy `prefer_computed_trends` is unused — imported TA was removed; technicals are always computed.
 
 `preferences_json` shape (Slice 3 + ticker segments):
 
@@ -142,11 +143,12 @@ Rule-generated messages; dismiss sets `status = 'dismissed'`.
 
 Created by `AlertsService.evaluate_all()` during background sync (once per user). API: `GET /api/v1/alerts`, dismiss endpoint.
 
-### `symbol_technical` (per user)
+### `symbol_technical` (legacy, unused)
 
-Parsed TA export per symbol: `window_start`, `window_end`, `fib_anchor`, `trends_json`, `fib_levels_json`.
-
-Written on TA import via `TechnicalService.upsert_snapshot()`. Read by Inspector for trend waves, imported fib levels, and chart window bounds.
+Formerly stored per-user imported TA exports (hand trends / fib anchors).
+**Retired:** assessments, Inspector, screening, and import now use computed
+`TechnicalSignalsService` / `FibService` only. Rows may still exist in older DBs
+but are no longer written or read by the app.
 
 ## Import pipeline
 

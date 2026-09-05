@@ -594,19 +594,13 @@ def revoke_mobile_session(raw_token: str) -> None:
 
 
 def get_prefer_computed_trends(user_id: int | None = None) -> bool:
-    """Computed trends always win over imported TA snapshots."""
+    """Deprecated: imported TA removed — always use computed trends."""
     return True
 
 
 def set_prefer_computed_trends(value: bool, user_id: int | None = None) -> bool:
-    uid = user_id if user_id is not None else get_current_user_id()
-    with get_connection() as conn:
-        conn.execute(
-            "UPDATE users SET prefer_computed_trends = %s WHERE id = %s",
-            (bool(value), uid),
-        )
-        conn.commit()
-    return bool(value)
+    """Deprecated no-op: prefer_computed_trends is retired with imported TA."""
+    return True
 
 
 def list_distinct_symbols() -> list[str]:

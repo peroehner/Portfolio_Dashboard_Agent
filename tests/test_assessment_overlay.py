@@ -215,6 +215,51 @@ class AssessmentOverlayTests(unittest.TestCase):
         self.assertEqual(packet["personal"]["alerts"][0]["type"], "winner_trim_candidate")
         self.assertEqual(packet["personal"]["dividend"]["gapVsTarget"], 4000)
 
+    def test_intent_and_fit_prefs_nudge_hold_to_watch(self) -> None:
+        base = {
+            "action": "hold",
+            "confidence": "medium",
+            "rationale": "Neutral market view.",
+            "factors": ["Tape mixed."],
+            "provider": "rules",
+            "asOfDate": "2026-09-05",
+        }
+        personal = {
+            "symbol": "AAPL",
+            "currentPrice": 180,
+            "targetPrice": 200,
+            "intentOverride": "accumulate",
+            "fitPrefs": {
+                "targetAnnualDividend": 10000,
+                "volatilityPreference": "low",
+                "maxSingleNameWeightPct": 10,
+            },
+            "portfolioAnnualDividend": 2000,
+            "fundamentals": {"beta": 1.6},
+            "holding": {
+                "quantity": 100,
+                "weightPct": 15.0,
+                "annualDividend": 0.96,
+            },
+            "screening": {
+                "tradeBelowPrice": 160,
+                "tradeBelowShares": 50,
+                "tradeAbovePrice": 220,
+                "tradeAboveShares": 10,
+            },
+            "noteSyntheses": [],
+            "unsynthesizedNoteCount": 0,
+            "alerts": [],
+        }
+        result = self.overlay.apply(base, personal)
+        self.assertEqual(result["action"], "watch")
+        joined = " ".join(result["factors"])
+        self.assertIn("Intent", joined)
+        self.assertTrue(
+            ("Income" in joined) or ("Concentration" in joined) or ("Volatility" in joined),
+            joined,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,7 @@ from services.harvest_score import scores_for_holding_context
 from services.llm_client import LLMClient
 from services.one_yt_context import is_one_yt_alert_type, one_yt_context_from_alert
 from services.portfolio_intent import resolve_intent
-from services.proposal_service import _fund_get
+from services.proposal_service import VOLATILITY_BETA_CEILING, _fund_get
 
 OVERLAY_LLM = os.environ.get("ASSESSMENT_OVERLAY_LLM", "1").lower() not in (
     "0",
@@ -445,15 +445,110 @@ class AssessmentOverlayService:
         if holding and holding.get("weightPct") is not None:
             factors.append(f"Position weight: {holding['weightPct']:.1f}% of portfolio.")
 
+        action, confidence, factors = self._apply_intent_and_fit_rules(
+            action, confidence, factors, context, holding
+        )
+
         if factors and rationale:
             personal_bits = [
-                f for f in factors[-3:]
-                if f.startswith("Your ") or f.startswith("Position weight")
+                f for f in factors[-4:]
+                if f.startswith("Your ")
+                or f.startswith("Position weight")
+                or f.startswith("Intent ")
+                or f.startswith("Portfolio fit")
+                or f.startswith("Income ")
+                or f.startswith("Volatility ")
+                or f.startswith("Concentration ")
             ]
             if personal_bits:
                 rationale = f"{rationale} Personal overlay: {' '.join(personal_bits)}"
 
         return action, confidence, factors, rationale
+
+    def _apply_intent_and_fit_rules(
+        self,
+        action: str,
+        confidence: str,
+        factors: list[str],
+        context: dict[str, Any],
+        holding: dict[str, Any] | None,
+    ) -> tuple[str, str, list[str]]:
+        """Wire Intent + Portfolio Fit prefs into personal SAI (rules path)."""
+        intent = self._intent_block(context, holding) or {}
+        intent_code = intent.get("code")
+        if intent_code:
+            label = intent.get("label") or intent_code
+            source = intent.get("source") or "inferred"
+            factors.append(f"Intent {label} ({source}).")
+            if intent_code in ("accumulate", "core_accumulate") and action == "hold":
+                action = "watch"
+                factors.append(
+                    f"Intent {label} — hold nudged to watch (accumulation posture)."
+                )
+            elif intent_code == "divest" and action == "hold":
+                action = "watch"
+                factors.append(
+                    f"Intent {label} — hold nudged to watch (exit posture)."
+                )
+            elif intent_code == "tactical" and action == "hold":
+                factors.append(f"Intent {label} — tactical stance favors active monitoring.")
+
+        prefs = context.get("fitPrefs") or {}
+        portfolio_div = context.get("portfolioAnnualDividend")
+        target_div = prefs.get("targetAnnualDividend")
+        if isinstance(target_div, (int, float)) and target_div > 0:
+            book = float(portfolio_div) if isinstance(portfolio_div, (int, float)) else 0.0
+            gap = float(target_div) - book
+            name_div = None
+            if holding:
+                per_sh = holding.get("annualDividend")
+                qty = holding.get("quantity") or 0
+                if isinstance(per_sh, (int, float)) and qty:
+                    name_div = float(per_sh) * float(qty)
+            if gap > 0:
+                if isinstance(name_div, (int, float)) and name_div > 0:
+                    factors.append(
+                        f"Income gap ${gap:,.0f} vs target — this name contributes "
+                        f"~${name_div:,.0f}/yr."
+                    )
+                    if action == "hold":
+                        action = "watch"
+                else:
+                    factors.append(
+                        f"Income gap ${gap:,.0f} vs target — name pays little/no dividend."
+                    )
+            else:
+                factors.append("Portfolio income at/above target annual dividend.")
+
+        vol = prefs.get("volatilityPreference")
+        if vol in VOLATILITY_BETA_CEILING:
+            ceiling = VOLATILITY_BETA_CEILING[vol]
+            beta = _fund_get(context.get("fundamentals") or {}, "beta")
+            if isinstance(beta, (int, float)):
+                if beta > ceiling:
+                    factors.append(
+                        f"Volatility preference {vol}: beta {beta:.2f} above ceiling {ceiling:.1f}."
+                    )
+                    if action == "buy":
+                        action = "watch"
+                        confidence = "low" if confidence != "low" else confidence
+                else:
+                    factors.append(
+                        f"Volatility preference {vol}: beta {beta:.2f} within ceiling {ceiling:.1f}."
+                    )
+
+        max_wt = prefs.get("maxSingleNameWeightPct")
+        weight = (holding or {}).get("weightPct")
+        if isinstance(max_wt, (int, float)) and isinstance(weight, (int, float)):
+            if weight > float(max_wt):
+                factors.append(
+                    f"Concentration: weight {weight:.1f}% exceeds max single-name "
+                    f"{float(max_wt):.0f}%."
+                )
+                if action in ("buy", "hold"):
+                    action = "watch"
+
+        return action, confidence, factors
 
     @staticmethod
     def _fib_alert_factor(alerts: list[dict[str, Any]]) -> str:

@@ -748,8 +748,8 @@ class ImportService:
 
         technical = data.pop("_technical", None)
         self.portfolio_service.upsert_symbol(symbol, data)
-        if technical:
-            self.technical_service.upsert_snapshot(symbol, technical)
+        # Legacy imported TA snapshots are ignored (computed technicals only).
+        _ = technical
         holding = False
         position_keys = (
             "quantity",

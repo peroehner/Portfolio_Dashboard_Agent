@@ -109,32 +109,9 @@ class SymbolAssessmentService:
         }
 
     def _build_technical(self, symbol: str) -> dict[str, Any] | None:
-        from db.database import get_prefer_computed_trends
-        from services.technical_service import TechnicalService
-
+        """Computed multi-timeframe signals only (imported TA snapshots removed)."""
         signals = self.technical_signals_service.get_signals(symbol)
-        block: dict[str, Any] = dict(signals) if signals else {}
-
-        if get_prefer_computed_trends():
-            return block or None
-
-        technical_service = TechnicalService()
-        snapshot = technical_service.get_snapshot(symbol)
-        if snapshot and snapshot.get("trends"):
-            block["trendWaves"] = technical_service.trend_waves_for_symbol(symbol, snapshot)
-        imported_fib = (
-            technical_service.fib_from_snapshot(symbol, snapshot) if snapshot else None
-        )
-        if imported_fib and imported_fib.get("levels"):
-            block["swing"] = {
-                "source": "imported",
-                "swingHigh": imported_fib.get("swingHigh"),
-                "swingLow": imported_fib.get("swingLow"),
-                "period": imported_fib.get("period"),
-                "anchorTrend": imported_fib.get("anchorTrend"),
-                "levels": imported_fib.get("levels", []),
-            }
-        return block or None
+        return dict(signals) if signals else None
 
     def _save_base(
         self,

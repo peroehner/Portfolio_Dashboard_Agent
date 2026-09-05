@@ -17,7 +17,6 @@ from services.preferences_service import PreferencesService
 from services.proposal_service import ProposalService
 from services.screening_service import ScreeningService
 from services.symbol_assessment_service import DEDUP_BASE_ASSESSMENT, SymbolAssessmentService
-from services.technical_service import TechnicalService
 from services.technical_signals_service import TechnicalSignalsService
 from services.track_record_service import TrackRecordService
 
@@ -78,7 +77,6 @@ class AssessmentService:
         self.fib_service = FibService()
         self.screening_service = ScreeningService()
         self.fundamentals_service = FundamentalsService()
-        self.technical_service = TechnicalService()
         self.technical_signals_service = TechnicalSignalsService()
         self.llm_client = LLMClient()
         self.assess_workers = max(1, int(os.environ.get("ASSESS_WORKERS", "6")))
@@ -426,34 +424,9 @@ class AssessmentService:
         }
 
     def _build_technical(self, symbol: str) -> dict[str, Any] | None:
-        """Computed multi-timeframe signals, with an imported snapshot's
-        hand-anchored swing/Fibonacci taking precedence when present — unless
-        the user has opted to prefer computed trends over imported TA."""
-        from db.database import get_prefer_computed_trends
-
+        """Computed multi-timeframe signals only (imported TA snapshots removed)."""
         signals = self.technical_signals_service.get_signals(symbol)
-        block: dict[str, Any] = dict(signals) if signals else {}
-
-        if get_prefer_computed_trends():
-            return block or None
-
-        snapshot = self.technical_service.get_snapshot(symbol)
-        if snapshot and snapshot.get("trends"):
-            block["trendWaves"] = self.technical_service.trend_waves_for_symbol(symbol, snapshot)
-        imported_fib = (
-            self.technical_service.fib_from_snapshot(symbol, snapshot) if snapshot else None
-        )
-        if imported_fib and imported_fib.get("levels"):
-            block["swing"] = {
-                "source": "imported",
-                "swingHigh": imported_fib.get("swingHigh"),
-                "swingLow": imported_fib.get("swingLow"),
-                "period": imported_fib.get("period"),
-                "anchorTrend": imported_fib.get("anchorTrend"),
-                "levels": imported_fib.get("levels", []),
-            }
-
-        return block or None
+        return dict(signals) if signals else None
 
     def _holding_with_weight(self, symbol: str) -> dict[str, Any] | None:
         holdings = self.holdings_service.list_holdings()
