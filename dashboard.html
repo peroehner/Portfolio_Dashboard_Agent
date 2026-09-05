@@ -5660,14 +5660,14 @@
           <tr>
             <td><strong>Hit</strong></td>
             <td>Unweighted “how often was the bet right?” — every win/loss counts equally.</td>
-            <td rowspan="2">Only when SAI bets carry <strong>Conf</strong> and/or <strong>Score</strong>. Until then every weight is 1, so <strong>Hit = Bet-S-Hit</strong> (they look identical — that is expected, not a bug).</td>
+            <td rowspan="2">On <strong>SAI</strong> when Conf and/or Score are stored (weight ≠ 1). <strong>Patterns</strong> and <strong>Confluence</strong> never store them, so Hit = Bet-S-Hit there by design.</td>
           </tr>
           <tr>
             <td><strong>Bet-S-Hit</strong><br><span style="font-weight:500;color:var(--muted,#9aa8bc)">(Bet Strength Hit)</span></td>
             <td>Strength-weighted hit rate — not a return. Stronger calls (high Conf × higher Score) count more than weak ones.</td>
           </tr>
         </table>
-        <p><strong>Patterns</strong> and <strong>Confluence</strong> do not store Conf/Score today, so Hit and Bet-S-Hit stay equal there. On <strong>SAI</strong>, new assessments fill strength; as that populates, Bet-S-Hit will pull away from Hit. If Bet-S-Hit ≫ Hit → prefer stronger signals; if ≪ Hit → stronger calls are underperforming.</p>
+        <p>On <strong>SAI</strong>, assessments store Conf·Score and Summary backfills orphans from linked assessments — so Bet-S-Hit usually diverges from Hit. If Bet-S-Hit ≫ Hit → prefer stronger signals; if ≪ Hit → stronger calls are underperforming. Patterns / Confluence stay equal by design.</p>
         <p>Color on Hit / Bet-S-Hit: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>.</p>
 
         <h4>Reading Price · Follow · Bet Strength Hit</h4>
@@ -5717,7 +5717,7 @@
 
         <p><strong>Already matured in your book</strong> (SAI recommendation wins that stored strength): e.g. <code>NBIS</code> Medium·89 → weight 3.78; <code>AMZN</code> Medium·75 → 3.50; <code>MSFT</code> Low·70 → 1.70; <code>INTC</code> Low·65 → 1.65. Same formula — higher Label×Score wins pull Bet-S-Hit up vs plain Hit.</p>
 
-        <p>When strength is missing on older rows, every weight is 1 → Bet-S-Hit equals Hit until new assessments fill Label/Score. Confidence / Score-band tables under the scorecard appear once enough non-unknown rows exist.</p>
+        <p>If Conf·Score are still missing on a SAI row (rare after backfill), that bet’s weight is 1. Confidence / Score-band tables under the scorecard appear once enough non-unknown rows exist.</p>
 
         <h4>SAI episodes</h4>
         <p>If the agent says <strong>buy</strong> at T1 and later flips to <strong>sell</strong> at T2, the buy episode is scored on the move <strong>T1→T2</strong>. Price, Follow, Hit, and Bet-S-Hit all use that same episode window for SAI.</p>
@@ -5728,7 +5728,7 @@
         <p>New confluence bets also store <strong>Lean vs Strong</strong> band, fuse <strong>score</strong>, and <strong>agree/conflict</strong> counts. Summary adds Lean/Strong and clean/contested slices once those fields populate (older confluence rows stay “unknown”).</p>
 
         <h4>Accumulation</h4>
-        <p>Hit rates still accumulate across all matured bets (no rolling window in the UI yet). A deferred era cutoff is planned for end of August 2026 so older measurement eras can be trimmed later.</p>
+        <p>Hit rates accumulate across matured bets on/after the <strong>era cutoff</strong> (default <code>2026-08-02</code>, P0 episode + strength ship). Pre-era rows stay in the database but are excluded from Summary and proposal soft-weights. No rolling window in the UI yet.</p>
 
         <p style="margin-top:1rem;font-size:0.82rem;color:var(--muted,#9aa8bc);">Full guide: <code>docs/signal_track_record.md</code>.</p>
       </div>
@@ -11880,9 +11880,10 @@
       const horizonDays = data.horizonDays || 21;
       if (metaEl) {
         const pending = data.pending || 0;
+        const era = data.eraCutoffDate ? ` · since ${data.eraCutoffDate}` : "";
         metaEl.textContent = pending
-          ? `±${data.horizonBandPct ?? 2}% band · ${pending} pending · ${horizonDays}d horizon`
-          : `±${data.horizonBandPct ?? 2}% band · ${horizonDays}d horizon`;
+          ? `±${data.horizonBandPct ?? 2}% band · ${pending} pending · ${horizonDays}d horizon${era}`
+          : `±${data.horizonBandPct ?? 2}% band · ${horizonDays}d horizon${era}`;
       }
       if (!overall.count) {
         summaryEl.innerHTML = trackRecordStatusHtml(horizonDays, data.pending);
@@ -11922,9 +11923,9 @@
           ${showConfBand ? trackRecordSection("Confluence Lean vs Strong", byConfBand.map((b) => ({ ...b, label: b.confluenceBand })), { labelKey: "label", key: "by-conf-band" }) : ""}
           ${showConfConflict ? trackRecordSection("Confluence clean vs contested", byConfConflict.map((b) => ({ ...b, label: b.conflictBucket })), { labelKey: "label", key: "by-conf-conflict" }) : ""}
         </div>
-        ${!showConf ? `<p class="tr-note">Confidence slices appear once new assessments store strength on SAI bets (older rows may still show as unknown until backfill links assessments).</p>` : ""}
+        ${!showConf ? `<p class="tr-note">Confidence slices appear once SAI bets store Conf (backfill links assessments on Summary load).</p>` : ""}
         ${!showConfBand ? `<p class="tr-note">Confluence Lean vs Strong / clean vs contested slices appear after new assessments store band, score, and conflict counts on confluence bets.</p>` : ""}
-        <p class="tr-note"><strong>Price</strong> = episode price move. <strong>Follow</strong> = did the buy/sell call help? <strong>Hit</strong> = unweighted bet hit. <strong>Bet-S-Hit</strong> = strength-weighted Hit (same as Hit until SAI Conf · Score populate). Color: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>. Decisive sample: ${decided}.</p>`;
+        <p class="tr-note"><strong>Price</strong> = episode price move. <strong>Follow</strong> = did the buy/sell call help? <strong>Hit</strong> = unweighted bet hit. <strong>Bet-S-Hit</strong> = strength-weighted Hit (diverges on SAI when Conf·Score are present; Patterns/Confluence stay equal by design). Color: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>. Decisive sample: ${decided}${data.eraCutoffDate ? ` · era since ${escapeHtml(String(data.eraCutoffDate))}` : ""}${data.excludedPreEra ? ` · ${Number(data.excludedPreEra)} pre-era excluded` : ""}.</p>`;
     }
 
     async function loadTrackRecord() {

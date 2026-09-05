@@ -253,18 +253,22 @@ See [.env.example](../.env.example).
 | `TRACK_RECORD` | `1` | `0` disables capture and scoring |
 | `TRACK_RECORD_HORIZON_DAYS` | `21` | Days after capture before a bet is scored if no episode flip |
 | `TRACK_RECORD_BAND_PCT` | `2.0` | Dead-band for win/loss vs neutral |
-| `TRACK_RECORD_ERA_CUTOFF_DATE` | `2026-08-31` | **Reminder only** — planned date to drop pre-era rows (not enforced yet) |
+| `TRACK_RECORD_ERA_CUTOFF_DATE` | `2026-08-02` | Exclude `signal_outcomes` with `captured_at` before this date from Summary / learning aggregates. Empty string disables the filter. Rows are **not** deleted. |
 
-### Deferred era cutoff (do not reset yet)
+### Era cutoff (enforced, filter-in-query)
 
-Episode scoring improves **existing** history in place (reconcile on Summary load).
-**Do not** wipe `signal_outcomes` while rolling out P0–P1.
+P0 episode scoring and Conf·Score strength shipped **2026-08-02**. Summary,
+pending counts, and proposal soft-weights that consume `get_summary` only include
+outcomes on/after `TRACK_RECORD_ERA_CUTOFF_DATE` (default that ship day).
 
-**Remembered cutoff:** on/after **2026-08-31**, cut off data older than the commit
-that shipped episode scoring (and related P0/P1 changes), so learning is not
-diluted by mixed pre/post measurement eras. Until then keep all rows and rely on
-reconcile. Enforcement (SQL/API/env gate) is still TODO — date is documented in
-code as `TRACK_RECORD_ERA_CUTOFF_DATE`.
+Pre-era rows remain in `signal_outcomes` for audit; there is no mass delete.
+`get_summary` returns `eraCutoffDate` and `excludedPreEra` (count of filtered
+rows). Set the env var to empty to restore all-time aggregation.
+
+Strength backfill (`backfill_recommendation_strength`) still fills Conf·Score on
+linkable SAI recommendation bets (including orphans) so post-era Bet-S-Hit can
+diverge from Hit. Patterns and confluence do not store Conf/Score — Hit equals
+Bet-S-Hit there by design.
 
 ---
 
@@ -331,8 +335,8 @@ diagnostic slice is needed later.
 
 | Item | Intent |
 |------|--------|
-| **Era cutoff (deferred)** | On/after **2026-08-31**, drop rows older than the P0 ship commit — **not now**; keep history while episode reconcile improves it |
-| **Reset** | Optional full wipe only if cutoff is insufficient |
+| **Era cutoff** | **Done** — filter-in-query on `captured_at >= TRACK_RECORD_ERA_CUTOFF_DATE` (default P0 ship `2026-08-02`); no mass delete |
+| **Reset** | Optional full wipe only if filter-in-query is insufficient |
 | **Rolling report window** | Filter aggregation (e.g. last 6 months) — separate from per-bet horizon |
 | **Plain-language Summary** | Category rollups + short verdict sentences on the Summary panel |
 | **Comparable category UI** | Same chrome for SAI / Patterns / Confluence / (future) Fib with category-level hit + weighted avg |
@@ -345,5 +349,5 @@ diagnostic slice is needed later.
 - Treating harvest alerts as price bets without a tax/outcome contract
 - Folding Fib labels into the Patterns kind
 - Scoring Technical Stance as a fourth primary bet kind
-- Wiping all signal history immediately on P0 ship (use deferred era cutoff instead)
-- Using forever-accumulation hit rates to steer the live agent before cutoff/window + strength metadata
+- Mass-deleting signal history (prefer the era filter; optional wipe remains available)
+- Using forever-accumulation hit rates to steer the live agent without the era floor + strength metadata

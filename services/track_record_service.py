@@ -29,12 +29,22 @@ from services.portfolio_service import PortfolioService
 TRACK_RECORD_BAND_PCT = float(os.environ.get("TRACK_RECORD_BAND_PCT", "2.0"))
 TRACK_RECORD_HORIZON_DAYS = max(1, int(os.environ.get("TRACK_RECORD_HORIZON_DAYS", "21")))
 
-# Deferred era reset (not enforced in code yet). After this calendar date, drop
-# signal_outcomes captured before the P0 episode-scoring ship commit so mixed
-# pre/post eras do not dilute learning. See docs/signal_track_record.md.
+# Filter-in-query era floor for Summary / learning aggregates. Rows with
+# captured_at before this date are excluded (not deleted). Default = P0 ship
+# day for episode scoring + Conf·Score strength (2026-08-02). Empty string
+# disables the filter. See docs/signal_track_record.md.
 TRACK_RECORD_ERA_CUTOFF_DATE = os.environ.get(
-    "TRACK_RECORD_ERA_CUTOFF_DATE", "2026-08-31"
+    "TRACK_RECORD_ERA_CUTOFF_DATE", "2026-08-02"
 ).strip()
+
+
+def era_cutoff_prefix() -> str | None:
+    """Return YYYY-MM-DD floor for captured_at, or None when era filter is off."""
+    raw = (TRACK_RECORD_ERA_CUTOFF_DATE or "").strip()
+    if not raw:
+        return None
+    # Accept full timestamps; compare on date prefix for TEXT captured_at.
+    return raw[:10]
 
 
 class TrackRecordService:
@@ -323,7 +333,12 @@ class TrackRecordService:
         return True
 
     def backfill_recommendation_strength(self) -> int:
-        """Copy confidence / Fit / band from assessments onto recommendation bets missing them."""
+        """Copy confidence / Fit / band from assessments onto recommendation bets missing them.
+
+        Runs on Summary load so post-era SAI rows get Conf·Score for Bet-S-Hit.
+        Pre-era rows may also be filled, but ``get_summary`` excludes them from
+        aggregates (filter-in-query; no mass delete).
+        """
         user_id = get_current_user_id()
         with get_connection() as conn:
             # Link orphan recommendation bets to the nearest prior assessment.
@@ -389,27 +404,52 @@ class TrackRecordService:
     # Reporting
     # ------------------------------------------------------------------ #
     def get_summary(self) -> dict[str, Any]:
-        """Reconcile SAI episodes, backfill strength, evaluate due, aggregate."""
+        """Reconcile SAI episodes, backfill strength, evaluate due, aggregate.
+
+        Aggregates only outcomes on/after ``eraCutoffDate`` (filter-in-query).
+        Pre-era rows remain in the DB for audit but do not dilute Hit / Bet-S-Hit
+        or proposal soft-weights that consume this summary.
+        """
         self.reconcile_recommendation_episodes()
         self.backfill_recommendation_strength()
         self.evaluate_due()
         user_id = get_current_user_id()
+        cutoff = era_cutoff_prefix()
         with get_connection() as conn:
+            era_clause = ""
+            era_params: list[Any] = [user_id]
+            if cutoff:
+                era_clause = " AND captured_at >= %s"
+                era_params.append(cutoff)
             rows = conn.execute(
-                """
+                f"""
                 SELECT kind, label, direction, outcome, return_pct,
                        confidence, fit_total, band_code, sentiment,
                        confluence_band, confluence_score, agree_count,
                        conflict_count, signal_strength
                 FROM signal_outcomes
                 WHERE user_id = %s AND outcome IS NOT NULL
+                {era_clause}
                 """,
-                (user_id,),
+                tuple(era_params),
             ).fetchall()
             pending = conn.execute(
-                "SELECT COUNT(*) AS n FROM signal_outcomes WHERE user_id = %s AND outcome IS NULL",
-                (user_id,),
+                f"""
+                SELECT COUNT(*) AS n FROM signal_outcomes
+                WHERE user_id = %s AND outcome IS NULL
+                {era_clause}
+                """,
+                tuple(era_params),
             ).fetchone()["n"]
+            excluded_pre_era = 0
+            if cutoff:
+                excluded_pre_era = conn.execute(
+                    """
+                    SELECT COUNT(*) AS n FROM signal_outcomes
+                    WHERE user_id = %s AND captured_at < %s
+                    """,
+                    (user_id, cutoff),
+                ).fetchone()["n"]
 
         overall = _new_bucket()
         by_kind: dict[str, dict[str, Any]] = {}
@@ -458,7 +498,8 @@ class TrackRecordService:
         return {
             "horizonDays": TRACK_RECORD_HORIZON_DAYS,
             "horizonBandPct": TRACK_RECORD_BAND_PCT,
-            "eraCutoffDate": TRACK_RECORD_ERA_CUTOFF_DATE or None,
+            "eraCutoffDate": cutoff,
+            "excludedPreEra": excluded_pre_era,
             "pending": pending,
             "overall": _finalize(overall),
             "byKind": {kind: _finalize(bucket) for kind, bucket in by_kind.items()},
