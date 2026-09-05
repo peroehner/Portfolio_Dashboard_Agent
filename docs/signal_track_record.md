@@ -184,7 +184,7 @@ TTD’s Score (63) sits in the Medium band, but Label Low keeps its Bet-S-Hit we
 When strength is missing, every weight is 1 → **Hit = Bet-S-Hit**. Patterns and confluence
 do not store strength today, so those rows stay equal. Once SAI strength fills in, if
 Bet-S-Hit ≫ Hit prefer stronger signals; if ≪ Hit stronger calls are underperforming.
-Summary insight grades categories by Bet-S-Hit so confluence gaps (e.g. Bearish) surface.
+Summary insight is a short Trust / Discount / Use briefing (Bet-S-Hit still drives which lanes to trust or discount).
 
 **Label vs Score:** Confidence **Label** (SAI Conf) and proposal **Score** (SAI Score) are separate. Score can stay
 in a higher band while Label is softened (stability / guardrails) — “Score may lag Label.”
