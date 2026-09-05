@@ -236,9 +236,11 @@ UI colors (green ≥ 60%, amber ≥ 40%) are display thresholds, not proven edge
 **When populated:**
 
 - Overall hit rate + evaluated / wins / losses / Price · Follow · Bet Strength Hit
-- Tables: **SAI actions**, **SAI by confidence**, **Chart patterns**,
-  **Fib levels**, **Confluence bias**
-  (API still exposes `byFitBand`; it is **not** shown in the UI.)
+- Short **Trust / Discount / Use** insight (trade orientation, not a long scorecard)
+- Default tables: **SAI actions**, **Chart patterns**, **Confluence bias**
+- **SAI by confidence** only when enough non-unknown Conf bets exist (min decisive N)
+- Fib levels, Confluence Lean/Strong, and clean/contested stay out of the default Summary
+  (API still exposes them and `byFitBand`; they are **not** shown in the default UI.)
 
 Color bands (hit rate): green ≥ 60%, amber ≥ 40%, red below.
 

@@ -3537,6 +3537,14 @@
       font-size: 0.82rem;
       line-height: 1.45;
     }
+    .tr-insight-line { margin: 0.15rem 0; line-height: 1.35; }
+    .tr-insight-k {
+      display: inline-block;
+      min-width: 4.4rem;
+      font-weight: 650;
+      color: var(--muted, #9aa8bc);
+      margin-right: 0.35rem;
+    }
     .tr-insight.tr-insight-ok {
       border-left-color: #22c55e;
       background: rgba(34, 197, 94, 0.08);
@@ -5723,9 +5731,9 @@
         <p>If the agent says <strong>buy</strong> at T1 and later flips to <strong>sell</strong> at T2, the buy episode is scored on the move <strong>T1→T2</strong>. Price, Follow, Hit, and Bet-S-Hit all use that same episode window for SAI.</p>
 
         <h4>Summary card</h4>
-        <p><strong>Overall hit</strong> uses decisive bets only. The insight line is a <strong>Bet-S-Hit scorecard</strong>: it calls out where strength-weighted hit is outstanding or good (often SAI Sell, SAI overall, Patterns) versus soft spots (often Confluence Bias — especially Bearish). It may also note Price vs Follow gaps and whether overall Bet-S-Hit says to prefer strong signals.</p>
-        <p>Category tables (SAI, Patterns, Confluence, …) stay <strong>collapsed</strong> — expand a row to see per-signal detail.</p>
-        <p>New confluence bets also store <strong>Lean vs Strong</strong> band, fuse <strong>score</strong>, and <strong>agree/conflict</strong> counts. Summary adds Lean/Strong and clean/contested slices once those fields populate (older confluence rows stay “unknown”).</p>
+        <p><strong>Overall hit</strong> uses decisive bets only. The insight line is a short <strong>Trust / Discount / Use</strong> briefing: which lanes to trust, which to discount, and how to size or read Follow vs Price.</p>
+        <p>Category tables stay focused on <strong>SAI</strong>, <strong>Patterns</strong>, and <strong>Confluence bias</strong> (collapsed until expanded). Fib levels and Lean/Strong or clean/contested confluence slices stay out of the default Summary — Conf slices appear only when enough non-unknown SAI strength exists.</p>
+        <p>The insight line is a short <strong>Trust / Discount / Use</strong> briefing for trade orientation, not a full scorecard essay.</p>
 
         <h4>Accumulation</h4>
         <p>Hit rates accumulate across matured bets on/after the <strong>era cutoff</strong> (default <code>2026-08-02</code>, P0 episode + strength ship). Pre-era rows stay in the database but are excluded from Summary and proposal soft-weights. No rolling window in the UI yet.</p>
@@ -11701,18 +11709,19 @@
     }
 
     function trackRecordHasRealStrength(buckets, keyField) {
+      // Gate Conf slices: need a non-unknown key and enough decisive bets to matter.
       return (buckets || []).some((b) => {
         const key = String(b[keyField] || "unknown").toLowerCase();
-        return key && key !== "unknown";
+        if (!key || key === "unknown") return false;
+        const decided = (b.wins || 0) + (b.losses || 0);
+        return decided >= 5;
       });
     }
 
-    function trackRecordInsightHtml(data, recos, patterns, confluence, fibs, byConf) {
+    function trackRecordInsightHtml(data, recos, patterns, confluence, _fibs, byConf) {
       const overall = data.overall || {};
-      const parts = [];
       const decided = (overall.wins || 0) + (overall.losses || 0);
       const hit = overall.hitRate;
-      const raw = overall.avgReturn;
       const adj = overall.avgReturnAdj;
       const strHit = overall.calibratedHitRate;
 
@@ -11725,107 +11734,70 @@
       const confRoll = trackRecordRollup(confluence || []);
 
       const sellStr = trackRecordStrength(sell);
+      const buyStr = trackRecordStrength(buy);
       const saiStr = trackRecordStrength(saiRoll);
       const patStr = trackRecordStrength(patRoll);
       const confStr = trackRecordStrength(confRoll);
       const bearStr = trackRecordStrength(bearishConf);
       const bullStr = trackRecordStrength(bullishConf);
 
-      // Lead with Bet-S-Hit scorecard: what’s working vs what needs improvement
-      const strengths = [];
+      const trust = [];
+      const discount = [];
+      const use = [];
+
       if (sell && trackRecordDecided(sell) >= 5 && sellStr != null) {
         const g = trackRecordGrade(sellStr);
         if (g === "outstanding" || g === "good") {
-          strengths.push(`SAI Sell ${g} (${sellStr.toFixed(1)}%)`);
+          trust.push(`SAI Sell (${sellStr.toFixed(0)}% Bet-S-Hit)`);
         }
       }
-      if (trackRecordDecided(saiRoll) >= 10 && saiStr != null && trackRecordGrade(saiStr) === "good") {
-        strengths.push(`SAI overall good (${saiStr.toFixed(1)}%)`);
-      } else if (trackRecordDecided(saiRoll) >= 10 && saiStr != null && trackRecordGrade(saiStr) === "outstanding") {
-        strengths.push(`SAI overall outstanding (${saiStr.toFixed(1)}%)`);
+      if (trackRecordDecided(saiRoll) >= 10 && saiStr != null) {
+        const g = trackRecordGrade(saiStr);
+        if (g === "outstanding" || g === "good") trust.push(`SAI overall (${saiStr.toFixed(0)}%)`);
       }
       if (trackRecordDecided(patRoll) >= 8 && patStr != null) {
         const g = trackRecordGrade(patStr);
-        if (g === "outstanding" || g === "good") {
-          strengths.push(`Patterns ${g} (${patStr.toFixed(1)}%)`);
-        }
+        if (g === "outstanding" || g === "good") trust.push(`Patterns (${patStr.toFixed(0)}%)`);
+      }
+      if (bullishConf && trackRecordDecided(bullishConf) >= 5 && bullStr != null) {
+        const g = trackRecordGrade(bullStr);
+        if (g === "outstanding" || g === "good") trust.push(`Bullish confluence (${bullStr.toFixed(0)}%)`);
       }
 
-      const softSpots = [];
       if (bearishConf && trackRecordDecided(bearishConf) >= 5 && bearStr != null) {
         const g = trackRecordGrade(bearStr);
         if (g === "weak" || g === "mixed") {
-          softSpots.push(
-            `Confluence Bias Bearish is the soft spot (${bearStr.toFixed(1)}% Bet-S-Hit) — bearish confluence reading needs work`
-          );
+          discount.push(`Bearish confluence (${bearStr.toFixed(0)}% Bet-S-Hit)`);
         }
       }
       if (
-        !softSpots.length &&
         trackRecordDecided(confRoll) >= 8 &&
         confStr != null &&
         (trackRecordGrade(confStr) === "weak" ||
           (patStr != null && confStr <= patStr - 8) ||
           (saiStr != null && confStr <= saiStr - 8))
       ) {
-        softSpots.push(
-          `Confluence Bias lags (${confStr.toFixed(1)}% Bet-S-Hit vs SAI ${saiStr != null ? saiStr.toFixed(1) : "—"}% / Patterns ${patStr != null ? patStr.toFixed(1) : "—"}%) — priority improvement area`
-        );
+        if (!discount.some((d) => d.includes("confluence"))) {
+          discount.push(`Confluence bias (${confStr.toFixed(0)}%)`);
+        }
       }
       if (buy && trackRecordDecided(buy) >= 10 && buy.hitRate != null && buy.hitRate < 45) {
-        softSpots.push(`SAI Buy is soft on plain Hit (${buy.hitRate}%)`);
+        discount.push(`SAI Buy plain Hit (${buy.hitRate}%)`);
+      }
+      if (strHit != null && hit != null && decided >= 15 && strHit - hit <= -5) {
+        discount.push(`high-Conf/Score bets (Bet-S-Hit ${Number(strHit).toFixed(0)}% ≪ Hit ${hit}%)`);
       }
 
-      if (strengths.length || softSpots.length) {
-        const bits = [];
-        if (strengths.length) bits.push(`Bet-S-Hit strengths: ${strengths.join("; ")}.`);
-        if (softSpots.length) bits.push(softSpots.join(". ") + ".");
-        parts.push(bits.join(" "));
+      if (strHit != null && hit != null && decided >= 15 && strHit - hit >= 5) {
+        use.push("Prefer higher Conf·Score SAI over weak labels");
       }
-
-      if (raw != null && adj != null && Math.abs(raw - adj) >= 1.5) {
-        if (adj > raw) {
-          parts.push(
-            `Follow (${adj > 0 ? "+" : ""}${Number(adj).toFixed(2)}%) beats Price (${Number(raw).toFixed(2)}%) — often because correct sells fall in price.`
-          );
-        } else {
-          parts.push(
-            `Follow (${Number(adj).toFixed(2)}%) is worse than Price — directional calls are not helping after sign-flip.`
-          );
-        }
-      }
-
-      if (sell && sell.avgReturnAdj != null && sell.avgReturn != null && sell.avgReturnAdj > 0 && sell.avgReturn < 0) {
-        parts.push(
-          `Sell Follow +${Math.abs(sell.avgReturnAdj)}% with Price ${sell.avgReturn}% — sells work; Price alone understates them.`
-        );
-      }
-
-      if (strHit != null && hit != null && decided >= 15) {
-        const gap = strHit - hit;
-        if (gap >= 5) {
-          parts.push(
-            `Overall Bet Strength Hit (${Number(strHit).toFixed(1)}%) ≫ plain Hit (${hit}%) — prefer stronger (high Conf / Score) signals.`
-          );
-        } else if (gap <= -5) {
-          parts.push(
-            `Overall Bet Strength Hit (${Number(strHit).toFixed(1)}%) ≪ plain Hit (${hit}%) — stronger bets are underperforming; treat high-confidence cautiously.`
-          );
-        }
-      }
-
       const high = (byConf || []).find((b) => String(b.confidence || b.label || "").toLowerCase() === "high");
       const low = (byConf || []).find((b) => String(b.confidence || b.label || "").toLowerCase() === "low");
       if (high && low && high.hitRate != null && low.hitRate != null) {
-        const highN = trackRecordDecided(high);
-        const lowN = trackRecordDecided(low);
-        if (highN >= 5 && lowN >= 5 && high.hitRate - low.hitRate >= 10) {
-          parts.push(
-            `High-confidence SAI (${high.hitRate}% hit) beats low (${low.hitRate}%) — lean on stronger SAI calls.`
-          );
+        if (trackRecordDecided(high) >= 5 && trackRecordDecided(low) >= 5 && high.hitRate - low.hitRate >= 10) {
+          use.push(`Weight High-Conf SAI (${high.hitRate}% hit) over Low (${low.hitRate}%)`);
         }
       }
-
       if (
         bullishConf &&
         bearishConf &&
@@ -11835,31 +11807,42 @@
         trackRecordDecided(bearishConf) >= 5 &&
         bullStr - bearStr >= 10
       ) {
-        parts.push(
-          `Bullish confluence (${bullStr.toFixed(1)}% Bet-S-Hit) far outruns Bearish (${bearStr.toFixed(1)}%) — fix bearish bias reading first.`
-        );
+        use.push("Treat bullish confluence as the bias edge; do not mirror bearish");
+      }
+      if (sell && sell.avgReturnAdj != null && sell.avgReturnAdj > 0 && sell.avgReturn != null && sell.avgReturn < 0) {
+        use.push("Read Sell on Follow, not Price — Price understates working sells");
+      } else if (adj != null && overall.avgReturn != null && Math.abs(adj - overall.avgReturn) >= 1.5 && adj > overall.avgReturn) {
+        use.push("Favor Follow over Price when judging call quality");
+      }
+      if (!use.length && trust.length) {
+        use.push("Size into trusted lanes; keep size modest elsewhere");
+      } else if (!use.length && discount.length) {
+        use.push("Wait for clearer edge before sizing into discounted lanes");
+      } else if (!use.length) {
+        use.push("Keep sizing flat until Hit / Bet-S-Hit separate by lane");
       }
 
-      if ((fibs || []).length === 0) {
-        parts.push("Fib bets appear after new Fib proximity alerts fire.");
-      }
+      if (!trust.length && !discount.length && decided < 8) return "";
 
-      if (!parts.length) return "";
-      const hasSoft = softSpots.length > 0;
-      const hasStrength = strengths.length > 0;
+      const trustLine = trust.length
+        ? `<div class="tr-insight-line"><span class="tr-insight-k">Trust</span> ${trust.slice(0, 3).join(" · ")}</div>`
+        : `<div class="tr-insight-line"><span class="tr-insight-k">Trust</span> No standout lane yet — treat the book as provisional</div>`;
+      const discountLine = discount.length
+        ? `<div class="tr-insight-line"><span class="tr-insight-k">Discount</span> ${discount.slice(0, 3).join(" · ")}</div>`
+        : `<div class="tr-insight-line"><span class="tr-insight-k">Discount</span> No soft spot flagged at current sample</div>`;
+      const useLine = `<div class="tr-insight-line"><span class="tr-insight-k">Use</span> ${use.slice(0, 2).join(" · ")}</div>`;
+
       const tone =
-        hasSoft && hasStrength
+        discount.length && trust.length
           ? "tr-insight-warn"
-          : hasSoft
+          : discount.length
             ? "tr-insight-warn"
-            : (hit != null && hit >= 55 && adj != null && adj > 0) ||
-                (strHit != null && hit != null && strHit - hit >= 5) ||
-                hasStrength
+            : trust.length || (hit != null && hit >= 55 && adj != null && adj > 0)
               ? "tr-insight-ok"
               : hit != null && hit < 40
                 ? "tr-insight-warn"
                 : "";
-      return `<p class="tr-insight ${tone}">${parts.join(" ")}</p>`;
+      return `<div class="tr-insight ${tone}">${trustLine}${discountLine}${useLine}</div>`;
     }
 
     function trackRecordStatusHtml(horizonDays, pending) {
@@ -11893,13 +11876,8 @@
       const recos = (data.byLabel || []).filter((b) => b.kind === "recommendation");
       const patterns = (data.byLabel || []).filter((b) => b.kind === "pattern");
       const confluence = (data.byLabel || []).filter((b) => b.kind === "confluence");
-      const fibs = (data.byLabel || []).filter((b) => b.kind === "fib");
       const byConf = data.byConfidence || [];
-      const byConfBand = data.byConfluenceBand || [];
-      const byConfConflict = data.byConfluenceConflict || [];
       const showConf = trackRecordHasRealStrength(byConf, "confidence");
-      const showConfBand = trackRecordHasRealStrength(byConfBand, "confluenceBand");
-      const showConfConflict = trackRecordHasRealStrength(byConfConflict, "conflictBucket");
 
       const decided = (overall.wins || 0) + (overall.losses || 0);
       summaryEl.innerHTML = `
@@ -11913,18 +11891,14 @@
           </div>
         </div>`;
       body.innerHTML = `
-        ${trackRecordInsightHtml(data, recos, patterns, confluence, fibs, byConf)}
+        ${trackRecordInsightHtml(data, recos, patterns, confluence, null, byConf)}
         <div class="tr-grid">
           ${trackRecordSection("SAI actions", recos, { key: "sai" })}
           ${trackRecordSection("Chart patterns", patterns, { key: "patterns" })}
           ${trackRecordSection("Confluence bias", confluence, { key: "confluence" })}
-          ${fibs.length ? trackRecordSection("Fib levels", fibs, { key: "fib" }) : ""}
           ${showConf ? trackRecordSection("SAI by confidence", byConf.map((b) => ({ ...b, label: b.confidence })), { labelKey: "label", key: "by-confidence" }) : ""}
-          ${showConfBand ? trackRecordSection("Confluence Lean vs Strong", byConfBand.map((b) => ({ ...b, label: b.confluenceBand })), { labelKey: "label", key: "by-conf-band" }) : ""}
-          ${showConfConflict ? trackRecordSection("Confluence clean vs contested", byConfConflict.map((b) => ({ ...b, label: b.conflictBucket })), { labelKey: "label", key: "by-conf-conflict" }) : ""}
         </div>
-        ${!showConf ? `<p class="tr-note">Confidence slices appear once SAI bets store Conf (backfill links assessments on Summary load).</p>` : ""}
-        ${!showConfBand ? `<p class="tr-note">Confluence Lean vs Strong / clean vs contested slices appear after new assessments store band, score, and conflict counts on confluence bets.</p>` : ""}
+        ${!showConf ? `<p class="tr-note">Confidence slices appear once SAI bets store Conf and at least 5 decisive non-unknown bets (backfill links assessments on Summary load).</p>` : ""}
         <p class="tr-note"><strong>Price</strong> = episode price move. <strong>Follow</strong> = did the buy/sell call help? <strong>Hit</strong> = unweighted bet hit. <strong>Bet-S-Hit</strong> = strength-weighted Hit (diverges on SAI when Conf·Score are present; Patterns/Confluence stay equal by design). Color: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>. Decisive sample: ${decided}${data.eraCutoffDate ? ` · era since ${escapeHtml(String(data.eraCutoffDate))}` : ""}${data.excludedPreEra ? ` · ${Number(data.excludedPreEra)} pre-era excluded` : ""}.</p>`;
     }
 
