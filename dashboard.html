@@ -9038,7 +9038,7 @@
       const container = document.getElementById("fibLevels");
       if (!container) return;
       if (!levels.length) {
-        container.innerHTML = `<span class="empty" style="margin:0;">No Fibonacci levels available — import TA export or sync prices.</span>`;
+        container.innerHTML = `<span class="empty" style="margin:0;">No Fibonacci levels available — sync prices to compute levels.</span>`;
         return;
       }
       container.innerHTML = levels.map((level) => {
@@ -17806,7 +17806,7 @@
               <details class="trend-waves-details">
                 <summary>Detected Trend Waves${waves.length ? ` (${waves.length})` : ""}${technical.windowStart && technical.windowEnd ? ` · ${technical.windowStart} → ${technical.windowEnd}` : (data.chartTimeline?.windowStart && data.chartTimeline?.windowEnd ? ` · ${data.chartTimeline.windowStart} → ${data.chartTimeline.windowEnd}` : "")}</summary>
                 <div class="trend-waves-meta">
-                  <span class="trend-source-note">${trendSource === "import" ? "From TA import" : trendSource === "computed" ? "Computed from price history (adaptive swing)" : "No TA import on file — re-import export"}</span>
+                  <span class="trend-source-note">${trendSource === "computed" ? "Computed from price history (adaptive swing)" : "Trend waves unavailable — sync prices"}</span>
                 </div>
                 ${waves.length
                   ? `<div class="trend-wave-list">${waves.map((wave) => {
@@ -17844,7 +17844,7 @@
                         </article>
                       `;
                     }).join("")}</div>`
-                  : `<span class="empty">No imported trend waves. Use <strong>Import</strong> with your Portfolio-App TA export for this symbol.</span>`}
+                  : `<span class="empty">No computed trend waves yet. Sync prices to build an adaptive swing from history.</span>`}
               </details>
             </div>`}
           </section>`;
