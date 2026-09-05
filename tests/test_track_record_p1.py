@@ -23,6 +23,7 @@ from services.track_record_service import (  # noqa: E402
     TrackRecordService,
     conflict_bucket_label,
     confluence_outcome_meta,
+    era_cutoff_prefix,
     fit_band_label,
     strength_from_proposal,
     _direction_adjusted_return,
@@ -30,6 +31,7 @@ from services.track_record_service import (  # noqa: E402
     _new_bucket,
     _accumulate,
 )
+import services.track_record_service as track_record_mod  # noqa: E402
 
 
 def _db_available() -> bool:
@@ -43,6 +45,27 @@ def _db_available() -> bool:
 
 
 DB_AVAILABLE = _db_available()
+
+
+class EraCutoffHelperTests(unittest.TestCase):
+    def test_default_prefix_is_p0_ship_day(self) -> None:
+        self.assertEqual(era_cutoff_prefix(), "2026-08-02")
+
+    def test_empty_disables_filter(self) -> None:
+        prev = track_record_mod.TRACK_RECORD_ERA_CUTOFF_DATE
+        try:
+            track_record_mod.TRACK_RECORD_ERA_CUTOFF_DATE = ""
+            self.assertIsNone(era_cutoff_prefix())
+        finally:
+            track_record_mod.TRACK_RECORD_ERA_CUTOFF_DATE = prev
+
+    def test_timestamp_env_uses_date_prefix(self) -> None:
+        prev = track_record_mod.TRACK_RECORD_ERA_CUTOFF_DATE
+        try:
+            track_record_mod.TRACK_RECORD_ERA_CUTOFF_DATE = "2026-08-02 13:34:54"
+            self.assertEqual(era_cutoff_prefix(), "2026-08-02")
+        finally:
+            track_record_mod.TRACK_RECORD_ERA_CUTOFF_DATE = prev
 
 
 class FibBetHelperTests(unittest.TestCase):
@@ -212,6 +235,76 @@ class FibCaptureDbTests(unittest.TestCase):
                 "SELECT COUNT(*) AS n FROM signal_outcomes WHERE kind = 'fib'"
             ).fetchone()["n"]
         self.assertEqual(n, 1)
+
+
+@unittest.skipUnless(DB_AVAILABLE, "TEST_DATABASE_URL not set or unreachable")
+class EraCutoffSummaryDbTests(unittest.TestCase):
+    def setUp(self) -> None:
+        _reset_schema()
+        with get_connection() as conn:
+            row = conn.execute(
+                "INSERT INTO users (email, name) VALUES (%s, %s) RETURNING id",
+                ("era@example.com", "Era"),
+            ).fetchone()
+            self.user_id = int(row["id"])
+            conn.execute(
+                "INSERT INTO symbols (user_id, symbol) VALUES (%s, %s)",
+                (self.user_id, "AAPL"),
+            )
+            conn.commit()
+        set_current_user_id(self.user_id)
+        self.svc = TrackRecordService()
+        # Avoid side effects from reconcile/evaluate during summary tests.
+        self.svc.reconcile_recommendation_episodes = lambda: 0  # type: ignore[method-assign]
+        self.svc.backfill_recommendation_strength = lambda: 0  # type: ignore[method-assign]
+        self.svc.evaluate_due = lambda: 0  # type: ignore[method-assign]
+
+    def _insert_outcome(self, *, captured_at: str, outcome: str = "win") -> None:
+        with get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO signal_outcomes (
+                    user_id, symbol, kind, label, direction, entry_price,
+                    horizon_days, captured_at, eval_due_at, outcome, return_pct,
+                    evaluated_at
+                )
+                VALUES (
+                    %s, 'AAPL', 'recommendation', 'buy', 'bullish', 100.0,
+                    21, %s, %s, %s, 5.0, %s
+                )
+                """,
+                (
+                    self.user_id,
+                    captured_at,
+                    captured_at,
+                    outcome,
+                    captured_at,
+                ),
+            )
+            conn.commit()
+
+    def test_summary_excludes_pre_era_rows(self) -> None:
+        self._insert_outcome(captured_at="2026-07-15 12:00:00")  # pre-era
+        self._insert_outcome(captured_at="2026-08-02 00:00:00")  # on cutoff
+        self._insert_outcome(captured_at="2026-08-10 09:00:00")  # post-era
+        summary = self.svc.get_summary()
+        self.assertEqual(summary["eraCutoffDate"], "2026-08-02")
+        self.assertEqual(summary["excludedPreEra"], 1)
+        self.assertEqual(summary["overall"]["count"], 2)
+        self.assertEqual(summary["overall"]["wins"], 2)
+
+    def test_empty_cutoff_includes_all_rows(self) -> None:
+        self._insert_outcome(captured_at="2026-07-15 12:00:00")
+        self._insert_outcome(captured_at="2026-08-10 09:00:00")
+        prev = track_record_mod.TRACK_RECORD_ERA_CUTOFF_DATE
+        try:
+            track_record_mod.TRACK_RECORD_ERA_CUTOFF_DATE = ""
+            summary = self.svc.get_summary()
+            self.assertIsNone(summary["eraCutoffDate"])
+            self.assertEqual(summary["excludedPreEra"], 0)
+            self.assertEqual(summary["overall"]["count"], 2)
+        finally:
+            track_record_mod.TRACK_RECORD_ERA_CUTOFF_DATE = prev
 
 
 if __name__ == "__main__":
