@@ -5649,7 +5649,7 @@
           <tr><td>SAI actions</td><td>Published buy / sell / hold / watch</td><td><strong>Episode</strong>: scored when the action flips, or after the horizon if it never flips</td></tr>
           <tr><td>Chart patterns</td><td>Detected patterns (veto/stale skipped)</td><td>Fixed horizon (default 21 days)</td></tr>
           <tr><td>Fib levels</td><td>New Fib proximity alerts</td><td>Fixed horizon; bounce hypothesis from side of level</td></tr>
-          <tr><td>Confluence bias</td><td>Bullish / Bearish fuse</td><td>Fixed horizon</td></tr>
+          <tr><td>Tech bias</td><td>Bullish / Bearish — fused technical vote at assess time (not SAI Action)</td><td>Fixed horizon</td></tr>
         </table>
 
         <h4>Win / loss band (±2%)</h4>
@@ -5732,7 +5732,7 @@
 
         <h4>Summary card</h4>
         <p><strong>Overall hit</strong> uses decisive bets only. The insight line is a short <strong>Trust / Discount / Use</strong> briefing: which lanes to trust, which to discount, and how to size or read Follow vs Price.</p>
-        <p>Category tables stay focused on <strong>SAI</strong>, <strong>Patterns</strong>, and <strong>Confluence bias</strong> (collapsed until expanded). Fib levels and Lean/Strong or clean/contested confluence slices stay out of the default Summary — Conf slices appear only when enough non-unknown SAI strength exists.</p>
+        <p>Category tables stay focused on <strong>SAI</strong>, <strong>Patterns</strong>, and <strong>Tech bias</strong> (collapsed until expanded). Tech bias = did the fused technical vote (Bullish / Bearish) call the next move? Fib levels and Lean/Strong or clean/contested confluence slices stay out of the default Summary — Conf slices appear only when enough non-unknown SAI strength exists.</p>
         <p>The insight line is a short <strong>Trust / Discount / Use</strong> briefing for trade orientation, not a full scorecard essay.</p>
 
         <h4>Accumulation</h4>
@@ -11778,7 +11778,7 @@
           (saiStr != null && confStr <= saiStr - 8))
       ) {
         if (!discount.some((d) => d.includes("confluence"))) {
-          discount.push(`Confluence bias (${confStr.toFixed(0)}%)`);
+          discount.push(`Tech bias (${confStr.toFixed(0)}%)`);
         }
       }
       if (buy && trackRecordDecided(buy) >= 10 && buy.hitRate != null && buy.hitRate < 45) {
@@ -11895,7 +11895,7 @@
         <div class="tr-grid">
           ${trackRecordSection("SAI actions", recos, { key: "sai" })}
           ${trackRecordSection("Chart patterns", patterns, { key: "patterns" })}
-          ${trackRecordSection("Confluence bias", confluence, { key: "confluence" })}
+          ${trackRecordSection("Tech bias", confluence, { key: "confluence" })}
           ${showConf ? trackRecordSection("SAI by confidence", byConf.map((b) => ({ ...b, label: b.confidence })), { labelKey: "label", key: "by-confidence" }) : ""}
         </div>
         ${!showConf ? `<p class="tr-note">Confidence slices appear once SAI bets store Conf and at least 5 decisive non-unknown bets (backfill links assessments on Summary load).</p>` : ""}
@@ -17584,7 +17584,7 @@
     }
 
     // Compressed Recommendation block for the Holdings mini-inspector. Reuses the
-    // same chip rendering as the full Recommendation card and the Confluence bias
+    // same chip rendering as the full Recommendation card and the Tech bias section
     // chip for Tech Stance on a single top line, then shows the recommendation
     // narrative (headline + rationale) in a capped, scrollable, clickable area.
     function renderInspectorRecSummary(data) {

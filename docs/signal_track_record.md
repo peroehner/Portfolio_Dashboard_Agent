@@ -20,12 +20,12 @@ that symbol at that moment:
 |-------------------------------|-------|--------|-----------|
 | `recommendation` | SAI action (`buy`, `sell`, `watch`, `hold`) | Published Agent Read action (proposal band is authority when enabled) | `buy` → bullish; `sell` → bearish; `watch`/`hold` → neutral |
 | `pattern` | Pattern name (e.g. `Double Bottom`) | Technical pattern detection on that run | From pattern type (bullish / bearish) |
-| `confluence` | `Bullish` or `Bearish` | Fused confluence bias on that run | Same as label |
+| `confluence` | `Bullish` or `Bearish` | Tech bias — fused technical vote on that run | Same as label |
 
 **Skipped (not falsifiable or unreliable):**
 
 - Patterns with Risk verdict `veto` or `stale`
-- Confluence bias `Mixed` (no directional edge)
+- Tech bias `Mixed` (no directional edge)
 - Captures when entry price is missing
 
 **Not captured today** (even though the system produces them elsewhere): trade
@@ -237,7 +237,7 @@ UI colors (green ≥ 60%, amber ≥ 40%) are display thresholds, not proven edge
 
 - Overall hit rate + evaluated / wins / losses / Price · Follow · Bet Strength Hit
 - Short **Trust / Discount / Use** insight (trade orientation, not a long scorecard)
-- Default tables: **SAI actions**, **Chart patterns**, **Confluence bias**
+- Default tables: **SAI actions**, **Chart patterns**, **Tech bias**
 - **SAI by confidence** only when enough non-unknown Conf bets exist (min decisive N)
 - Fib levels, Confluence Lean/Strong, and clean/contested stay out of the default Summary
   (API still exposes them and `byFitBand`; they are **not** shown in the default UI.)
@@ -328,7 +328,7 @@ Do not dump every alert into the ledger as a directional edge.
 ### P3 — Technical Stance: do not add as its own kind
 
 Technical Stance (Fib advisory Strong/Alert/Cautious, and confluence-as-stance
-on the Fib map) already influences confluence bias (captured) and proposal
+on the Fib map) already influences Tech bias / confluence (captured) and proposal
 Trigger → published action (captured). A dedicated stance row would mostly
 triple-count the same technical view. Keep out of Signal Record unless a thin
 diagnostic slice is needed later.
