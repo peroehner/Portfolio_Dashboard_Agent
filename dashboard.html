@@ -5673,20 +5673,21 @@
         <p><strong>Hit</strong> (plain bet hit) = wins ÷ (wins + losses). Neutrals appear as <code>n</code> in W–L and are excluded from Hit.</p>
 
         <h4>Hit vs Bet-S-Hit</h4>
-        <p>Same decisive bets, two readings:</p>
+        <p>Same decisive bets, two readings — the action (buy / sell / …) does <strong>not</strong> change between columns. Only the <em>weight</em> of each bet changes.</p>
         <table class="help-table">
           <tr><th>Column</th><th>What it is</th><th>When they differ</th></tr>
           <tr>
             <td><strong>Hit</strong></td>
             <td>Unweighted “how often was the bet right?” — every win/loss counts equally.</td>
-            <td rowspan="2">On <strong>SAI</strong> when Conf and/or Score are stored (weight ≠ 1). <strong>Patterns</strong> and <strong>Confluence</strong> never store them, so Hit = Bet-S-Hit there by design.</td>
+            <td rowspan="2">On <strong>SAI</strong> when Conf and/or Score are stored (weight ≠ 1). <strong>Patterns</strong> and <strong>Tech bias</strong> never store them, so Hit = Bet-S-Hit there by design.</td>
           </tr>
           <tr>
             <td><strong>Bet-S-Hit</strong><br><span style="font-weight:500;color:var(--muted,#9aa8bc)">(Bet Strength Hit)</span></td>
             <td>Strength-weighted hit rate — not a return. Stronger calls (high Conf × higher Score) count more than weak ones.</td>
           </tr>
         </table>
-        <p>On <strong>SAI</strong>, assessments store Conf·Score and Summary backfills orphans from linked assessments — so Bet-S-Hit usually diverges from Hit. If Bet-S-Hit ≫ Hit → prefer stronger signals; if ≪ Hit → stronger calls are underperforming. Patterns / Confluence stay equal by design.</p>
+        <p>On the <strong>SAI actions</strong> table, compare Hit and Bet-S-Hit <em>on the same row</em> (e.g. buy 60.5% vs 61.1%) — that is already “unweighted SAI vs strength-weighted SAI” for that action. If Bet-S-Hit ≫ Hit → stronger calls in that lane are carrying the book; if ≪ Hit → stronger calls are underperforming. Patterns / Tech bias stay equal by design.</p>
+        <p><strong>SAI by confidence</strong> is a different cut of the same SAI bets: group by published Conf (High / Medium / Low), not by action. Use it to ask “when we labeled High, were we right?” — not to compare against the buy/sell rows as if they were another weighting scheme.</p>
         <p>Color on Hit / Bet-S-Hit: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>.</p>
 
         <h4>Reading Price · Follow · Bet Strength Hit</h4>
@@ -5736,14 +5737,14 @@
 
         <p><strong>Already matured in your book</strong> (SAI recommendation wins that stored strength): e.g. <code>NBIS</code> Medium·89 → weight 3.78; <code>AMZN</code> Medium·75 → 3.50; <code>MSFT</code> Low·70 → 1.70; <code>INTC</code> Low·65 → 1.65. Same formula — higher Label×Score wins pull Bet-S-Hit up vs plain Hit.</p>
 
-        <p>If Conf·Score are still missing on a SAI row (rare after backfill), that bet’s weight is 1. Confidence / Score-band tables under the scorecard appear once enough non-unknown rows exist.</p>
+        <p>If Conf·Score are still missing on a SAI row (rare after backfill), that bet’s weight is 1. The <strong>SAI by confidence</strong> table appears once enough non-unknown Conf rows exist (Score-band slices stay API-only).</p>
 
         <h4>SAI episodes</h4>
         <p>If the agent says <strong>buy</strong> at T1 and later flips to <strong>sell</strong> at T2, the buy episode is scored on the move <strong>T1→T2</strong>. Price, Follow, Hit, and Bet-S-Hit all use that same episode window for SAI.</p>
 
         <h4>Summary card</h4>
         <p><strong>Overall hit</strong> uses decisive bets only. The insight line is a short <strong>Trust / Discount / Use</strong> briefing: which lanes to trust, which to discount, and how to size or read Follow vs Price.</p>
-        <p>Category tables stay focused on <strong>SAI</strong>, <strong>Patterns</strong>, and <strong>Tech bias</strong> (collapsed until expanded). Tech bias = did the fused technical vote (Bullish / Bearish) call the next move? Fib levels and Lean/Strong or clean/contested confluence slices stay out of the default Summary — Conf slices appear only when enough non-unknown SAI strength exists.</p>
+        <p>Category tables stay focused on <strong>SAI</strong>, <strong>Patterns</strong>, and <strong>Tech bias</strong> (collapsed until expanded). <strong>Tech bias</strong> (Screening’s <strong>Tech Stance</strong>) = did the fused technical vote (Bullish / Bearish) call the next move? It is a separate bet kind from SAI — not part of Bet-S-Hit’s Conf×Score weight. Fib levels and Lean/Strong or clean/contested confluence slices stay out of the default Summary — Conf slices appear only when enough non-unknown SAI strength exists.</p>
         <p>The insight line is a short <strong>Trust / Discount / Use</strong> briefing for trade orientation, not a full scorecard essay. Once a week (UTC), the same rules run automatically and the latest snapshot appears as a <strong>Weekly review</strong> above the live briefing.</p>
 
         <h4>Accumulation</h4>
@@ -11980,7 +11981,7 @@
           ${showConf ? trackRecordSection("SAI by confidence", byConf.map((b) => ({ ...b, label: b.confidence })), { labelKey: "label", key: "by-confidence" }) : ""}
         </div>
         ${!showConf ? `<p class="tr-note">Confidence slices appear once SAI bets store Conf and at least 5 decisive non-unknown bets (backfill links assessments on Summary load).</p>` : ""}
-        <p class="tr-note"><strong>Price</strong> = episode price move. <strong>Follow</strong> = did the buy/sell call help? <strong>Hit</strong> = unweighted bet hit. <strong>Bet-S-Hit</strong> = strength-weighted Hit (diverges on SAI when Conf·Score are present; Patterns/Confluence stay equal by design). Color: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>. Decisive sample: ${decided}${data.eraCutoffDate ? ` · era since ${escapeHtml(String(data.eraCutoffDate))}` : ""}${data.excludedPreEra ? ` · ${Number(data.excludedPreEra)} pre-era excluded` : ""}.</p>`;
+        <p class="tr-note"><strong>Price</strong> = episode price move. <strong>Follow</strong> = did the buy/sell call help? <strong>Hit</strong> = unweighted bet hit. <strong>Bet-S-Hit</strong> = strength-weighted Hit (diverges on SAI when Conf·Score are present; Patterns/Tech bias stay equal by design). Color: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>. Decisive sample: ${decided}${data.eraCutoffDate ? ` · era since ${escapeHtml(String(data.eraCutoffDate))}` : ""}${data.excludedPreEra ? ` · ${Number(data.excludedPreEra)} pre-era excluded` : ""}.</p>`;
     }
 
     async function loadTrackRecord() {

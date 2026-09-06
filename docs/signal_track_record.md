@@ -151,7 +151,13 @@ neutrals in the average). Sign is **raw** price move.
 means “following the call” would have helped on average.
 
 **Bet Strength Hit** (`calibratedHitRate`, UI column: **Bet-S-Hit**): same decisive bets
-as Hit (wins+losses only; neutrals ignored), but each bet is **weighted**:
+as Hit (wins+losses only; neutrals ignored), but each bet is **weighted**. On the
+**SAI actions** table, Hit vs Bet-S-Hit on the same row (buy / sell / …) is already
+unweighted vs strength-weighted performance for that action — the action does not
+change. **SAI by confidence** is a different cut of those same bets (High / Medium /
+Low), not a second weighting scheme.
+
+Weight formula:
 
 ```
 weight = LabelWeight × (1 + Score/100)
