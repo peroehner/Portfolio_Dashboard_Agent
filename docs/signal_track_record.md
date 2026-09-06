@@ -91,12 +91,12 @@ path.
 
 ## Horizon vs accumulation
 
-Two different "21-day" ideas — do not confuse them:
+This is **not** a next-day or T+1 evaluation. Two different "21-day" ideas — do not confuse them:
 
 | Concept | Behavior |
 |---------|----------|
-| **Evaluation horizon** (`TRACK_RECORD_HORIZON_DAYS`, default **21**) | Per-bet **wait** before that individual signal is scored. Each bet has its own `eval_due_at`. |
-| **Report aggregation** | **Accumulates** — all scored bets (`outcome IS NOT NULL`) are included in hit-rate tables. There is **no** rolling "last 21 days only" window and **no** automatic expiry of old scores. |
+| **Evaluation horizon** (`TRACK_RECORD_HORIZON_DAYS`, default **21 calendar days**) | Per-bet **wait** before that individual signal is scored (unless an SAI episode flips earlier). Each bet has its own `eval_due_at`. Price is measured from capture entry to the eval/flip price — **not** the next session alone. |
+| **Report aggregation** | **Accumulates** — all scored bets (`outcome IS NOT NULL`) on/after the era cutoff are included in hit-rate tables. There is **no** rolling "last 21 days only" window and **no** automatic expiry of old scores. |
 
 **Pending dedup:** at most **one open (unscored) bet** per `(symbol, kind, label)`.
 A new assessment for the same symbol does **not** open a second pending `buy`
@@ -139,7 +139,7 @@ Return % = `(eval_price − entry_price) / entry_price × 100`.
   Already-scored overlapping horizons are rewritten when they disagree with the
   episode flip price.
 
-Patterns and confluence still use the fixed per-bet horizon (no episode model).
+Patterns and confluence (Tech bias) still use the fixed per-bet horizon (no episode model) — still multi-day, not next-session.
 
 **Hit** = unweighted `wins / (wins + losses)` — neutrals excluded.
 
@@ -195,6 +195,10 @@ Screening **Conf · Score** hover explains the pair; full model + cross-surface 
 `confidence`, `fit_total`, and `band_code` at capture (from the published
 proposal). Older rows are backfilled from `assessments` via `assessment_id` when
 Summary loads. Summary exposes `byConfidence` in the UI. `byFitBand` remains in the API only (not rendered).
+
+**SAI by confidence vs Bet-S-Hit:** `byConfidence` is a **stratification** of the same SAI action bets by published Conf Label (High / Medium / Low). It is **not** an alternate Bet-S-Hit formula. Bet-S-Hit already reweights every decisive SAI action by Conf×Score on the Actions table; comparing Hit vs Bet-S-Hit on the same action row is the unweighted vs strength-weighted read for that action.
+
+**Tech bias (confluence) vs Bet-S-Hit / Trigger:** Tech bias is a **separate Signal Record kind** (fused Trend / Structure / Momentum / Pattern / Volume vote). It does **not** enter Bet-S-Hit weights. When Screening Tech Stance aligns with the published SAI action, the proposal framework may add **Trigger +5** (a small State+Trigger+Fit Score timing nudge — not a Signal Record weight). Tech bias bets use the **fixed per-bet horizon** (no SAI episode early-close).
 
 **Confluence band metadata:** confluence bets store `confluence_band`
 (`lean` | `strong`), `confluence_score`, `agree_count`, `conflict_count`, and

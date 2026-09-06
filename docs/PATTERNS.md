@@ -314,9 +314,17 @@ bearish, 50 = neutral, 100 = bullish), the per-lens vote chips, and explicit
 combines how far the score is from neutral with how unanimous the lenses are.
 
 This fused verdict drives the Tech Stance in both tables (§8), is captured in the
-track record (§12), and is fed to the LLM as the primary technical read (a strong
-high-agreement bias raises timing conviction; conflicts or a Mixed/weak verdict
-temper it) — always modulating, never overriding, the fundamental thesis.
+track record (§12) as **Tech bias**, and is fed to the LLM as the primary technical
+read (a strong high-agreement bias raises timing conviction; conflicts or a
+Mixed/weak verdict temper it) — always modulating, never overriding, the
+fundamental thesis.
+
+**Scoring relationship:** Tech Stance / Tech bias does **not** feed Agent Signal
+Record Bet-S-Hit weights (those use SAI Conf×Score only). When stance **aligns**
+with the published SAI action, the proposal framework may add **Trigger +5**
+(timing nudge inside SAI Score). Tech bias bets are scored on the **fixed
+~21-day evaluation horizon** (not next-day; SAI actions may early-close on episode
+flip — see [signal_track_record.md](signal_track_record.md)).
 
 ---
 
@@ -325,11 +333,13 @@ temper it) — always modulating, never overriding, the fundamental thesis.
 Full documentation: **[signal_track_record.md](signal_track_record.md)**.
 
 Each **assessment run** captures forward-looking bets: SAI action, detected chart
-patterns, and fused confluence bias (veto/stale patterns and `Mixed` confluence
-skipped). After `TRACK_RECORD_HORIZON_DAYS` (default 21) per bet, price is
-scored win/loss/neutral against a ±`TRACK_RECORD_BAND_PCT` band. **Scores
-accumulate** across all matured bets; the horizon is a per-bet wait, not a
-rolling stats window. Measurement only — no auto-calibration yet.
+patterns, and fused confluence bias / Tech bias (veto/stale patterns and `Mixed`
+confluence skipped). This is **not** a next-day check: after
+`TRACK_RECORD_HORIZON_DAYS` (default **21 calendar days**) per bet — or earlier
+for **SAI episodes** that flip action — price is scored win/loss/neutral against
+a ±`TRACK_RECORD_BAND_PCT` band. **Scores accumulate** across all matured bets
+since the era cutoff; the horizon is a per-bet wait, not a rolling stats window.
+Measurement only — no auto-calibration yet.
 
 ---
 
