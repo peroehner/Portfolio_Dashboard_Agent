@@ -38,9 +38,10 @@ export const SIGNAL_GLOSSARY: Record<SignalKey, SignalDef> = {
     key: "techBias",
     label: "Tech Bias",
     shortLabel: "Bias",
-    formula: "Fused Trend + Structure + Momentum + Pattern + Volume → Bull / LBull / Mix / LBear / Bear",
+    formula:
+      "Fused Trend + Structure + Momentum + Pattern + Volume → Bull / LBull / Mix / LBear / Bear",
     meaning:
-      "Web Tech Stance, stripped for mobile. Complements SAI Action (do this) with tape lean (tape agrees?). Highest Signal Record hit lane historically; not a reweight of SAI.",
+      "Web Tech Stance, stripped for mobile. Complements SAI Action (do this) with tape lean (tape agrees?). Scored in Agent Signal Record on the fixed ~21-day horizon (not next-day). Does not reweight SAI Bet-S-Hit; aligned stance may add Trigger +5 to SAI Score. Highest Signal Record hit lane historically.",
   },
   proximity: {
     key: "proximity",

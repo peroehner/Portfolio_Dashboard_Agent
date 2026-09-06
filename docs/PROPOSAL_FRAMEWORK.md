@@ -83,6 +83,13 @@ Why *now* (or why not).
 - News reaction / sentiment event study  
 - Hard personal threshold crosses (`rule_hard_trigger`)
 
+**Tech Stance alignment (+5):** when Screening Tech Stance (fused confluence bias)
+aligns with the published action (bullish lean + buy/watch, or bearish lean + sell),
+Trigger gains **+5**. Misalignment is noted but does not subtract. This nudges SAI
+**Score** (and therefore Bet-S-Hit *weight* slightly via Score) — it does **not**
+add Tech Stance as a separate Bet-S-Hit factor, and Tech bias remains its own
+Signal Record kind.
+
 ### C) Portfolio Fit (0–20)
 
 Whether the trade belongs in *this* portfolio.

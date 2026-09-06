@@ -5530,7 +5530,8 @@
           <tr><td><strong>RSI</strong></td><td>Relative Strength Index (14-day), scaled <strong>0–100</strong>. It is <em>not</em> a % return. Mid-range (~50) means recent gains and losses are roughly balanced. Classic rules of thumb: ≥70 often called overbought, ≤30 oversold — Confluence does <em>not</em> wait for those extremes.</td><td>If MACD is mixed, RSI steps in: <strong>≥55</strong> votes bullish, <strong>≤45</strong> votes bearish. <strong>RSI 54</strong> is essentially mid / slightly constructive — not a strong momentum call by itself.</td></tr>
         </table>
         <p>Momentum is the <em>lightest</em> of the five lenses (weight 0.5), so a lone RSI 54 will not flip a Bullish card if Trend, Structure, and Pattern already agree. Pattern, Fibonacci, and OBV detail stay in §§5–9 above.</p>
-        <p style="margin-top:1rem;font-size:0.82rem;color:var(--muted,#9aa8bc);">Full guide: <code>docs/PATTERNS.md</code> · confluence fusion: <code>docs/pattern_validation_confluence.md</code>.</p>
+        <p><strong>How Tech Stance relates to scoring.</strong> Screening’s <strong>Tech Stance</strong> column is this same fused bias. Agent Signal Record captures directional Bullish/Bearish calls as <strong>Tech bias</strong> and scores them on the <strong>fixed 21-day horizon</strong> (not next-day; not an SAI episode). Tech Stance does <strong>not</strong> enter Bet-S-Hit weights. When it <em>aligns</em> with the published SAI action, the proposal framework may add <strong>Trigger +5</strong> (timing nudge inside SAI Score).</p>
+        <p style="margin-top:1rem;font-size:0.82rem;color:var(--muted,#9aa8bc);">Full guide: <code>docs/PATTERNS.md</code> · confluence fusion: <code>docs/pattern_validation_confluence.md</code> · Signal Record timing: <code>docs/signal_track_record.md</code>.</p>
       </div>
     </div>
   </div>
@@ -5663,6 +5664,15 @@
           <tr><td>Tech bias</td><td>Bullish / Bearish — fused technical vote at assess time (not SAI Action)</td><td>Fixed horizon</td></tr>
         </table>
 
+        <h4>Timing (not next-day)</h4>
+        <p>Each bet waits its own <strong>evaluation horizon</strong> — default <strong>21 calendar days</strong> (<code>TRACK_RECORD_HORIZON_DAYS</code>). This is <strong>not</strong> a next-session / T+1 check.</p>
+        <table class="help-table">
+          <tr><th>Kind</th><th>Price window scored</th></tr>
+          <tr><td><strong>SAI actions</strong></td><td><strong>Episode</strong> — from open (T1) until the action flips (T2), or until the full horizon if it never flips.</td></tr>
+          <tr><td><strong>Patterns / Tech bias / Fib</strong></td><td><strong>Fixed horizon</strong> — from capture until <code>captured_at + 21 days</code> (no early close).</td></tr>
+        </table>
+        <p><strong>Horizon ≠ report window.</strong> Summary <em>accumulates</em> all matured bets on/after the era cutoff. There is no rolling “last 21 days only” filter in the UI.</p>
+
         <h4>Win / loss band (±2%)</h4>
         <table class="help-table">
           <tr><th>Direction</th><th>Win</th><th>Loss</th><th>Neutral</th></tr>
@@ -5687,7 +5697,7 @@
           </tr>
         </table>
         <p>On the <strong>SAI actions</strong> table, compare Hit and Bet-S-Hit <em>on the same row</em> (e.g. buy 60.5% vs 61.1%) — that is already “unweighted SAI vs strength-weighted SAI” for that action. If Bet-S-Hit ≫ Hit → stronger calls in that lane are carrying the book; if ≪ Hit → stronger calls are underperforming. Patterns / Tech bias stay equal by design.</p>
-        <p><strong>SAI by confidence</strong> is a different cut of the same SAI bets: group by published Conf (High / Medium / Low), not by action. Use it to ask “when we labeled High, were we right?” — not to compare against the buy/sell rows as if they were another weighting scheme.</p>
+        <p><strong>SAI by confidence</strong> is a different cut of those same SAI bets (grouped by High / Medium / Low). It asks “when we labeled High, were we right?” — it is <strong>not</strong> another weighting of the Actions table. Bet-S-Hit already applies Conf×Score weights across all SAI actions.</p>
         <p>Color on Hit / Bet-S-Hit: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>.</p>
 
         <h4>Reading Price · Follow · Bet Strength Hit</h4>
@@ -5744,11 +5754,11 @@
 
         <h4>Summary card</h4>
         <p><strong>Overall hit</strong> uses decisive bets only. The insight line is a short <strong>Trust / Discount / Use</strong> briefing: which lanes to trust, which to discount, and how to size or read Follow vs Price.</p>
-        <p>Category tables stay focused on <strong>SAI</strong>, <strong>Patterns</strong>, and <strong>Tech bias</strong> (collapsed until expanded). <strong>Tech bias</strong> (Screening’s <strong>Tech Stance</strong>) = did the fused technical vote (Bullish / Bearish) call the next move? It is a separate bet kind from SAI — not part of Bet-S-Hit’s Conf×Score weight. Fib levels and Lean/Strong or clean/contested confluence slices stay out of the default Summary — Conf slices appear only when enough non-unknown SAI strength exists.</p>
+        <p>Category tables stay focused on <strong>SAI</strong>, <strong>Patterns</strong>, and <strong>Tech bias</strong> (collapsed until expanded). <strong>Tech bias</strong> (Screening’s <strong>Tech Stance</strong>) = did the fused technical vote (Bullish / Bearish) call the next move over its fixed horizon? It is a <strong>separate bet kind</strong> from SAI — five lenses (Trend, Structure, Momentum, Pattern, Volume). It does <strong>not</strong> feed Bet-S-Hit weights (those use SAI Conf×Score only). When stance aligns with the published action, the proposal framework may add <strong>Trigger +5</strong> (a small Score timing nudge — not a Signal Record weight). Fib levels and Lean/Strong or clean/contested confluence slices stay out of the default Summary — Conf slices appear only when enough non-unknown SAI strength exists.</p>
         <p>The insight line is a short <strong>Trust / Discount / Use</strong> briefing for trade orientation, not a full scorecard essay. Once a week (UTC), the same rules run automatically and the latest snapshot appears as a <strong>Weekly review</strong> above the live briefing.</p>
 
         <h4>Accumulation</h4>
-        <p>Hit rates accumulate across matured bets on/after the <strong>era cutoff</strong> (default <code>2026-08-02</code>, P0 episode + strength ship). Pre-era rows stay in the database but are excluded from Summary and proposal soft-weights. No rolling window in the UI yet.</p>
+        <p>Hit rates <strong>accumulate</strong> across matured bets on/after the <strong>era cutoff</strong> (default <code>2026-08-02</code>, P0 episode + strength ship). That accumulation is <em>not</em> the same thing as the 21-day per-bet evaluation horizon. Pre-era rows stay in the database but are excluded from Summary and proposal soft-weights. No rolling “last 21 days” report window in the UI yet.</p>
 
         <p style="margin-top:1rem;font-size:0.82rem;color:var(--muted,#9aa8bc);">Full guide: <code>docs/signal_track_record.md</code>.</p>
       </div>
@@ -11931,7 +11941,7 @@
       if (!pending) {
         return `<p class="tr-status">No matured scores yet.</p>`;
       }
-      return `<p class="tr-status">No matured scores yet · <strong>${pending}</strong> bet${pending === 1 ? "" : "s"} still within the <strong>${horizon}-day</strong> per-bet horizon — scores appear as each matures (checked when Summary loads).</p>`;
+      return `<p class="tr-status">No matured scores yet · <strong>${pending}</strong> bet${pending === 1 ? "" : "s"} still within the <strong>${horizon}-day</strong> per-bet horizon (not next-day) — scores appear as each matures (checked when Summary loads).</p>`;
     }
 
     function renderTrackRecord(data) {
@@ -11981,7 +11991,7 @@
           ${showConf ? trackRecordSection("SAI by confidence", byConf.map((b) => ({ ...b, label: b.confidence })), { labelKey: "label", key: "by-confidence" }) : ""}
         </div>
         ${!showConf ? `<p class="tr-note">Confidence slices appear once SAI bets store Conf and at least 5 decisive non-unknown bets (backfill links assessments on Summary load).</p>` : ""}
-        <p class="tr-note"><strong>Price</strong> = episode price move. <strong>Follow</strong> = did the buy/sell call help? <strong>Hit</strong> = unweighted bet hit. <strong>Bet-S-Hit</strong> = strength-weighted Hit (diverges on SAI when Conf·Score are present; Patterns/Tech bias stay equal by design). Color: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>. Decisive sample: ${decided}${data.eraCutoffDate ? ` · era since ${escapeHtml(String(data.eraCutoffDate))}` : ""}${data.excludedPreEra ? ` · ${Number(data.excludedPreEra)} pre-era excluded` : ""}.</p>`;
+        <p class="tr-note"><strong>Price</strong> = episode/horizon price move (SAI may early-close on flip; else ~${horizonDays || 21}d — not next-day). <strong>Follow</strong> = did the buy/sell call help? <strong>Hit</strong> = unweighted bet hit. <strong>Bet-S-Hit</strong> = strength-weighted Hit on the same actions (diverges on SAI when Conf·Score are present; Patterns/Tech bias stay equal by design). SAI by confidence is a Conf-label cut, not another weight. Color: <span class="tr-rate tr-good">≥60% strong</span>, <span class="tr-rate tr-mid">40–59% mixed</span>, <span class="tr-rate tr-bad">&lt;40% weak</span>. Decisive sample: ${decided}${data.eraCutoffDate ? ` · era since ${escapeHtml(String(data.eraCutoffDate))}` : ""}${data.excludedPreEra ? ` · ${Number(data.excludedPreEra)} pre-era excluded` : ""}.</p>`;
     }
 
     async function loadTrackRecord() {
@@ -13458,7 +13468,7 @@
         + `</div>`;
     }
 
-    const TECH_STANCE_HELP = "Confluence agent's purely technical read (independent of the SAI):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 scale (left = bearish, center = neutral, right = bullish)\n• Strength — how many technical inputs agree (e.g. moderate · 3/5 across trend, structure, momentum, volume)";
+    const TECH_STANCE_HELP = "Confluence Tech Stance (not SAI Action):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 (left = bearish, center = neutral, right = bullish)\n• Strength — agreement across five lenses: Trend, Structure, Momentum, Pattern, Volume (e.g. moderate · 3/5)\n• Signal Record: captured as Tech bias; scored on the fixed ~21-day horizon (not next-day)\n• Does not weight Bet-S-Hit; may add Trigger +5 when aligned with the published action";
     const INTENT_HELP = "Portfolio Intent — this name's role in the book (not SAI Action):\n• Auto from holdings + planned trades, or Target override\n• tactical / accumulate / core / core_accumulate / divest";
     const SAI_HELP = "SAI = Action (last Assess) · Conf · Score · Sentiment.\n• Action: Buy / Watch / Hold / Sell. Trailing ! = live Score maps to a different action (stale Assess vs moved Score) — not Conf vs Score\n• Score ladder: ≥75 Strong buy · 60–74 Buy · 45–59 Watch · 30–44 Hold/trim · <30 Sell/avoid\n• Conf · Score: High/Med/Low (may soften one notch) · Score 0–100 = State+Trigger+Fit (Score does not drop when Conf softens — hover Conf for pillars)\n• Sentiment: news reaction (else notes). Intent is its own column";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";

@@ -328,6 +328,8 @@ tables when present.
 
 ### Screening "Tech Stance"
 
+Agent Signal Record stores directional Bullish/Bearish confluence as **Tech bias** and scores it on the fixed ~21-day horizon (not next-day). Tech Stance does not enter Bet-S-Hit weights; aligned stance may add **Trigger +5** in the proposal framework (see [PROPOSAL_FRAMEWORK.md](PROPOSAL_FRAMEWORK.md) · [signal_track_record.md](signal_track_record.md)).
+
 The **Tech Stance** column on both the **Screening** and **Patterns & Tech
 Signals** tabs is driven by the **Confluence bias** (`renderTechStanceCell`). When
 a confluence verdict exists it shows the fused bias, a compact score meter

@@ -191,10 +191,12 @@ NULL), provider`. Three side effects fire in the same transaction:
    This powers the Summary "recommendation changes" feed.
 2. **Agent Signal Record** — when `TRACK_RECORD` is on (default), `_capture_signal_outcomes`
    snapshots the recommendation, any non-vetoed/non-stale detected pattern, and a
-   directional Confluence bias as forward-looking "bets" with an entry price and a
-   `TRACK_RECORD_HORIZON_DAYS` (default **21**) per-bet evaluation horizon. At most one
-   *pending* capture per `(symbol, kind, label)` to avoid flooding. Scored outcomes
-   accumulate (no rolling window). See **[signal_track_record.md](signal_track_record.md)**.
+   directional Confluence / Tech bias as forward-looking "bets" with an entry price and a
+   `TRACK_RECORD_HORIZON_DAYS` (default **21 calendar days**) per-bet evaluation horizon —
+   **not** a next-day check. SAI actions may early-close on episode flip; patterns / Tech
+   bias use the fixed horizon. At most one *pending* capture per `(symbol, kind, label)`
+   to avoid flooding. Scored outcomes accumulate (no rolling window). See
+   **[signal_track_record.md](signal_track_record.md)**.
 3. **Trim** — `_trim_assessment_history` keeps only the newest
    `MAX_ASSESSMENTS_PER_SYMBOL = 3` rows per symbol.
 
