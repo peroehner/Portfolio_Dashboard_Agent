@@ -495,7 +495,7 @@ class TrackRecordService:
                 )
                 _accumulate(conflict_bucket, row)
 
-        return {
+        summary = {
             "horizonDays": TRACK_RECORD_HORIZON_DAYS,
             "horizonBandPct": TRACK_RECORD_BAND_PCT,
             "eraCutoffDate": cutoff,
@@ -524,6 +524,15 @@ class TrackRecordService:
                 key=lambda b: _conflict_bucket_sort_key(b.get("conflictBucket")),
             ),
         }
+        from services.track_record_insight import build_insight
+        from services.signal_record_weekly_assessment_service import load_latest_snapshot
+
+        summary["insight"] = build_insight(summary)
+        try:
+            summary["weeklyAssessment"] = load_latest_snapshot(user_id)
+        except Exception:  # noqa: BLE001 - summary should still return if meta read fails
+            summary["weeklyAssessment"] = None
+        return summary
 
 
 def episode_flip_targets(rows: list[Any]) -> list[tuple[int, Any]]:
