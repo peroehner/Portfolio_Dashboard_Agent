@@ -390,6 +390,16 @@ export const api = {
     }>(`/symbols/${encodeURIComponent(symbol)}/news-sentiment`),
   assessmentsOverview: () =>
     apiFetch<{ assessments: import("./types").Assessment[] }>("/assessments/overview"),
+  /** Patterns & Tech Signals bulk map — includes fused techStance / confluence bias. */
+  fibProximity: (symbols?: string[]) => {
+    const q =
+      symbols && symbols.length
+        ? `?symbols=${symbols.map(encodeURIComponent).join(",")}`
+        : "";
+    return apiFetch<{ results: import("./types").FibProximityRow[] }>(`/fib-proximity${q}`, {
+      timeoutMs: OVERVIEW_TIMEOUT_MS,
+    });
+  },
   listAssessments: (symbol: string, limit = 5) =>
     apiFetch<{ assessments: import("./types").Assessment[] }>(
       `/assessments?symbol=${encodeURIComponent(symbol)}&limit=${limit}`,

@@ -11,6 +11,7 @@ import {
 } from "react-native";
 
 import { SaiBadge } from "@/components/SaiBadge";
+import { TechBiasBadge } from "@/components/TechBiasBadge";
 import { SymbolStarPressable } from "@/components/SymbolStarPressable";
 import { TradeBandBar, tradeBandTooltipText } from "@/components/TradeBandBar";
 import {
@@ -48,7 +49,7 @@ interface PortfolioTableProps {
 }
 
 function renderCell(row: PortfolioRow, col: PortfolioColumn): string {
-  if (col.key === "symbol" || col.key === "sai") return "";
+  if (col.key === "symbol" || col.key === "sai" || col.key === "techBias") return "";
   const value = row[col.key as keyof PortfolioRow];
   if (col.key === "quantity") return formatQty(value as number | null);
   if (col.key === "weightPct") return formatWeight(value as number | null);
@@ -113,8 +114,13 @@ export function PortfolioTable({
     return fitStickyScrollColumns(base.sticky, base.scroll, viewportWidth);
   }, [landscape, viewportWidth]);
   const stickyWidth = stickyColumns.reduce((sum, col) => sum + col.width, 0);
-  const symbolWidth = stickyColumns[0].width;
-  const saiWidth = stickyColumns[1].width;
+  const stickyWidthByKey = Object.fromEntries(stickyColumns.map((col) => [col.key, col.width])) as Record<
+    string,
+    number
+  >;
+  const symbolWidth = stickyWidthByKey.symbol ?? stickyColumns[0]?.width ?? 74;
+  const saiWidth = stickyWidthByKey.sai ?? 54;
+  const techBiasWidth = stickyWidthByKey.techBias ?? 48;
   const tableWidth = scrollColumns.reduce((sum, col) => sum + col.width, 0);
   const scrollX = useRef(new Animated.Value(0)).current;
   const [tipSymbol, setTipSymbol] = useState<string | null>(null);
@@ -204,6 +210,9 @@ export function PortfolioTable({
                 <View style={[styles.saiCell, { width: saiWidth }]}>
                   <SaiBadge action={row.saiAction} proposal={row.saiProposal} mini />
                 </View>
+                <View style={[styles.saiCell, { width: techBiasWidth }]}>
+                  <TechBiasBadge bias={row.techBias} mini />
+                </View>
               </View>
             ))}
             {rows.length > 0 ? (
@@ -212,6 +221,7 @@ export function PortfolioTable({
                   <Text style={styles.totalLabel}>{totals.symbol?.text ?? "TOTAL"}</Text>
                 </View>
                 <View style={[styles.saiCell, { width: saiWidth }]} />
+                <View style={[styles.saiCell, { width: techBiasWidth }]} />
               </View>
             ) : null}
           </View>

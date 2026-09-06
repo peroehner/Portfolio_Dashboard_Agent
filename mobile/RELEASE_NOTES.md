@@ -8,6 +8,7 @@
 ```
 Portfolio Dashboard mobile update
 
+• Portfolio: Tech Bias column next to SAI (Bull/LBull/Mix/LBear/Bear)
 • Portfolio sorting: empty values stay at the bottom (asc/desc)
 • Star filter is a toggle (* / +*) — no more *.*.* from repeated taps
 • News & Changes cards: more left-side space, less early wrapping
@@ -22,6 +23,7 @@ Please verify sorting, star toggle, Entry year, note delete, and note save on a 
 ## What’s new
 
 ### Portfolio
+- Sticky **Bias** column next to SAI: stripped-down Tech Stance (Bull / LBull / Mix / LBear / Bear) from fused confluence.
 - Sorting puts empty values at the **end** (not the top), including when sorting descending (e.g. PT Val).
 - Star filter button is a **toggle**: tap adds/removes `*`; long-press adds/removes `+*`. No more `*.*.*` from repeated taps.
 
