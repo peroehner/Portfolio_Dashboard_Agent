@@ -256,6 +256,7 @@ See [.env.example](../.env.example).
 | `TRACK_RECORD_HORIZON_DAYS` | `21` | Days after capture before a bet is scored if no episode flip |
 | `TRACK_RECORD_BAND_PCT` | `2.0` | Dead-band for win/loss vs neutral |
 | `TRACK_RECORD_ERA_CUTOFF_DATE` | `2026-08-02` | Exclude `signal_outcomes` with `captured_at` before this date from Summary / learning aggregates. Empty string disables the filter. Rows are **not** deleted. |
+| `SIGNAL_RECORD_WEEKLY_ASSESSMENT` | `1` | Once per UTC ISO week, persist a Trust/Discount/Use self-assessment snapshot per user (`0` disables) |
 
 ### Era cutoff (enforced, filter-in-query)
 
@@ -272,6 +273,14 @@ linkable SAI recommendation bets (including orphans) so post-era Bet-S-Hit can
 diverge from Hit. Patterns and confluence do not store Conf/Score — Hit equals
 Bet-S-Hit there by design.
 
+### Weekly self-assessment
+
+The background sync loop runs a **weekly** Signal Record self-assessment (same
+rule engine as live Trust/Discount/Use, including High-Conf vs Medium soft spots).
+Snapshots are stored in `app_meta` and returned on `GET /track-record` as
+`weeklyAssessment`. Live Summary also returns `insight` from the server so the
+UI and weekly review stay aligned.
+
 ---
 
 ## Implementation
@@ -284,10 +293,12 @@ Bet-S-Hit there by design.
 | Strength backfill | `TrackRecordService.backfill_recommendation_strength` |
 | Fib capture from alerts | `AlertsService._capture_fib_signal_bet` → `capture_fib_proximity_bet` |
 | Mature + score | `services/track_record_service.py` → `evaluate_due` |
+| Live insight | `services/track_record_insight.py` → `build_insight` (also on `GET /track-record`) |
+| Weekly self-assessment | `services/signal_record_weekly_assessment_service.py` (sync loop, once/ISO week) |
 | API | `GET /api/v1/track-record` |
 | UI | `dashboard.html` → `loadTrackRecord` / `renderTrackRecord` |
 | Storage | `signal_outcomes` (+ `confidence`, `fit_total`, `band_code`, `alert_id`) |
-| Tests | `tests/test_track_record_episodes.py`, `tests/test_track_record_p1.py` |
+| Tests | `tests/test_track_record_episodes.py`, `tests/test_track_record_p1.py`, `tests/test_track_record_insight.py` |
 
 Chart pattern detection, risk validation, and confluence fusion are documented in
 [PATTERNS.md](PATTERNS.md). Assessment and SAI flow in
