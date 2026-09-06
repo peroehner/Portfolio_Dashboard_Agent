@@ -3,6 +3,7 @@
 export type SignalKey =
   | "saiScore"
   | "saiConf"
+  | "techBias"
   | "proximity"
   | "planAttract"
   | "planSellRank"
@@ -32,6 +33,14 @@ export const SIGNAL_GLOSSARY: Record<SignalKey, SignalDef> = {
     shortLabel: "Conf",
     formula: "High ≥75 · Medium ≥35 · else Low (may soften for gates/vetoes)",
     meaning: "Published conviction. Score does not drop when Conf softens.",
+  },
+  techBias: {
+    key: "techBias",
+    label: "Tech Bias",
+    shortLabel: "Bias",
+    formula: "Fused Trend + Structure + Momentum + Pattern + Volume → Bull / LBull / Mix / LBear / Bear",
+    meaning:
+      "Web Tech Stance, stripped for mobile. Complements SAI Action (do this) with tape lean (tape agrees?). Highest Signal Record hit lane historically; not a reweight of SAI.",
   },
   proximity: {
     key: "proximity",

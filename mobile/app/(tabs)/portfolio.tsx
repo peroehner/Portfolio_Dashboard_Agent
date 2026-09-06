@@ -22,10 +22,11 @@ import { useSymbolFilterMatch } from "@/lib/useSymbolFilterMatch";
 import {
   buildPortfolioRows,
   sortPortfolioRows,
+  techBiasMapFromFibProximity,
   type PortfolioSortState,
 } from "@/lib/portfolioTable";
 import { colors, radii, spacing } from "@/lib/theme";
-import type { Assessment, Holding } from "@/lib/types";
+import type { Assessment, Holding, TechBiasInfo } from "@/lib/types";
 import { useApiQuery } from "@/lib/useApiQuery";
 
 type PortfolioMode = "all" | "holdings" | "watch";
@@ -48,6 +49,9 @@ export default function PortfolioScreen() {
   const [addHint, setAddHint] = useState<string | null>(null);
   const [addedSymbol, setAddedSymbol] = useState<string | null>(null);
   const [pullRefreshing, setPullRefreshing] = useState(false);
+  const [techBiasBySymbol, setTechBiasBySymbol] = useState<Map<string, TechBiasInfo>>(
+    () => new Map(),
+  );
   const { data, loading, error, refresh } = useApiQuery(
     async () => {
       const [portfolio, assessments, holdings] = await Promise.all([
@@ -90,6 +94,30 @@ export default function PortfolioScreen() {
 
   const matchesSymbol = useSymbolFilterMatch(filter);
 
+  // Tech Bias loads after the core portfolio payload so the list stays snappy.
+  useEffect(() => {
+    const symbols = (data?.portfolio?.symbols ?? []).map((row) => row.symbol);
+    if (!symbols.length) {
+      setTechBiasBySymbol(new Map());
+      return;
+    }
+    let cancelled = false;
+    void api
+      .fibProximity(symbols)
+      .then((payload) => {
+        if (cancelled) return;
+        setTechBiasBySymbol(techBiasMapFromFibProximity(payload?.results));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // Keep prior bias map on transient failures; blank only when empty.
+        setTechBiasBySymbol((prev) => (prev.size ? prev : new Map()));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [data?.portfolio?.symbols]);
+
   const rows = useMemo(() => {
     const symbols = [...(data?.portfolio?.symbols ?? [])].filter((row) => {
       if (!matchesSymbol(row.symbol)) return false;
@@ -100,9 +128,23 @@ export default function PortfolioScreen() {
       return true;
     });
 
-    const built = buildPortfolioRows(symbols, holdingBySymbol, assessmentBySymbol);
+    const built = buildPortfolioRows(
+      symbols,
+      holdingBySymbol,
+      assessmentBySymbol,
+      techBiasBySymbol,
+    );
     return sortPortfolioRows(built, sort);
-  }, [data?.portfolio?.symbols, filter, mode, sort, holdingBySymbol, assessmentBySymbol, matchesSymbol]);
+  }, [
+    data?.portfolio?.symbols,
+    filter,
+    mode,
+    sort,
+    holdingBySymbol,
+    assessmentBySymbol,
+    techBiasBySymbol,
+    matchesSymbol,
+  ]);
 
   function handleAdded(symbol: string) {
     setMode("watch");

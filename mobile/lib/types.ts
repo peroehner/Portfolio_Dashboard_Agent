@@ -194,6 +194,30 @@ export interface PortfolioRow {
   tradeBelowShares?: number | null;
   tradeAbovePrice?: number | null;
   tradeAboveShares?: number | null;
+  /** Fused Tech Bias / Tech Stance (confluence bias, else Fib advisory). */
+  techBias?: string | null;
+  /** Confluence score (−1…+1) when available — used for sorting. */
+  techBiasScore?: number | null;
+}
+
+export interface TechBiasInfo {
+  bias?: string | null;
+  score?: number | null;
+  strength?: string | null;
+  agreeCount?: number | null;
+  totalSignals?: number | null;
+}
+
+export interface FibProximityRow {
+  symbol: string;
+  techStance?: string | null;
+  confluence?: {
+    bias?: string | null;
+    score?: number | null;
+    strength?: string | null;
+    agreeCount?: number | null;
+    totalSignals?: number | null;
+  } | null;
 }
 
 export interface Alert {

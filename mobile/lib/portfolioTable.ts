@@ -4,6 +4,7 @@ import type { Assessment, Holding, PortfolioRow, PortfolioSymbol, SaiAction } fr
 export type PortfolioSortKey =
   | "symbol"
   | "sai"
+  | "techBias"
   | "currentPrice"
   | "dayChangePct"
   | "tradeBand"
@@ -42,6 +43,7 @@ export interface PortfolioColumn {
 export const STICKY_COLUMNS: PortfolioColumn[] = [
   { key: "symbol", label: "Symbol", width: 74, sticky: true },
   { key: "sai", label: "SAI", width: 54, sticky: true, align: "right" },
+  { key: "techBias", label: "Bias", width: 48, sticky: true, align: "right" },
 ];
 
 export const PORTFOLIO_SCROLL_COLUMNS: PortfolioColumn[] = [
@@ -67,6 +69,7 @@ const LANDSCAPE_WIDTH_SCALE = 1;
 /** Keep header labels on one line when columns are scaled for landscape. */
 const LANDSCAPE_MIN_WIDTHS: Partial<Record<PortfolioSortKey, number>> = {
   symbol: 68,
+  techBias: 46,
   gainPct: 64,
   analystTarget1y: 60,
   analystUpsidePct: 60,
@@ -107,6 +110,22 @@ export function actionRank(action?: SaiAction | null): number {
   if (key === "buy") return 1;
   return 0;
 }
+
+export function techBiasRank(bias?: string | null, score?: number | null): number {
+  if (typeof score === "number" && Number.isFinite(score)) {
+    return score;
+  }
+  const key = String(bias || "").trim().toLowerCase();
+  if (!key) return 0;
+  if (key.includes("lean") && key.includes("bull")) return 0.45;
+  if (key.includes("lean") && key.includes("bear")) return -0.45;
+  if (key.includes("bull") || key === "strong") return 0.8;
+  if (key.includes("bear") || key === "alert") return -0.8;
+  if (key.includes("mix") || key === "neutral") return 0.05;
+  if (key === "cautious") return -0.25;
+  return 0;
+}
+
 
 export function cyclePortfolioSort(
   current: PortfolioSortState,
@@ -177,10 +196,25 @@ export function buildPortfolioRows(
   symbols: PortfolioSymbol[],
   holdingBySymbol: Map<string, Holding>,
   assessmentBySymbol: Map<string, Assessment>,
+  techBiasBySymbol?: Map<string, import("./types").TechBiasInfo>,
 ): PortfolioRow[] {
-  const rows = symbols.map((symbol) =>
-    buildRow(symbol, holdingBySymbol.get(symbol.symbol), assessmentBySymbol.get(symbol.symbol)),
-  );
+  const rows = symbols.map((symbol) => {
+    const row = buildRow(
+      symbol,
+      holdingBySymbol.get(symbol.symbol),
+      assessmentBySymbol.get(symbol.symbol),
+    );
+    const biasInfo = techBiasBySymbol?.get(symbol.symbol);
+    if (!biasInfo) return row;
+    return {
+      ...row,
+      techBias: biasInfo.bias ?? null,
+      techBiasScore:
+        typeof biasInfo.score === "number" && Number.isFinite(biasInfo.score)
+          ? biasInfo.score
+          : null,
+    };
+  });
 
   const totalMarketValue = rows.reduce((sum, row) => sum + (row.marketValue || 0), 0);
   if (!totalMarketValue) return rows;
@@ -197,6 +231,10 @@ export function buildPortfolioRows(
 function sortValue(row: PortfolioRow, key: PortfolioSortKey): string | number | null {
   if (key === "symbol") return row.symbol;
   if (key === "sai") return actionRank(row.saiAction);
+  if (key === "techBias") {
+    const rank = techBiasRank(row.techBias, row.techBiasScore);
+    return row.techBias || typeof row.techBiasScore === "number" ? rank : null;
+  }
   if (key === "tradeBand") {
     const dist = tradeBandClosestDist(row);
     return dist === Infinity ? null : dist;
@@ -303,3 +341,25 @@ export function computePortfolioTotals(
   };
 }
 
+
+
+export function techBiasMapFromFibProximity(
+  results: import("./types").FibProximityRow[] | null | undefined,
+): Map<string, import("./types").TechBiasInfo> {
+  const map = new Map<string, import("./types").TechBiasInfo>();
+  for (const row of results ?? []) {
+    const symbol = String(row.symbol || "").toUpperCase();
+    if (!symbol) continue;
+    const confluence = row.confluence;
+    const bias = confluence?.bias || row.techStance || null;
+    if (!bias) continue;
+    map.set(symbol, {
+      bias,
+      score: typeof confluence?.score === "number" ? confluence.score : null,
+      strength: confluence?.strength ?? null,
+      agreeCount: confluence?.agreeCount ?? null,
+      totalSignals: confluence?.totalSignals ?? null,
+    });
+  }
+  return map;
+}
