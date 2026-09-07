@@ -5656,20 +5656,22 @@
         <p>The Agent Signal Record measures how forward-looking agent calls played out. It is <strong>measurement only</strong> — scores do not yet change future assessments.</p>
 
         <h4>What is captured</h4>
+        <p>Kinds that open Signal Record bets (and what the Summary shows):</p>
         <table class="help-table">
-          <tr><th>Kind</th><th>Source</th><th>How it is timed</th></tr>
-          <tr><td>SAI actions</td><td>Published buy / sell / hold / watch</td><td><strong>Episode</strong>: scored when the action flips, or after the horizon if it never flips</td></tr>
-          <tr><td>Chart patterns</td><td>Detected patterns (veto/stale skipped)</td><td>Fixed horizon (default 21 days)</td></tr>
-          <tr><td>Fib levels</td><td>New Fib proximity alerts</td><td>Fixed horizon; bounce hypothesis from side of level</td></tr>
-          <tr><td>Tech bias</td><td>Bullish / Bearish — fused technical vote at assess time (not SAI Action)</td><td>Fixed horizon</td></tr>
+          <tr><th>Kind</th><th>Source</th><th>How it is timed</th><th>In Summary?</th></tr>
+          <tr><td>SAI actions</td><td>Published buy / sell / hold / watch</td><td><strong>Episode</strong>: scored when the action flips, or after the horizon if it never flips</td><td><strong>Yes</strong> — SAI actions table</td></tr>
+          <tr><td>Chart patterns</td><td>Detected patterns (veto/stale skipped)</td><td>Fixed horizon (default 21 days)</td><td><strong>Yes</strong></td></tr>
+          <tr><td>Tech bias</td><td>Bullish / Bearish — fused technical vote at assess time (not SAI Action)</td><td>Fixed horizon</td><td><strong>Yes</strong></td></tr>
+          <tr><td>Fib levels</td><td>New Fib proximity alerts</td><td>Fixed horizon; bounce hypothesis from side of level</td><td><strong>No</strong> — still captured in the ledger, hidden from the default Summary</td></tr>
         </table>
+        <p><strong>SAI by confidence</strong> is <em>not</em> a separate capture kind. It is a Summary slice of the same SAI action bets grouped by published Conf (High / Medium / Low). It appears when enough non-unknown Conf rows exist.</p>
 
         <h4>Timing (not next-day)</h4>
         <p>Each bet waits its own <strong>evaluation horizon</strong> — default <strong>21 calendar days</strong> (<code>TRACK_RECORD_HORIZON_DAYS</code>). This is <strong>not</strong> a next-session / T+1 check.</p>
         <table class="help-table">
           <tr><th>Kind</th><th>Price window scored</th></tr>
           <tr><td><strong>SAI actions</strong></td><td><strong>Episode</strong> — from open (T1) until the action flips (T2), or until the full horizon if it never flips.</td></tr>
-          <tr><td><strong>Patterns / Tech bias / Fib</strong></td><td><strong>Fixed horizon</strong> — from capture until <code>captured_at + 21 days</code> (no early close).</td></tr>
+          <tr><td><strong>Patterns / Tech bias</strong> (and Fib in the ledger)</td><td><strong>Fixed horizon</strong> — from capture until <code>captured_at + 21 days</code> (no early close).</td></tr>
         </table>
         <p><strong>Horizon ≠ report window.</strong> Summary <em>accumulates</em> all matured bets on/after the era cutoff. There is no rolling “last 21 days only” filter in the UI.</p>
 
@@ -5754,7 +5756,7 @@
 
         <h4>Summary card</h4>
         <p><strong>Overall hit</strong> uses decisive bets only. The insight line is a short <strong>Trust / Discount / Use</strong> briefing: which lanes to trust, which to discount, and how to size or read Follow vs Price.</p>
-        <p>Category tables stay focused on <strong>SAI</strong>, <strong>Patterns</strong>, and <strong>Tech bias</strong> (collapsed until expanded). <strong>Tech bias</strong> (Screening’s <strong>Tech Stance</strong>) = did the fused technical vote (Bullish / Bearish) call the next move over its fixed horizon? It is a <strong>separate bet kind</strong> from SAI — five lenses (Trend, Structure, Momentum, Pattern, Volume). It does <strong>not</strong> feed Bet-S-Hit weights (those use SAI Conf×Score only). When stance aligns with the published action, the proposal framework may add <strong>Trigger +5</strong> (a small Score timing nudge — not a Signal Record weight). Fib levels and Lean/Strong or clean/contested confluence slices stay out of the default Summary — Conf slices appear only when enough non-unknown SAI strength exists.</p>
+        <p>Category tables match the Summary card: <strong>SAI actions</strong>, <strong>Chart patterns</strong>, <strong>Tech bias</strong>, and (when ready) <strong>SAI by confidence</strong>. <strong>Tech bias</strong> (Screening’s <strong>Tech Stance</strong>) = did the fused technical vote (Bullish / Bearish) call the next move over its fixed horizon? It is a <strong>separate bet kind</strong> from SAI — five lenses (Trend, Structure, Momentum, Pattern, Volume). It does <strong>not</strong> feed Bet-S-Hit weights (those use SAI Conf×Score only). When stance aligns with the published action, the proposal framework may add <strong>Trigger +5</strong> (a small Score timing nudge — not a Signal Record weight). <strong>Fib levels</strong> remain captured but stay out of the default Summary, as do Lean/Strong or clean/contested confluence slices.</p>
         <p>The insight line is a short <strong>Trust / Discount / Use</strong> briefing for trade orientation, not a full scorecard essay. Once a week (UTC), the same rules run automatically and the latest snapshot appears as a <strong>Weekly review</strong> above the live briefing.</p>
 
         <h4>Accumulation</h4>
