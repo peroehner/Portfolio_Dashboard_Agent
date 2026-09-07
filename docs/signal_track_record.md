@@ -34,10 +34,10 @@ Stance as its own kind. See [Roadmap](#roadmap--design-not-implemented).
 
 | Kind | Status |
 |------|--------|
-| `recommendation` | Captured with confidence / Fit total / band code (P1) |
-| `pattern` | Captured |
-| `confluence` | Captured |
-| `fib` | Captured from `fib_proximity` alerts (P1) |
+| `recommendation` | Captured with confidence / Fit total / band code (P1) — shown as **SAI actions**; **SAI by confidence** is a Summary *slice* of these same bets, not a separate kind |
+| `pattern` | Captured — shown as **Chart patterns** |
+| `confluence` | Captured — shown as **Tech bias** |
+| `fib` | Captured from `fib_proximity` alerts (P1) — **kept in the ledger; hidden from the default Summary UI** |
 
 **Related but separate:** the **SAI Changes** feed (`recommendation_changelog`)
 logs only when the discrete **action** changes vs the prior assessment. The
@@ -248,9 +248,11 @@ UI colors (green ≥ 60%, amber ≥ 40%) are display thresholds, not proven edge
 - Overall hit rate + evaluated / wins / losses / Price · Follow · Bet Strength Hit
 - Short **Trust / Discount / Use** insight (trade orientation, not a long scorecard)
 - Default tables: **SAI actions**, **Chart patterns**, **Tech bias**
-- **SAI by confidence** only when enough non-unknown Conf bets exist (min decisive N)
-- Fib levels, Confluence Lean/Strong, and clean/contested stay out of the default Summary
-  (API still exposes them and `byFitBand`; they are **not** shown in the default UI.)
+- **SAI by confidence** only when enough non-unknown Conf bets exist (min decisive N) —
+  same SAI action bets, grouped by Conf Label (not a fourth capture kind)
+- **Fib levels** stay captured in `signal_outcomes` but are **not** shown in the default
+  Summary (same for Confluence Lean/Strong and clean/contested; API still exposes them
+  and `byFitBand`)
 
 Color bands (hit rate): green ≥ 60%, amber ≥ 40%, red below.
 
