@@ -905,7 +905,14 @@ export default function TradePlanScreen() {
           onPress={() => openSymbol(row.symbol, browseSymbols, "trade-plan")}
         >
           <View style={styles.cardHead}>
-            <Text style={styles.symbol}>{row.symbol}</Text>
+            <View style={styles.symbolCol}>
+              <Text style={styles.symbol}>{row.symbol}</Text>
+              {qualifies ? (
+                <Text style={styles.badgeSellProposed}>PROPOSED</Text>
+              ) : gatePasses ? (
+                <Text style={styles.badgeSellQualified}>QUALIFIED</Text>
+              ) : null}
+            </View>
             <Text style={[styles.execHint, styles.execHintStrong]}>
               @ {row.execSource === "threshold" ? "The" : "Cur"} {formatPrice(row.execPrice)}
             </Text>
@@ -931,14 +938,6 @@ export default function TradePlanScreen() {
                 <GlossaryHint signal="planSellRank" label={rankSortLabel} style={styles.metricLabel} />
                 <Text style={styles.metricValue}>{` ${Math.round(scoreModeValue(row))}`}</Text>
               </View>
-              {qualificationMode === "score" ? (
-                <Text style={styles.metricSub}>
-                  C{row.convictionScore} · R{row.readinessScore} · E{row.executionScore}
-                </Text>
-              ) : null}
-              {scoreReason || budgetReason ? (
-                <Text style={styles.metricSub}>{scoreReason || budgetReason}</Text>
-              ) : null}
             </View>
           ) : (
             <View style={[styles.metricsRow, wideCards && styles.metricsRowWide]}>
@@ -981,11 +980,6 @@ export default function TradePlanScreen() {
               </View>
             </View>
           )}
-          {qualificationMode === "score" ? (
-            <Text style={styles.metricSub}>
-              Conviction {row.convictionScore} · Readiness {row.readinessScore} · Execution {row.executionScore}
-            </Text>
-          ) : null}
           {scoreReason || budgetReason ? (
             <Text style={styles.metricSub}>{scoreReason || budgetReason}</Text>
           ) : null}
@@ -1019,7 +1013,14 @@ export default function TradePlanScreen() {
           onPress={() => openSymbol(row.symbol, browseSymbols, "trade-plan")}
         >
           <View style={styles.cardHead}>
-            <Text style={styles.symbol}>{row.symbol}</Text>
+            <View style={styles.symbolCol}>
+              <Text style={styles.symbol}>{row.symbol}</Text>
+              {qualifies ? (
+                <Text style={styles.badgeBuyProposed}>PROPOSED</Text>
+              ) : gatePasses ? (
+                <Text style={styles.badgeBuyQualified}>QUALIFIED</Text>
+              ) : null}
+            </View>
             <Text style={[styles.execHint, styles.execHintStrong]}>
               @ {row.execSource === "threshold" ? "The" : "Cur"} {formatPrice(row.execPrice)}
             </Text>
@@ -1047,14 +1048,6 @@ export default function TradePlanScreen() {
                   {` ${row.saiScore == null ? "—" : Math.round(scoreModeValue(row))}`}
                 </Text>
               </View>
-              {qualificationMode === "score" ? (
-                <Text style={styles.metricSub}>
-                  C{row.convictionScore} · R{row.readinessScore} · E{row.executionScore}
-                </Text>
-              ) : null}
-              {scoreReason || budgetReason ? (
-                <Text style={styles.metricSub}>{scoreReason || budgetReason}</Text>
-              ) : null}
             </View>
           ) : (
             <View style={[styles.metricsRow, wideCards && styles.metricsRowWide]}>
@@ -1082,11 +1075,6 @@ export default function TradePlanScreen() {
               </View>
             </View>
           )}
-          {qualificationMode === "score" ? (
-            <Text style={styles.metricSub}>
-              Conviction {row.convictionScore} · Readiness {row.readinessScore} · Execution {row.executionScore}
-            </Text>
-          ) : null}
           {scoreReason || budgetReason ? (
             <Text style={styles.metricSub}>{scoreReason || budgetReason}</Text>
           ) : null}
@@ -1341,7 +1329,52 @@ const styles = StyleSheet.create({
   sellGainTint: { borderLeftWidth: 3, borderLeftColor: colors.buy },
   sellLossTint: { borderLeftWidth: 3, borderLeftColor: colors.sell },
   cardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: spacing.sm },
+  symbolCol: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap", flex: 1 },
   symbol: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  badgeSellProposed: {
+    color: "#0b1f3a",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    backgroundColor: "#93c5fd",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  badgeSellQualified: {
+    color: "#93c5fd",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    backgroundColor: "rgba(147,197,253,0.2)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  badgeBuyProposed: {
+    color: "#3b1a05",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    backgroundColor: "#fdba74",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  badgeBuyQualified: {
+    color: "#fdba74",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    backgroundColor: "rgba(253,186,116,0.2)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
   execHint: { color: colors.textMuted, fontSize: 11 },
   execHintStrong: { color: colors.text, fontSize: 16, fontWeight: "700", lineHeight: 20 },
   metricsRow: { flexDirection: "row", gap: spacing.sm },
