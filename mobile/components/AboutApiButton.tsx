@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text } from "react-native";
 
@@ -28,12 +29,20 @@ function formatAboutMessage(
   if (session?.refreshedAt) lines.push(`Refreshed: ${session.refreshedAt}`);
   if (lines.length) lines.push("");
 
+  const clientVersion =
+    Constants.nativeAppVersion || Constants.expoConfig?.version || "1.0.0";
+  const clientBuild =
+    Constants.nativeBuildVersion ||
+    (Constants.expoConfig?.ios as { buildNumber?: string } | undefined)?.buildNumber ||
+    "—";
+
   lines.push(
-    `App v${config?.appVersion || deploy?.appVersion || "1.0"}`,
+    `Mobile client: ${clientVersion} (${clientBuild})`,
+    `API app v${config?.appVersion || deploy?.appVersion || "1.0"}`,
     `Environment: ${config?.environment || deploy?.environment || "—"}`,
-    `Build (git): ${config?.build || deploy?.build || "—"}`,
-    `Git commit: ${config?.gitCommit || deploy?.gitCommit || "—"}`,
-    `Branch: ${config?.gitBranch || deploy?.gitBranch || "—"}`,
+    `API build (git): ${config?.build || deploy?.build || "—"}`,
+    `API git commit: ${config?.gitCommit || deploy?.gitCommit || "—"}`,
+    `API branch: ${config?.gitBranch || deploy?.gitBranch || "—"}`,
     `API host: ${config?.host || deploy?.host || getApiHostLabel()}`,
     `Client → ${getApiHostLabel()}`,
     `Base URL: ${getApiBaseUrl()}`,
