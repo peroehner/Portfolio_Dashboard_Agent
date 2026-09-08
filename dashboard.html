@@ -14997,12 +14997,19 @@
 
     function updateScreeningFilterButtons() {
       document.querySelectorAll("#view-screening .filter-btn").forEach((button) => {
+        if (button.id === "btnScreenBuyScoreSort") {
+          button.classList.toggle("active", tableSortState.screening?.key === "buyScore");
+          return;
+        }
         button.classList.toggle("active", button.dataset.screenFilter === screeningFilter);
       });
     }
 
     function setScreeningFilter(filter) {
       screeningFilter = filter || "all";
+      if (tableSortState.screening?.key === "buyScore") {
+        delete tableSortState.screening;
+      }
       saveFilterState();
       updateScreeningFilterButtons();
       loadScreening("", false);
