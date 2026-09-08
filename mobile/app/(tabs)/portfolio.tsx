@@ -158,7 +158,7 @@ export default function PortfolioScreen() {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <Screen
         title="Portfolio"
-        subtitle={`${rows.length} shown · tap headers to sort · swipe columns →`}
+        subtitle={`${rows.length} shown · Trade sorts L then R · swipe →`}
         loading={loading && !data}
         error={error}
         onRetry={() => void refresh()}

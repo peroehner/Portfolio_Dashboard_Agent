@@ -198,6 +198,14 @@ export interface PortfolioRow {
   techBias?: string | null;
   /** Confluence score (−1…+1) when available — used for sorting. */
   techBiasScore?: number | null;
+  /** Price as % of 52W high when known (Trim Score peak leg). */
+  peakPct?: number | null;
+  /** Plan Sell Rank (lower = stronger sell-to-fire). */
+  sellRank?: number | null;
+  /** Tax & Trim Loss Score (losers only). */
+  lossScore?: number | null;
+  /** Tax & Trim Trim Score (winners only). */
+  trimScore?: number | null;
 }
 
 export interface TechBiasInfo {

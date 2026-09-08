@@ -1,4 +1,10 @@
 import { formatMoney, formatPct, formatQty, formatWeight, pctColor } from "@/lib/format";
+import {
+  lossScore,
+  planSellRankForRow,
+  tradeBandSideDist,
+  trimScore,
+} from "@/lib/signalScores";
 import type { Assessment, Holding, PortfolioRow, PortfolioSymbol, SaiAction } from "@/lib/types";
 
 export type PortfolioSortKey =
@@ -8,6 +14,9 @@ export type PortfolioSortKey =
   | "currentPrice"
   | "dayChangePct"
   | "tradeBand"
+  | "sellRank"
+  | "lossScore"
+  | "trimScore"
   | "quantity"
   | "marketValue"
   | "weightPct"
@@ -22,10 +31,13 @@ export type PortfolioSortKey =
   | "personalTargetValue";
 
 export type SortDirection = "asc" | "desc";
+export type TradeSortSide = "below" | "above";
 
 export interface PortfolioSortState {
   key: PortfolioSortKey | null;
   direction: SortDirection | null;
+  /** For Trade column: closest to left (Below) vs right (Above) threshold. */
+  tradeSide?: TradeSortSide | null;
 }
 
 export interface PortfolioColumn {
@@ -50,6 +62,9 @@ export const PORTFOLIO_SCROLL_COLUMNS: PortfolioColumn[] = [
   { key: "currentPrice", label: "Price", width: 78, align: "right", price: true },
   { key: "dayChangePct", label: "Day %", width: 64, align: "right", pct: true },
   { key: "tradeBand", label: "Trade", width: 150, tradeBand: true },
+  { key: "sellRank", label: "SRank", width: 52, align: "right" },
+  { key: "lossScore", label: "Loss", width: 48, align: "right" },
+  { key: "trimScore", label: "Trim", width: 48, align: "right" },
   { key: "quantity", label: "Qty", width: 56, align: "right" },
   { key: "marketValue", label: "Value", width: 72, align: "right", money: true },
   { key: "weightPct", label: "Wt %", width: 58, align: "right" },
@@ -131,9 +146,19 @@ export function cyclePortfolioSort(
   current: PortfolioSortState,
   key: PortfolioSortKey,
 ): PortfolioSortState {
-  if (current.key !== key) return { key, direction: "asc" };
-  if (current.direction === "asc") return { key, direction: "desc" };
-  return { key: null, direction: null };
+  // Trade cycles sides (both closest-first), not asc/desc on nearest-any.
+  if (key === "tradeBand") {
+    if (current.key !== "tradeBand") {
+      return { key: "tradeBand", direction: "asc", tradeSide: "below" };
+    }
+    if (current.tradeSide === "below") {
+      return { key: "tradeBand", direction: "asc", tradeSide: "above" };
+    }
+    return { key: null, direction: null, tradeSide: null };
+  }
+  if (current.key !== key) return { key, direction: "asc", tradeSide: null };
+  if (current.direction === "asc") return { key, direction: "desc", tradeSide: null };
+  return { key: null, direction: null, tradeSide: null };
 }
 
 function upsidePct(target: number | null | undefined, price: number | null | undefined): number | null {
@@ -142,16 +167,69 @@ function upsidePct(target: number | null | undefined, price: number | null | und
 }
 
 export function tradeBandClosestDist(row: PortfolioRow): number {
-  const price = row.currentPrice;
-  if (price == null || price === 0) return Infinity;
-  const dists: number[] = [];
-  if (row.tradeBelowPrice != null) {
-    dists.push((Math.abs(price - row.tradeBelowPrice) / price) * 100);
-  }
-  if (row.tradeAbovePrice != null) {
-    dists.push((Math.abs(row.tradeAbovePrice - price) / price) * 100);
-  }
+  const below = tradeBandSideDist(row, "below");
+  const above = tradeBandSideDist(row, "above");
+  const dists = [below, above].filter((d): d is number => d != null);
   return dists.length ? Math.min(...dists) : Infinity;
+}
+
+export function tradeBandBelowDist(row: PortfolioRow): number | null {
+  return tradeBandSideDist(row, "below");
+}
+
+export function tradeBandAboveDist(row: PortfolioRow): number | null {
+  return tradeBandSideDist(row, "above");
+}
+
+function planBuyQty(row: {
+  tradeBelowShares?: number | null;
+  tradeAboveShares?: number | null;
+}): number {
+  let buy = 0;
+  const below = Number(row.tradeBelowShares) || 0;
+  const above = Number(row.tradeAboveShares) || 0;
+  if (below > 0) buy += below;
+  if (above > 0) buy += above;
+  return buy;
+}
+
+function planSellQty(row: {
+  tradeBelowShares?: number | null;
+  tradeAboveShares?: number | null;
+}): number {
+  let sell = 0;
+  const below = Number(row.tradeBelowShares) || 0;
+  const above = Number(row.tradeAboveShares) || 0;
+  if (below < 0) sell += Math.abs(below);
+  if (above < 0) sell += Math.abs(above);
+  // Unsigned Above defaults to sell intent in plan math when shares unset —
+  // intentPts only count explicit share signs here.
+  return sell;
+}
+
+function enrichScoreFields(row: PortfolioRow): PortfolioRow {
+  const held = Number(row.quantity) || 0;
+  const sellRank = planSellRankForRow(row);
+  const loss = lossScore(row.gainPct, row.analystUpsidePct);
+  const trim =
+    held > 0
+      ? trimScore({
+          gainPct: row.gainPct,
+          analystUpsidePct: row.analystUpsidePct,
+          personalUpsidePct: row.personalUpsidePct,
+          peakPct: row.peakPct,
+          weightPct: row.weightPct,
+          buyQty: planBuyQty(row),
+          sellQty: planSellQty(row),
+          held,
+        })
+      : null;
+  return {
+    ...row,
+    sellRank,
+    lossScore: loss,
+    trimScore: trim,
+  };
 }
 
 function buildRow(
@@ -205,30 +283,38 @@ export function buildPortfolioRows(
       assessmentBySymbol.get(symbol.symbol),
     );
     const biasInfo = techBiasBySymbol?.get(symbol.symbol);
-    if (!biasInfo) return row;
-    return {
-      ...row,
-      techBias: biasInfo.bias ?? null,
-      techBiasScore:
-        typeof biasInfo.score === "number" && Number.isFinite(biasInfo.score)
-          ? biasInfo.score
-          : null,
-    };
+    const withBias = !biasInfo
+      ? row
+      : {
+          ...row,
+          techBias: biasInfo.bias ?? null,
+          techBiasScore:
+            typeof biasInfo.score === "number" && Number.isFinite(biasInfo.score)
+              ? biasInfo.score
+              : null,
+        };
+    return enrichScoreFields(withBias);
   });
 
   const totalMarketValue = rows.reduce((sum, row) => sum + (row.marketValue || 0), 0);
-  if (!totalMarketValue) return rows;
+  if (!totalMarketValue) return rows.map(enrichScoreFields);
 
-  return rows.map((row) => ({
-    ...row,
-    weightPct:
-      row.marketValue != null
-        ? Math.round((row.marketValue / totalMarketValue) * 1000) / 10
-        : null,
-  }));
+  return rows.map((row) =>
+    enrichScoreFields({
+      ...row,
+      weightPct:
+        row.marketValue != null
+          ? Math.round((row.marketValue / totalMarketValue) * 1000) / 10
+          : null,
+    }),
+  );
 }
 
-function sortValue(row: PortfolioRow, key: PortfolioSortKey): string | number | null {
+function sortValue(
+  row: PortfolioRow,
+  key: PortfolioSortKey,
+  tradeSide?: TradeSortSide | null,
+): string | number | null {
   if (key === "symbol") return row.symbol;
   if (key === "sai") return actionRank(row.saiAction);
   if (key === "techBias") {
@@ -236,9 +322,12 @@ function sortValue(row: PortfolioRow, key: PortfolioSortKey): string | number | 
     return row.techBias || typeof row.techBiasScore === "number" ? rank : null;
   }
   if (key === "tradeBand") {
-    const dist = tradeBandClosestDist(row);
-    return dist === Infinity ? null : dist;
+    const side = tradeSide === "above" ? "above" : "below";
+    return tradeBandSideDist(row, side);
   }
+  if (key === "sellRank") return row.sellRank ?? null;
+  if (key === "lossScore") return row.lossScore ?? null;
+  if (key === "trimScore") return row.trimScore ?? null;
   return row[key as keyof PortfolioRow] as number | null;
 }
 
@@ -247,9 +336,10 @@ function compareRows(
   b: PortfolioRow,
   key: PortfolioSortKey,
   direction: SortDirection,
+  tradeSide?: TradeSortSide | null,
 ): number {
-  const av = sortValue(a, key);
-  const bv = sortValue(b, key);
+  const av = sortValue(a, key, tradeSide);
+  const bv = sortValue(b, key, tradeSide);
   const aNull = av == null || av === "";
   const bNull = bv == null || bv === "";
   if (aNull && bNull) return a.symbol.localeCompare(b.symbol);
@@ -273,13 +363,23 @@ export function sortPortfolioRows(
     return sorted;
   }
   sorted.sort((a, b) =>
-    compareRows(a, b, sort.key as PortfolioSortKey, sort.direction as SortDirection),
+    compareRows(
+      a,
+      b,
+      sort.key as PortfolioSortKey,
+      sort.direction as SortDirection,
+      sort.tradeSide,
+    ),
   );
   return sorted;
 }
 
 export function sortHeaderLabel(label: string, key: PortfolioSortKey, sort: PortfolioSortState): string {
   if (sort.key !== key || !sort.direction) return label;
+  if (key === "tradeBand") {
+    const side = sort.tradeSide === "above" ? "R" : "L";
+    return `${label} · ${side} ↑`;
+  }
   return sort.direction === "asc" ? `${label} ↑` : `${label} ↓`;
 }
 

@@ -10102,13 +10102,27 @@
       }
     }
 
-    function cycleTableSort(tableId, columnKey, ascFirst = false) {
+    function cycleTableSort(tableId, columnKey, ascFirst = false, tradeSideCycle = false) {
       // Default columns cycle desc → asc → unsorted. ascFirst columns (the
       // price-level %-deviation ones) cycle asc → desc → unsorted so the first
       // click surfaces the smallest deviation (price closest to the level).
+      // tradeSideCycle (Trade Range / Close %): Below (L) closest → Above (R)
+      // closest → unsorted — both sides sort ascending (closest first).
+      const current = tableSortState[tableId];
+      if (tradeSideCycle) {
+        if (!current || current.key !== columnKey) {
+          tableSortState[tableId] = { key: columnKey, dir: "asc", tradeSide: "below" };
+          return;
+        }
+        if (current.tradeSide === "below") {
+          tableSortState[tableId] = { key: columnKey, dir: "asc", tradeSide: "above" };
+          return;
+        }
+        delete tableSortState[tableId];
+        return;
+      }
       const first = ascFirst ? "asc" : "desc";
       const second = ascFirst ? "desc" : "asc";
-      const current = tableSortState[tableId];
       if (!current || current.key !== columnKey) {
         tableSortState[tableId] = { key: columnKey, dir: first };
         return;
@@ -10123,6 +10137,8 @@
     function sortIndicator(tableId, columnKey) {
       const state = tableSortState[tableId];
       if (!state || state.key !== columnKey) return "";
+      if (state.tradeSide === "below") return " · L ▲";
+      if (state.tradeSide === "above") return " · R ▲";
       return state.dir === "desc" ? "▼" : "▲";
     }
 
@@ -10237,7 +10253,8 @@
         const indicator = sortIndicator(tableId, column.key);
         const subLabel = column.subLabel ? `<span class="th-sublabel">${column.subLabel}</span>` : "";
         const ascFirstAttr = column.ascFirst ? ` data-asc-first="1"` : "";
-        return `<th class="sortable${active}" data-table-id="${tableId}" data-sort-key="${column.key}"${ascFirstAttr}><span class="th-label">${column.label}${helpMark}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></span>${subLabel}</th>`;
+        const tradeSideAttr = column.tradeSideCycle ? ` data-trade-side-cycle="1"` : "";
+        return `<th class="sortable${active}" data-table-id="${tableId}" data-sort-key="${column.key}"${ascFirstAttr}${tradeSideAttr}><span class="th-label">${column.label}${helpMark}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></span>${subLabel}</th>`;
       }).join("");
       const keyColumn = columns.find((column) => column.rowKey) || columns[0];
       const selectedKey = tableSelection[selectionKeyFor(tableId)];
@@ -12607,6 +12624,32 @@
       { key: "annualDividend", label: "Dividend", sortValue: (row) => row.annualDividend, render: (row) => formatHoldingsCompactMoney(row.annualDividend) },
       { key: "unrealizedGain", label: "Gain", sortValue: (row) => row.unrealizedGain, render: (row) => renderHoldingsCompactMoneyCell(row.unrealizedGain) },
       { key: "gainPct", label: "Gain %", coloredPercent: true, sortValue: (row) => row.gainPct, render: (row) => renderHoldingsPercentCell(row.gainPct) },
+      {
+        key: "lossScore",
+        label: "Loss",
+        help: SCREEN_LOSS_SCORE_HELP,
+        sortValue: (row) => {
+          const score = holdingsLossScore(row);
+          return score == null ? -1 : score;
+        },
+        render: (row) => {
+          const score = holdingsLossScore(row);
+          return score == null ? "—" : String(Math.round(score));
+        },
+      },
+      {
+        key: "trimScore",
+        label: "Trim",
+        help: SCREEN_TRIM_SCORE_HELP,
+        sortValue: (row) => {
+          const score = holdingsTrimScore(row);
+          return score == null ? -1 : score;
+        },
+        render: (row) => {
+          const score = holdingsTrimScore(row);
+          return score == null ? "—" : String(Math.round(score));
+        },
+      },
       { key: "analystTarget1y", label: "1YT", sortValue: (row) => row.analystTarget1y, render: (row) => formatHoldingsCompactMoney(row.analystTarget1y) },
       { key: "analystUpsidePct", label: "1YT %", coloredPercent: true, sortValue: (row) => row.analystUpsidePct, render: (row) => renderHoldingsPercentCell(row.analystUpsidePct) },
       { key: "analystTargetValue", label: "1YT Val", sortValue: (row) => row.analystTargetValue, render: (row) => formatHoldingsCompactMoney(row.analystTargetValue) },
@@ -12614,6 +12657,44 @@
       { key: "personalUpsidePct", label: "PT %", coloredPercent: true, sortValue: (row) => holdingsPtUpside(row), render: (row) => renderHoldingsPercentCell(holdingsPtUpside(row)) },
       { key: "personalTargetValue", label: "PT Val", sortValue: (row) => row.personalTargetValue, render: (row) => formatHoldingsCompactMoney(row.personalTargetValue) },
     ];
+
+    function holdingsScreenRow(row) {
+      return (viewDataCache.screening?.data || []).find((r) => r.symbol === row.symbol) || null;
+    }
+
+    function holdingsLossScore(row) {
+      const gainPct = Number(row.gainPct);
+      if (!Number.isFinite(gainPct) || gainPct >= 0) return null;
+      return taxProposalLossScore(gainPct, Number(row.analystUpsidePct));
+    }
+
+    function holdingsTrimScore(row) {
+      const held = Number(row.quantity) || 0;
+      if (!(held > 0)) return null;
+      const gainPct = Number(row.gainPct);
+      if (!Number.isFinite(gainPct) || gainPct <= 0) return null;
+      const screen = holdingsScreenRow(row);
+      const fundRow = (fundamentalsRows || []).find((r) => r.symbol === row.symbol) || null;
+      const peakPct = screen ? fundPeakProximityPct(screen, fundRow) : null;
+      const buyLeg = screen
+        ? evalTradeLeg(screen.tradeBelowPrice, screen.tradeBelowShares, "below")
+        : null;
+      const sellLeg = screen
+        ? evalTradeLeg(screen.tradeAbovePrice, screen.tradeAboveShares, "above")
+        : null;
+      const buyQty = buyLeg && buyLeg.buy ? (buyLeg.qty || 0) : 0;
+      const sellQty = sellLeg && !sellLeg.buy ? (sellLeg.qty || 0) : 0;
+      const parts = taxProposalTrimScoreParts({
+        analystUpsidePct: Number(row.analystUpsidePct),
+        personalUpsidePct: holdingsPtUpside(row),
+        peakPct,
+        weightPct: Number(row.weightPct),
+        buyQty,
+        sellQty,
+        held,
+      });
+      return parts.trimScore;
+    }
 
     let holdingsFilter = "held";
     let holdingsRows = [];
@@ -13347,15 +13428,75 @@
       return renderTechStanceCell(row);
     }
 
-    // Percent distance from the current price to the nearest planned-trade
-    // threshold. Drives the Trade Band "heat" and the column sort (closest first).
-    function tradeBandClosestDist(row) {
+    // Percent distance from the current price to a planned-trade threshold side.
+    // Trade Range / Close % sort cycles Below (L) → Above (R), closest first.
+    function tradeBandBelowDist(row) {
       const price = row.currentPrice;
-      if (price == null || price === 0) return Infinity;
-      const dists = [];
-      if (row.tradeBelowPrice != null) dists.push(Math.abs(price - row.tradeBelowPrice) / price * 100);
-      if (row.tradeAbovePrice != null) dists.push(Math.abs(row.tradeAbovePrice - price) / price * 100);
+      if (price == null || price === 0 || row.tradeBelowPrice == null) return Infinity;
+      return Math.abs(price - row.tradeBelowPrice) / price * 100;
+    }
+
+    function tradeBandAboveDist(row) {
+      const price = row.currentPrice;
+      if (price == null || price === 0 || row.tradeAbovePrice == null) return Infinity;
+      return Math.abs(row.tradeAbovePrice - price) / price * 100;
+    }
+
+    function tradeBandClosestDist(row) {
+      const dists = [tradeBandBelowDist(row), tradeBandAboveDist(row)].filter(Number.isFinite);
       return dists.length ? Math.min(...dists) : Infinity;
+    }
+
+    function tradeBandSortDist(tableId, row) {
+      const side = tableSortState[tableId]?.tradeSide === "above" ? "above" : "below";
+      return side === "above" ? tradeBandAboveDist(row) : tradeBandBelowDist(row);
+    }
+
+    function screeningPlanSellRank(row) {
+      const legs = [
+        evalTradeLeg(row.tradeBelowPrice, row.tradeBelowShares, "below"),
+        evalTradeLeg(row.tradeAbovePrice, row.tradeAboveShares, "above"),
+      ].filter((leg) => leg && !leg.buy);
+      if (!legs.length) return null;
+      let best = null;
+      legs.forEach((leg) => {
+        const parts = planLegAttractParts(row.currentPrice, leg);
+        if (!parts) return;
+        if (best == null || parts.planSellRank < best) best = parts.planSellRank;
+      });
+      return best;
+    }
+
+    function screeningLossScore(row) {
+      const gainPct = Number(row.holding?.gainPct);
+      if (!Number.isFinite(gainPct) || gainPct >= 0) return null;
+      const upside = Number(row.holding?.analystUpsidePct ?? row.upsidePct);
+      return taxProposalLossScore(gainPct, Number.isFinite(upside) ? upside : null);
+    }
+
+    function screeningTrimScore(row) {
+      const held = Number(row.holding?.quantity) || 0;
+      if (!(held > 0)) return null;
+      const gainPct = Number(row.holding?.gainPct);
+      if (!Number.isFinite(gainPct) || gainPct <= 0) return null;
+      const fundRow = (fundamentalsRows || []).find((r) => r.symbol === row.symbol) || null;
+      const peakPct = fundPeakProximityPct(row, fundRow);
+      const buyLeg = evalTradeLeg(row.tradeBelowPrice, row.tradeBelowShares, "below");
+      const sellLeg = evalTradeLeg(row.tradeAbovePrice, row.tradeAboveShares, "above");
+      const buyQty = buyLeg && buyLeg.buy ? (buyLeg.qty || 0) : 0;
+      const sellQty = sellLeg && !sellLeg.buy ? (sellLeg.qty || 0) : 0;
+      const personalUpside = taxProposalPersonalUpsidePct(row);
+      const analystUpside = Number(row.holding?.analystUpsidePct ?? row.upsidePct);
+      const parts = taxProposalTrimScoreParts({
+        analystUpsidePct: Number.isFinite(analystUpside) ? analystUpside : null,
+        personalUpsidePct: personalUpside,
+        peakPct,
+        weightPct: taxProposalWeightPct(row),
+        buyQty,
+        sellQty,
+        held,
+      });
+      return parts.trimScore;
     }
 
     // Proximity gauge. The track spans a corridor sized to show every marker:
@@ -13474,10 +13615,13 @@
     const INTENT_HELP = "Portfolio Intent — this name's role in the book (not SAI Action):\n• Auto from holdings + planned trades, or Target override\n• tactical / accumulate / core / core_accumulate / divest";
     const SAI_HELP = "SAI = Action (last Assess) · Conf · Score · Sentiment.\n• Action: Buy / Watch / Hold / Sell. Trailing ! = live Score maps to a different action (stale Assess vs moved Score) — not Conf vs Score\n• Score ladder: ≥75 Strong buy · 60–74 Buy · 45–59 Watch · 30–44 Hold/trim · <30 Sell/avoid\n• Conf · Score: High/Med/Low (may soften one notch) · Score 0–100 = State+Trigger+Fit (Score does not drop when Conf softens — hover Conf for pillars)\n• Sentiment: news reaction (else notes). Intent is its own column";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
-    const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort by closest threshold first";
+    const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort: 1st click = closest to Below (L) · 2nd = closest to Above (R) · 3rd = clear";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
     const SIM_SYMBOL_HELP = "Ticker with at least one priced planned-trade threshold. Click to open in Target.";
-    const SIM_CLOSE_PCT_HELP = "Rule of thumb: LOWER Close % = closer to firing.\n• Distance to nearest in-scope planned-trade threshold (Buys / Sells / Both)\n• ▼ price above threshold · ▲ below\n• Sort ascending to surface trades about to fire";
+    const SIM_CLOSE_PCT_HELP = "Rule of thumb: LOWER Close % = closer to firing.\n• Distance to the sorted threshold side (Below / Above), respecting Buys / Sells / Both when filtering\n• Sort: 1st click = closest to Below (L) · 2nd = closest to Above (R) · 3rd = clear\n• ▼ price above threshold · ▲ below";
+    const SCREEN_SELL_RANK_HELP = "Plan Sell Rank (lower = stronger sell-to-fire).\n• Base = 80 − Attract (Proximity + Trigger + Size) on sell legs\n• Same math as Simulation Sell Rank / mobile Sell Plan (before conviction penalty)\n• — when no sell threshold";
+    const SCREEN_LOSS_SCORE_HELP = "Tax & Trim Loss Score (higher = stronger harvest candidate).\n• Residual loss after 1YT upside (0–50 curve)\n• — for non-losers / no cost basis";
+    const SCREEN_TRIM_SCORE_HELP = "Tax & Trim Trim Score (higher = stronger winner-trim candidate).\n• Exhaustion + 52W peak + weight + plan intent\n• — for non-winners / non-held\n• Not Sell Rank";
     const SIM_BUY_SCORE_HELP = "Rule of thumb: HIGHER Buy Score = stronger buy-to-fire.\n• Effective = SAI Score − conviction penalty (High 0 · Med 6 · Low 12 · Attention ! +5)\n• Number shown is already effective — hover the cell for base vs penalty\n• Same as mobile Buy Plan Score mode. — if no Assess yet";
     const SIM_SELL_RANK_HELP = "Rule of thumb: LOWER Sell Rank = stronger sell-to-fire.\n• Effective = (80 − Attract P/T/S) + conviction penalty (High 0 · Med 6 · Low 12 · Attention ! +5)\n• Number shown is already effective — hover the cell for P/T/S + penalty\n• Not Trim Score (Tax & Trim harvest). Same as mobile Sell Plan Score mode";
     const SIM_NET_GAINS_HELP = "Realized gain on in-scope SELL legs:\n• (avg sell price − cost/share) × shares sold\n• Cost/share — holding average cost when on file, otherwise share-weighted planned BUY threshold\n• — when no in-scope sells, or no derivable cost (UNKNOWN-WINS)";
@@ -13560,8 +13704,48 @@
         key: "tradeBand",
         label: "Trade Range",
         help: TRADE_RANGE_HELP,
-        sortValue: (row) => tradeBandClosestDist(row),
+        tradeSideCycle: true,
+        sortValue: (row) => tradeBandSortDist("screening", row),
         render: (row) => screeningTargetLink(row.symbol, renderTradeBandCell(row), `Edit ${row.symbol} planned trades in Target`),
+      },
+      {
+        key: "sellRank",
+        label: "SRank",
+        help: SCREEN_SELL_RANK_HELP,
+        sortValue: (row) => {
+          const rank = screeningPlanSellRank(row);
+          return rank == null ? Infinity : rank;
+        },
+        render: (row) => {
+          const rank = screeningPlanSellRank(row);
+          return rank == null ? "—" : String(Math.round(rank));
+        },
+      },
+      {
+        key: "lossScore",
+        label: "Loss",
+        help: SCREEN_LOSS_SCORE_HELP,
+        sortValue: (row) => {
+          const score = screeningLossScore(row);
+          return score == null ? -1 : score;
+        },
+        render: (row) => {
+          const score = screeningLossScore(row);
+          return score == null ? "—" : String(Math.round(score));
+        },
+      },
+      {
+        key: "trimScore",
+        label: "Trim",
+        help: SCREEN_TRIM_SCORE_HELP,
+        sortValue: (row) => {
+          const score = screeningTrimScore(row);
+          return score == null ? -1 : score;
+        },
+        render: (row) => {
+          const score = screeningTrimScore(row);
+          return score == null ? "—" : String(Math.round(score));
+        },
       },
       { key: "upsidePct", label: "Upside", sortValue: (row) => row.upsidePct, render: (row) => `${row.upsidePct ?? "—"}%` },
       {
@@ -15172,10 +15356,25 @@
       return marks.length ? marks.join(" ") : "—";
     }
 
-    // Nearest planned-trade threshold among the legs INCLUDED by the active leg
-    // filter (buyLegList/sellLegList already honor Buys/Sells/Both): its distance
-    // %, whether it's a buy/sell leg, and the threshold price.
+    // Threshold-side meta for Close % sort (Below L / Above R), among legs
+    // included by the active Buys/Sells/Both filter.
+    function simSideMeta(row, side) {
+      const price = row.currentPrice;
+      if (price == null || price === 0) return null;
+      const wantBuy = side === "below";
+      const legs = [...(row.buyLegList || []), ...(row.sellLegList || [])]
+        .filter((leg) => leg && leg.price != null && !!leg.buy === wantBuy);
+      if (!legs.length) return null;
+      let best = null;
+      legs.forEach((leg) => {
+        const dist = Math.abs(leg.price - price) / price * 100;
+        if (best == null || dist < best.dist) best = { dist, isBuy: !!leg.buy, threshold: leg.price };
+      });
+      return best;
+    }
+
     function simClosestMeta(row) {
+      // Display: nearest of either in-scope side. Sort uses simSortCloseDist / tradeSide.
       const price = row.currentPrice;
       if (price == null || price === 0) return null;
       const legs = [...(row.buyLegList || []), ...(row.sellLegList || [])]
@@ -15187,6 +15386,16 @@
         if (best == null || dist < best.dist) best = { dist, isBuy: !!leg.buy, threshold: leg.price };
       });
       return best;
+    }
+
+    function simSortCloseDist(row) {
+      const state = tableSortState.simulation;
+      if (state?.key === "closePct" && state.tradeSide) {
+        const m = simSideMeta(row, state.tradeSide);
+        return m ? m.dist : Infinity;
+      }
+      const m = simClosestMeta(row);
+      return m ? m.dist : Infinity;
     }
 
     const simulationColumnsBase = [
@@ -15230,14 +15439,18 @@
           return `<span title="${escapeHtml(title)}">${Math.round(effective)}</span>`;
         },
       },
-      { key: "closePct", label: "Close %", help: SIM_CLOSE_PCT_HELP, sortValue: (row) => { const m = simClosestMeta(row); return m ? m.dist : Infinity; }, render: (row) => {
-        const m = simClosestMeta(row);
+      { key: "closePct", label: "Close %", help: SIM_CLOSE_PCT_HELP, tradeSideCycle: true, sortValue: (row) => simSortCloseDist(row), render: (row) => {
+        const state = tableSortState.simulation;
+        const m = (state?.key === "closePct" && state.tradeSide)
+          ? simSideMeta(row, state.tradeSide)
+          : simClosestMeta(row);
         if (!m) return "—";
         const priceAbove = row.currentPrice > m.threshold;
         // Match Trade Band: ▼ when price is above the threshold, ▲ when below.
         const arrow = priceAbove ? "▼" : "▲";
         const color = priceAbove ? "var(--accent-2)" : "#fb923c";
-        const title = `Nearest: ${m.isBuy ? "Buy" : "Sell"} @ ${formatMoney(m.threshold)} · price ${priceAbove ? "above" : "below"} threshold`;
+        const sideLabel = m.isBuy ? "Buy/Below" : "Sell/Above";
+        const title = `${sideLabel} @ ${formatMoney(m.threshold)} · price ${priceAbove ? "above" : "below"} threshold`;
         return `<span title="${title}"><span style="color:${color};font-weight:700;">${arrow}</span> ${m.dist.toFixed(1)}%</span>`;
       } },
       { key: "cashGenerated", label: "Generated", sortValue: (row) => row.cashGenerated, render: (row) => (row.cashGenerated ? formatMoney(row.cashGenerated) : "—") },
@@ -20444,7 +20657,12 @@
       const tableId = header.dataset.tableId;
       const sortKey = header.dataset.sortKey;
       if (!tableId || !sortKey) return;
-      cycleTableSort(tableId, sortKey, header.dataset.ascFirst === "1");
+      cycleTableSort(
+        tableId,
+        sortKey,
+        header.dataset.ascFirst === "1",
+        header.dataset.tradeSideCycle === "1",
+      );
       rerenderTable(tableId);
     });
 
