@@ -1148,25 +1148,32 @@ export default function TradePlanScreen() {
             onSelectPool={() => setListMode("sell")}
             helperText={`${qualifiedSells.length} of ${sellCandidates.length} qualified`}
             totalNode={
-              <>
-                TOTAL{" "}
-                <Text
-                  style={
-                    sellNet > 0 ? styles.gainText : sellNet < 0 ? styles.lossText : styles.neutralText
-                  }
-                >
-                  {formatMoney(sellNet, true)}
-                </Text>{" "}
-                (
-                <Text style={sellGain > 0 ? styles.gainText : styles.neutralText}>
-                  {formatMoney(sellGain, true)}
-                </Text>
-                ,{" "}
-                <Text style={sellLoss > 0 ? styles.lossText : styles.neutralText}>
-                  {formatMoney(-sellLoss, true)}
-                </Text>
-                )
-              </>
+              sellGain <= 0 && sellLoss <= 0 ? null : sellLoss <= 0 ? (
+                <>
+                  GAIN{" "}
+                  <Text style={styles.gainText}>{formatMoney(sellNet, true)}</Text>
+                </>
+              ) : sellGain <= 0 ? (
+                <>
+                  LOSS{" "}
+                  <Text style={styles.lossText}>{formatMoney(sellNet, true)}</Text>
+                </>
+              ) : (
+                <>
+                  P&L{" "}
+                  <Text
+                    style={
+                      sellNet > 0 ? styles.gainText : sellNet < 0 ? styles.lossText : styles.neutralText
+                    }
+                  >
+                    {formatMoney(sellNet, true)}
+                  </Text>{" "}
+                  (
+                  <Text style={styles.gainText}>{formatMoney(sellGain, true)}</Text>
+                  ,{" "}
+                  <Text style={styles.lossText}>{formatMoney(-sellLoss, true)}</Text>)
+                </>
+              )
             }
             cashLine={`CASH ${formatMoney(sellCash, true)}`}
             sliderLabel={qualificationMode === "score" ? "Sell Rank" : "Sell Proximity"}
