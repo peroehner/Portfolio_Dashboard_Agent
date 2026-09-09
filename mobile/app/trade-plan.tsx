@@ -439,37 +439,50 @@ function PoolCard({
           title: "Sell Budget",
           body: "Off (0) = full planned qty for each qualified sell.\n\nSet a cash budget to soft-split among qualified legs by readiness (closer / stronger Sell Rank gets more). Low-conviction legs face a stricter hidden rank bar.",
         };
+  /** Ignore Pressable onPress that fires when a slider drag ends. */
+  const slidingRef = useRef(false);
+  const selectPool = () => {
+    if (slidingRef.current) return;
+    onSelectPool?.();
+  };
+  const beginSlide = () => {
+    slidingRef.current = true;
+  };
+  const endSlide = () => {
+    // Defer clear so a trailing Pressable onPress from the same gesture is ignored.
+    setTimeout(() => {
+      slidingRef.current = false;
+    }, 50);
+  };
+
   return (
-    <View
+    <Pressable
+      onPress={selectPool}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`Show ${title} list`}
       style={[
         styles.poolCard,
         tone === "sell" ? styles.poolCardSell : styles.poolCardBuy,
         selected ? (tone === "sell" ? styles.poolCardSellActive : styles.poolCardBuyActive) : null,
       ]}
     >
-      <Pressable
-        onPress={onSelectPool}
-        accessibilityRole="button"
-        accessibilityState={{ selected }}
-        accessibilityLabel={`Show ${title} list`}
-      >
-        <View style={styles.poolHead}>
-          <Text style={[styles.poolTitle, tone === "sell" ? styles.sellText : styles.buyText]}>{title}</Text>
-          <Text style={styles.poolHelper}>{helperText}</Text>
+      <View style={styles.poolHead}>
+        <Text style={[styles.poolTitle, tone === "sell" ? styles.sellText : styles.buyText]}>{title}</Text>
+        <Text style={styles.poolHelper}>{helperText}</Text>
+      </View>
+      {wide && totalNode ? (
+        <View style={styles.poolTopLine}>
+          {cashFirst ? cashNode : <Text style={styles.poolTotal}>{totalNode}</Text>}
+          {cashFirst ? <Text style={styles.poolTotal}>{totalNode}</Text> : cashNode}
         </View>
-        {wide && totalNode ? (
-          <View style={styles.poolTopLine}>
-            {cashFirst ? cashNode : <Text style={styles.poolTotal}>{totalNode}</Text>}
-            {cashFirst ? <Text style={styles.poolTotal}>{totalNode}</Text> : cashNode}
-          </View>
-        ) : (
-          <>
-            {cashFirst ? cashNode : null}
-            {totalNode ? <Text style={styles.poolTotal}>{totalNode}</Text> : null}
-            {cashFirst ? null : cashNode}
-          </>
-        )}
-      </Pressable>
+      ) : (
+        <>
+          {cashFirst ? cashNode : null}
+          {totalNode ? <Text style={styles.poolTotal}>{totalNode}</Text> : null}
+          {cashFirst ? null : cashNode}
+        </>
+      )}
       <View style={styles.sliderHead}>
         {sliderHint ? (
           <GlossaryHint signal={sliderHint} label={sliderLabel} style={styles.sliderLabel} />
@@ -488,6 +501,8 @@ function PoolCard({
         maximumValue={sliderMax}
         step={1}
         value={Math.max(0, Math.min(sliderMax, sliderValue))}
+        onSlidingStart={beginSlide}
+        onSlidingComplete={endSlide}
         onValueChange={(v) => onChange(Math.round(v))}
         minimumTrackTintColor={trackColor}
         maximumTrackTintColor={colors.surfaceAlt}
@@ -517,6 +532,8 @@ function PoolCard({
                 ? Math.max(0, Math.min(budgetCap, budgetAmt))
                 : Math.max(0, budgetAmt)
             }
+            onSlidingStart={beginSlide}
+            onSlidingComplete={endSlide}
             onValueChange={(v) => {
               const cap = Math.max(budgetCap, 0);
               if (!(cap > 0)) {
@@ -531,7 +548,7 @@ function PoolCard({
           />
         </>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
