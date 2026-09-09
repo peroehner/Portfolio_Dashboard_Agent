@@ -6211,8 +6211,7 @@
         <button type="button" class="secondary filter-btn" data-screen-filter="close" onclick="setScreeningFilter('close')" title="Nearest planned-trade threshold is within 10% of the current price">Close Trades</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="far" onclick="setScreeningFilter('far')" title="Nearest planned-trade threshold is more than 100% from the current price">Far Trades</button>
         <span class="sim-legs-sep" aria-hidden="true"></span>
-        <button type="button" class="secondary filter-btn" id="btnScreenScores" onclick="toggleScreeningScores()" title="Show Score, Buy Scr, SRank, Loss, and Trim columns" aria-pressed="false">Scores</button>
-        <button type="button" class="secondary filter-btn" id="btnScreenBuyScoreSort" onclick="sortScreeningByBuyScore()" title="Sort all symbols by effective Buy Score (SAI Score − conviction penalty), highest first. Compare to SAI Action. Turns Scores on.">Buy Score ↓</button>
+        <button type="button" class="secondary filter-btn" id="btnScreenScores" onclick="toggleScreeningScores()" title="Show Score, Buy Scr, SRank, Loss, and Trim columns after SAI. Click a score header to sort." aria-pressed="false">Scores</button>
         <input type="text" id="screeningTickerFilter" class="fib-ticker-filter" placeholder="Filter… @AI · -intc · @AI=… Enter to save · Tab" oninput="onTrackedTickerFilterInput(this.value)" onkeydown="onTrackedTickerFilterKeydown(event)" onblur="onTrackedTickerFilterCommit(this)" autocomplete="off" spellcheck="false" aria-label="Filter screening by ticker">
         <span class="sel-clip-actions" data-clip-tab="screening"></span>
         <div id="screeningTickerAtSuggestions" class="ticker-segment-chips ticker-at-suggestions" hidden></div>
@@ -13780,7 +13779,7 @@
     const SCREEN_SELL_RANK_HELP = "Plan Sell Rank (lower = stronger sell-to-fire).\n• Base = 80 − Attract (Proximity + Trigger + Size) on sell legs\n• Same math as Simulation Sell Rank / mobile Sell Plan (before conviction penalty)\n• — when no sell threshold";
     const SCREEN_LOSS_SCORE_HELP = "Tax & Trim Loss Score (higher = stronger harvest candidate).\n• Residual loss after 1YT upside (0–50 curve)\n• — for non-losers / no cost basis";
     const SCREEN_TRIM_SCORE_HELP = "Tax & Trim Trim Score (higher = stronger winner-trim candidate).\n• Exhaustion + 52W peak + weight + plan intent\n• — for non-winners / non-held\n• Not Sell Rank";
-    const SCREEN_BUY_SCORE_HELP = "Effective Buy Score used by Buy Plan / Sim Buys Score mode:\n• Buy Score = SAI Score − conviction penalty (High 0 · Med 6 · Low 12 · Attention ! +5)\n• Higher = stronger buy-leg ranking — NOT the same as SAI Action\n• Buy Plan Score mode ranks Action = BUY only; Prox allows WATCH; SELLs always excluded\n• Use Buy Score ↓ to sort; compare Action vs Score vs Buy Score\n• Hover cell for base Score, penalty, and Action";
+    const SCREEN_BUY_SCORE_HELP = "Effective Buy Score used by Buy Plan / Sim Buys Score mode:\n• Buy Score = SAI Score − conviction penalty (High 0 · Med 6 · Low 12 · Attention ! +5)\n• Higher = stronger buy-leg ranking — NOT the same as SAI Action\n• Buy Plan Score mode ranks Action = BUY only; Prox allows WATCH; SELLs always excluded\n• Turn Scores on, then click this header to sort; compare Action vs Score vs Buy Scr\n• Hover cell for base Score, penalty, and Action";
     const SCREEN_SAI_SCORE_HELP = "Raw SAI Score (State + Trigger + Fit, 0–100).\n• Setup quality — does not by itself mean Action = BUY\n• Buy Score = this value minus conviction penalty";
     const SIM_BUY_SCORE_HELP = "Rule of thumb: HIGHER Buy Score = stronger buy-to-fire.\n• Effective = SAI Score − conviction penalty (High 0 · Med 6 · Low 12 · Attention ! +5)\n• Number shown is already effective — hover the cell for base vs penalty\n• Same as mobile Buy Plan Score mode. — if no Assess yet";
     const SIM_SELL_RANK_HELP = "Rule of thumb: LOWER Sell Rank = stronger sell-to-fire.\n• Effective = (80 − Attract P/T/S) + conviction penalty (High 0 · Med 6 · Low 12 · Attention ! +5)\n• Number shown is already effective — hover the cell for P/T/S + penalty\n• Not Trim Score (Tax & Trim harvest). Same as mobile Sell Plan Score mode";
@@ -15173,10 +15172,6 @@
 
     function updateScreeningFilterButtons() {
       document.querySelectorAll("#view-screening .filter-btn").forEach((button) => {
-        if (button.id === "btnScreenBuyScoreSort") {
-          button.classList.toggle("active", tableSortState.screening?.key === "buyScore");
-          return;
-        }
         if (button.id === "btnScreenScores") {
           button.classList.toggle("active", screeningShowScores);
           button.setAttribute("aria-pressed", screeningShowScores ? "true" : "false");
@@ -15190,9 +15185,6 @@
 
     function setScreeningFilter(filter) {
       screeningFilter = filter || "all";
-      if (tableSortState.screening?.key === "buyScore") {
-        delete tableSortState.screening;
-      }
       saveFilterState();
       updateScreeningFilterButtons();
       loadScreening("", false);
@@ -15208,21 +15200,6 @@
       } else {
         loadScreening("", false);
       }
-    }
-
-    /** Audit sort: Action vs raw Score vs effective Buy Score (highest Buy Score first). */
-    function sortScreeningByBuyScore() {
-      screeningFilter = "all";
-      screeningShowScores = true;
-      saveFilterState();
-      tableSortState.screening = { key: "buyScore", dir: "desc" };
-      updateScreeningFilterButtons();
-      if (viewDataCache.screening?.data) {
-        renderScreeningView(viewDataCache.screening.data);
-      } else {
-        loadScreening("", false);
-      }
-      setStatus("Screening sorted by Buy Score (effective) ↓ — compare Action · Score · Buy Scr", "info");
     }
 
     async function loadScreening(query = "", force = false) {
