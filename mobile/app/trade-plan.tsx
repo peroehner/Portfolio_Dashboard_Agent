@@ -21,6 +21,7 @@ import { parseSymbolFilter } from "@/lib/filters";
 import { formatMoney, formatPrice } from "@/lib/format";
 import { openSymbol } from "@/lib/symbolBrowseSession";
 import { buildPortfolioRows } from "@/lib/portfolioTable";
+import { buyPlanActionAllowed } from "@/lib/signalScores";
 import { signalTooltip } from "@/lib/signalGlossary";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { Holding, PortfolioRow, TaxTrimPricingMode } from "@/lib/types";
@@ -58,6 +59,8 @@ type PlanCandidate = {
   planSellRank: number;
   /** SAI Score = State+Trigger+Fit (buy Score mode). */
   saiScore: number | null;
+  /** Published SAI Action (buy / watch / hold / sell). */
+  saiAction: string | null;
   /** Published confidence (may be softened by Pass 2). */
   saiConfidence: string | null;
   /** Attention mismatch between stored Action and live Score band. */
@@ -153,6 +156,7 @@ function candidateFromRow(
   const costBasis = Number(holdingBySymbol.get(row.symbol)?.costBasis);
   const saiTotal = Number(row.saiProposal?.scores?.total);
   const saiScore = Number.isFinite(saiTotal) ? Math.max(0, Math.min(SAI_SCORE_MAX, saiTotal)) : null;
+  const saiAction = row.saiAction == null ? null : String(row.saiAction);
   const saiConfidence = row.saiConfidence == null ? null : String(row.saiConfidence);
   const attentionFlag = Boolean(row.saiProposal?.attention?.flag);
   const below = evalTradeLeg(row.tradeBelowPrice ?? null, row.tradeBelowShares ?? null, "below");
@@ -194,6 +198,7 @@ function candidateFromRow(
       planAttract,
       planSellRank,
       saiScore,
+      saiAction,
       saiConfidence,
       attentionFlag,
       convictionScore,
@@ -749,7 +754,10 @@ export default function TradePlanScreen() {
   const buyCandidates = useMemo(
     () =>
       allCandidates
-        .filter((row) => row.side === "buy")
+        .filter(
+          (row) =>
+            row.side === "buy" && buyPlanActionAllowed(row.saiAction, qualificationMode),
+        )
         .sort((a, b) => {
           if (qualificationMode === "score") {
             return scoreModeValue(b) - scoreModeValue(a) || a.proximityAbsPct - b.proximityAbsPct;
@@ -1117,13 +1125,13 @@ export default function TradePlanScreen() {
               onLongPress={() =>
                 Alert.alert(
                   "Score mode",
-                  "Rule of thumb:\n• Buy Score — HIGHER = stronger buy-to-fire\n• Sell Rank — LOWER = stronger sell-to-fire\n\nNumbers shown are effective (conviction penalty already applied).\n\n" +
+                  "Rule of thumb:\n• Buy Score — HIGHER = stronger buy-to-fire\n• Sell Rank — LOWER = stronger sell-to-fire\n\nNumbers shown are effective (conviction penalty already applied).\n\nBuy Plan Action filter:\n• Score mode ranks Action = BUY only\n• Prox mode allows WATCH (and BUY/HOLD)\n• SELLs always excluded from Buy Plan\n\n" +
                     `${signalTooltip("saiScore")}\n\n${signalTooltip("planSellRank")}`,
                 )
               }
               delayLongPress={280}
               accessibilityState={{ selected: qualificationMode === "score" }}
-              accessibilityHint="Buy Score: higher is stronger. Sell Rank: lower is stronger. Low conviction tightens automatically."
+              accessibilityHint="Buy Score: higher is stronger; Score mode ranks BUY actions only. Sell Rank: lower is stronger. Low conviction tightens automatically."
             >
               <Text
                 style={[

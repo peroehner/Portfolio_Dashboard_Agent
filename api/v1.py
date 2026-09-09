@@ -875,7 +875,7 @@ def run_screen():
         "sort": request.args.get("sort", "score"),
         "order": request.args.get("order", "desc"),
     }
-    return jsonify({"results": screening_service.run_screen(filters)})
+    return jsonify(screening_service.run_screen(filters))
 
 
 @v1_bp.route("/fib-proximity", methods=["GET"])

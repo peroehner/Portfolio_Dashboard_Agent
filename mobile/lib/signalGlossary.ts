@@ -25,7 +25,7 @@ export const SIGNAL_GLOSSARY: Record<SignalKey, SignalDef> = {
     shortLabel: "SAI",
     formula: "State + Trigger + Fit → 0–100",
     meaning:
-      "Rule of thumb: HIGHER = stronger buy-to-fire. Score mode shows SAI Score minus a hidden conviction penalty (High 0 · Med 6 · Low 12 · Attention ! +5).",
+      "Rule of thumb: HIGHER = stronger buy-to-fire. Score mode shows SAI Score minus a hidden conviction penalty (High 0 · Med 6 · Low 12 · Attention ! +5). Buy Plan Score mode ranks Action = BUY only; Prox allows WATCH; SELLs always excluded.",
   },
   saiConf: {
     key: "saiConf",

@@ -1,4 +1,5 @@
 import { formatMoney, formatPct, formatQty, formatWeight, pctColor } from "@/lib/format";
+import { tradeBandSideDist } from "@/lib/signalScores";
 import type { Assessment, Holding, PortfolioRow, PortfolioSymbol, SaiAction } from "@/lib/types";
 
 export type PortfolioSortKey =
@@ -22,10 +23,13 @@ export type PortfolioSortKey =
   | "personalTargetValue";
 
 export type SortDirection = "asc" | "desc";
+export type TradeSortSide = "below" | "above";
 
 export interface PortfolioSortState {
   key: PortfolioSortKey | null;
   direction: SortDirection | null;
+  /** For Trade column: closest to left (Below) vs right (Above) threshold. */
+  tradeSide?: TradeSortSide | null;
 }
 
 export interface PortfolioColumn {
@@ -43,10 +47,10 @@ export interface PortfolioColumn {
 export const STICKY_COLUMNS: PortfolioColumn[] = [
   { key: "symbol", label: "Symbol", width: 74, sticky: true },
   { key: "sai", label: "SAI", width: 54, sticky: true, align: "right" },
-  { key: "techBias", label: "TBias", width: 48, sticky: true, align: "right" },
 ];
 
 export const PORTFOLIO_SCROLL_COLUMNS: PortfolioColumn[] = [
+  { key: "techBias", label: "TBias", width: 48, align: "right" },
   { key: "currentPrice", label: "Price", width: 78, align: "right", price: true },
   { key: "dayChangePct", label: "Day %", width: 64, align: "right", pct: true },
   { key: "tradeBand", label: "Trade", width: 150, tradeBand: true },
@@ -131,9 +135,19 @@ export function cyclePortfolioSort(
   current: PortfolioSortState,
   key: PortfolioSortKey,
 ): PortfolioSortState {
-  if (current.key !== key) return { key, direction: "asc" };
-  if (current.direction === "asc") return { key, direction: "desc" };
-  return { key: null, direction: null };
+  // Trade cycles sides (both closest-first), not asc/desc on nearest-any.
+  if (key === "tradeBand") {
+    if (current.key !== "tradeBand") {
+      return { key: "tradeBand", direction: "asc", tradeSide: "below" };
+    }
+    if (current.tradeSide === "below") {
+      return { key: "tradeBand", direction: "asc", tradeSide: "above" };
+    }
+    return { key: null, direction: null, tradeSide: null };
+  }
+  if (current.key !== key) return { key, direction: "asc", tradeSide: null };
+  if (current.direction === "asc") return { key, direction: "desc", tradeSide: null };
+  return { key: null, direction: null, tradeSide: null };
 }
 
 function upsidePct(target: number | null | undefined, price: number | null | undefined): number | null {
@@ -142,16 +156,18 @@ function upsidePct(target: number | null | undefined, price: number | null | und
 }
 
 export function tradeBandClosestDist(row: PortfolioRow): number {
-  const price = row.currentPrice;
-  if (price == null || price === 0) return Infinity;
-  const dists: number[] = [];
-  if (row.tradeBelowPrice != null) {
-    dists.push((Math.abs(price - row.tradeBelowPrice) / price) * 100);
-  }
-  if (row.tradeAbovePrice != null) {
-    dists.push((Math.abs(row.tradeAbovePrice - price) / price) * 100);
-  }
+  const below = tradeBandSideDist(row, "below");
+  const above = tradeBandSideDist(row, "above");
+  const dists = [below, above].filter((d): d is number => d != null);
   return dists.length ? Math.min(...dists) : Infinity;
+}
+
+export function tradeBandBelowDist(row: PortfolioRow): number | null {
+  return tradeBandSideDist(row, "below");
+}
+
+export function tradeBandAboveDist(row: PortfolioRow): number | null {
+  return tradeBandSideDist(row, "above");
 }
 
 function buildRow(
@@ -228,7 +244,11 @@ export function buildPortfolioRows(
   }));
 }
 
-function sortValue(row: PortfolioRow, key: PortfolioSortKey): string | number | null {
+function sortValue(
+  row: PortfolioRow,
+  key: PortfolioSortKey,
+  tradeSide?: TradeSortSide | null,
+): string | number | null {
   if (key === "symbol") return row.symbol;
   if (key === "sai") return actionRank(row.saiAction);
   if (key === "techBias") {
@@ -236,8 +256,8 @@ function sortValue(row: PortfolioRow, key: PortfolioSortKey): string | number | 
     return row.techBias || typeof row.techBiasScore === "number" ? rank : null;
   }
   if (key === "tradeBand") {
-    const dist = tradeBandClosestDist(row);
-    return dist === Infinity ? null : dist;
+    const side = tradeSide === "above" ? "above" : "below";
+    return tradeBandSideDist(row, side);
   }
   return row[key as keyof PortfolioRow] as number | null;
 }
@@ -247,9 +267,10 @@ function compareRows(
   b: PortfolioRow,
   key: PortfolioSortKey,
   direction: SortDirection,
+  tradeSide?: TradeSortSide | null,
 ): number {
-  const av = sortValue(a, key);
-  const bv = sortValue(b, key);
+  const av = sortValue(a, key, tradeSide);
+  const bv = sortValue(b, key, tradeSide);
   const aNull = av == null || av === "";
   const bNull = bv == null || bv === "";
   if (aNull && bNull) return a.symbol.localeCompare(b.symbol);
@@ -273,13 +294,23 @@ export function sortPortfolioRows(
     return sorted;
   }
   sorted.sort((a, b) =>
-    compareRows(a, b, sort.key as PortfolioSortKey, sort.direction as SortDirection),
+    compareRows(
+      a,
+      b,
+      sort.key as PortfolioSortKey,
+      sort.direction as SortDirection,
+      sort.tradeSide,
+    ),
   );
   return sorted;
 }
 
 export function sortHeaderLabel(label: string, key: PortfolioSortKey, sort: PortfolioSortState): string {
   if (sort.key !== key || !sort.direction) return label;
+  if (key === "tradeBand") {
+    const side = sort.tradeSide === "above" ? "R" : "L";
+    return `${label} · ${side} ↑`;
+  }
   return sort.direction === "asc" ? `${label} ↑` : `${label} ↓`;
 }
 

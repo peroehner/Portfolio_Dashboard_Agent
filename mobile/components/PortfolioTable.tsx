@@ -120,7 +120,6 @@ export function PortfolioTable({
   >;
   const symbolWidth = stickyWidthByKey.symbol ?? stickyColumns[0]?.width ?? 74;
   const saiWidth = stickyWidthByKey.sai ?? 54;
-  const techBiasWidth = stickyWidthByKey.techBias ?? 48;
   const tableWidth = scrollColumns.reduce((sum, col) => sum + col.width, 0);
   const scrollX = useRef(new Animated.Value(0)).current;
   const [tipSymbol, setTipSymbol] = useState<string | null>(null);
@@ -210,9 +209,6 @@ export function PortfolioTable({
                 <View style={[styles.saiCell, { width: saiWidth }]}>
                   <SaiBadge action={row.saiAction} proposal={row.saiProposal} mini />
                 </View>
-                <View style={[styles.saiCell, { width: techBiasWidth }]}>
-                  <TechBiasBadge bias={row.techBias} mini />
-                </View>
               </View>
             ))}
             {rows.length > 0 ? (
@@ -221,7 +217,6 @@ export function PortfolioTable({
                   <Text style={styles.totalLabel}>{totals.symbol?.text ?? "TOTAL"}</Text>
                 </View>
                 <View style={[styles.saiCell, { width: saiWidth }]} />
-                <View style={[styles.saiCell, { width: techBiasWidth }]} />
               </View>
             ) : null}
           </View>
@@ -243,24 +238,27 @@ export function PortfolioTable({
                   <View key={row.symbol} style={styles.scrollDataRow}>
                     {scrollColumns.map((col) => {
                       const supportsTradeTip = TRADE_TIP_KEYS.includes(col.key);
-                      const content = col.tradeBand ? (
-                        <TradeBandBar
-                          row={row}
-                          width={col.width - spacing.xs}
-                          active={tipActive}
-                        />
-                      ) : (
-                        <Text
-                          style={[
-                            styles.cellText,
-                            col.align === "right" && styles.alignRight,
-                            { color: cellColor(row, col) },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {renderCell(row, col)}
-                        </Text>
-                      );
+                      const content =
+                        col.key === "techBias" ? (
+                          <TechBiasBadge bias={row.techBias} mini />
+                        ) : col.tradeBand ? (
+                          <TradeBandBar
+                            row={row}
+                            width={col.width - spacing.xs}
+                            active={tipActive}
+                          />
+                        ) : (
+                          <Text
+                            style={[
+                              styles.cellText,
+                              col.align === "right" && styles.alignRight,
+                              { color: cellColor(row, col) },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {renderCell(row, col)}
+                          </Text>
+                        );
 
                       return (
                         <Pressable
