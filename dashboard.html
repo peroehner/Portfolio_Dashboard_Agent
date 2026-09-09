@@ -6210,7 +6210,9 @@
         <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="close" onclick="setScreeningFilter('close')" title="Nearest planned-trade threshold is within 10% of the current price">Close Trades</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="far" onclick="setScreeningFilter('far')" title="Nearest planned-trade threshold is more than 100% from the current price">Far Trades</button>
-        <button type="button" class="secondary filter-btn" id="btnScreenBuyScoreSort" onclick="sortScreeningByBuyScore()" title="Sort all symbols by effective Buy Score (SAI Score − conviction penalty), highest first. Compare to SAI Action.">Buy Score ↓</button>
+        <span class="sim-legs-sep" aria-hidden="true"></span>
+        <button type="button" class="secondary filter-btn" id="btnScreenScores" onclick="toggleScreeningScores()" title="Show Score, Buy Scr, SRank, Loss, and Trim columns" aria-pressed="false">Scores</button>
+        <button type="button" class="secondary filter-btn" id="btnScreenBuyScoreSort" onclick="sortScreeningByBuyScore()" title="Sort all symbols by effective Buy Score (SAI Score − conviction penalty), highest first. Compare to SAI Action. Turns Scores on.">Buy Score ↓</button>
         <input type="text" id="screeningTickerFilter" class="fib-ticker-filter" placeholder="Filter… @AI · -intc · @AI=… Enter to save · Tab" oninput="onTrackedTickerFilterInput(this.value)" onkeydown="onTrackedTickerFilterKeydown(event)" onblur="onTrackedTickerFilterCommit(this)" autocomplete="off" spellcheck="false" aria-label="Filter screening by ticker">
         <span class="sel-clip-actions" data-clip-tab="screening"></span>
         <div id="screeningTickerAtSuggestions" class="ticker-segment-chips ticker-at-suggestions" hidden></div>
@@ -7992,6 +7994,7 @@
         holdingsTickerFilter: trackedTickerFilter,
         fibMapTicker: trackedTickerFilter,
         screeningFilter,
+        screeningShowScores,
         simulationFilter,
         simulationLegs,
         simulationPricingMode,
@@ -8046,6 +8049,9 @@
 
         const screenFilters = new Set(["all", "upside", "close", "far"]);
         if (screenFilters.has(saved.screeningFilter)) screeningFilter = saved.screeningFilter;
+        if (typeof saved.screeningShowScores === "boolean") {
+          screeningShowScores = saved.screeningShowScores;
+        }
 
         if (screenFilters.has(saved.simulationFilter)) simulationFilter = saved.simulationFilter;
         if (new Set(["both", "buys", "sells"]).has(saved.simulationLegs)) {
@@ -13864,41 +13870,6 @@
         },
       },
       {
-        key: "intent",
-        label: "Intent",
-        help: INTENT_HELP,
-        sortValue: (row) => saiFieldRank(screeningIntentCode(row), SAI_INTENT_RANK),
-        compare: saiFieldCompare(SAI_INTENT_RANK, screeningIntentCode),
-        render: (row) => renderScreeningIntentCell(row),
-      },
-      {
-        key: "techStance",
-        label: "Tech Stance",
-        help: TECH_STANCE_HELP,
-        sortValue: (row) => (row.confluence?.score != null ? row.confluence.score : -2),
-        render: (row) => renderScreeningTechStanceCell(row),
-      },
-      {
-        key: "pattern",
-        label: "Pattern",
-        sortValue: (row) => symbolPatterns[row.symbol]?.name || "",
-        render: (row) => renderScreeningPatternCell(row),
-      },
-      {
-        key: "currentPrice",
-        label: "Price",
-        sortValue: (row) => row.currentPrice,
-        render: (row) => formatMoney(row.currentPrice),
-      },
-      {
-        key: "tradeBand",
-        label: "Trade Range",
-        help: TRADE_RANGE_HELP,
-        tradeSideCycle: true,
-        sortValue: (row) => tradeBandSortDist("screening", row),
-        render: (row) => screeningTargetLink(row.symbol, renderTradeBandCell(row), `Edit ${row.symbol} planned trades in Target`),
-      },
-      {
         key: "sellRank",
         label: "SRank",
         help: SCREEN_SELL_RANK_HELP,
@@ -13937,6 +13908,41 @@
           return score == null ? "—" : String(Math.round(score));
         },
       },
+      {
+        key: "intent",
+        label: "Intent",
+        help: INTENT_HELP,
+        sortValue: (row) => saiFieldRank(screeningIntentCode(row), SAI_INTENT_RANK),
+        compare: saiFieldCompare(SAI_INTENT_RANK, screeningIntentCode),
+        render: (row) => renderScreeningIntentCell(row),
+      },
+      {
+        key: "techStance",
+        label: "Tech Stance",
+        help: TECH_STANCE_HELP,
+        sortValue: (row) => (row.confluence?.score != null ? row.confluence.score : -2),
+        render: (row) => renderScreeningTechStanceCell(row),
+      },
+      {
+        key: "pattern",
+        label: "Pattern",
+        sortValue: (row) => symbolPatterns[row.symbol]?.name || "",
+        render: (row) => renderScreeningPatternCell(row),
+      },
+      {
+        key: "currentPrice",
+        label: "Price",
+        sortValue: (row) => row.currentPrice,
+        render: (row) => formatMoney(row.currentPrice),
+      },
+      {
+        key: "tradeBand",
+        label: "Trade Range",
+        help: TRADE_RANGE_HELP,
+        tradeSideCycle: true,
+        sortValue: (row) => tradeBandSortDist("screening", row),
+        render: (row) => screeningTargetLink(row.symbol, renderTradeBandCell(row), `Edit ${row.symbol} planned trades in Target`),
+      },
       { key: "upsidePct", label: "Upside", sortValue: (row) => row.upsidePct, render: (row) => `${row.upsidePct ?? "—"}%` },
       {
         key: "noteCount",
@@ -13953,10 +13959,32 @@
       },
     ];
 
+    const SCREENING_SCORE_COLUMN_KEYS = new Set([
+      "saiScore",
+      "buyScore",
+      "sellRank",
+      "lossScore",
+      "trimScore",
+    ]);
+
+    function visibleScreeningColumns() {
+      if (screeningShowScores) return screeningColumns;
+      return screeningColumns.filter((col) => !SCREENING_SCORE_COLUMN_KEYS.has(col.key));
+    }
+
+    function clearScreeningScoreSortIfHidden() {
+      const key = tableSortState.screening?.key;
+      if (!key) return;
+      if (!screeningShowScores && SCREENING_SCORE_COLUMN_KEYS.has(key)) {
+        delete tableSortState.screening;
+      }
+    }
+
     function renderScreeningTable(rows) {
+      clearScreeningScoreSortIfHidden();
       return renderSortableTable(
         "screening",
-        screeningColumns,
+        visibleScreeningColumns(),
         rows,
         screeningEmptyMessage(rows),
         { selectedKeys: getMultiSelection("screening") }
@@ -13964,7 +13992,7 @@
     }
 
     function currentScreeningOrder() {
-      return sortRows("screening", tableDataCache.screening || [], screeningColumns).map((r) => r.symbol);
+      return sortRows("screening", tableDataCache.screening || [], visibleScreeningColumns()).map((r) => r.symbol);
     }
 
     function screeningEmptyMessage(rows) {
@@ -14716,6 +14744,8 @@
     }
 
     let screeningFilter = "all";
+    /** When false, Score / Buy Scr / SRank / Loss / Trim columns are hidden. */
+    let screeningShowScores = false;
 
     // Client-side row filters (everything they need is already on each row).
     const TRADE_CLOSE_PCT = 10;
@@ -15147,7 +15177,14 @@
           button.classList.toggle("active", tableSortState.screening?.key === "buyScore");
           return;
         }
-        button.classList.toggle("active", button.dataset.screenFilter === screeningFilter);
+        if (button.id === "btnScreenScores") {
+          button.classList.toggle("active", screeningShowScores);
+          button.setAttribute("aria-pressed", screeningShowScores ? "true" : "false");
+          return;
+        }
+        if (button.dataset.screenFilter) {
+          button.classList.toggle("active", button.dataset.screenFilter === screeningFilter);
+        }
       });
     }
 
@@ -15161,17 +15198,25 @@
       loadScreening("", false);
     }
 
+    function toggleScreeningScores() {
+      screeningShowScores = !screeningShowScores;
+      clearScreeningScoreSortIfHidden();
+      saveFilterState();
+      updateScreeningFilterButtons();
+      if (viewDataCache.screening?.data) {
+        renderScreeningView(viewDataCache.screening.data);
+      } else {
+        loadScreening("", false);
+      }
+    }
+
     /** Audit sort: Action vs raw Score vs effective Buy Score (highest Buy Score first). */
     function sortScreeningByBuyScore() {
       screeningFilter = "all";
+      screeningShowScores = true;
       saveFilterState();
-      updateScreeningFilterButtons();
       tableSortState.screening = { key: "buyScore", dir: "desc" };
-      const btn = document.getElementById("btnScreenBuyScoreSort");
-      if (btn) btn.classList.add("active");
-      document.querySelectorAll("#view-screening .filter-btn[data-screen-filter]").forEach((button) => {
-        button.classList.toggle("active", button.dataset.screenFilter === "all");
-      });
+      updateScreeningFilterButtons();
       if (viewDataCache.screening?.data) {
         renderScreeningView(viewDataCache.screening.data);
       } else {
