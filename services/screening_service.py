@@ -22,7 +22,7 @@ class ScreeningService:
         # counts as "approaching" rather than just on the radar.
         self.trade_near_pct = float(os.environ.get("TRADE_NEAR_PCT", "5"))
 
-    def run_screen(self, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    def run_screen(self, filters: dict[str, Any] | None = None) -> dict[str, Any]:
         from services.assessment_service import ASSESSMENT_TECHNICALS, AssessmentService
         from services.inspector_service import build_symbol_recommendation
 
@@ -143,7 +143,25 @@ class ScreeningService:
         sort_key = filters.get("sort", "score")
         reverse = filters.get("order", "desc") != "asc"
         results.sort(key=lambda item: item.get(sort_key) or 0, reverse=reverse)
-        return results
+
+        last_agent_read_at = None
+        assessed_count = 0
+        for row in results:
+            stamp = row.get("assessedAt")
+            if not stamp:
+                continue
+            assessed_count += 1
+            if last_agent_read_at is None or str(stamp) > str(last_agent_read_at):
+                last_agent_read_at = stamp
+
+        return {
+            "results": results,
+            "meta": {
+                "lastAgentReadAt": last_agent_read_at,
+                "assessedCount": assessed_count,
+                "symbolCount": len(results),
+            },
+        }
 
     def _news_sentiment_map(
         self, symbols_data: list[dict[str, Any]]

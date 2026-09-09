@@ -1109,6 +1109,13 @@
       font-size: 0.85rem;
       line-height: 1.45;
     }
+    .screening-agent-read-stamp {
+      display: inline;
+      margin-left: 0.35rem;
+      color: var(--text);
+      font-weight: 600;
+      white-space: nowrap;
+    }
     .visual-card-head {
       display: flex;
       align-items: center;
@@ -3725,8 +3732,13 @@
     .nc-upside .pos { color: #22c55e; }
     .nc-upside .neg { color: #ef4444; }
     .nc-meta { color: var(--muted); font-size: 0.75rem; margin-top: 0.2rem; }
-    .screening-assessed { white-space: nowrap; }
-    .screening-assessed-date { font-size: 0.82rem; }
+    .screening-agent-read-stamp {
+      display: inline;
+      margin-left: 0.35rem;
+      color: var(--text);
+      font-weight: 600;
+      white-space: nowrap;
+    }
     .topnews-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
@@ -6186,7 +6198,10 @@
 
   <div id="view-screening" class="view" hidden>
     <div class="wide-panel portfolio-table-panel">
-      <p class="panel-hint">Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs. ⌘/Ctrl+Set Filter adds the selection to the existing filter.</p>
+      <p class="panel-hint">
+        Shift-click to range-select rows, ⌘/Ctrl-click to toggle rows. Use Set Filter to save the selection for other Portfolio tabs. ⌘/Ctrl+Set Filter adds the selection to the existing filter.
+        <span id="screeningAgentReadStamp" class="screening-agent-read-stamp" hidden></span>
+      </p>
       <div class="screening-filter-bar">
         <button type="button" class="secondary filter-btn active" data-screen-filter="all" onclick="setScreeningFilter('all')">All</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
@@ -6304,7 +6319,7 @@
     const API = "/api/v1";
     const VIEW_CACHE_TTL_MS = 60000;
     const viewDataCache = {
-      screening: { query: "", data: null, fetchedAt: 0 },
+      screening: { query: "", data: null, meta: null, fetchedAt: 0 },
       fib: { data: null, fetchedAt: 0 },
     };
     let screeningLoadSeq = 0;
@@ -8816,7 +8831,7 @@
 
     function invalidateViewCaches() {
       screeningLoadSeq += 1;
-      viewDataCache.screening = { query: "", data: null, fetchedAt: 0 };
+      viewDataCache.screening = { query: "", data: null, meta: null, fetchedAt: 0 };
       viewDataCache.fib = { data: null, fetchedAt: 0 };
     }
 
@@ -10081,6 +10096,11 @@
           await refreshPlanLimits();
           await loadAssessments();
           await Promise.all([loadRecoChanges(), loadLatestAssessments()]);
+          // Refresh Screening so Agent-read stamp picks up new assessment times
+          // even when some symbols failed mid-run.
+          try {
+            await loadScreening("", true);
+          } catch (_) { /* Screening refresh is best-effort after Assess */ }
           markRefreshed("SAI assessments");
           setStatus(`Generated ${data.assessments.length} agent reads.`, "success");
           requestAnimationFrame(() => pulseUpdated("overviewMetrics"));
@@ -13249,10 +13269,37 @@
       return badge || `<span class="empty">—</span>`;
     }
 
-    function renderScreeningAssessedCell(row) {
-      if (!row.assessedAt) return `<span class="empty">—</span>`;
-      const day = formatPanelDate(row.assessedAt);
-      return `<span class="screening-assessed" title="${escapeHtml(row.assessedAt)}"><span class="screening-assessed-date">${escapeHtml(day)}</span></span>`;
+    function updateScreeningAgentReadStamp(meta, rows) {
+      const el = document.getElementById("screeningAgentReadStamp");
+      if (!el) return;
+      let stamp = meta?.lastAgentReadAt || null;
+      let assessedCount = Number(meta?.assessedCount);
+      if (!stamp && Array.isArray(rows)) {
+        assessedCount = 0;
+        rows.forEach((row) => {
+          if (!row?.assessedAt) return;
+          assessedCount += 1;
+          if (!stamp || String(row.assessedAt) > String(stamp)) stamp = row.assessedAt;
+        });
+      }
+      if (!stamp) {
+        el.hidden = true;
+        el.textContent = "";
+        el.removeAttribute("title");
+        return;
+      }
+      const when = formatPanelDateTime(stamp);
+      const n = Number.isFinite(assessedCount) ? assessedCount : 0;
+      const total = Number(meta?.symbolCount);
+      const coverage =
+        Number.isFinite(total) && total > 0
+          ? `${n} of ${total} symbols`
+          : n > 0
+            ? `${n} symbol${n === 1 ? "" : "s"}`
+            : "partial or prior run";
+      el.hidden = false;
+      el.textContent = `· Agent read ${when}`;
+      el.title = `Latest SAI agent-read timestamp among screened symbols (${coverage}). Shown even if some symbols failed in the last Assess run.`;
     }
 
     function renderScreeningNotesCell(row) {
@@ -13800,12 +13847,6 @@
         sortValue: (row) => row.alertCount,
         render: (row) => renderScreeningAlertsCell(row),
       },
-      {
-        key: "assessedAt",
-        label: "Read On",
-        sortValue: (row) => row.assessedAt || "",
-        render: (row) => renderScreeningAssessedCell(row),
-      },
     ];
 
     function renderScreeningTable(rows) {
@@ -13851,6 +13892,7 @@
         "screening",
         renderScreeningTable(applyScreeningFilter(data))
       );
+      updateScreeningAgentReadStamp(viewDataCache.screening.meta, data);
       updateClipButtons();
     }
 
@@ -15081,6 +15123,7 @@
           if (seq !== screeningLoadSeq) return;
           cache.query = query;
           cache.data = data.results || [];
+          cache.meta = data.meta || null;
           cache.fetchedAt = Date.now();
           renderScreeningView(cache.data);
           if (currentView === "screening") markRefreshed("Screening table");
