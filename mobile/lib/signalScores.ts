@@ -1,5 +1,6 @@
 /**
- * Shared score helpers for Portfolio table columns (mirror web Tax & Trim / Plan math).
+ * Shared score helpers for Tax & Trim / Buy·Sell Plan (and web Screening).
+ * Mobile Portfolio does not surface these as table columns — keep that list clean.
  * See docs/SIGNAL_SCORES.md.
  */
 

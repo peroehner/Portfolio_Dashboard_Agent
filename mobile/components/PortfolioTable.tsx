@@ -50,15 +50,6 @@ interface PortfolioTableProps {
 
 function renderCell(row: PortfolioRow, col: PortfolioColumn): string {
   if (col.key === "symbol" || col.key === "sai" || col.key === "techBias") return "";
-  if (col.key === "sellRank") {
-    return row.sellRank == null ? "—" : String(Math.round(row.sellRank));
-  }
-  if (col.key === "lossScore") {
-    return row.lossScore == null ? "—" : String(Math.round(row.lossScore));
-  }
-  if (col.key === "trimScore") {
-    return row.trimScore == null ? "—" : String(Math.round(row.trimScore));
-  }
   const value = row[col.key as keyof PortfolioRow];
   if (col.key === "quantity") return formatQty(value as number | null);
   if (col.key === "weightPct") return formatWeight(value as number | null);

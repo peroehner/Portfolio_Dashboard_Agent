@@ -1,10 +1,5 @@
 import { formatMoney, formatPct, formatQty, formatWeight, pctColor } from "@/lib/format";
-import {
-  lossScore,
-  planSellRankForRow,
-  tradeBandSideDist,
-  trimScore,
-} from "@/lib/signalScores";
+import { tradeBandSideDist } from "@/lib/signalScores";
 import type { Assessment, Holding, PortfolioRow, PortfolioSymbol, SaiAction } from "@/lib/types";
 
 export type PortfolioSortKey =
@@ -14,9 +9,6 @@ export type PortfolioSortKey =
   | "currentPrice"
   | "dayChangePct"
   | "tradeBand"
-  | "sellRank"
-  | "lossScore"
-  | "trimScore"
   | "quantity"
   | "marketValue"
   | "weightPct"
@@ -62,9 +54,6 @@ export const PORTFOLIO_SCROLL_COLUMNS: PortfolioColumn[] = [
   { key: "currentPrice", label: "Price", width: 78, align: "right", price: true },
   { key: "dayChangePct", label: "Day %", width: 64, align: "right", pct: true },
   { key: "tradeBand", label: "Trade", width: 150, tradeBand: true },
-  { key: "sellRank", label: "SRank", width: 52, align: "right" },
-  { key: "lossScore", label: "Loss", width: 48, align: "right" },
-  { key: "trimScore", label: "Trim", width: 48, align: "right" },
   { key: "quantity", label: "Qty", width: 56, align: "right" },
   { key: "marketValue", label: "Value", width: 72, align: "right", money: true },
   { key: "weightPct", label: "Wt %", width: 58, align: "right" },
@@ -181,57 +170,6 @@ export function tradeBandAboveDist(row: PortfolioRow): number | null {
   return tradeBandSideDist(row, "above");
 }
 
-function planBuyQty(row: {
-  tradeBelowShares?: number | null;
-  tradeAboveShares?: number | null;
-}): number {
-  let buy = 0;
-  const below = Number(row.tradeBelowShares) || 0;
-  const above = Number(row.tradeAboveShares) || 0;
-  if (below > 0) buy += below;
-  if (above > 0) buy += above;
-  return buy;
-}
-
-function planSellQty(row: {
-  tradeBelowShares?: number | null;
-  tradeAboveShares?: number | null;
-}): number {
-  let sell = 0;
-  const below = Number(row.tradeBelowShares) || 0;
-  const above = Number(row.tradeAboveShares) || 0;
-  if (below < 0) sell += Math.abs(below);
-  if (above < 0) sell += Math.abs(above);
-  // Unsigned Above defaults to sell intent in plan math when shares unset —
-  // intentPts only count explicit share signs here.
-  return sell;
-}
-
-function enrichScoreFields(row: PortfolioRow): PortfolioRow {
-  const held = Number(row.quantity) || 0;
-  const sellRank = planSellRankForRow(row);
-  const loss = lossScore(row.gainPct, row.analystUpsidePct);
-  const trim =
-    held > 0
-      ? trimScore({
-          gainPct: row.gainPct,
-          analystUpsidePct: row.analystUpsidePct,
-          personalUpsidePct: row.personalUpsidePct,
-          peakPct: row.peakPct,
-          weightPct: row.weightPct,
-          buyQty: planBuyQty(row),
-          sellQty: planSellQty(row),
-          held,
-        })
-      : null;
-  return {
-    ...row,
-    sellRank,
-    lossScore: loss,
-    trimScore: trim,
-  };
-}
-
 function buildRow(
   symbol: PortfolioSymbol,
   holding: Holding | undefined,
@@ -283,31 +221,27 @@ export function buildPortfolioRows(
       assessmentBySymbol.get(symbol.symbol),
     );
     const biasInfo = techBiasBySymbol?.get(symbol.symbol);
-    const withBias = !biasInfo
-      ? row
-      : {
-          ...row,
-          techBias: biasInfo.bias ?? null,
-          techBiasScore:
-            typeof biasInfo.score === "number" && Number.isFinite(biasInfo.score)
-              ? biasInfo.score
-              : null,
-        };
-    return enrichScoreFields(withBias);
+    if (!biasInfo) return row;
+    return {
+      ...row,
+      techBias: biasInfo.bias ?? null,
+      techBiasScore:
+        typeof biasInfo.score === "number" && Number.isFinite(biasInfo.score)
+          ? biasInfo.score
+          : null,
+    };
   });
 
   const totalMarketValue = rows.reduce((sum, row) => sum + (row.marketValue || 0), 0);
-  if (!totalMarketValue) return rows.map(enrichScoreFields);
+  if (!totalMarketValue) return rows;
 
-  return rows.map((row) =>
-    enrichScoreFields({
-      ...row,
-      weightPct:
-        row.marketValue != null
-          ? Math.round((row.marketValue / totalMarketValue) * 1000) / 10
-          : null,
-    }),
-  );
+  return rows.map((row) => ({
+    ...row,
+    weightPct:
+      row.marketValue != null
+        ? Math.round((row.marketValue / totalMarketValue) * 1000) / 10
+        : null,
+  }));
 }
 
 function sortValue(
@@ -325,9 +259,6 @@ function sortValue(
     const side = tradeSide === "above" ? "above" : "below";
     return tradeBandSideDist(row, side);
   }
-  if (key === "sellRank") return row.sellRank ?? null;
-  if (key === "lossScore") return row.lossScore ?? null;
-  if (key === "trimScore") return row.trimScore ?? null;
   return row[key as keyof PortfolioRow] as number | null;
 }
 

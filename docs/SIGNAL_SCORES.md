@@ -117,6 +117,8 @@ Plan Sell Rank = 80 − Attract     # lower = closer / triggered / larger
 
 **Buy Score mode does not use Attract** — it uses **SAI Score** (State+Trigger+Fit), then applies the conviction penalty in Score mode to form the effective score.
 
+**Surfacing:** Score / Buy Scr / SRank / Loss / Trim columns live on **web** (Screening **Scores** toggle, Holdings Loss/Trim, Simulation Buys/Sells). Mobile **Portfolio** stays clean — scores are **used** in Tax & Trim and Buy/Sell Plan, not shown as Portfolio columns.
+
 ### Web Simulation (today)
 
 Web has **no** dedicated Buy/Sell Plan panel (unlike Tax & Trim). Closest surface: **Simulation** with **Buys / Sells / Both** leg filters and **Close %** (Proximity).
