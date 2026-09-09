@@ -55,10 +55,10 @@ export interface PortfolioColumn {
 export const STICKY_COLUMNS: PortfolioColumn[] = [
   { key: "symbol", label: "Symbol", width: 74, sticky: true },
   { key: "sai", label: "SAI", width: 54, sticky: true, align: "right" },
-  { key: "techBias", label: "TBias", width: 48, sticky: true, align: "right" },
 ];
 
 export const PORTFOLIO_SCROLL_COLUMNS: PortfolioColumn[] = [
+  { key: "techBias", label: "TBias", width: 48, align: "right" },
   { key: "currentPrice", label: "Price", width: 78, align: "right", price: true },
   { key: "dayChangePct", label: "Day %", width: 64, align: "right", pct: true },
   { key: "tradeBand", label: "Trade", width: 150, tradeBand: true },
