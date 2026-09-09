@@ -1381,6 +1381,13 @@
       border-radius: 2px;
       box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.18);
     }
+    /* Push Scores toggle (and trailing clip actions) to the right of Filter. */
+    #view-screening .screening-filter-bar .screening-scores-sep {
+      margin-left: auto;
+    }
+    #view-screening .screening-filter-bar .sel-clip-actions {
+      margin-left: 0.4rem;
+    }
     .sim-warn { color: var(--warn); font-weight: 700; }
     .sim-noqty { color: var(--muted); font-size: 0.82rem; }
     @media (max-width: 960px) {
@@ -6237,9 +6244,9 @@
         <button type="button" class="secondary filter-btn" data-screen-filter="upside" onclick="setScreeningFilter('upside')">High Upside</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="close" onclick="setScreeningFilter('close')" title="Nearest planned-trade threshold is within 10% of the current price">Close Trades</button>
         <button type="button" class="secondary filter-btn" data-screen-filter="far" onclick="setScreeningFilter('far')" title="Nearest planned-trade threshold is more than 100% from the current price">Far Trades</button>
-        <span class="sim-legs-sep" aria-hidden="true"></span>
-        <button type="button" class="secondary filter-btn" id="btnScreenScores" onclick="toggleScreeningScores()" title="Show Score, Buy Scr, SRank, Loss, and Trim columns after SAI. Click a score header to sort." aria-pressed="false">Scores</button>
         <input type="text" id="screeningTickerFilter" class="fib-ticker-filter" placeholder="Filter… @AI · -intc · @AI=… Enter to save · Tab" oninput="onTrackedTickerFilterInput(this.value)" onkeydown="onTrackedTickerFilterKeydown(event)" onblur="onTrackedTickerFilterCommit(this)" autocomplete="off" spellcheck="false" aria-label="Filter screening by ticker">
+        <span class="sim-legs-sep screening-scores-sep" aria-hidden="true"></span>
+        <button type="button" class="secondary filter-btn" id="btnScreenScores" onclick="toggleScreeningScores()" title="Show Score, Buy Scr, SRank, Loss, and Trim columns after SAI. Click a score header to sort. Default: off." aria-pressed="false">Scores</button>
         <span class="sel-clip-actions" data-clip-tab="screening"></span>
         <div id="screeningTickerAtSuggestions" class="ticker-segment-chips ticker-at-suggestions" hidden></div>
       </div>
