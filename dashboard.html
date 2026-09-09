@@ -1018,15 +1018,17 @@
       vertical-align: middle;
     }
     table.data th .th-help-wrap .th-help { margin-left: 0; }
+    /* Inline pop is a hidden HTML source only — shown via #thHelpFloating so
+       sticky sibling headers / overflow:auto scrollers cannot clip or cover it. */
     table.data th .th-help-pop {
-      display: none;
-      position: absolute;
-      z-index: 30;
-      left: 50%;
-      top: calc(100% + 6px);
-      transform: translateX(-50%);
+      display: none !important;
+    }
+    .th-help-floating {
+      position: fixed;
+      z-index: 10050;
       min-width: 220px;
-      max-width: 340px;
+      max-width: min(340px, calc(100vw - 16px));
+      width: max-content;
       padding: 0.55rem 0.7rem;
       background: #0f1419;
       border: 1px solid var(--border);
@@ -1039,14 +1041,15 @@
       color: var(--text);
       text-align: left;
       white-space: normal;
+      overflow-wrap: anywhere;
       box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
       pointer-events: none;
     }
-    table.data th .th-help-pop::before {
+    .th-help-floating[hidden] { display: none !important; }
+    .th-help-floating::before {
       content: "";
       position: absolute;
-      left: 50%;
-      top: -5px;
+      left: var(--th-help-arrow-x, 50%);
       width: 8px;
       height: 8px;
       background: #0f1419;
@@ -1054,21 +1057,28 @@
       border-top: 1px solid var(--border);
       transform: translateX(-50%) rotate(45deg);
     }
-    table.data th .th-help-wrap:hover .th-help-pop,
-    table.data th .th-help-wrap:focus-within .th-help-pop {
-      display: block;
+    .th-help-floating[data-placement="below"]::before { top: -5px; }
+    .th-help-floating[data-placement="above"]::before {
+      top: auto;
+      bottom: -5px;
+      border-left: none;
+      border-top: none;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
     }
-    table.data th .th-help-pop .th-help-intro {
+    .th-help-floating .th-help-intro {
       display: block;
       margin-bottom: 0.35rem;
       color: var(--muted);
+      white-space: normal;
     }
-    table.data th .th-help-list {
+    .th-help-floating .th-help-list {
       margin: 0;
       padding-left: 1rem;
+      white-space: normal;
     }
-    table.data th .th-help-list li { margin-bottom: 0.2rem; }
-    table.data th .th-help-list li:last-child { margin-bottom: 0; }
+    .th-help-floating .th-help-list li { margin-bottom: 0.2rem; }
+    .th-help-floating .th-help-list li:last-child { margin-bottom: 0; }
     .overview-visuals-grid {
       display: grid;
       grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
@@ -10243,6 +10253,107 @@
       }
       return `<span class="th-help-intro">${escapeHtml(help)}</span>`;
     }
+
+    let thHelpActiveWrap = null;
+
+    function ensureThHelpFloating() {
+      let el = document.getElementById("thHelpFloating");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "thHelpFloating";
+        el.className = "th-help-floating";
+        el.setAttribute("role", "tooltip");
+        el.hidden = true;
+        document.body.appendChild(el);
+      }
+      return el;
+    }
+
+    function hideThHelpFloating() {
+      const el = document.getElementById("thHelpFloating");
+      if (el) {
+        el.hidden = true;
+        el.innerHTML = "";
+        el.style.visibility = "";
+      }
+      thHelpActiveWrap = null;
+    }
+
+    function positionThHelpFloating(anchor) {
+      const el = ensureThHelpFloating();
+      const rect = anchor.getBoundingClientRect();
+      const margin = 8;
+      const gap = 6;
+      el.hidden = false;
+      el.style.visibility = "hidden";
+      el.style.left = "0px";
+      el.style.top = "0px";
+      const popW = el.offsetWidth;
+      const popH = el.offsetHeight;
+      let left = rect.left + rect.width / 2 - popW / 2;
+      left = Math.max(margin, Math.min(left, window.innerWidth - popW - margin));
+      let top = rect.bottom + gap;
+      let placeAbove = false;
+      if (top + popH > window.innerHeight - margin && rect.top - gap - popH >= margin) {
+        top = rect.top - gap - popH;
+        placeAbove = true;
+      } else {
+        top = Math.min(top, Math.max(margin, window.innerHeight - popH - margin));
+      }
+      const arrowX = rect.left + rect.width / 2 - left;
+      el.style.left = `${Math.round(left)}px`;
+      el.style.top = `${Math.round(top)}px`;
+      el.style.setProperty("--th-help-arrow-x", `${Math.round(arrowX)}px`);
+      el.dataset.placement = placeAbove ? "above" : "below";
+      el.style.visibility = "visible";
+    }
+
+    function showThHelpFloating(wrap) {
+      const src = wrap.querySelector(".th-help-pop");
+      if (!src || !src.innerHTML.trim()) return;
+      const el = ensureThHelpFloating();
+      el.innerHTML = src.innerHTML;
+      thHelpActiveWrap = wrap;
+      positionThHelpFloating(wrap);
+    }
+
+    function initThHelpTooltips() {
+      document.addEventListener("pointerover", (event) => {
+        const wrap = event.target.closest?.(".th-help-wrap");
+        if (!wrap) return;
+        if (wrap === thHelpActiveWrap) return;
+        showThHelpFloating(wrap);
+      });
+      document.addEventListener("pointerout", (event) => {
+        const wrap = event.target.closest?.(".th-help-wrap");
+        if (!wrap || wrap !== thHelpActiveWrap) return;
+        const to = event.relatedTarget;
+        if (to && typeof to.closest === "function" && wrap.contains(to)) return;
+        hideThHelpFloating();
+      });
+      document.addEventListener("focusin", (event) => {
+        const wrap = event.target.closest?.(".th-help-wrap");
+        if (wrap) showThHelpFloating(wrap);
+      });
+      document.addEventListener("focusout", (event) => {
+        const wrap = event.target.closest?.(".th-help-wrap");
+        if (!wrap || wrap !== thHelpActiveWrap) return;
+        const to = event.relatedTarget;
+        if (to && typeof to.closest === "function" && wrap.contains(to)) return;
+        hideThHelpFloating();
+      });
+      document.addEventListener("scroll", () => {
+        if (thHelpActiveWrap) hideThHelpFloating();
+      }, true);
+      window.addEventListener("resize", () => {
+        if (thHelpActiveWrap) hideThHelpFloating();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && thHelpActiveWrap) hideThHelpFloating();
+      });
+    }
+
+    initThHelpTooltips();
 
     function renderSortableTable(tableId, columns, rows, emptyMessage, options = {}) {
       tableDataCache[tableId] = rows;
