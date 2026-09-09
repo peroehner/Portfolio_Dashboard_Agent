@@ -501,10 +501,8 @@ function PoolCard({
         maximumValue={sliderMax}
         step={1}
         value={Math.max(0, Math.min(sliderMax, sliderValue))}
-        onSlidingStart={() => markSliding(true)}
-        onSlidingComplete={() => {
-          markSliding(false);
-        }}
+        onSlidingStart={beginSlide}
+        onSlidingComplete={endSlide}
         onValueChange={(v) => onChange(Math.round(v))}
         minimumTrackTintColor={trackColor}
         maximumTrackTintColor={colors.surfaceAlt}
@@ -534,10 +532,8 @@ function PoolCard({
                 ? Math.max(0, Math.min(budgetCap, budgetAmt))
                 : Math.max(0, budgetAmt)
             }
-            onSlidingStart={() => markSliding(true)}
-            onSlidingComplete={() => {
-              markSliding(false);
-            }}
+            onSlidingStart={beginSlide}
+            onSlidingComplete={endSlide}
             onValueChange={(v) => {
               const cap = Math.max(budgetCap, 0);
               if (!(cap > 0)) {
