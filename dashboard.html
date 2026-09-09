@@ -25,6 +25,9 @@
       --danger: #ef4444;
       --border: #2d3a4f;
       --radius: 10px;
+      --scores-accent: #38bdf8;
+      --scores-accent-dim: rgba(56, 189, 248, 0.16);
+      --scores-accent-border: rgba(56, 189, 248, 0.5);
       --portfolio-tab-accent: #3b82f6;
       --portfolio-tab-accent-dim: rgba(59, 130, 246, 0.28);
       --symbol-tab-accent: #14b8a6;
@@ -4551,6 +4554,30 @@
       background: var(--accent);
       color: #fff;
       border-color: var(--accent);
+    }
+    /* Screening Scores toggle + score column headers share one tint. */
+    #view-screening #btnScreenScores {
+      color: var(--scores-accent);
+      border-color: var(--scores-accent-border);
+    }
+    #view-screening #btnScreenScores:hover {
+      color: #7dd3fc;
+      border-color: var(--scores-accent);
+    }
+    #view-screening #btnScreenScores.active {
+      background: var(--scores-accent-dim);
+      color: var(--scores-accent);
+      border-color: var(--scores-accent);
+    }
+    table.data th.th-scores {
+      color: var(--scores-accent);
+    }
+    table.data th.th-scores.sortable:hover,
+    table.data th.th-scores.sortable.active {
+      color: #7dd3fc;
+    }
+    table.data th.th-scores .th-help {
+      opacity: 0.7;
     }
     .filter-sep {
       width: 1px;
@@ -10384,7 +10411,8 @@
         const subLabel = column.subLabel ? `<span class="th-sublabel">${column.subLabel}</span>` : "";
         const ascFirstAttr = column.ascFirst ? ` data-asc-first="1"` : "";
         const tradeSideAttr = column.tradeSideCycle ? ` data-trade-side-cycle="1"` : "";
-        return `<th class="sortable${active}" data-table-id="${tableId}" data-sort-key="${column.key}"${ascFirstAttr}${tradeSideAttr}><span class="th-label">${column.label}${helpMark}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></span>${subLabel}</th>`;
+        const scoreClass = column.scoreCol ? " th-scores" : "";
+        return `<th class="sortable${active}${scoreClass}" data-table-id="${tableId}" data-sort-key="${column.key}"${ascFirstAttr}${tradeSideAttr}><span class="th-label">${column.label}${helpMark}<span class="sort-indicator">${indicator ? ` ${indicator}` : ""}</span></span>${subLabel}</th>`;
       }).join("");
       const keyColumn = columns.find((column) => column.rowKey) || columns[0];
       const selectedKey = tableSelection[selectionKeyFor(tableId)];
@@ -13835,6 +13863,7 @@
       {
         key: "saiScore",
         label: "Score",
+        scoreCol: true,
         help: SCREEN_SAI_SCORE_HELP,
         sortValue: (row) => {
           const score = rowSaiBuyScore(row);
@@ -13850,6 +13879,7 @@
       {
         key: "buyScore",
         label: "Buy Scr",
+        scoreCol: true,
         help: SCREEN_BUY_SCORE_HELP,
         sortValue: (row) => {
           const score = rowSaiBuyScore(row);
@@ -13871,6 +13901,7 @@
       {
         key: "sellRank",
         label: "SRank",
+        scoreCol: true,
         help: SCREEN_SELL_RANK_HELP,
         sortValue: (row) => {
           const rank = screeningPlanSellRank(row);
@@ -13884,6 +13915,7 @@
       {
         key: "lossScore",
         label: "Loss",
+        scoreCol: true,
         help: SCREEN_LOSS_SCORE_HELP,
         sortValue: (row) => {
           const score = screeningLossScore(row);
@@ -13897,6 +13929,7 @@
       {
         key: "trimScore",
         label: "Trim",
+        scoreCol: true,
         help: SCREEN_TRIM_SCORE_HELP,
         sortValue: (row) => {
           const score = screeningTrimScore(row);
