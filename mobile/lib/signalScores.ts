@@ -111,6 +111,24 @@ export function trimScore(args: {
   return Math.max(0, exhaustPts + peakPts + weightPts + intentPts);
 }
 
+export type BuyPlanQualificationMode = "proximity" | "score";
+
+/**
+ * Buy Plan SAI Action hard-filter.
+ * - Score mode: only Action = BUY
+ * - Prox mode: allow WATCH (and BUY / HOLD / unknown)
+ * - Always exclude SELL
+ */
+export function buyPlanActionAllowed(
+  action: string | null | undefined,
+  mode: BuyPlanQualificationMode,
+): boolean {
+  const a = String(action || "").trim().toLowerCase();
+  if (a === "sell") return false;
+  if (mode === "score") return a === "buy";
+  return true;
+}
+
 /** Plan Sell Rank for a sell leg (lower = stronger). Null when no sell threshold. */
 export function planSellRankForRow(args: {
   currentPrice?: number | null;

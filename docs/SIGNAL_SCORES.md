@@ -77,6 +77,14 @@ Mobile-first workflow: **Buy Plan** and **Sell Plan** pools (qualification + sor
 | **Proximity** | Gate / sort by distance to buy threshold | Gate / sort by distance to sell threshold |
 | **Score** | Gate / sort by **effective Buy Score** = `SAI Score − conviction penalty` (≥ threshold; higher = stronger) | Gate / sort by **effective Sell Rank** = `Plan Sell Rank + conviction penalty` (≤ threshold; lower = stronger) |
 
+**Buy Plan Action hard-filter** (buy legs only):
+
+| Mode | Eligible SAI Actions |
+|------|----------------------|
+| **Score** | **BUY** only |
+| **Proximity** | BUY, WATCH, HOLD, unknown (no Assess yet) |
+| **Always** | **SELL excluded** |
+
 Mode toggle label on mobile: **SAI / Rank\*** (`*` = effective after conviction penalty).
 
 **Thumb rules:** Buy Score — higher = stronger buy-to-fire. Sell Rank — lower = stronger sell-to-fire. Loss/Trim Score — higher = stronger harvest candidate.
@@ -153,7 +161,7 @@ Pass 2 should consume harvest **facts** (loss/trim residual, `tax_loss_candidate
 
 1. **Conf vs Score** — Conf may soften one notch; Score does not drop. They can disagree; hover Conf to see why.
 2. **Sell Rank ≠ Trim Score** — planned-leg readiness vs winner-harvest rank.
-3. **Buy Score (web/mobile Score mode) = effective SAI Score** (minus conviction penalty) — not Plan Attract. **Higher = stronger buy-to-fire.**
+3. **Buy Score (web/mobile Score mode) = effective SAI Score** (minus conviction penalty) — not Plan Attract. **Higher = stronger buy-to-fire.** Mobile Buy Plan Score mode hard-filters to Action = BUY; Prox allows WATCH; SELLs always excluded.
 4. **Sell Rank (Score mode) = effective Plan Sell Rank** (plus conviction penalty). **Lower = stronger sell-to-fire.** Not Trim Score.
 5. **`fit_total` in track-record storage = SAI Score total**, not Portfolio Fit pillar alone.
 
