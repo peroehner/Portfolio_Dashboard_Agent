@@ -251,23 +251,23 @@ export function PortfolioTable({
                         col.key === "techBias" ? (
                           <TechBiasBadge bias={row.techBias} mini />
                         ) : col.tradeBand ? (
-                        <TradeBandBar
-                          row={row}
-                          width={col.width - spacing.xs}
-                          active={tipActive}
-                        />
-                      ) : (
-                        <Text
-                          style={[
-                            styles.cellText,
-                            col.align === "right" && styles.alignRight,
-                            { color: cellColor(row, col) },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {renderCell(row, col)}
-                        </Text>
-                      );
+                          <TradeBandBar
+                            row={row}
+                            width={col.width - spacing.xs}
+                            active={tipActive}
+                          />
+                        ) : (
+                          <Text
+                            style={[
+                              styles.cellText,
+                              col.align === "right" && styles.alignRight,
+                              { color: cellColor(row, col) },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {renderCell(row, col)}
+                          </Text>
+                        );
 
                       return (
                         <Pressable
