@@ -260,6 +260,21 @@
     #view-inspector {
       --portfolio-chrome: 8.75rem;
     }
+    /* Wider Target middle column so ticker · quote · company stay on one line. */
+    #view-portfolio {
+      grid-template-columns: 280px minmax(0, 1fr) 520px;
+    }
+    #view-portfolio .panel-symbol-head .symbol-head-row {
+      flex-wrap: nowrap;
+      min-width: 0;
+      max-width: 100%;
+    }
+    #view-portfolio .panel-symbol-head .symbol-head-company {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
     #view-inspector {
       display: grid;
       grid-template-columns: 280px 1fr;
