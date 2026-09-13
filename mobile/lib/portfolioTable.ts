@@ -1,4 +1,11 @@
-import { formatMoney, formatPct, formatQty, formatWeight, pctColor } from "@/lib/format";
+import {
+  formatDividendWithYield,
+  formatMoney,
+  formatPct,
+  formatQty,
+  formatWeight,
+  pctColor,
+} from "@/lib/format";
 import { tradeBandSideDist } from "@/lib/signalScores";
 import type { Assessment, Holding, PortfolioRow, PortfolioSymbol, SaiAction } from "@/lib/types";
 
@@ -57,7 +64,7 @@ export const PORTFOLIO_SCROLL_COLUMNS: PortfolioColumn[] = [
   { key: "quantity", label: "Qty", width: 56, align: "right" },
   { key: "marketValue", label: "Value", width: 72, align: "right", money: true },
   { key: "weightPct", label: "Wt %", width: 58, align: "right" },
-  { key: "annualDividend", label: "Div", width: 68, align: "right", money: true },
+  { key: "annualDividend", label: "Div", width: 96, align: "right", money: true },
   { key: "unrealizedGain", label: "Gain", width: 72, align: "right", money: true },
   { key: "gainPct", label: "Gain %", width: 72, align: "right", pct: true },
   { key: "analystTarget1y", label: "1YT", width: 78, align: "right", price: true },
@@ -360,7 +367,9 @@ export function computePortfolioTotals(
     quantity: { text: formatQty(totalQty || null) },
     marketValue: money(totalValue),
     weightPct: { text: formatWeight(totalWeight || null) },
-    annualDividend: money(totalDiv),
+    annualDividend: {
+      text: formatDividendWithYield(totalDiv, totalValue, true),
+    },
     unrealizedGain: {
       text: formatMoney(totalGain, true),
       color: pctColor(totalGain),
