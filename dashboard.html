@@ -570,7 +570,7 @@
     }
     .planned-trade-side label { white-space: nowrap; }
     .planned-trade-side .trade-dir-toggle { margin-top: 0.05rem; }
-    /* Group the colored glyph + "Trade @ Below/Above" text together at the left
+    /* Group the colored glyph + "Below/Above" text together at the left
        (override the inherited space-between that pushed the text to the edge).
        Extra specificity so it wins over the later `.target-field label` base rule. */
     .target-field.planned-trade-price label { justify-content: flex-start; gap: 0.35rem; }
@@ -740,7 +740,8 @@
       text-overflow: ellipsis;
       min-width: 0;
     }
-    .threshold-proposal button {
+    /* Source chip by default; reveal "Use $…" on hover/focus (declutter). */
+    .threshold-proposal button.proposal-apply {
       border: 1px solid rgba(139, 92, 246, 0.45);
       background: rgba(139, 92, 246, 0.12);
       color: #c4b5fd;
@@ -749,10 +750,30 @@
       font-size: 0.68rem;
       font-weight: 600;
       cursor: pointer;
-      flex: 0 0 auto;
+      flex: 0 1 auto;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    .threshold-proposal button:hover {
+    .threshold-proposal button.proposal-apply .proposal-use {
+      display: none;
+    }
+    .threshold-proposal button.proposal-apply:hover,
+    .threshold-proposal button.proposal-apply:focus-visible {
       background: rgba(139, 92, 246, 0.22);
+    }
+    .threshold-proposal button.proposal-apply:hover .proposal-source,
+    .threshold-proposal button.proposal-apply:focus-visible .proposal-source {
+      display: none;
+    }
+    .threshold-proposal button.proposal-apply:hover .proposal-use,
+    .threshold-proposal button.proposal-apply:focus-visible .proposal-use {
+      display: inline;
+    }
+    .threshold-proposal button.proposal-apply.proposal-apply-bare .proposal-use {
+      display: inline;
     }
     .target-fib-strip {
       display: flex;
@@ -6206,14 +6227,14 @@
                   <input name="tradeBelowQty" type="text" inputmode="decimal" autocomplete="off" placeholder="Shares">
                 </div>
                 <div class="planned-trade-side">
-                  <div class="fund-news-sort trade-dir-toggle" id="tradeBelowDirToggle" role="group" aria-label="Trade @ Below direction">
+                  <div class="fund-news-sort trade-dir-toggle" id="tradeBelowDirToggle" role="group" aria-label="Below trade direction">
                     <button type="button" data-dir="buy" onclick="setTradeDir('Below','buy')">Buy</button>
                     <button type="button" data-dir="sell" onclick="setTradeDir('Below','sell')">Sell</button>
                   </div>
                   <input type="hidden" name="tradeBelowDir" value="buy">
                 </div>
                 <div class="target-field planned-trade-price">
-                  <label><span class="trade-bar-marker low"></span>Trade @ Below</label>
+                  <label><span class="trade-bar-marker low"></span>Below</label>
                   <input name="tradeBelowPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="$0.00">
                   <div class="threshold-proposal" id="tradeBelowProposal"></div>
                 </div>
@@ -6224,14 +6245,14 @@
                   <input name="tradeAboveQty" type="text" inputmode="decimal" autocomplete="off" placeholder="Shares">
                 </div>
                 <div class="planned-trade-side">
-                  <div class="fund-news-sort trade-dir-toggle" id="tradeAboveDirToggle" role="group" aria-label="Trade @ Above direction">
+                  <div class="fund-news-sort trade-dir-toggle" id="tradeAboveDirToggle" role="group" aria-label="Above trade direction">
                     <button type="button" data-dir="buy" onclick="setTradeDir('Above','buy')">Buy</button>
                     <button type="button" data-dir="sell" onclick="setTradeDir('Above','sell')">Sell</button>
                   </div>
                   <input type="hidden" name="tradeAboveDir" value="sell">
                 </div>
                 <div class="target-field planned-trade-price">
-                  <label><span class="trade-bar-marker high"></span>Trade @ Above</label>
+                  <label><span class="trade-bar-marker high"></span>Above</label>
                   <input name="tradeAbovePrice" type="text" inputmode="decimal" autocomplete="off" placeholder="$0.00">
                   <div class="threshold-proposal" id="tradeAboveProposal"></div>
                 </div>
@@ -9071,6 +9092,14 @@
       return { buy, sell, buyNote, sellNote };
     }
 
+    function shortProposalSourceLabel(note, proposal) {
+      const raw = (note || "").split(` · ${formatMoney(proposal)}`).join("").trim();
+      if (!raw) return "";
+      // Prefer the leading source token ("61.8%", "Personal target", "Swing low").
+      const head = raw.split(" · ")[0].trim();
+      return head || raw;
+    }
+
     function renderThresholdProposal(containerId, fieldName, proposal, note) {
       const container = document.getElementById(containerId);
       if (!container) return;
@@ -9078,17 +9107,35 @@
         container.innerHTML = `<span class="proposal-note">No Fib/assessment proposal yet</span>`;
         return;
       }
-      const label = (note || "").split(` · ${formatMoney(proposal)}`).join("").trim();
+      const fullNote = (note || "").split(` · ${formatMoney(proposal)}`).join("").trim();
+      const source = shortProposalSourceLabel(note, proposal);
+      const useLabel = `Use ${formatMoney(proposal)}`;
+      const title = fullNote
+        ? `${useLabel} · ${fullNote}`
+        : useLabel;
+      if (!source) {
+        container.innerHTML = `
+          <button type="button" class="proposal-apply proposal-apply-bare"
+            title="${escapeHtml(title)}"
+            aria-label="${escapeHtml(useLabel)}"
+            onclick="applyThresholdProposal('${fieldName}', ${proposal})">${escapeHtml(useLabel)}</button>`;
+        return;
+      }
       container.innerHTML = `
-        <button type="button" onclick="applyThresholdProposal('${fieldName}', ${proposal})">Use ${formatMoney(proposal)}</button>
-        ${label ? `<span class="proposal-note" title="${escapeHtml(label)}">${escapeHtml(label)}</span>` : ""}`;
+        <button type="button" class="proposal-apply"
+          title="${escapeHtml(title)}"
+          aria-label="${escapeHtml(useLabel)}"
+          onclick="applyThresholdProposal('${fieldName}', ${proposal})">
+          <span class="proposal-source">${escapeHtml(source)}</span>
+          <span class="proposal-use">${escapeHtml(useLabel)}</span>
+        </button>`;
     }
 
     function applyThresholdProposal(fieldName, value) {
       const form = document.getElementById("symbolForm");
       if (!form || !form[fieldName]) return;
       form[fieldName].value = formatPriceInput(value);
-      const label = fieldName === "tradeBelowPrice" ? "Trade @ Below" : "Trade @ Above";
+      const label = fieldName === "tradeBelowPrice" ? "Below" : "Above";
       setStatus(`Applied ${label} proposal.`);
     }
 
