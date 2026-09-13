@@ -1,7 +1,13 @@
 import { ScrollView, StyleSheet, Text, View, type ViewStyle } from "react-native";
 
 import { getPositionDisplay } from "@/lib/inspectorHelpers";
-import { formatEntryDate, formatMoney, formatPct, pctColor } from "@/lib/format";
+import {
+  formatDividendWithYield,
+  formatEntryDate,
+  formatMoney,
+  formatPct,
+  pctColor,
+} from "@/lib/format";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { InspectorPayload } from "@/lib/types";
 
@@ -89,7 +95,11 @@ export function HoldingsCompactCard({ data, style }: HoldingsCompactCardProps) {
             <View style={styles.colRight}>
               <ColCell
                 label="Est. Div"
-                value={pos.estDividend != null && pos.estDividend > 0 ? formatMoney(pos.estDividend) : "—"}
+                value={
+                  pos.estDividend != null && pos.estDividend > 0
+                    ? formatDividendWithYield(pos.estDividend, pos.currentValue)
+                    : "—"
+                }
                 valueColor={pos.estDividend != null && pos.estDividend > 0 ? colors.buy : undefined}
               />
             </View>

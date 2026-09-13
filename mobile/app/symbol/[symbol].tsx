@@ -844,7 +844,7 @@ export default function SymbolDetailScreen() {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            <Text style={styles.inputLabel}>Avg cost / share</Text>
+            <Text style={styles.inputLabel}>Cost $/Share</Text>
             <TextInput
               style={styles.input}
               value={holdingAvgCost}
@@ -957,7 +957,7 @@ export default function SymbolDetailScreen() {
               </Text>
             )}
 
-            <Text style={styles.inputLabel}>Personal target</Text>
+            <Text style={styles.inputLabel}>Pers Target</Text>
             <TextInput
               style={styles.input}
               value={targetPrice}
@@ -1035,7 +1035,7 @@ export default function SymbolDetailScreen() {
                             </Text>
                           </View>
                           <View style={styles.thresholdCell}>
-                            <Text style={styles.statLabel}>Personal target</Text>
+                            <Text style={styles.statLabel}>Pers Target</Text>
                             <Text style={styles.statValue}>{formatPrice(quote?.targetPrice)}</Text>
                           </View>
                           <View style={styles.thresholdCell}>

@@ -3164,11 +3164,22 @@
       overflow: visible;
       text-overflow: unset;
     }
-    .inspector-holdings-card .holdings-position-grid .valuation-metric .value .chip-pct {
+    .inspector-holdings-card .holdings-position-grid .valuation-metric .value .chip-pct,
+    .inspector-holdings-card .holdings-valuation .valuation-metric .value .chip-pct {
       display: block;
       font-size: 0.78em;
       font-weight: 600;
       margin-top: 0.1rem;
+    }
+    .holdings-div-yield {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.92em;
+      margin-left: 0.25rem;
+      white-space: nowrap;
+    }
+    .holdings-div-yield.has-div {
+      color: var(--accent-2);
     }
     .inspector-holdings-card .holdings-position-grid + .holdings-valuation {
       margin-top: 0.15rem;
@@ -6168,11 +6179,11 @@
                   <input name="purchaseDate" type="date" autocomplete="off">
                 </div>
                 <div class="target-field">
-                  <label>Avg Cost <span class="field-hint">$ / Share</span></label>
+                  <label>Cost $/Share</label>
                   <input name="avgCost" type="text" inputmode="decimal" autocomplete="off" placeholder="$0.00">
                 </div>
                 <div class="target-field">
-                  <label>Personal Target</label>
+                  <label>Pers Target</label>
                   <div class="target-personal-chip">
                     <input name="targetPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="$0.00">
                     <div class="target-field-meta" id="targetUpsideMeta"></div>
@@ -8623,6 +8634,40 @@
       if (!Number.isFinite(amount)) return "—";
       const sign = amount > 0 ? "+" : "";
       return `${sign}${amount.toFixed(2)}% Yield`;
+    }
+
+    /** Annual dividend as % of market value (position / portfolio yield). */
+    function dividendYieldPct(annualDividend, marketValue) {
+      const div = Number(annualDividend);
+      const value = Number(marketValue);
+      if (!Number.isFinite(div) || !Number.isFinite(value) || value <= 0 || div <= 0) {
+        return null;
+      }
+      return (div / value) * 100;
+    }
+
+    function formatDividendYieldParen(yieldPct) {
+      if (yieldPct == null || !Number.isFinite(yieldPct)) return "";
+      return `(${yieldPct.toFixed(2)}%)`;
+    }
+
+    /** Hold-table / footer: "$15,840 (1.01%)". */
+    function formatHoldingsDividendWithYield(annualDividend, marketValue) {
+      const money = formatHoldingsCompactMoney(annualDividend);
+      if (money === "—") return "—";
+      const yld = dividendYieldPct(annualDividend, marketValue);
+      if (yld == null) return money;
+      const cls = yld > 0 ? "holdings-div-yield has-div" : "holdings-div-yield";
+      return `${money}<span class="${cls}">${formatDividendYieldParen(yld)}</span>`;
+    }
+
+    /** Inspector Est. Dividend: money + chip-pct under it (Gain/Target pattern). */
+    function formatEstDividendWithYield(annualDividend, marketValue) {
+      const money = formatSummaryMoney(annualDividend);
+      if (money === "—") return "—";
+      const yld = dividendYieldPct(annualDividend, marketValue);
+      if (yld == null) return money;
+      return `${money}<span class="chip-pct">${formatDividendYieldParen(yld)}</span>`;
     }
 
     function formatUpside(value) {
@@ -12844,7 +12889,7 @@
       { key: "quantity", label: "Qty", sortValue: (row) => row.quantity, render: (row) => row.quantity },
       { key: "marketValue", label: "Value", sortValue: (row) => row.marketValue, render: (row) => formatHoldingsCompactMoney(row.marketValue) },
       { key: "weightPct", label: "Weight", sortValue: (row) => row.weightPct, render: (row) => row.weightPct != null ? `${row.weightPct}%` : "—" },
-      { key: "annualDividend", label: "Dividend", sortValue: (row) => row.annualDividend, render: (row) => formatHoldingsCompactMoney(row.annualDividend) },
+      { key: "annualDividend", label: "Dividend", sortValue: (row) => row.annualDividend, render: (row) => formatHoldingsDividendWithYield(row.annualDividend, row.marketValue) },
       { key: "unrealizedGain", label: "Gain", sortValue: (row) => row.unrealizedGain, render: (row) => renderHoldingsCompactMoneyCell(row.unrealizedGain) },
       { key: "gainPct", label: "Gain %", coloredPercent: true, sortValue: (row) => row.gainPct, render: (row) => renderHoldingsPercentCell(row.gainPct) },
       {
@@ -13005,7 +13050,7 @@
         gainPct: renderHoldingsPercentCell(gainPct),
         analystTargetValue: `<strong>${formatHoldingsCompactMoney(totalAnalystVal)}</strong>`,
         personalTargetValue: `<strong>${formatHoldingsCompactMoney(totalPtVal)}</strong>`,
-        annualDividend: `<strong>${formatHoldingsCompactMoney(totalDiv)}</strong>`,
+        annualDividend: `<strong>${formatHoldingsDividendWithYield(totalDiv, totalValue)}</strong>`,
       };
       const cells = holdingsColumns.map((col) => {
         const content = cellByKey[col.key] ?? "";
@@ -18383,8 +18428,15 @@
               <div class="advisory-stance">Technical Stance: ${advisory.stance || "Unknown"}</div>
               <p>${advisory.message || "Insufficient technical data to assess support positioning."}</p>
             </section>`;
+      const holdingMarketValue = data.holding?.marketValue
+        ?? data.positionMechanics?.currentValue
+        ?? null;
       const valuationMetricsHtml = [
-        renderValuationMetric("Est. Dividend", formatSummaryMoney(val.estDividend), (val.estDividend ?? 0) > 0 ? "gain-pos" : ""),
+        renderValuationMetric(
+          "Est. Dividend",
+          formatEstDividendWithYield(val.estDividend, holdingMarketValue),
+          (val.estDividend ?? 0) > 0 ? "gain-pos" : "",
+        ),
         renderValuationMetric("Trailing P/E", formatInspectorMetric(val.trailingPe)),
         renderValuationMetric("Forward P/E", formatInspectorMetric(val.forwardPe)),
         renderValuationMetric("PEG Ratio", formatInspectorMetric(val.pegRatio)),
@@ -20080,8 +20132,15 @@
         } catch (_) {}
       }
 
+      const holdingMarketValue = data.holding?.marketValue
+        ?? data.positionMechanics?.currentValue
+        ?? null;
       const valuationMetricsHtml = [
-        renderValuationMetric("Est. Dividend", formatSummaryMoney(val.estDividend), (val.estDividend ?? 0) > 0 ? "gain-pos" : ""),
+        renderValuationMetric(
+          "Est. Dividend",
+          formatEstDividendWithYield(val.estDividend, holdingMarketValue),
+          (val.estDividend ?? 0) > 0 ? "gain-pos" : "",
+        ),
         renderValuationMetric("Trailing P/E", formatInspectorMetric(val.trailingPe)),
         renderValuationMetric("Forward P/E", formatInspectorMetric(val.forwardPe)),
         renderValuationMetric("PEG Ratio", formatInspectorMetric(val.pegRatio)),

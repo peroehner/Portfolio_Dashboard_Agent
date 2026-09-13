@@ -15,6 +15,7 @@ import { TechBiasBadge } from "@/components/TechBiasBadge";
 import { SymbolStarPressable } from "@/components/SymbolStarPressable";
 import { TradeBandBar, tradeBandTooltipText } from "@/components/TradeBandBar";
 import {
+  formatDividendWithYield,
   formatMoney,
   formatPct,
   formatPrice,
@@ -53,6 +54,9 @@ function renderCell(row: PortfolioRow, col: PortfolioColumn): string {
   const value = row[col.key as keyof PortfolioRow];
   if (col.key === "quantity") return formatQty(value as number | null);
   if (col.key === "weightPct") return formatWeight(value as number | null);
+  if (col.key === "annualDividend") {
+    return formatDividendWithYield(row.annualDividend, row.marketValue, true);
+  }
   if (col.pct) return formatPct(value as number | null);
   if (col.money) return formatMoney(value as number | null, true);
   if (col.price) return formatPrice(value as number | null);

@@ -13,6 +13,32 @@ export function formatMoney(value: number | null | undefined, compact = false): 
   return `${sign}$${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
+/** Annual dividend as % of market value (position / portfolio yield). */
+export function dividendYieldPct(
+  annualDividend: number | null | undefined,
+  marketValue: number | null | undefined,
+): number | null {
+  const div = Number(annualDividend);
+  const value = Number(marketValue);
+  if (!Number.isFinite(div) || !Number.isFinite(value) || value <= 0 || div <= 0) {
+    return null;
+  }
+  return (div / value) * 100;
+}
+
+/** "$15,840 (1.01%)" — Hold table / Est. Div surfaces. */
+export function formatDividendWithYield(
+  annualDividend: number | null | undefined,
+  marketValue: number | null | undefined,
+  compact = false,
+): string {
+  const money = formatMoney(annualDividend, compact);
+  if (money === "—") return "—";
+  const yld = dividendYieldPct(annualDividend, marketValue);
+  if (yld == null) return money;
+  return `${money} (${yld.toFixed(2)}%)`;
+}
+
 export function formatPct(value: number | null | undefined, digits = 1): string {
   if (value == null || Number.isNaN(value)) return "—";
   const sign = value > 0 ? "+" : "";
