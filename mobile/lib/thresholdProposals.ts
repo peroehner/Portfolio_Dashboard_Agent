@@ -43,7 +43,7 @@ export function targetFibLevels(data?: InspectorPayload | null): FibLevelOption[
   return levels;
 }
 
-/** Suggest Trade @ Below / Above prices from Fib + assessment (web proposeThresholds). */
+/** Suggest Below / Above prices from Fib + assessment (web proposeThresholds). */
 export function proposeThresholds(
   quote?: PortfolioSymbol | null,
   data?: InspectorPayload | null,

@@ -855,7 +855,7 @@ export default function SymbolDetailScreen() {
             />
 
             <Text style={styles.sectionLabel}>Planned trades & target</Text>
-            <Text style={styles.inputLabel}>Trade @ Below</Text>
+            <Text style={styles.inputLabel}>Below</Text>
             <View style={styles.thresholdInputRow}>
               <TextInput
                 style={[styles.input, styles.thresholdPriceInput]}
@@ -891,11 +891,13 @@ export default function SymbolDetailScreen() {
             {thresholdSuggestions.buy != null ? (
               <Pressable
                 style={styles.suggestBtn}
+                accessibilityLabel={`Use ${formatPrice(thresholdSuggestions.buy)}`}
                 onPress={() => setBuyBelow(toInput(thresholdSuggestions.buy))}
               >
-                <Text style={styles.suggestBtnText}>
-                  Use {formatPrice(thresholdSuggestions.buy)}
-                  {thresholdSuggestions.buyNote ? ` · ${thresholdSuggestions.buyNote}` : ""}
+                <Text style={styles.suggestBtnText} numberOfLines={1}>
+                  {thresholdSuggestions.buyNote
+                    ? thresholdSuggestions.buyNote.split(" · ")[0]
+                    : `Use ${formatPrice(thresholdSuggestions.buy)}`}
                 </Text>
               </Pressable>
             ) : (
@@ -906,7 +908,7 @@ export default function SymbolDetailScreen() {
               </Text>
             )}
 
-            <Text style={styles.inputLabel}>Trade @ Above</Text>
+            <Text style={styles.inputLabel}>Above</Text>
             <View style={styles.thresholdInputRow}>
               <TextInput
                 style={[styles.input, styles.thresholdPriceInput]}
@@ -942,11 +944,13 @@ export default function SymbolDetailScreen() {
             {thresholdSuggestions.sell != null ? (
               <Pressable
                 style={styles.suggestBtn}
+                accessibilityLabel={`Use ${formatPrice(thresholdSuggestions.sell)}`}
                 onPress={() => setSellAbove(toInput(thresholdSuggestions.sell))}
               >
-                <Text style={styles.suggestBtnText}>
-                  Use {formatPrice(thresholdSuggestions.sell)}
-                  {thresholdSuggestions.sellNote ? ` · ${thresholdSuggestions.sellNote}` : ""}
+                <Text style={styles.suggestBtnText} numberOfLines={1}>
+                  {thresholdSuggestions.sellNote
+                    ? thresholdSuggestions.sellNote.split(" · ")[0]
+                    : `Use ${formatPrice(thresholdSuggestions.sell)}`}
                 </Text>
               </Pressable>
             ) : (
@@ -1023,13 +1027,13 @@ export default function SymbolDetailScreen() {
                       >
                         <View style={styles.thresholdGrid}>
                           <View style={styles.thresholdCell}>
-                            <Text style={styles.statLabel}>Trade @ Below</Text>
+                            <Text style={styles.statLabel}>Below</Text>
                             <Text style={styles.statValue}>
                               {thresholdValueText(effectiveBuyBelow, quote?.tradeBelowShares)}
                             </Text>
                           </View>
                           <View style={styles.thresholdCell}>
-                            <Text style={styles.statLabel}>Trade @ Above</Text>
+                            <Text style={styles.statLabel}>Above</Text>
                             <Text style={styles.statValue}>
                               {thresholdValueText(effectiveSellAbove, quote?.tradeAboveShares)}
                             </Text>
@@ -1063,13 +1067,13 @@ export default function SymbolDetailScreen() {
                   <Text style={styles.cardTitle}>Thresholds</Text>
                   <View style={styles.thresholdGrid}>
                     <View style={styles.thresholdCell}>
-                      <Text style={styles.statLabel}>Trade @ Below</Text>
+                      <Text style={styles.statLabel}>Below</Text>
                       <Text style={styles.statValue}>
                         {thresholdValueText(effectiveBuyBelow, quote?.tradeBelowShares)}
                       </Text>
                     </View>
                     <View style={styles.thresholdCell}>
-                      <Text style={styles.statLabel}>Trade @ Above</Text>
+                      <Text style={styles.statLabel}>Above</Text>
                       <Text style={styles.statValue}>
                         {thresholdValueText(effectiveSellAbove, quote?.tradeAboveShares)}
                       </Text>
