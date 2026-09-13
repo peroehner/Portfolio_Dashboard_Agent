@@ -810,7 +810,7 @@ export default function SymbolDetailScreen() {
               <Text style={styles.modalBtn}>Cancel</Text>
             </Pressable>
             <Text style={styles.modalTitle} numberOfLines={1}>
-              Targets & Thresholds
+              Planned Trades & Target
             </Text>
             <Pressable onPress={() => void saveTargetsAndThresholds()} disabled={saving} hitSlop={8}>
               <Text style={[styles.modalBtn, saving && styles.modalBtnDisabled]}>
@@ -855,13 +855,8 @@ export default function SymbolDetailScreen() {
             />
 
             <Text style={styles.sectionLabel}>Planned trades & target</Text>
-            {/* One-line: Buy|Sell · shares · Below/Above · price · Use $… */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.plannedLine}
-              style={styles.plannedLineScroll}
-            >
+            {/* Single row: Buy|Sell · shares · Below/Above · threshold · suggestion */}
+            <View style={styles.plannedLine}>
               <View style={styles.plannedDir}>
                 <Pressable
                   style={[styles.dirBtn, styles.dirBtnCompact, buyBelowDir === "buy" && styles.dirBtnBuy]}
@@ -904,21 +899,15 @@ export default function SymbolDetailScreen() {
                   onPress={() => setBuyBelow(toInput(thresholdSuggestions.buy))}
                 >
                   <Text style={styles.suggestBtnText} numberOfLines={1}>
-                    Use {formatPrice(thresholdSuggestions.buy)}
                     {thresholdSuggestions.buyNote
-                      ? ` · ${thresholdSuggestions.buyNote.split(" · ")[0]}`
-                      : ""}
+                      ? thresholdSuggestions.buyNote.split(" · ")[0]
+                      : `Use ${formatPrice(thresholdSuggestions.buy)}`}
                   </Text>
                 </Pressable>
               ) : null}
-            </ScrollView>
+            </View>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.plannedLine}
-              style={styles.plannedLineScroll}
-            >
+            <View style={styles.plannedLine}>
               <View style={styles.plannedDir}>
                 <Pressable
                   style={[styles.dirBtn, styles.dirBtnCompact, sellAboveDir === "buy" && styles.dirBtnBuy]}
@@ -961,14 +950,13 @@ export default function SymbolDetailScreen() {
                   onPress={() => setSellAbove(toInput(thresholdSuggestions.sell))}
                 >
                   <Text style={styles.suggestBtnText} numberOfLines={1}>
-                    Use {formatPrice(thresholdSuggestions.sell)}
                     {thresholdSuggestions.sellNote
-                      ? ` · ${thresholdSuggestions.sellNote.split(" · ")[0]}`
-                      : ""}
+                      ? thresholdSuggestions.sellNote.split(" · ")[0]
+                      : `Use ${formatPrice(thresholdSuggestions.sell)}`}
                   </Text>
                 </Pressable>
               ) : null}
-            </ScrollView>
+            </View>
             {thresholdSuggestions.buy == null && thresholdSuggestions.sell == null ? (
               <Text style={styles.suggestHint}>
                 {fullLoading
@@ -1800,18 +1788,19 @@ const styles = StyleSheet.create({
   thresholdShareInput: {
     flex: 1,
   },
-  plannedLineScroll: {
-    marginTop: spacing.sm,
-  },
   plannedLine: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "nowrap",
     gap: 4,
-    paddingRight: 4,
+    marginTop: spacing.sm,
+    width: "100%",
   },
   plannedDir: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 2,
+    flexShrink: 0,
   },
   dirRow: {
     flexDirection: "row",
@@ -1827,8 +1816,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
   },
   dirBtnCompact: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 5,
+    minWidth: 0,
   },
   dirBtnBuy: {
     borderColor: colors.buy,
@@ -1847,14 +1837,24 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   plannedSharesInput: {
-    width: 52,
-    paddingHorizontal: 6,
+    width: 54,
+    minWidth: 54,
+    maxWidth: 54,
+    flex: 0,
+    flexGrow: 0,
+    flexShrink: 0,
+    paddingHorizontal: 4,
     paddingVertical: 6,
     textAlign: "center",
   },
   plannedPriceInput: {
-    width: 74,
-    paddingHorizontal: 6,
+    width: 72,
+    minWidth: 64,
+    maxWidth: 84,
+    flex: 0,
+    flexGrow: 0,
+    flexShrink: 0,
+    paddingHorizontal: 4,
     paddingVertical: 6,
   },
   plannedSideWord: {
@@ -1863,6 +1863,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.3,
+    flexShrink: 0,
   },
   suggestBtn: {
     marginTop: 6,
@@ -1877,7 +1878,10 @@ const styles = StyleSheet.create({
   suggestBtnInline: {
     marginTop: 0,
     alignSelf: "center",
-    maxWidth: 148,
+    flexShrink: 1,
+    flexGrow: 1,
+    minWidth: 0,
+    maxWidth: 160,
     paddingHorizontal: 8,
     paddingVertical: 5,
   },
