@@ -277,6 +277,30 @@ class NotesService:
 
         note = self.get_note(symbol, note_id)
         assert note is not None
+        # Restore durable claims from imported synthesis (no LLM). Gated: empty
+        # catalystsToWatch is a no-op.
+        if isinstance(note.get("synthesis"), dict):
+            try:
+                from services.catalyst_claims_service import CatalystClaimsService
+
+                claims = CatalystClaimsService()
+                stamped = claims.capture_from_synthesis(
+                    symbol, note_id, note["synthesis"]
+                )
+                if stamped:
+                    note = {
+                        **note,
+                        "synthesis": claims.stamp_synthesis_catalysts(
+                            note_id, note["synthesis"], stamped
+                        ),
+                    }
+            except Exception as exc:  # noqa: BLE001 - import must stay lossless
+                logging.warning(
+                    "Catalyst claim capture on import failed for note %s (%s): %s",
+                    note_id,
+                    symbol,
+                    exc,
+                )
         return note
 
     def ensure_links(self, note_id: int, symbols: list[str]) -> dict[str, Any]:
@@ -434,6 +458,31 @@ class NotesService:
             if add_syms:
                 self._insert_links(conn, user_id, note_id, add_syms)
             conn.commit()
+
+        # Slice A: persist durable catalyst claims from this synthesis. Slice B
+        # may then evaluate *prior* open claims against this note — gated so a
+        # symbol with no claims leaves assessment/SAI undisturbed.
+        try:
+            from services.catalyst_claims_service import CatalystClaimsService
+
+            claims = CatalystClaimsService()
+            stamped = claims.capture_from_synthesis(symbol, note_id, synthesis)
+            if stamped:
+                synthesis = claims.stamp_synthesis_catalysts(note_id, synthesis, stamped)
+            if claims.has_open_claims(symbol):
+                # Exclude this note's own brand-new claims via noteId guard in auto-eval.
+                claims.evaluate_symbol(
+                    symbol,
+                    evidence_notes=[{"id": note_id, "date": note.get("date"), "synthesis": synthesis}],
+                    llm_client=self.llm_client,
+                )
+        except Exception as exc:  # noqa: BLE001 - claims are additive; never fail synthesize
+            logging.warning(
+                "Catalyst claim capture/eval failed for note %s (%s): %s",
+                note_id,
+                symbol,
+                exc,
+            )
 
         if manual:
             record_manual_ai_action()

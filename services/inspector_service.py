@@ -917,7 +917,7 @@ def build_symbol_recommendation(
         portfolio_annual_dividend=portfolio_annual_dividend,
     )
 
-    return {
+    recommendation = {
         "action": action,
         "confidence": confidence,
         "headline": headline,
@@ -946,3 +946,19 @@ def build_symbol_recommendation(
         ),
         "proposal": proposal,
     }
+
+    # Slice C: attach prior-watch scorecard only when durable claims exist.
+    # When none exist, omit the key so UI (slice D) stays undisturbed.
+    try:
+        from services.catalyst_claims_service import CatalystClaimsService
+
+        scorecard = CatalystClaimsService().scorecard(
+            str(symbol_data.get("symbol") or "")
+        )
+        if scorecard:
+            recommendation["catalystScorecard"] = scorecard
+    except Exception:  # noqa: BLE001 - scorecard is additive
+        pass
+
+    return recommendation
+

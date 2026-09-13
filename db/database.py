@@ -224,6 +224,32 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS catalyst_claims (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        symbol TEXT NOT NULL,
+        note_id BIGINT REFERENCES notes(id) ON DELETE SET NULL,
+        claim_key TEXT NOT NULL,
+        period TEXT NOT NULL,
+        metric TEXT NOT NULL,
+        metric_key TEXT,
+        threshold TEXT,
+        significance TEXT,
+        direction TEXT NOT NULL DEFAULT 'above',
+        status TEXT NOT NULL DEFAULT 'open',
+        captured_at TEXT NOT NULL DEFAULT app_now_text(),
+        due_period TEXT,
+        evaluated_at TEXT,
+        observed_value TEXT,
+        observed_period TEXT,
+        evidence_note_id BIGINT,
+        verdict_detail TEXT,
+        evaluation_source TEXT,
+        FOREIGN KEY (user_id, symbol) REFERENCES symbols(user_id, symbol) ON DELETE CASCADE,
+        UNIQUE (user_id, symbol, claim_key)
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS app_meta (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -290,6 +316,8 @@ INDEX_STATEMENTS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS idx_reco_changelog_created ON recommendation_changelog(created_at)",
     "CREATE INDEX IF NOT EXISTS idx_signal_outcomes_user ON signal_outcomes(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_signal_outcomes_pending ON signal_outcomes(user_id, outcome, eval_due_at)",
+    "CREATE INDEX IF NOT EXISTS idx_catalyst_claims_user_symbol ON catalyst_claims(user_id, symbol)",
+    "CREATE INDEX IF NOT EXISTS idx_catalyst_claims_open ON catalyst_claims(user_id, symbol, status)",
     "CREATE INDEX IF NOT EXISTS idx_symbol_market_updated ON symbol_market(updated_at)",
     "CREATE INDEX IF NOT EXISTS idx_symbol_assessment_created ON symbol_assessment(created_at)",
 )
@@ -357,6 +385,34 @@ MIGRATION_STATEMENTS: tuple[str, ...] = (
         FOREIGN KEY (user_id, symbol) REFERENCES symbols(user_id, symbol) ON DELETE CASCADE
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS catalyst_claims (
+        id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        symbol TEXT NOT NULL,
+        note_id BIGINT REFERENCES notes(id) ON DELETE SET NULL,
+        claim_key TEXT NOT NULL,
+        period TEXT NOT NULL,
+        metric TEXT NOT NULL,
+        metric_key TEXT,
+        threshold TEXT,
+        significance TEXT,
+        direction TEXT NOT NULL DEFAULT 'above',
+        status TEXT NOT NULL DEFAULT 'open',
+        captured_at TEXT NOT NULL DEFAULT app_now_text(),
+        due_period TEXT,
+        evaluated_at TEXT,
+        observed_value TEXT,
+        observed_period TEXT,
+        evidence_note_id BIGINT,
+        verdict_detail TEXT,
+        evaluation_source TEXT,
+        FOREIGN KEY (user_id, symbol) REFERENCES symbols(user_id, symbol) ON DELETE CASCADE,
+        UNIQUE (user_id, symbol, claim_key)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_catalyst_claims_user_symbol ON catalyst_claims(user_id, symbol)",
+    "CREATE INDEX IF NOT EXISTS idx_catalyst_claims_open ON catalyst_claims(user_id, symbol, status)",
 )
 
 BOOTSTRAP_USER_EMAIL = os.environ.get("BOOTSTRAP_USER_EMAIL", "local@portfolio.local")

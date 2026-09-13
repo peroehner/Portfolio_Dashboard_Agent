@@ -267,6 +267,10 @@ recommendation layer instead surfaces them as **context**:
 - `watchItems` — upcoming catalysts from note synthesis, active alert messages,
   and a "Price near Fib <label> (<distance>%)" line when within proximity;
   capped at 8.
+- `catalystScorecard` — **only when** durable `catalyst_claims` exist for the
+  symbol (captured from prior note-synthesis watch-outs). Summarizes prior
+  watch-outs vs later evidence (`substantiated` / `missed` / `open` / …). When
+  no claims exist, the key is omitted and SAI/UI stay unchanged.
 - `upsidePct` — passed through from the screening row (computed from analyst or
   personal target).
 - The **technical stance** (the Confluence bias) lives in its **own** Tech

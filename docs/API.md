@@ -153,7 +153,7 @@ JSON saved as `.txt` also works.
     "summary": "Security grew 47% YoY; targeting $200M run rate by late 2026",
     "growthTrajectory": [{ "metric": "Security revenue", "growth": "47% YoY", "period": "Q1" }],
     "revenueProjections": [{ "target": "$200M run rate", "timeline": "late 2026", "segments": ["security"] }],
-    "catalystsToWatch": [{ "period": "Q2 2026", "metric": "Security+other YoY", "threshold": "25%+", "significance": "..." }],
+    "catalystsToWatch": [{ "period": "Q2 2026", "metric": "Security+other YoY", "threshold": "25%+", "significance": "...", "metricKey": "revenueGrowth", "claimId": 12 }],
     "sentiment": "bullish"
   },
   "synthesisProvider": "openai",
@@ -161,6 +161,7 @@ JSON saved as `.txt` also works.
 }
 ```
 
+`catalystsToWatch` items may include optional `metricKey` (stable camelCase series key) and `claimId` (durable row id after capture). Forward-looking catalysts are also upserted into `catalyst_claims` so they survive assessment history trimming.
 Set `NOTE_SYNTHESIS_GUIDANCE` in env to append custom instructions to the synthesis prompt.
 
 ---

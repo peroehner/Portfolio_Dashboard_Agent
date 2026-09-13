@@ -129,6 +129,76 @@ class LLMClient:
         result["attemptedProvider"] = provider
         return result
 
+
+    def adjudicate_catalyst_claims(
+        self,
+        symbol: str,
+        claims: list[dict],
+        evidence: dict,
+    ) -> list[dict]:
+        """Judge open catalyst claims against evidence. Best-effort; returns [].
+
+        Only invoked when durable claims already exist (caller-gated). Never invents
+        claims — only scores the provided claim ids.
+        """
+        if not claims or not evidence:
+            return []
+        provider = self.active_provider()
+        if provider not in ("openai", "gemini"):
+            return []
+        system = (
+            "You adjudicate prior forward-looking investment watch-outs against later "
+            "evidence. Respond ONLY with JSON: {\"verdicts\": [{\"claimId\": int, "
+            "\"status\": \"substantiated\"|\"missed\"|\"revised\"|\"inconclusive\", "
+            "\"observedValue\": str, \"observedPeriod\": str, \"verdictDetail\": str}]}. "
+            "Cite only the given claim ids. Prefer inconclusive when evidence is thin. "
+            "Do not invent claims or symbols."
+        )
+        user = (
+            f"Symbol: {symbol}\n"
+            f"Open claims JSON:\n{json.dumps(claims, indent=2)}\n\n"
+            f"Evidence JSON:\n{json.dumps(evidence, indent=2)}"
+        )
+        try:
+            if provider == "openai":
+                payload = {
+                    "model": self.openai_model,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user},
+                    ],
+                    "temperature": 0.1,
+                    "response_format": {"type": "json_object"},
+                }
+                response = self._post_json(
+                    "https://api.openai.com/v1/chat/completions",
+                    payload,
+                    headers={"Authorization": f"Bearer {self.openai_api_key}"},
+                )
+                raw = json.loads(response["choices"][0]["message"]["content"])
+            else:
+                url = (
+                    f"https://generativelanguage.googleapis.com/v1beta/models/"
+                    f"{self.gemini_model}:generateContent?key={self.gemini_api_key}"
+                )
+                payload = {
+                    "contents": [{"parts": [{"text": system + "\n\n" + user}]}],
+                    "generationConfig": {
+                        "temperature": 0.1,
+                        "responseMimeType": "application/json",
+                    },
+                }
+                response = self._post_json(url, payload)
+                content = response["candidates"][0]["content"]["parts"][0]["text"]
+                raw = json.loads(content)
+        except Exception as exc:  # noqa: BLE001
+            logging.warning("Catalyst claim adjudicate call failed (%s): %s", provider, exc)
+            return []
+        verdicts = raw.get("verdicts") if isinstance(raw, dict) else raw
+        if not isinstance(verdicts, list):
+            return []
+        return [item for item in verdicts if isinstance(item, dict)]
+
     def aggregate_note_syntheses(
         self, symbol: str, syntheses: list[dict[str, Any]]
     ) -> dict[str, Any]:
@@ -1068,8 +1138,11 @@ class LLMClient:
             "summary: one concise sentence capturing the growth thesis from THIS note. "
             "growthTrajectory: array of {metric, growth, period} — quantify segment growth where stated. "
             "revenueProjections: array of {target, timeline, segments} — revenue run-rate or milestones. "
-            "catalystsToWatch: array of {period, metric, threshold, significance} — what to verify "
-            "in future quarters (e.g. Q2 2026 security growth >= 25% YoY). "
+            "catalystsToWatch: array of {period, metric, threshold, significance, metricKey} — "
+            "what to verify in future quarters (e.g. Q2 2026 security growth >= 25% YoY). "
+            "metricKey (optional): a stable camelCase key when the metric maps to a known series "
+            "(revenueGrowth, earningsGrowth, grossMargin, operatingMargin, ebitdaMargin, "
+            "profitMargin, returnOnEquity, arr, backlog, freeCashflow); omit when unknown. "
             "sentiment: bullish | neutral | bearish. "
             "relevantSymbols: array of {symbol, reason} for OTHER portfolio tickers (from the candidate "
             "list in the user prompt) for which this note holds MATERIAL insight — a thesis, catalyst, "

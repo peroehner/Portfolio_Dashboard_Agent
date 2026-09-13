@@ -4074,6 +4074,49 @@
       font-size: 0.88rem;
     }
     .watch-list li { margin-bottom: 0.3rem; }
+    .catalyst-scorecard {
+      margin-top: 0.85rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid var(--border);
+    }
+    .catalyst-scorecard-label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .catalyst-scorecard-summary {
+      margin: 0.35rem 0 0.45rem;
+      font-size: 0.88rem;
+      color: var(--text);
+    }
+    .catalyst-scorecard-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .catalyst-scorecard-list li {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.35rem 0.55rem;
+      margin-bottom: 0.4rem;
+      font-size: 0.84rem;
+      line-height: 1.35;
+    }
+    .claim-status {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding-top: 0.15rem;
+    }
+    .claim-status.open { color: var(--muted); }
+    .claim-status.substantiated { color: var(--accent-2); }
+    .claim-status.missed { color: var(--danger); }
+    .claim-status.revised { color: var(--accent); }
+    .claim-status.inconclusive { color: var(--warn); }
+    .claim-body { color: var(--text); }
+    .claim-meta { color: var(--muted); font-size: 0.8rem; }
     .inspector-item-head {
       display: flex;
       justify-content: space-between;
@@ -17578,6 +17621,7 @@
       const watch = (rec.watchItems || [])
         .map((w) => `<li>${renderSaiProse(w)}</li>`)
         .join("");
+      const scorecardHtml = renderCatalystScorecard(rec.catalystScorecard);
       const chips = renderRecommendationChipRow(rec, { bare: true });
       const assessedAt = formatInspectorAssessedAt(rec.assessedAt);
       const meta = [
@@ -17601,8 +17645,30 @@
           ${sentimentGuard}
           ${drivers ? `<ul class="watch-list">${drivers}</ul>` : ""}
           ${watch ? `<div id="sai-watch-list" style="margin-top:0.75rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;">What to watch</div><ul class="watch-list">${watch}</ul>` : ""}
+          ${scorecardHtml}
           ${meta ? `<div class="empty" style="margin-top:0.6rem;">${meta}</div>` : ""}
         </div>`;
+    }
+
+    function renderCatalystScorecard(scorecard) {
+      if (!scorecard || !Array.isArray(scorecard.items) || !scorecard.items.length) {
+        return "";
+      }
+      const items = scorecard.items.map((item) => {
+        const status = String(item.status || "open").toLowerCase();
+        const title = [item.period, item.metric].filter(Boolean).join(" · ");
+        const threshold = item.threshold ? `Target ${escapeHtml(item.threshold)}` : "";
+        const observed = item.observedValue
+          ? `Observed ${escapeHtml(item.observedValue)}${item.observedPeriod ? ` (${escapeHtml(item.observedPeriod)})` : ""}`
+          : "";
+        const detail = item.verdictDetail ? escapeHtml(item.verdictDetail) : "";
+        const meta = [threshold, observed, detail].filter(Boolean).join(" — ");
+        return `<li><span class="claim-status ${escapeHtml(status)}">${escapeHtml(status)}</span><div class="claim-body"><div>${escapeHtml(title)}</div>${meta ? `<div class="claim-meta">${meta}</div>` : ""}</div></li>`;
+      }).join("");
+      const summary = scorecard.summary
+        ? `<div class="catalyst-scorecard-summary">${escapeHtml(scorecard.summary)}</div>`
+        : "";
+      return `<div class="catalyst-scorecard" id="sai-catalyst-scorecard"><div class="catalyst-scorecard-label">Prior watch-outs</div>${summary}<ul class="catalyst-scorecard-list">${items}</ul></div>`;
     }
 
     function formatInspectorAssessedAt(raw) {
@@ -19549,6 +19615,7 @@
       const watch = (rec.watchItems || [])
         .map((w) => `<li>${renderSaiProse(w)}</li>`)
         .join("");
+      const scorecardHtml = renderCatalystScorecard(rec.catalystScorecard);
       const meta = [
         rec.assessedAt ? `Read ${escapeHtml(rec.assessedAt)}` : null,
         rec.provider ? escapeHtml(rec.provider) : null,
@@ -19561,6 +19628,7 @@
           <div class="rec-rationale">${renderSaiProse(rec.rationale || "")}</div>
           ${drivers ? `<ul class="watch-list snap-sai-drivers">${drivers}</ul>` : ""}
           ${watch ? `<div id="sai-watch-list" class="snap-watch-label">What to watch</div><ul class="watch-list snap-sai-watch">${watch}</ul>` : ""}
+          ${scorecardHtml}
           ${meta ? `<div class="snap-sai-meta">${meta}</div>` : ""}
         </div>`;
     }

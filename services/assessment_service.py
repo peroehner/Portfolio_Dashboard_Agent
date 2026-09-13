@@ -397,6 +397,7 @@ class AssessmentService:
             "buyBelow": buy_below,
             "sellAbove": sell_above,
             "noteSyntheses": note_syntheses,
+            "notes": notes,
             "unsynthesizedNoteCount": unsynthesized,
             "alerts": self.alerts_service.list_alerts(symbol=symbol, status="active"),
             "fibLevels": fib.get("levels", []) if fib else [],
@@ -545,6 +546,33 @@ class AssessmentService:
         assessment["context"] = context
         # Prefer freshly built proposal (row parse is identical, but keeps types tight).
         assessment["proposal"] = proposal
+
+        # Slice B: when durable catalyst claims exist, re-score open ones against
+        # latest fundamentals + note syntheses. No-op when the symbol has none —
+        # SAI/UI stay undisturbed until slice A has captured something.
+        try:
+            from services.catalyst_claims_service import CatalystClaimsService
+
+            claims = CatalystClaimsService()
+            if claims.has_open_claims(symbol):
+                evidence_notes = [
+                    note
+                    for note in (context.get("notes") or [])
+                    if isinstance(note, dict) and note.get("synthesis")
+                ]
+                if not evidence_notes:
+                    for synth in context.get("noteSyntheses") or []:
+                        if isinstance(synth, dict):
+                            evidence_notes.append({"id": None, "synthesis": synth})
+                claims.evaluate_symbol(
+                    symbol,
+                    fundamentals=context.get("fundamentals"),
+                    evidence_notes=evidence_notes or None,
+                    llm_client=self.llm_client,
+                )
+        except Exception as exc:  # noqa: BLE001 - never block assess on claim eval
+            logging.warning("Catalyst claim eval failed for %s: %s", symbol, exc)
+
         return assessment
 
     def _record_recommendation_change(
