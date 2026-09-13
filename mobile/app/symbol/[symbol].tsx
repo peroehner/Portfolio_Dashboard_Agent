@@ -1075,7 +1075,7 @@ export default function SymbolDetailScreen() {
                       </Text>
                     </View>
                     <View style={styles.thresholdCell}>
-                      <Text style={styles.statLabel}>Personal target</Text>
+                      <Text style={styles.statLabel}>Pers Target</Text>
                       <Text style={styles.statValue}>{formatPrice(quote?.targetPrice)}</Text>
                     </View>
                     <View style={styles.thresholdCell}>
