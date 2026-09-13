@@ -855,111 +855,127 @@ export default function SymbolDetailScreen() {
             />
 
             <Text style={styles.sectionLabel}>Planned trades & target</Text>
-            <Text style={styles.inputLabel}>Below</Text>
-            <View style={styles.thresholdInputRow}>
+            {/* One-line: Buy|Sell · shares · Below/Above · price · Use $… */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.plannedLine}
+              style={styles.plannedLineScroll}
+            >
+              <View style={styles.plannedDir}>
+                <Pressable
+                  style={[styles.dirBtn, styles.dirBtnCompact, buyBelowDir === "buy" && styles.dirBtnBuy]}
+                  onPress={() => setBuyBelowDir("buy")}
+                >
+                  <Text style={[styles.dirBtnText, buyBelowDir === "buy" && styles.dirBtnTextActive]}>Buy</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.dirBtn, styles.dirBtnCompact, buyBelowDir === "sell" && styles.dirBtnSell]}
+                  onPress={() => setBuyBelowDir("sell")}
+                >
+                  <Text style={[styles.dirBtnText, buyBelowDir === "sell" && styles.dirBtnTextActive]}>Sell</Text>
+                </Pressable>
+              </View>
               <TextInput
-                style={[styles.input, styles.thresholdPriceInput]}
+                style={[styles.input, styles.plannedSharesInput]}
+                value={buyBelowShares}
+                onChangeText={setBuyBelowShares}
+                keyboardType="decimal-pad"
+                placeholder="#"
+                placeholderTextColor={colors.textMuted}
+                accessibilityLabel="Below trade shares"
+              />
+              <Text style={styles.plannedSideWord}>Below</Text>
+              <TextInput
+                style={[styles.input, styles.plannedPriceInput]}
                 value={buyBelow}
                 onChangeText={setBuyBelow}
                 keyboardType="decimal-pad"
                 placeholder="Price"
                 placeholderTextColor={colors.textMuted}
+                accessibilityLabel="Below price threshold"
               />
-              <TextInput
-                style={[styles.input, styles.thresholdShareInput]}
-                value={buyBelowShares}
-                onChangeText={setBuyBelowShares}
-                keyboardType="decimal-pad"
-                placeholder="Shares"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-            <View style={styles.dirRow}>
-              <Pressable
-                style={[styles.dirBtn, buyBelowDir === "buy" && styles.dirBtnBuy]}
-                onPress={() => setBuyBelowDir("buy")}
-              >
-                <Text style={[styles.dirBtnText, buyBelowDir === "buy" && styles.dirBtnTextActive]}>Buy</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.dirBtn, buyBelowDir === "sell" && styles.dirBtnSell]}
-                onPress={() => setBuyBelowDir("sell")}
-              >
-                <Text style={[styles.dirBtnText, buyBelowDir === "sell" && styles.dirBtnTextActive]}>Sell</Text>
-              </Pressable>
-            </View>
-            {thresholdSuggestions.buy != null ? (
-              <Pressable
-                style={styles.suggestBtn}
-                accessibilityLabel={`Use ${formatPrice(thresholdSuggestions.buy)}`}
-                onPress={() => setBuyBelow(toInput(thresholdSuggestions.buy))}
-              >
-                <Text style={styles.suggestBtnText} numberOfLines={1}>
-                  {thresholdSuggestions.buyNote
-                    ? thresholdSuggestions.buyNote.split(" · ")[0]
-                    : `Use ${formatPrice(thresholdSuggestions.buy)}`}
-                </Text>
-              </Pressable>
-            ) : (
-              <Text style={styles.suggestHint}>
-                {fullLoading
-                  ? "Loading Fib suggestions…"
-                  : "No Fib/assessment proposal yet — open Technical or wait for levels."}
-              </Text>
-            )}
+              {thresholdSuggestions.buy != null ? (
+                <Pressable
+                  style={[styles.suggestBtn, styles.suggestBtnInline]}
+                  accessibilityLabel={`Use ${formatPrice(thresholdSuggestions.buy)}${
+                    thresholdSuggestions.buyNote ? ` · ${thresholdSuggestions.buyNote}` : ""
+                  }`}
+                  onPress={() => setBuyBelow(toInput(thresholdSuggestions.buy))}
+                >
+                  <Text style={styles.suggestBtnText} numberOfLines={1}>
+                    Use {formatPrice(thresholdSuggestions.buy)}
+                    {thresholdSuggestions.buyNote
+                      ? ` · ${thresholdSuggestions.buyNote.split(" · ")[0]}`
+                      : ""}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </ScrollView>
 
-            <Text style={styles.inputLabel}>Above</Text>
-            <View style={styles.thresholdInputRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.plannedLine}
+              style={styles.plannedLineScroll}
+            >
+              <View style={styles.plannedDir}>
+                <Pressable
+                  style={[styles.dirBtn, styles.dirBtnCompact, sellAboveDir === "buy" && styles.dirBtnBuy]}
+                  onPress={() => setSellAboveDir("buy")}
+                >
+                  <Text style={[styles.dirBtnText, sellAboveDir === "buy" && styles.dirBtnTextActive]}>Buy</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.dirBtn, styles.dirBtnCompact, sellAboveDir === "sell" && styles.dirBtnSell]}
+                  onPress={() => setSellAboveDir("sell")}
+                >
+                  <Text style={[styles.dirBtnText, sellAboveDir === "sell" && styles.dirBtnTextActive]}>Sell</Text>
+                </Pressable>
+              </View>
               <TextInput
-                style={[styles.input, styles.thresholdPriceInput]}
+                style={[styles.input, styles.plannedSharesInput]}
+                value={sellAboveShares}
+                onChangeText={setSellAboveShares}
+                keyboardType="decimal-pad"
+                placeholder="#"
+                placeholderTextColor={colors.textMuted}
+                accessibilityLabel="Above trade shares"
+              />
+              <Text style={styles.plannedSideWord}>Above</Text>
+              <TextInput
+                style={[styles.input, styles.plannedPriceInput]}
                 value={sellAbove}
                 onChangeText={setSellAbove}
                 keyboardType="decimal-pad"
                 placeholder="Price"
                 placeholderTextColor={colors.textMuted}
+                accessibilityLabel="Above price threshold"
               />
-              <TextInput
-                style={[styles.input, styles.thresholdShareInput]}
-                value={sellAboveShares}
-                onChangeText={setSellAboveShares}
-                keyboardType="decimal-pad"
-                placeholder="Shares"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
-            <View style={styles.dirRow}>
-              <Pressable
-                style={[styles.dirBtn, sellAboveDir === "buy" && styles.dirBtnBuy]}
-                onPress={() => setSellAboveDir("buy")}
-              >
-                <Text style={[styles.dirBtnText, sellAboveDir === "buy" && styles.dirBtnTextActive]}>Buy</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.dirBtn, sellAboveDir === "sell" && styles.dirBtnSell]}
-                onPress={() => setSellAboveDir("sell")}
-              >
-                <Text style={[styles.dirBtnText, sellAboveDir === "sell" && styles.dirBtnTextActive]}>Sell</Text>
-              </Pressable>
-            </View>
-            {thresholdSuggestions.sell != null ? (
-              <Pressable
-                style={styles.suggestBtn}
-                accessibilityLabel={`Use ${formatPrice(thresholdSuggestions.sell)}`}
-                onPress={() => setSellAbove(toInput(thresholdSuggestions.sell))}
-              >
-                <Text style={styles.suggestBtnText} numberOfLines={1}>
-                  {thresholdSuggestions.sellNote
-                    ? thresholdSuggestions.sellNote.split(" · ")[0]
-                    : `Use ${formatPrice(thresholdSuggestions.sell)}`}
-                </Text>
-              </Pressable>
-            ) : (
+              {thresholdSuggestions.sell != null ? (
+                <Pressable
+                  style={[styles.suggestBtn, styles.suggestBtnInline]}
+                  accessibilityLabel={`Use ${formatPrice(thresholdSuggestions.sell)}${
+                    thresholdSuggestions.sellNote ? ` · ${thresholdSuggestions.sellNote}` : ""
+                  }`}
+                  onPress={() => setSellAbove(toInput(thresholdSuggestions.sell))}
+                >
+                  <Text style={styles.suggestBtnText} numberOfLines={1}>
+                    Use {formatPrice(thresholdSuggestions.sell)}
+                    {thresholdSuggestions.sellNote
+                      ? ` · ${thresholdSuggestions.sellNote.split(" · ")[0]}`
+                      : ""}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </ScrollView>
+            {thresholdSuggestions.buy == null && thresholdSuggestions.sell == null ? (
               <Text style={styles.suggestHint}>
                 {fullLoading
                   ? "Loading Fib suggestions…"
                   : "No Fib/assessment proposal yet — open Technical or wait for levels."}
               </Text>
-            )}
+            ) : null}
 
             <Text style={styles.inputLabel}>Pers Target</Text>
             <TextInput
@@ -1784,6 +1800,19 @@ const styles = StyleSheet.create({
   thresholdShareInput: {
     flex: 1,
   },
+  plannedLineScroll: {
+    marginTop: spacing.sm,
+  },
+  plannedLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingRight: 4,
+  },
+  plannedDir: {
+    flexDirection: "row",
+    gap: 2,
+  },
   dirRow: {
     flexDirection: "row",
     gap: spacing.xs,
@@ -1796,6 +1825,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     backgroundColor: colors.surfaceAlt,
+  },
+  dirBtnCompact: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
   },
   dirBtnBuy: {
     borderColor: colors.buy,
@@ -1813,6 +1846,24 @@ const styles = StyleSheet.create({
   dirBtnTextActive: {
     color: colors.text,
   },
+  plannedSharesInput: {
+    width: 52,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    textAlign: "center",
+  },
+  plannedPriceInput: {
+    width: 74,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+  },
+  plannedSideWord: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
   suggestBtn: {
     marginTop: 6,
     alignSelf: "flex-start",
@@ -1822,6 +1873,13 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm,
     paddingHorizontal: 10,
     paddingVertical: 6,
+  },
+  suggestBtnInline: {
+    marginTop: 0,
+    alignSelf: "center",
+    maxWidth: 148,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
   },
   suggestBtnText: {
     color: colors.link,
