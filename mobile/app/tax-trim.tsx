@@ -95,6 +95,9 @@ function MetricCell({
 
 function PoolSliderCard({
   title,
+  tone,
+  selected = false,
+  onSelectPool,
   primaryLabel,
   primaryAmount,
   primaryColor,
@@ -108,6 +111,9 @@ function PoolSliderCard({
   trackColor,
 }: {
   title: string;
+  tone: "loss" | "trim";
+  selected?: boolean;
+  onSelectPool?: () => void;
   primaryLabel: string;
   primaryAmount: string;
   primaryColor: string;
@@ -120,10 +126,46 @@ function PoolSliderCard({
   onScoreChange: (next: number) => void;
   trackColor: string;
 }) {
+  /** Ignore Pressable onPress that fires when a slider drag ends. */
+  const slidingRef = useRef(false);
+  const selectPool = () => {
+    if (slidingRef.current) return;
+    onSelectPool?.();
+  };
+  const beginSlide = () => {
+    slidingRef.current = true;
+  };
+  const endSlide = () => {
+    setTimeout(() => {
+      slidingRef.current = false;
+    }, 50);
+  };
+
   return (
-    <View style={styles.poolCard}>
+    <Pressable
+      onPress={selectPool}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`Show ${title} list`}
+      style={[
+        styles.poolCard,
+        tone === "loss" ? styles.poolCardLoss : styles.poolCardTrim,
+        selected
+          ? tone === "loss"
+            ? styles.poolCardLossActive
+            : styles.poolCardTrimActive
+          : null,
+      ]}
+    >
       <View style={styles.poolCardHead}>
-        <Text style={styles.poolCardTitle}>{title}</Text>
+        <Text
+          style={[
+            styles.poolCardTitle,
+            tone === "loss" ? styles.poolCardTitleLoss : styles.poolCardTitleTrim,
+          ]}
+        >
+          {title}
+        </Text>
         {helperText ? (
           <Text style={styles.poolCardHelper} numberOfLines={2}>
             {helperText}
@@ -158,12 +200,14 @@ function PoolSliderCard({
         maximumValue={scoreMax}
         step={1}
         value={Math.max(0, Math.min(scoreMax, scoreValue))}
+        onSlidingStart={beginSlide}
+        onSlidingComplete={endSlide}
         onValueChange={(v) => onScoreChange(Math.round(v))}
         minimumTrackTintColor={trackColor}
         maximumTrackTintColor={colors.surfaceAlt}
         thumbTintColor={trackColor}
       />
-    </View>
+    </Pressable>
   );
 }
 
@@ -685,6 +729,9 @@ export default function TaxTrimScreen() {
         <View style={styles.poolRow}>
           <PoolSliderCard
             title="Loss pool"
+            tone="loss"
+            selected={listMode === "tax_loss"}
+            onSelectPool={() => setListMode("tax_loss")}
             primaryLabel="Loss"
             primaryAmount={formatMoney(proposal?.lossPool, true)}
             primaryColor={colors.sell}
@@ -699,6 +746,9 @@ export default function TaxTrimScreen() {
           />
           <PoolSliderCard
             title="Trim pool"
+            tone="trim"
+            selected={listMode === "winner_trim"}
+            onSelectPool={() => setListMode("winner_trim")}
             primaryLabel="Gains"
             primaryAmount={formatMoney(proposal?.offsetGain, true)}
             primaryColor={colors.buy}
@@ -714,23 +764,6 @@ export default function TaxTrimScreen() {
             trackColor={colors.buy}
           />
         </View>
-
-        {!landscape ? (
-          <View style={styles.segRow}>
-            <Pressable
-              style={[styles.pill, styles.flexPill, pillStyle(listMode === "tax_loss")]}
-              onPress={() => setListMode("tax_loss")}
-            >
-              <Text style={styles.pillText}>Tax-loss</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.pill, styles.flexPill, pillStyle(listMode === "winner_trim")]}
-              onPress={() => setListMode("winner_trim")}
-            >
-              <Text style={styles.pillText}>Winner-trim</Text>
-            </Pressable>
-          </View>
-        ) : null}
 
         {status ? <Text style={styles.status}>{status}</Text> : null}
       </View>
@@ -792,7 +825,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
   },
-  flexPill: { flex: 1, alignItems: "center" },
   pillText: { color: colors.text, fontWeight: "600", fontSize: 13 },
   matchRow: {
     flexDirection: "row",
@@ -810,14 +842,28 @@ const styles = StyleSheet.create({
   poolRow: { flexDirection: "row", gap: spacing.sm },
   poolCard: {
     flex: 1,
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radii.md,
     paddingHorizontal: spacing.sm,
     paddingTop: spacing.sm,
     paddingBottom: spacing.xs,
     gap: 2,
+  },
+  poolCardLoss: {
+    backgroundColor: "rgba(248,113,113,0.08)",
+    borderColor: "rgba(248,113,113,0.4)",
+  },
+  poolCardTrim: {
+    backgroundColor: "rgba(74,222,128,0.08)",
+    borderColor: "rgba(74,222,128,0.4)",
+  },
+  poolCardLossActive: {
+    borderColor: "rgba(252,165,165,0.9)",
+    backgroundColor: "rgba(248,113,113,0.16)",
+  },
+  poolCardTrimActive: {
+    borderColor: "rgba(134,239,172,0.9)",
+    backgroundColor: "rgba(74,222,128,0.16)",
   },
   poolCardTitle: {
     color: colors.textMuted,
@@ -826,6 +872,8 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.4,
   },
+  poolCardTitleLoss: { color: colors.sell },
+  poolCardTitleTrim: { color: colors.buy },
   poolCardHead: {
     flexDirection: "row",
     alignItems: "flex-start",
