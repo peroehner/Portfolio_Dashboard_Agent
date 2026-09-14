@@ -186,5 +186,111 @@ class CatalystClaimsHelpersTests(unittest.TestCase):
         self.assertIn("18.0%", verdict["observedValue"])
 
 
+
+class CatalystClaimsAgeOutTests(unittest.TestCase):
+    def test_parse_period_end_variants(self) -> None:
+        from datetime import date
+
+        self.assertEqual(
+            CatalystClaimsService.parse_period_end("Q2 2026"),
+            date(2026, 6, 30),
+        )
+        self.assertEqual(
+            CatalystClaimsService.parse_period_end("Fiscal 2027"),
+            date(2027, 12, 31),
+        )
+        self.assertEqual(
+            CatalystClaimsService.parse_period_end("Spring 2027"),
+            date(2027, 6, 30),
+        )
+        self.assertEqual(
+            CatalystClaimsService.parse_period_end("H2 2025"),
+            date(2025, 12, 31),
+        )
+        self.assertIsNone(CatalystClaimsService.parse_period_end("Upcoming"))
+
+    def test_is_past_due_grace_and_max_age(self) -> None:
+        from datetime import date
+
+        today = date(2026, 9, 14)
+        # Fiscal 2025 ended Dec 2025 + 6mo grace => Jun 2026 — past due in Sep 2026
+        self.assertTrue(
+            CatalystClaimsService.is_past_due(
+                {"period": "Fiscal 2025", "capturedAt": "2024-06-01"},
+                today=today,
+            )
+        )
+        # Spring 2027 still forward-looking
+        self.assertFalse(
+            CatalystClaimsService.is_past_due(
+                {"period": "Spring 2027", "capturedAt": "2025-01-01"},
+                today=today,
+            )
+        )
+        # Unparseable period: fall back to captured_at + 24 months
+        self.assertTrue(
+            CatalystClaimsService.is_past_due(
+                {"period": "Upcoming", "capturedAt": "2023-01-01"},
+                today=today,
+            )
+        )
+        self.assertFalse(
+            CatalystClaimsService.is_past_due(
+                {"period": "Upcoming", "capturedAt": "2026-01-01"},
+                today=today,
+            )
+        )
+
+    def test_scorecard_visible_hides_past_due_open(self) -> None:
+        from datetime import date
+
+        today = date(2026, 9, 14)
+        self.assertFalse(
+            CatalystClaimsService._scorecard_visible(
+                {
+                    "status": "open",
+                    "period": "Fiscal 2024",
+                    "capturedAt": "2024-01-01",
+                },
+                today=today,
+            )
+        )
+        self.assertTrue(
+            CatalystClaimsService._scorecard_visible(
+                {
+                    "status": "open",
+                    "period": "Fiscal 2027",
+                    "capturedAt": "2025-01-01",
+                },
+                today=today,
+            )
+        )
+        # Recently closed stays visible
+        self.assertTrue(
+            CatalystClaimsService._scorecard_visible(
+                {
+                    "status": "inconclusive",
+                    "period": "Fiscal 2024",
+                    "capturedAt": "2024-01-01",
+                    "evaluatedAt": "2026-08-01",
+                },
+                today=today,
+            )
+        )
+        # Old closed drops off
+        self.assertFalse(
+            CatalystClaimsService._scorecard_visible(
+                {
+                    "status": "missed",
+                    "period": "Fiscal 2022",
+                    "capturedAt": "2022-01-01",
+                    "evaluatedAt": "2023-01-01",
+                },
+                today=today,
+            )
+        )
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -17743,10 +17743,11 @@
     }
 
     function renderCatalystScorecard(scorecard) {
-      if (!scorecard || !Array.isArray(scorecard.items) || !scorecard.items.length) {
-        return "";
-      }
-      const items = scorecard.items.map((item) => {
+      if (!scorecard) return "";
+      const list = Array.isArray(scorecard.items) ? scorecard.items : [];
+      const archivedOnly = !list.length && Number(scorecard.archivedCount || 0) > 0;
+      if (!list.length && !archivedOnly && !scorecard.summary) return "";
+      const items = list.map((item) => {
         const status = String(item.status || "open").toLowerCase();
         const title = [item.period, item.metric].filter(Boolean).join(" · ");
         const threshold = item.threshold ? `Target ${escapeHtml(item.threshold)}` : "";
@@ -17760,7 +17761,10 @@
       const summary = scorecard.summary
         ? `<div class="catalyst-scorecard-summary">${escapeHtml(scorecard.summary)}</div>`
         : "";
-      return `<div class="catalyst-scorecard" id="sai-catalyst-scorecard"><div class="catalyst-scorecard-label">Prior watch-outs</div>${summary}<ul class="catalyst-scorecard-list">${items}</ul></div>`;
+      const listHtml = items
+        ? `<ul class="catalyst-scorecard-list">${items}</ul>`
+        : "";
+      return `<div class="catalyst-scorecard" id="sai-catalyst-scorecard"><div class="catalyst-scorecard-label">Prior watch-outs</div>${summary}${listHtml}</div>`;
     }
 
     function formatInspectorAssessedAt(raw) {

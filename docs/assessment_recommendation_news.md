@@ -270,7 +270,8 @@ recommendation layer instead surfaces them as **context**:
 - `catalystScorecard` — **only when** durable `catalyst_claims` exist for the
   symbol (captured from prior note-synthesis watch-outs). Summarizes prior
   watch-outs vs later evidence (`substantiated` / `missed` / `open` / …). When
-  no claims exist, the key is omitted and SAI/UI stay unchanged.
+  no claims exist, the key is omitted and SAI/UI stay unchanged. Open claims past their period (+6mo grace, or 24mo from capture if unparseable) are age-out closed as `inconclusive` on the next assess/synthesize and are hidden from the live scorecard; closed items drop off the UI after 12 months.
+
 - `upsidePct` — passed through from the screening row (computed from analyst or
   personal target).
 - The **technical stance** (the Confluence bias) lives in its **own** Tech

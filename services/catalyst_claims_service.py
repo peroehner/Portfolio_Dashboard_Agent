@@ -7,6 +7,7 @@ if a symbol has no claims, those paths are no-ops and leave existing SAI/UI alon
 
 from __future__ import annotations
 
+from datetime import date, datetime, timedelta
 import hashlib
 import json
 import logging
@@ -44,6 +45,19 @@ _NUM_RE = re.compile(
     r"(?P<sign>[+-])?\s*(?P<num>\d+(?:\.\d+)?)\s*(?P<unit>%|bps|x)?",
     re.IGNORECASE,
 )
+
+# Age-out policy: after due period + grace (or max open age), stop re-eval and close.
+_AGEOUT_GRACE_MONTHS = 6
+_AGEOUT_MAX_OPEN_MONTHS = 24
+_SCORECARD_CLOSED_VISIBLE_MONTHS = 12
+
+_SEASON_END_MONTH = {
+    "spring": 6,
+    "summer": 9,
+    "fall": 12,
+    "autumn": 12,
+    "winter": 3,
+}
 
 
 class CatalystClaimsService:
@@ -177,7 +191,11 @@ class CatalystClaimsService:
         evidence_notes: list[dict[str, Any]] | None = None,
         llm_client: Any | None = None,
     ) -> dict[str, Any]:
-        """Score open claims when evidence is available. No-op if none exist."""
+        """Score open claims when evidence is available. No-op if none exist.
+
+        Past-due opens get one last auto pass, then age out as inconclusive.
+        They are never sent to the LLM adjudicator.
+        """
         symbol = symbol.upper()
         if not self.has_open_claims(symbol):
             return {"evaluated": 0, "skipped": True, "reason": "no_open_claims"}
@@ -186,11 +204,44 @@ class CatalystClaimsService:
         if not open_claims:
             return {"evaluated": 0, "skipped": True, "reason": "no_open_claims"}
 
+        today = date.today()
+        active: list[dict[str, Any]] = []
+        past_due: list[dict[str, Any]] = []
+        for claim in open_claims:
+            if self.is_past_due(claim, today=today):
+                past_due.append(claim)
+            else:
+                active.append(claim)
+
         evidence = self._build_evidence(fundamentals, evidence_notes)
         evaluated = 0
+        aged_out = 0
         remaining: list[dict[str, Any]] = []
 
-        for claim in open_claims:
+        # (1)+(2): past-due — final auto attempt, else close; never LLM.
+        for claim in past_due:
+            verdict = self._auto_verdict(claim, evidence)
+            if verdict:
+                self._apply_verdict(claim["id"], verdict)
+                evaluated += 1
+            else:
+                self._apply_verdict(
+                    claim["id"],
+                    {
+                        "status": "inconclusive",
+                        "observedValue": "",
+                        "observedPeriod": claim.get("duePeriod") or claim.get("period") or "",
+                        "verdictDetail": (
+                            "Period elapsed without a measurable outcome — "
+                            "aged out of active watch-outs."
+                        ),
+                        "evaluationSource": "ageout",
+                    },
+                )
+                aged_out += 1
+                evaluated += 1
+
+        for claim in active:
             verdict = self._auto_verdict(claim, evidence)
             if verdict:
                 self._apply_verdict(claim["id"], verdict)
@@ -236,6 +287,7 @@ class CatalystClaimsService:
 
         return {
             "evaluated": evaluated,
+            "agedOut": aged_out,
             "skipped": False,
             "openRemaining": self.has_open_claims(symbol),
         }
@@ -244,15 +296,42 @@ class CatalystClaimsService:
     # Slice C — scorecard (gated)
     # ------------------------------------------------------------------ #
     def scorecard(self, symbol: str) -> dict[str, Any] | None:
-        """Build a SAI scorecard. Returns None when no claims exist (UI undisturbed)."""
+        """Build a SAI scorecard. Returns None when no claims exist (UI undisturbed).
+
+        (3) UI age-out: show still-current opens + recently closed only.
+        Past-due opens are treated as archived for display until evaluate closes them.
+        """
         claims = self.list_claims(symbol)
         if not claims:
+            return None
+
+        today = date.today()
+        visible: list[dict[str, Any]] = []
+        archived_count = 0
+        for claim in claims:
+            if self._scorecard_visible(claim, today=today):
+                visible.append(claim)
+            else:
+                archived_count += 1
+
+        if not visible and archived_count:
+            return {
+                "summary": (
+                    f"{archived_count} prior watch-out(s) archived "
+                    "(period elapsed or closed earlier)."
+                ),
+                "openCount": 0,
+                "closedCount": 0,
+                "archivedCount": archived_count,
+                "items": [],
+            }
+        if not visible:
             return None
 
         items = []
         open_count = 0
         closed_count = 0
-        for claim in claims[:12]:
+        for claim in visible[:12]:
             status = claim["status"]
             if status == "open":
                 open_count += 1
@@ -275,8 +354,8 @@ class CatalystClaimsService:
                 }
             )
 
-        substantiated = sum(1 for c in claims if c["status"] == "substantiated")
-        missed = sum(1 for c in claims if c["status"] == "missed")
+        substantiated = sum(1 for c in visible if c["status"] == "substantiated")
+        missed = sum(1 for c in visible if c["status"] == "missed")
         parts = []
         if substantiated:
             parts.append(f"{substantiated} substantiated")
@@ -284,16 +363,19 @@ class CatalystClaimsService:
             parts.append(f"{missed} missed")
         if open_count:
             parts.append(f"{open_count} still open")
+        if archived_count:
+            parts.append(f"{archived_count} archived")
         summary = (
             f"Prior watch-outs: {', '.join(parts)}."
             if parts
-            else f"{len(claims)} prior watch-out(s) on record."
+            else f"{len(visible)} prior watch-out(s) on record."
         )
 
         return {
             "summary": summary,
             "openCount": open_count,
             "closedCount": closed_count,
+            "archivedCount": archived_count,
             "items": items,
         }
 
@@ -319,6 +401,131 @@ class CatalystClaimsService:
         with get_connection() as conn:
             rows = conn.execute(query, params).fetchall()
         return [self._row_to_claim(row) for row in rows]
+
+
+    # ------------------------------------------------------------------ #
+    # Age-out helpers
+    # ------------------------------------------------------------------ #
+    @classmethod
+    def is_past_due(cls, claim: dict[str, Any], *, today: date | None = None) -> bool:
+        """True when the claim's outlook window (+ grace) has elapsed."""
+        today = today or date.today()
+        period_text = str(claim.get("duePeriod") or claim.get("period") or "")
+        period_end = cls.parse_period_end(period_text)
+        if period_end is not None:
+            return today > cls._add_months(period_end, _AGEOUT_GRACE_MONTHS)
+        captured = cls._parse_date(claim.get("capturedAt"))
+        if captured is None:
+            return False
+        return today > cls._add_months(captured, _AGEOUT_MAX_OPEN_MONTHS)
+
+    @classmethod
+    def _scorecard_visible(cls, claim: dict[str, Any], *, today: date) -> bool:
+        status = str(claim.get("status") or "").lower()
+        if status == "open":
+            # Hide past-due opens from the live list (still in DB until evaluate ages them).
+            return not cls.is_past_due(claim, today=today)
+        # Closed: keep recently resolved ones visible.
+        closed_at = cls._parse_date(claim.get("evaluatedAt")) or cls._parse_date(
+            claim.get("capturedAt")
+        )
+        if closed_at is None:
+            return True
+        return today <= cls._add_months(closed_at, _SCORECARD_CLOSED_VISIBLE_MONTHS)
+
+    @staticmethod
+    def parse_period_end(text: str) -> date | None:
+        """Best-effort end date for a claim period label."""
+        raw = (text or "").strip().lower()
+        if not raw or raw in {"upcoming", "near term", "near-term", "ttm", "n/a"}:
+            return None
+
+        # Q1 2026 / 2026 Q1 / fiscal Q2 2027
+        m = re.search(r"(?:fy|fiscal\s*)?q([1-4])\s*(?:fy|fiscal\s*)?(20\d{2})", raw)
+        if not m:
+            m = re.search(r"(20\d{2})\s*(?:fy|fiscal\s*)?q([1-4])", raw)
+            if m:
+                year, q = int(m.group(1)), int(m.group(2))
+            else:
+                year = q = None  # type: ignore[assignment]
+        else:
+            q, year = int(m.group(1)), int(m.group(2))
+        if year and q:
+            end_month = q * 3
+            # last day of quarter month
+            if end_month == 12:
+                return date(year, 12, 31)
+            nxt = date(year, end_month + 1, 1)
+            return nxt - timedelta(days=1)
+
+        # H1 / H2 2026
+        m = re.search(r"h([12])\s*(20\d{2})", raw)
+        if m:
+            half, year = int(m.group(1)), int(m.group(2))
+            end_month = 6 if half == 1 else 12
+            if end_month == 12:
+                return date(year, 12, 31)
+            return date(year, 7, 1) - timedelta(days=1)
+
+        # Spring/Summer/Fall/Winter 2027
+        m = re.search(
+            r"(spring|summer|fall|autumn|winter)\s*(20\d{2})",
+            raw,
+        )
+        if m:
+            season, year = m.group(1), int(m.group(2))
+            month = _SEASON_END_MONTH[season]
+            if season == "winter":
+                # Winter 2027 ~= end of Mar 2027
+                return date(year, 3, 31)
+            if month == 12:
+                return date(year, 12, 31)
+            return date(year, month + 1, 1) - timedelta(days=1)
+
+        # Fiscal 2027 / FY2027 / FY 2027
+        m = re.search(r"(?:fy|fiscal)\s*(20\d{2})", raw)
+        if m:
+            year = int(m.group(1))
+            return date(year, 12, 31)
+
+        # Bare year
+        m = re.search(r"\b(20\d{2})\b", raw)
+        if m:
+            return date(int(m.group(1)), 12, 31)
+
+        return None
+
+    @staticmethod
+    def _parse_date(value: Any) -> date | None:
+        if value is None:
+            return None
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return value
+        if isinstance(value, datetime):
+            return value.date()
+        text = str(value).strip()
+        if not text:
+            return None
+        text = text.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(text[:32]).date()
+        except ValueError:
+            pass
+        m = re.match(r"(\d{4})-(\d{2})-(\d{2})", text)
+        if m:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        return None
+
+    @staticmethod
+    def _add_months(start: date, months: int) -> date:
+        year = start.year + (start.month - 1 + months) // 12
+        month = (start.month - 1 + months) % 12 + 1
+        if month == 12:
+            last = date(year, 12, 31)
+        else:
+            last = date(year, month + 1, 1) - timedelta(days=1)
+        day = min(start.day, last.day)
+        return date(year, month, day)
 
     # ------------------------------------------------------------------ #
     # Internals
