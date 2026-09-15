@@ -12414,7 +12414,7 @@
             ${pattern}
             <span class="nc-upside">${latestUpsideCell(a)}</span>
           </div>
-          ${thesis ? `<div class="nc-thesis" title="${escapeHtml(a.rationale || "")}">${escapeHtml(thesis)}</div>` : ""}
+          ${thesis ? `<div class="nc-thesis" title="${escapeHtml(shortenThesis(a.rationale, 500) || "")}">${escapeHtml(thesis)}</div>` : ""}
         </div>`;
     }
 
