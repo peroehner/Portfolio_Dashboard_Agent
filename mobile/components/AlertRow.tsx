@@ -22,17 +22,23 @@ export function AlertMessageText({
   message,
   style,
   boldStyle,
+  numberOfLines,
 }: {
   message: string;
   style?: object;
   boldStyle?: object;
+  numberOfLines?: number;
 }) {
   const parts = message.split(/(\*\*[^*]+\*\*|Net Cash\s+-?\$[\d,]+(?:\.\d+)?)/gi);
   if (parts.length === 1) {
-    return <Text style={style}>{message}</Text>;
+    return (
+      <Text style={style} numberOfLines={numberOfLines}>
+        {message}
+      </Text>
+    );
   }
   return (
-    <Text style={style}>
+    <Text style={style} numberOfLines={numberOfLines}>
       {parts.map((part, idx) => {
         const boldMatch = /^\*\*([^*]+)\*\*$/.exec(part);
         if (boldMatch) {
