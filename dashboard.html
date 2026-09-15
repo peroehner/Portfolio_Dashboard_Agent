@@ -4189,6 +4189,12 @@
     }
     .note { border-left-color: var(--accent-2); }
     .assessment { border-left-color: #a78bfa; }
+    .assessment .sai-metric,
+    .assessment-rationale .sai-metric,
+    .assessment-factors .sai-metric {
+      color: var(--text);
+      font-weight: 800;
+    }
     .assessment-head {
       display: flex;
       justify-content: space-between;
@@ -9815,8 +9821,8 @@
         : "";
       const body = `
         ${fallback}
-        <div style="margin-top:0.4rem;">${item.rationale || ""}</div>
-        ${factors.length ? `<ul style="margin:0.4rem 0 0 1.1rem;font-size:0.88rem;color:var(--muted);">${factors.map((f) => `<li>${f}</li>`).join("")}</ul>` : ""}
+        <div class="assessment-rationale" style="margin-top:0.4rem;">${renderSaiProse(item.rationale || "")}</div>
+        ${factors.length ? `<ul class="assessment-factors" style="margin:0.4rem 0 0 1.1rem;font-size:0.88rem;color:var(--muted);">${factors.map((f) => `<li>${renderSaiProse(f)}</li>`).join("")}</ul>` : ""}
         ${renderSynthesisHtml(item.noteSynthesis)}
         ${deleteBtn}`;
 
@@ -12388,7 +12394,8 @@
 
     function shortenThesis(text, max = 150) {
       if (!text) return "";
-      const t = String(text).trim().replace(/\s+/g, " ");
+      // Strip LLM **metric** markers for plain-text previews / titles.
+      const t = String(text).trim().replace(/\*\*/g, "").replace(/\s+/g, " ");
       if (t.length <= max) return t;
       const cut = t.slice(0, max);
       const lastSpace = cut.lastIndexOf(" ");

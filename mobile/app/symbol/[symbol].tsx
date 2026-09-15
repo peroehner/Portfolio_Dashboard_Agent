@@ -18,7 +18,7 @@ import {
   View,
 } from "react-native";
 
-import { AlertRow } from "@/components/AlertRow";
+import { AlertMessageText, AlertRow } from "@/components/AlertRow";
 import { HoldingsCompactCard } from "@/components/inspector/HoldingsCompactCard";
 import { AnalystHealthCard } from "@/components/inspector/AnalystHealthCard";
 import { KeyFundamentalsCard } from "@/components/inspector/KeyFundamentalsCard";
@@ -34,6 +34,7 @@ import { api, isTimeoutApiError } from "@/lib/api";
 import { dedupeActiveAlerts } from "@/lib/alertDedup";
 import { headlineForAction } from "@/lib/inspectorHelpers";
 import { formatNoteDate, formatPrice, formatQty, formatShortDateTime } from "@/lib/format";
+import { emphasizeDriverText } from "@/lib/driverHighlight";
 import { proposeThresholds } from "@/lib/thresholdProposals";
 import {
   getBrowseScrollY,
@@ -1468,9 +1469,12 @@ export default function SymbolDetailScreen() {
                         {meta ? <Text style={styles.assessmentDate}>{meta}</Text> : null}
                       </View>
                       {item.rationale ? (
-                        <Text style={styles.reason} numberOfLines={expanded ? undefined : 2}>
-                          {item.rationale}
-                        </Text>
+                        <AlertMessageText
+                          message={emphasizeDriverText(item.rationale)}
+                          style={styles.reason}
+                          boldStyle={styles.reasonBold}
+                          numberOfLines={expanded ? undefined : 2}
+                        />
                       ) : null}
                       {!isLatest ? (
                         <Text style={styles.assessmentMore}>
@@ -1747,6 +1751,10 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 14,
     lineHeight: 20,
+  },
+  reasonBold: {
+    color: colors.text,
+    fontWeight: "800",
   },
   noteForm: {
     gap: spacing.sm,
