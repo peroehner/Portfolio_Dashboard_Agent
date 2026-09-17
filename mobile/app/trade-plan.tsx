@@ -18,10 +18,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { GlossaryHint } from "@/components/GlossaryHint";
 import { api, ApiError } from "@/lib/api";
 import { parseSymbolFilter } from "@/lib/filters";
-import { formatMoney, formatPrice } from "@/lib/format";
+import { formatMoney, formatPrice, dividendYieldPct } from "@/lib/format";
 import { openSymbol } from "@/lib/symbolBrowseSession";
 import { buildPortfolioRows } from "@/lib/portfolioTable";
-import { buyPlanActionAllowed } from "@/lib/signalScores";
+import {
+  buyPlanActionAllowed,
+  dividendRetentionBonus,
+  underIncomeTarget,
+} from "@/lib/signalScores";
 import { signalTooltip } from "@/lib/signalGlossary";
 import { colors, radii, spacing } from "@/lib/theme";
 import type { Holding, PortfolioRow, TaxTrimPricingMode } from "@/lib/types";
@@ -71,6 +75,10 @@ type PlanCandidate = {
   readinessScore: number;
   /** Side-aware blend (0-100): Conviction + Readiness. */
   executionScore: number;
+  /** Position dividend yield % (annual Div $ / market value). */
+  dividendYieldPct: number | null;
+  /** Sell Rank bump from yield % (+ ambition). Buy legs stay 0. */
+  dividendRetentionBonus: number;
 };
 
 type ProposedCandidate = PlanCandidate & {
@@ -149,11 +157,21 @@ function candidateFromRow(
   row: PortfolioRow,
   holdingBySymbol: Map<string, Holding>,
   pricingMode: TaxTrimPricingMode,
+  incomeCtx: { underIncomeTarget: boolean },
 ): PlanCandidate[] {
   const currentPrice = Number(row.currentPrice) || 0;
   if (!(currentPrice > 0)) return [];
   const held = Number(holdingBySymbol.get(row.symbol)?.quantity) || 0;
   const costBasis = Number(holdingBySymbol.get(row.symbol)?.costBasis);
+  const marketValue =
+    Number(holdingBySymbol.get(row.symbol)?.marketValue ?? row.marketValue) || 0;
+  const annualDividend = Number(
+    holdingBySymbol.get(row.symbol)?.annualDividend ?? row.annualDividend,
+  );
+  const yld = dividendYieldPct(
+    Number.isFinite(annualDividend) ? annualDividend : null,
+    marketValue > 0 ? marketValue : null,
+  );
   const saiTotal = Number(row.saiProposal?.scores?.total);
   const saiScore = Number.isFinite(saiTotal) ? Math.max(0, Math.min(SAI_SCORE_MAX, saiTotal)) : null;
   const saiAction = row.saiAction == null ? null : String(row.saiAction);
@@ -179,6 +197,13 @@ function candidateFromRow(
     const convictionScore = computeConvictionScore(saiScore, saiConfidence, attentionFlag);
     const readinessScore = computeReadinessScore(planAttract);
     const executionScore = computeExecutionScore(side, convictionScore, readinessScore);
+    const divBonus =
+      side === "sell"
+        ? dividendRetentionBonus({
+            dividendYieldPct: yld,
+            underIncomeTarget: incomeCtx.underIncomeTarget,
+          })
+        : 0;
     return {
       symbol: row.symbol,
       side,
@@ -204,6 +229,8 @@ function candidateFromRow(
       convictionScore,
       readinessScore,
       executionScore,
+      dividendYieldPct: yld,
+      dividendRetentionBonus: divBonus,
     };
   });
 }
@@ -214,7 +241,11 @@ function scoreModeValue(candidate: PlanCandidate): number {
     if (candidate.saiScore == null) return -1;
     return Math.max(0, candidate.saiScore - scoreThresholdPenalty(candidate));
   }
-  return candidate.planSellRank + scoreThresholdPenalty(candidate);
+  return (
+    candidate.planSellRank +
+    scoreThresholdPenalty(candidate) +
+    (candidate.dividendRetentionBonus || 0)
+  );
 }
 
 /** Hidden strictness penalty in Score mode (Option A): lower conviction raises the bar. */
@@ -252,7 +283,9 @@ function scoreGateReason(candidate: PlanCandidate, threshold: number): string | 
     return `Needs Buy Score ${Math.round(threshold)} (effective ${Math.round(value)}, penalty ${penalty})`;
   }
   if (value <= threshold) return null;
-  return `Needs Sell Rank ${Math.round(threshold)} (effective ${Math.round(value)}, penalty ${penalty})`;
+  const div = candidate.dividendRetentionBonus || 0;
+  const divBit = div > 0 ? `, Div +${div}` : "";
+  return `Needs Sell Rank ≤ ${Math.round(threshold)} (effective ${Math.round(value)}, penalty ${penalty}${divBit})`;
 }
 
 function maxLegQty(candidate: PlanCandidate): number {
@@ -571,6 +604,8 @@ export default function TradePlanScreen() {
   const [sellBudget, setSellBudget] = useState(0);
   /** 0 = Off (full planned qty); >0 soft-split cash among qualified buys. */
   const [buyBudget, setBuyBudget] = useState(0);
+  /** Portfolio Fit target annual dividend $ — gates Div retention band strength. */
+  const [targetAnnualDividend, setTargetAnnualDividend] = useState<number | null>(null);
   const [listMode, setListMode] = useState<ListMode>("sell");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -636,6 +671,8 @@ export default function TradePlanScreen() {
             setListMode(tp.listMode);
           }
         }
+        const tad = Number((prefs.portfolioFit as { targetAnnualDividend?: number } | undefined)?.targetAnnualDividend);
+        setTargetAnnualDividend(Number.isFinite(tad) && tad > 0 ? tad : null);
       } catch {
         /* defaults remain */
       } finally {
@@ -750,9 +787,23 @@ export default function TradePlanScreen() {
     listMode,
   ]);
 
+  const incomeCtx = useMemo(() => {
+    let portfolioAnnualDividend = 0;
+    holdingBySymbol.forEach((h) => {
+      const div = Number(h.annualDividend);
+      if (Number.isFinite(div) && div > 0) portfolioAnnualDividend += div;
+    });
+    return {
+      underIncomeTarget: underIncomeTarget({
+        targetAnnualDividend,
+        portfolioAnnualDividend,
+      }),
+    };
+  }, [holdingBySymbol, targetAnnualDividend]);
+
   const allCandidates = useMemo(
-    () => rows.flatMap((row) => candidateFromRow(row, holdingBySymbol, pricingMode)),
-    [rows, holdingBySymbol, pricingMode],
+    () => rows.flatMap((row) => candidateFromRow(row, holdingBySymbol, pricingMode, incomeCtx)),
+    [rows, holdingBySymbol, pricingMode, incomeCtx],
   );
   const sellCandidates = useMemo(
     () =>
@@ -962,6 +1013,9 @@ export default function TradePlanScreen() {
                 <Text style={styles.metricLabel}>  · </Text>
                 <GlossaryHint signal="planSellRank" label={rankSortLabel} style={styles.metricLabel} />
                 <Text style={styles.metricValue}>{` ${Math.round(scoreModeValue(row))}`}</Text>
+                {qualificationMode === "score" && row.dividendRetentionBonus > 0 ? (
+                  <Text style={styles.metricLabel}>{`  · Div +${row.dividendRetentionBonus}`}</Text>
+                ) : null}
               </View>
             </View>
           ) : (
@@ -991,7 +1045,13 @@ export default function TradePlanScreen() {
               <View style={[styles.metric, { flex: wideCards ? 1.0 : 0.85 }]}>
                 <GlossaryHint signal="planSellRank" label={rankSortLabel} style={styles.metricLabel} />
                 <Text style={styles.metricValue}>{Math.round(scoreModeValue(row))}</Text>
-                {wideCards ? null : (
+                {qualificationMode === "score" && row.dividendRetentionBonus > 0 ? (
+                  <Text style={styles.metricSub}>
+                    {`Div +${row.dividendRetentionBonus}${
+                      row.dividendYieldPct != null ? ` (${row.dividendYieldPct.toFixed(1)}%)` : ""
+                    }`}
+                  </Text>
+                ) : wideCards ? null : (
                   <Pressable
                     onLongPress={() => Alert.alert("Plan Attract", signalTooltip("planAttract"))}
                     delayLongPress={280}

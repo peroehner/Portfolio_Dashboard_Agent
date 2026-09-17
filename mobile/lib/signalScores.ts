@@ -130,6 +130,45 @@ export function buyPlanActionAllowed(
   return true;
 }
 
+/** Yield % at which Div retention hits its band max (solid payer). */
+export const DIV_RETENTION_YIELD_REF_PCT = 3;
+/** Ignore noise yields below this floor (%). */
+export const DIV_RETENTION_YIELD_FLOOR_PCT = 0.25;
+/** Max Sell Rank bump when book income is under targetAnnualDividend. */
+export const DIV_RETENTION_MAX_UNDER = 12;
+/** Milder max bump when at/above target (or no target set). */
+export const DIV_RETENTION_MAX_AT_TARGET = 5;
+
+/**
+ * Dividend Retention Bonus for Sell Rank (Score mode).
+ * Raises effective Sell Rank (harder to sell) using **yield %**, not $ income.
+ * Ambition gate: under portfolio targetAnnualDividend → full band; else mild.
+ */
+export function dividendRetentionBonus(args: {
+  dividendYieldPct?: number | null;
+  underIncomeTarget?: boolean;
+}): number {
+  const yld = Number(args.dividendYieldPct);
+  if (!Number.isFinite(yld) || yld < DIV_RETENTION_YIELD_FLOOR_PCT) return 0;
+  const max = args.underIncomeTarget
+    ? DIV_RETENTION_MAX_UNDER
+    : DIV_RETENTION_MAX_AT_TARGET;
+  const t = Math.min(1, yld / DIV_RETENTION_YIELD_REF_PCT);
+  return Math.round(max * t);
+}
+
+/** True when a target is set and portfolio annual Div $ is still below it. */
+export function underIncomeTarget(args: {
+  targetAnnualDividend?: number | null;
+  portfolioAnnualDividend?: number | null;
+}): boolean {
+  const target = Number(args.targetAnnualDividend);
+  if (!Number.isFinite(target) || !(target > 0)) return false;
+  const book = Number(args.portfolioAnnualDividend);
+  const bookSafe = Number.isFinite(book) ? book : 0;
+  return bookSafe < target;
+}
+
 /** Plan Sell Rank for a sell leg (lower = stronger). Null when no sell threshold. */
 export function planSellRankForRow(args: {
   currentPrice?: number | null;
