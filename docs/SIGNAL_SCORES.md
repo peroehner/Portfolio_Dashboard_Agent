@@ -168,7 +168,7 @@ When the personal overlay LLM (Pass 2) ships, **re-check these ranks** even if f
 |---------|---------------|--------|
 | Tax & Trim Loss / Trim | Formulas independent; harvest alerts may be cited more | Pool order vs prior; sliders still cut the right names |
 | Buy Plan Score mode | Reads SAI Score (includes Assess Conf + Fit harvest) | Qualification/order at the saved Score threshold |
-| Sell Plan Rank / Prox | Threshold/size math | Unchanged vs proximity; watch-outs must not imply a different size |
+| Sell Plan Rank / Prox | Threshold/size + Div retention | Unchanged vs proximity; Score mode Div bonus when under income target; watch-outs must not imply a different size |
 | Screening Action | Stored Assess Action | Hold→Watch harvest nudges; Attention `!` rate |
 
 Pass 2 should consume harvest **facts** (loss/trim residual, `tax_loss_candidate` / `winner_trim_candidate` / `harvest_imbalance`) without replacing these ranks as SAI Action.
