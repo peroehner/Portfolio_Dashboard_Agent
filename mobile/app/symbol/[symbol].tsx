@@ -1328,7 +1328,12 @@ export default function SymbolDetailScreen() {
                           onUpdated={refreshLite}
                         />
                         {hasSynthesis && note.synthesis ? (
-                          <NoteSynthesisView synthesis={note.synthesis} expanded={expanded} />
+                          <NoteSynthesisView
+                            synthesis={note.synthesis}
+                            expanded={expanded}
+                            viewSymbol={symbol}
+                            homeSymbol={note.symbol}
+                          />
                         ) : note.text ? (
                           <Text style={styles.noteBody} numberOfLines={expanded ? undefined : 4}>
                             {note.text}

@@ -66,7 +66,7 @@ class LLMClient:
             except RuntimeError as exc:
                 return self._fallback_synthesis(symbol, note, provider, exc, portfolio)
         return self._normalize_synthesis(
-            self._rule_based_note_synthesis(symbol, note),
+            self._rule_based_note_synthesis(symbol, note, portfolio),
             provider="rules",
             portfolio_symbols=portfolio,
         )
@@ -119,7 +119,7 @@ class LLMClient:
         """Use rules engine when LLM call fails (quota, SSL, network, etc.)."""
         logging.warning("LLM synthesis failed (%s), using rules fallback: %s", provider, exc)
         result = self._normalize_synthesis(
-            self._rule_based_note_synthesis(symbol, note),
+            self._rule_based_note_synthesis(symbol, note, portfolio_symbols),
             provider="rules",
             portfolio_symbols=portfolio_symbols,
         )
@@ -129,6 +129,55 @@ class LLMClient:
         result["attemptedProvider"] = provider
         return result
 
+    @staticmethod
+    def sentiment_for_symbol(
+        synthesis: dict[str, Any] | None,
+        view_symbol: str,
+        home_symbol: str | None = None,
+    ) -> str:
+        """Stance for ``view_symbol`` on a (possibly multi-linked) note synthesis.
+
+        Top-level ``sentiment`` is the thesis toward the provisional/home symbol.
+        Linked tickers use ``relevantSymbols[].sentiment`` when present. A linked
+        viewer without its own sentiment does **not** inherit the home tone —
+        that was the bug where bullish-for-X notes showed Bullish under Z.
+        """
+        if not isinstance(synthesis, dict):
+            return "neutral"
+        view = str(view_symbol or "").strip().upper()
+        home = str(home_symbol or "").strip().upper()
+        top = str(synthesis.get("sentiment") or "neutral").strip().lower()
+        if top not in LLMClient.VALID_SENTIMENT:
+            top = "neutral"
+
+        for item in synthesis.get("relevantSymbols") or []:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("symbol") or "").strip().upper() != view:
+                continue
+            link_sent = str(item.get("sentiment") or "").strip().lower()
+            if link_sent in LLMClient.VALID_SENTIMENT:
+                return link_sent
+            break
+
+        if not home or view == home or not view:
+            return top
+        return "neutral"
+
+    @staticmethod
+    def synthesis_for_viewer(
+        synthesis: dict[str, Any] | None,
+        view_symbol: str,
+        home_symbol: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Copy of synthesis with ``sentiment`` remapped for the viewing symbol."""
+        if not isinstance(synthesis, dict):
+            return synthesis
+        remapped = dict(synthesis)
+        remapped["sentiment"] = LLMClient.sentiment_for_symbol(
+            synthesis, view_symbol, home_symbol
+        )
+        return remapped
 
     def adjudicate_catalyst_claims(
         self,
@@ -831,9 +880,20 @@ class LLMClient:
         content = response["candidates"][0]["content"]["parts"][0]["text"]
         return json.loads(content)
 
-    def _rule_based_note_synthesis(self, symbol: str, note: dict[str, Any]) -> dict[str, Any]:
+    def _rule_based_note_synthesis(
+        self,
+        symbol: str,
+        note: dict[str, Any],
+        portfolio_symbols: list[str] | None = None,
+    ) -> dict[str, Any]:
         combined = note.get("text") or ""
         date_label = note.get("date") or note.get("note_date") or ""
+        home = str(symbol or "").strip().upper()
+        portfolio = [
+            str(s).strip().upper()
+            for s in (portfolio_symbols or [])
+            if str(s).strip()
+        ]
         growth_trajectory = []
         for match in re.finditer(
             r"(\w+(?:\s+\w+){0,4}?)\s+(?:growth\s+)?(?:accelerated\s+to\s+|grew\s+to\s+|up\s+)?"
@@ -881,16 +941,32 @@ class LLMClient:
                 "significance": "Confirms growth trajectory described in this note",
             })
 
-        sentiment = "neutral"
-        bullish_words = ("accelerated", "momentum", "largest", "impressive", "expect continued", "high value")
-        bearish_words = ("decline", "miss", "weak", "slowdown", "cut", "risk")
-        lower = combined.lower()
-        bullish_hits = sum(1 for word in bullish_words if word in lower)
-        bearish_hits = sum(1 for word in bearish_words if word in lower)
-        if bullish_hits > bearish_hits:
-            sentiment = "bullish"
-        elif bearish_hits > bullish_hits:
-            sentiment = "bearish"
+        others = [
+            s for s in portfolio
+            if s and s != home and self._text_mentions_symbol(combined, s)
+        ]
+        home_focus = self._sentences_mentioning_symbol(combined, home) if home else ""
+        if home_focus:
+            sentiment = self._score_sentiment_keywords(home_focus)
+        elif others:
+            # Multi-name clip that never names the home ticker — don't steal
+            # another name's bullish/bearish tone.
+            sentiment = "neutral"
+        else:
+            sentiment = self._score_sentiment_keywords(combined)
+
+        relevant_symbols = []
+        for other in others:
+            other_focus = self._sentences_mentioning_symbol(combined, other)
+            relevant_symbols.append({
+                "symbol": other,
+                "reason": f"Discussed alongside {home or 'home'} in this note",
+                "sentiment": (
+                    self._score_sentiment_keywords(other_focus)
+                    if other_focus
+                    else "neutral"
+                ),
+            })
 
         summary_parts = []
         if growth_trajectory:
@@ -908,8 +984,72 @@ class LLMClient:
             "revenueProjections": revenue_projections[:3],
             "catalystsToWatch": catalysts[:3],
             "sentiment": sentiment,
+            "relevantSymbols": relevant_symbols,
             "provider": "rules",
         }
+
+    @staticmethod
+    def _text_mentions_symbol(text: str, symbol: str) -> bool:
+        sym = str(symbol or "").strip().upper()
+        if not sym or not text:
+            return False
+        return bool(
+            re.search(
+                rf"(?<![A-Za-z0-9])\$?{re.escape(sym)}(?![A-Za-z0-9])",
+                text,
+                re.IGNORECASE,
+            )
+        )
+
+    @staticmethod
+    def _sentences_mentioning_symbol(text: str, symbol: str) -> str:
+        parts = re.split(r"(?<=[.!?])\s+|\n+", str(text or ""))
+        hits = [
+            p.strip()
+            for p in parts
+            if p.strip() and LLMClient._text_mentions_symbol(p, symbol)
+        ]
+        return " ".join(hits)
+
+    @staticmethod
+    def _score_sentiment_keywords(text: str) -> str:
+        bullish_words = (
+            "accelerated",
+            "momentum",
+            "largest",
+            "impressive",
+            "expect continued",
+            "high value",
+            "outperform",
+            "upgrade",
+            "bullish",
+            "beat",
+            "surge",
+        )
+        bearish_words = (
+            "decline",
+            "miss",
+            "weak",
+            "slowdown",
+            "cut",
+            "risk",
+            "bearish",
+            "downgrade",
+            "lawsuit",
+            "fraud",
+            "plunge",
+            "headwind",
+        )
+        lower = str(text or "").lower()
+        if not lower.strip():
+            return "neutral"
+        bullish_hits = sum(1 for word in bullish_words if word in lower)
+        bearish_hits = sum(1 for word in bearish_words if word in lower)
+        if bullish_hits > bearish_hits:
+            return "bullish"
+        if bearish_hits > bullish_hits:
+            return "bearish"
+        return "neutral"
 
     def _rule_based_assessment(
         self, context: dict[str, Any], combined: dict[str, Any]
@@ -1135,7 +1275,8 @@ class LLMClient:
         return task + (
             "Respond only with JSON using keys: summary, growthTrajectory, revenueProjections, "
             "catalystsToWatch, sentiment, relevantSymbols. "
-            "summary: one concise sentence capturing the growth thesis from THIS note. "
+            "summary: one concise sentence capturing the growth thesis from THIS note for the "
+            "provisional/home symbol only. "
             "growthTrajectory: array of {metric, growth, period} — quantify segment growth where stated. "
             "revenueProjections: array of {target, timeline, segments} — revenue run-rate or milestones. "
             "catalystsToWatch: array of {period, metric, threshold, significance, metricKey} — "
@@ -1143,10 +1284,16 @@ class LLMClient:
             "metricKey (optional): a stable camelCase key when the metric maps to a known series "
             "(revenueGrowth, earningsGrowth, grossMargin, operatingMargin, ebitdaMargin, "
             "profitMargin, returnOnEquity, arr, backlog, freeCashflow); omit when unknown. "
-            "sentiment: bullish | neutral | bearish. "
-            "relevantSymbols: array of {symbol, reason} for OTHER portfolio tickers (from the candidate "
-            "list in the user prompt) for which this note holds MATERIAL insight — a thesis, catalyst, "
-            "risk, valuation implication, or competitive effect that meaningfully informs that holding. "
+            "sentiment: bullish | neutral | bearish — the stance toward the provisional/home "
+            "symbol ONLY. If the note is bullish on another ticker and bearish (or cautious) on "
+            "the home symbol, sentiment must reflect the home symbol, not the overall article tone. "
+            "If the note barely mentions the home symbol, use neutral. "
+            "relevantSymbols: array of {symbol, reason, sentiment} for OTHER portfolio tickers "
+            "(from the candidate list in the user prompt) for which this note holds MATERIAL insight "
+            "— a thesis, catalyst, risk, valuation implication, or competitive effect that "
+            "meaningfully informs that holding. "
+            "Each entry's sentiment (bullish | neutral | bearish) is the stance toward THAT "
+            "ticker alone — it may differ from the home sentiment when the note contrasts names. "
             "Do NOT include a ticker for a mere name-drop, casual comparison, or passing mention. "
             "Each reason must briefly state why the note matters for that ticker. "
             "Omit relevantSymbols (or use []) when no other portfolio ticker qualifies. "
@@ -1172,6 +1319,9 @@ class LLMClient:
             f"Synthesize this personal note. Provisional/home symbol: {symbol}.\n"
             f"Candidate portfolio tickers for relevantSymbols (choose only from this list): "
             f"{portfolio_line}.\n"
+            f"Judge sentiment and the summary thesis relative to {symbol} only. "
+            "When other tickers appear, put their stance in relevantSymbols[].sentiment — "
+            "do not copy one ticker's outlook onto another.\n"
             "Only list other tickers in relevantSymbols when the note materially informs that "
             "holding — not for name-drops.\n\n"
             f"Date: {note.get('date') or note.get('note_date') or 'unspecified'}\n"
@@ -1308,10 +1458,11 @@ class LLMClient:
         seen: set[str] = set()
         for item in raw:
             if isinstance(item, str):
-                sym, reason = item, ""
+                sym, reason, sent = item, "", ""
             elif isinstance(item, dict):
                 sym = item.get("symbol")
                 reason = str(item.get("reason") or "").strip()
+                sent = str(item.get("sentiment") or "").strip().lower()
             else:
                 continue
             sym_u = str(sym or "").strip().upper()
@@ -1320,7 +1471,10 @@ class LLMClient:
             if not reason:
                 continue
             seen.add(sym_u)
-            out.append({"symbol": sym_u, "reason": reason[:240]})
+            entry: dict[str, str] = {"symbol": sym_u, "reason": reason[:240]}
+            if sent in LLMClient.VALID_SENTIMENT:
+                entry["sentiment"] = sent
+            out.append(entry)
         return out[:20]
 
     def _normalize_assessment(

@@ -9674,7 +9674,7 @@
         ? `<div class="note-text-oneline">${escapeHtml(noteFirstLine(note.text))}${articleUrl ? ` ${noteLinkBadge(articleUrl)}` : ""}</div>`
         : `<div class="note-text-preview">${linkifyNoteText(note.text)}</div>`;
       const synthesisBlock = synthesized
-        ? renderSynthesisHtml(note.synthesis)
+        ? renderSynthesisHtml(note.synthesis, selectedSymbol, note.symbol)
         : `<div class="empty" style="margin-top:0.35rem;">Not synthesized yet.</div>`;
       const synthBlocked = manualAiActionsRemaining() <= 0;
       const synthTitle = synthBlocked ? escapeHtml(planLimitHint("manual_ai_actions_limit")) : "";
@@ -9765,7 +9765,7 @@
       return t;
     }
 
-    function renderSynthesisHtml(synthesis) {
+    function renderSynthesisHtml(synthesis, viewSymbol, homeSymbol) {
       if (!synthesis || !synthesis.summary) return "";
       const growth = (synthesis.growthTrajectory || [])
         .map((g) => `<li><strong>${g.metric || "Growth"}:</strong> ${g.growth || ""} ${g.period ? `(${g.period})` : ""}</li>`)
@@ -9776,15 +9776,35 @@
       const catalysts = (synthesis.catalystsToWatch || [])
         .map((c) => `<li><strong>${c.period || "Upcoming"}:</strong> ${c.metric || ""} — watch for ${c.threshold || "confirmation"}</li>`)
         .join("");
+      const sentiment = synthesisSentimentForViewer(synthesis, viewSymbol, homeSymbol);
       return `
         <div class="synthesis">
-          <h4>Note Synthesis · ${synthesis.sentiment || "neutral"}${synthesis.llmFallback ? " · rules fallback" : ""}</h4>
+          <h4>Note Synthesis · ${sentiment}${synthesis.llmFallback ? " · rules fallback" : ""}</h4>
           ${synthesis.llmFallback ? `<div class="empty" style="color:var(--warn);margin-bottom:0.35rem;">${escapeHtml(cleanFallbackReason(synthesis.llmError))}</div>` : ""}
           <div>${synthesis.summary}</div>
           ${growth ? `<ul>${growth}</ul>` : ""}
           ${projections ? `<ul>${projections}</ul>` : ""}
           ${catalysts ? `<ul>${catalysts}</ul>` : ""}
         </div>`;
+    }
+
+    /** Top-level synthesis.sentiment is home-symbol stance; linked tickers use relevantSymbols[].sentiment. */
+    function synthesisSentimentForViewer(synthesis, viewSymbol, homeSymbol) {
+      if (!synthesis) return "neutral";
+      const view = String(viewSymbol || "").trim().toUpperCase();
+      const home = String(homeSymbol || "").trim().toUpperCase();
+      const top = String(synthesis.sentiment || "neutral").trim().toLowerCase();
+      const valid = new Set(["bullish", "neutral", "bearish"]);
+      const safeTop = valid.has(top) ? top : "neutral";
+      for (const item of synthesis.relevantSymbols || []) {
+        if (!item || typeof item !== "object") continue;
+        if (String(item.symbol || "").trim().toUpperCase() !== view) continue;
+        const linkSent = String(item.sentiment || "").trim().toLowerCase();
+        if (valid.has(linkSent)) return linkSent;
+        break;
+      }
+      if (!home || !view || view === home) return safeTop;
+      return "neutral";
     }
 
     function looksLikeIdentifier(text) {

@@ -9,6 +9,7 @@ from services.assessment_service import ASSESSMENT_TECHNICALS, AssessmentService
 from services.fib_service import FibService
 from services.fundamentals_service import FundamentalsService
 from services.holdings_service import HoldingsService
+from services.llm_client import LLMClient
 from services.portfolio_service import PortfolioService
 from services.proposal_service import ProposalService
 from services.screening_service import ScreeningService
@@ -780,12 +781,21 @@ def build_symbol_recommendation(
         return "neutral"
 
     notes = symbol_data.get("notes", [])
-    syntheses = [note["synthesis"] for note in notes if note.get("synthesis")]
+    symbol = str(symbol_data.get("symbol") or "").upper()
+    syntheses = []
+    for note in notes:
+        synth = note.get("synthesis")
+        if not synth:
+            continue
+        remapped = LLMClient.synthesis_for_viewer(synth, symbol, note.get("symbol"))
+        if remapped:
+            syntheses.append(remapped)
     latest = assessments[0] if assessments else None
 
     combined = {}
     if latest and latest.get("noteSynthesis"):
         combined = latest["noteSynthesis"]
+        # Assessment noteSynthesis was produced for this symbol already; keep as-is.
     elif syntheses:
         combined = InspectorService._merge_syntheses(syntheses)
 
