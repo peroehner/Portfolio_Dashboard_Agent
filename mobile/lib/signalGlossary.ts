@@ -61,9 +61,9 @@ export const SIGNAL_GLOSSARY: Record<SignalKey, SignalDef> = {
     key: "planSellRank",
     label: "Plan Sell Rank",
     shortLabel: "Sell Rank",
-    formula: "80 − Plan Attract (P+T+S)",
+    formula: "80 − Plan Attract (P+T+S) + conviction + Div retention",
     meaning:
-      "Rule of thumb: LOWER = stronger sell-to-fire. Score mode shows this rank plus a hidden conviction penalty. Not Trim Score.",
+      "Rule of thumb: LOWER = stronger sell-to-fire. Score mode adds conviction penalty and a Div retention bonus (yield %; stronger when under portfolio income target). Not Trim Score.",
   },
   lossScore: {
     key: "lossScore",

@@ -75,7 +75,7 @@ Mobile-first workflow: **Buy Plan** and **Sell Plan** pools (qualification + sor
 | Mode | Buy Plan | Sell Plan |
 |------|----------|-----------|
 | **Proximity** | Gate / sort by distance to buy threshold | Gate / sort by distance to sell threshold |
-| **Score** | Gate / sort by **effective Buy Score** = `SAI Score − conviction penalty` (≥ threshold; higher = stronger) | Gate / sort by **effective Sell Rank** = `Plan Sell Rank + conviction penalty` (≤ threshold; lower = stronger) |
+| **Score** | Gate / sort by **effective Buy Score** = `SAI Score − conviction penalty` (≥ threshold; higher = stronger) | Gate / sort by **effective Sell Rank** = `Plan Sell Rank + conviction penalty + Div retention` (≤ threshold; lower = stronger) |
 
 **Buy Plan Action hard-filter** (buy legs only):
 
@@ -99,6 +99,22 @@ In Score mode, both mobile and web apply a hidden strictness penalty from publis
 | Attention `!` flag | +5 additional |
 
 This keeps a single user slider while tightening weak-conviction legs automatically.
+
+### Dividend Retention Bonus (sell Score mode)
+
+Raises effective Sell Rank so solid dividend payers are harder to sell. Uses **yield %** (`annualDividend / marketValue`), not absolute $.
+
+| Input | Role |
+|-------|------|
+| Name **dividend yield %** | Scales the bonus (floor 0.25%; full band at ~3%) |
+| `portfolioFit.targetAnnualDividend` vs book annual Div $ | Ambition gate only: **under target → max +12**; at/above or unset → mild max **+5** |
+
+```
+Div retention = round(bandMax × min(1, yieldPct / 3))
+effective Sell Rank = Plan Sell Rank + conviction penalty + Div retention
+```
+
+Non-payers and near-zero yields get **0**. Surfaced on mobile Sell Plan as `Div +N`.
 
 ### Plan Attract → Plan Sell Rank (sell legs only)
 
@@ -164,7 +180,7 @@ Pass 2 should consume harvest **facts** (loss/trim residual, `tax_loss_candidate
 1. **Conf vs Score** — Conf may soften one notch; Score does not drop. They can disagree; hover Conf to see why.
 2. **Sell Rank ≠ Trim Score** — planned-leg readiness vs winner-harvest rank.
 3. **Buy Score (web/mobile Score mode) = effective SAI Score** (minus conviction penalty) — not Plan Attract. **Higher = stronger buy-to-fire.** Mobile Buy Plan Score mode hard-filters to Action = BUY; Prox allows WATCH; SELLs always excluded.
-4. **Sell Rank (Score mode) = effective Plan Sell Rank** (plus conviction penalty). **Lower = stronger sell-to-fire.** Not Trim Score.
+4. **Sell Rank (Score mode) = effective Plan Sell Rank** (plus conviction penalty and Div retention from yield %). **Lower = stronger sell-to-fire.** Not Trim Score.
 5. **`fit_total` in track-record storage = SAI Score total**, not Portfolio Fit pillar alone.
 
 ---
