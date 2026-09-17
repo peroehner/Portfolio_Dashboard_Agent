@@ -54,6 +54,15 @@ class LlmClientAggregationTests(unittest.TestCase):
             out["summary"], "Services revenue grew 18% YoY. | Hardware margin improved 200 bps."
         )
 
+    def test_aggregate_uses_viewer_sentiment_when_remapped(self) -> None:
+        # Caller remaps before aggregate (assessment/inspector); verify majority.
+        syntheses = [
+            {"summary": "Home bullish clip.", "sentiment": "bearish"},  # remapped for Z
+            {"summary": "Another Z headwind.", "sentiment": "bearish"},
+        ]
+        out = self.client.aggregate_note_syntheses("Z", syntheses)
+        self.assertEqual(out["sentiment"], "bearish")
+
 
 if __name__ == "__main__":
     unittest.main()

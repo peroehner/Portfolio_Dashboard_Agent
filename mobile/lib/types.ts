@@ -500,7 +500,7 @@ export interface NoteSynthesis {
   growthTrajectory?: Array<{ metric?: string; growth?: string; period?: string }>;
   revenueProjections?: Array<{ target?: string; timeline?: string }>;
   catalystsToWatch?: Array<{ period?: string; metric?: string; threshold?: string }>;
-  relevantSymbols?: Array<{ symbol?: string; reason?: string }>;
+  relevantSymbols?: Array<{ symbol?: string; reason?: string; sentiment?: string }>;
   llmFallback?: boolean;
   llmError?: string;
   integratedSummary?: string;

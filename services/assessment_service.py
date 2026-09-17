@@ -379,7 +379,16 @@ class AssessmentService:
         screening = self.screening_service._score_symbol(symbol_data)
         notes = symbol_data.get("notes", [])
 
-        note_syntheses = [note["synthesis"] for note in notes if note.get("synthesis")]
+        note_syntheses = []
+        for note in notes:
+            synth = note.get("synthesis")
+            if not synth:
+                continue
+            remapped = self.llm_client.synthesis_for_viewer(
+                synth, symbol, note.get("symbol")
+            )
+            if remapped:
+                note_syntheses.append(remapped)
         unsynthesized = sum(1 for note in notes if not note.get("synthesis"))
         enrichment = self.fundamentals_service.get_enrichment(symbol)
 

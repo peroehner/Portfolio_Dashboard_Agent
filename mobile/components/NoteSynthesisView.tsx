@@ -7,14 +7,46 @@ export function noteHasSynthesis(note: { synthesis?: NoteSynthesis | null } | nu
   return Boolean(note?.synthesis?.summary);
 }
 
+/** Top-level sentiment is home-symbol stance; linked tickers use relevantSymbols[].sentiment. */
+export function synthesisSentimentForViewer(
+  synthesis: NoteSynthesis | null | undefined,
+  viewSymbol?: string | null,
+  homeSymbol?: string | null,
+): string {
+  if (!synthesis) return "neutral";
+  const view = String(viewSymbol || "").trim().toUpperCase();
+  const home = String(homeSymbol || "").trim().toUpperCase();
+  const top = String(synthesis.sentiment || "neutral").trim().toLowerCase();
+  const valid = new Set(["bullish", "neutral", "bearish"]);
+  const safeTop = valid.has(top) ? top : "neutral";
+  for (const item of synthesis.relevantSymbols || []) {
+    if (!item || typeof item !== "object") continue;
+    if (String(item.symbol || "").trim().toUpperCase() !== view) continue;
+    const linkSent = String(item.sentiment || "").trim().toLowerCase();
+    if (valid.has(linkSent)) return linkSent;
+    break;
+  }
+  if (!home || !view || view === home) return safeTop;
+  return "neutral";
+}
+
 interface NoteSynthesisViewProps {
   synthesis: NoteSynthesis;
   /** When false, show summary only (truncated). When true, show full structured body. */
   expanded?: boolean;
+  /** Symbol whose Target/Notes tab is open (may differ from provisional home). */
+  viewSymbol?: string;
+  /** Provisional/home symbol on the note row. */
+  homeSymbol?: string;
 }
 
-export function NoteSynthesisView({ synthesis, expanded = false }: NoteSynthesisViewProps) {
-  const sentiment = String(synthesis.sentiment || "neutral").toLowerCase();
+export function NoteSynthesisView({
+  synthesis,
+  expanded = false,
+  viewSymbol,
+  homeSymbol,
+}: NoteSynthesisViewProps) {
+  const sentiment = synthesisSentimentForViewer(synthesis, viewSymbol, homeSymbol);
   const title = `Note Synthesis · ${sentiment}${synthesis.llmFallback ? " · rules fallback" : ""}`;
   const growth = synthesis.growthTrajectory || [];
   const projections = synthesis.revenueProjections || [];

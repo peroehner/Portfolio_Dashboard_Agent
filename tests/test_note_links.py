@@ -54,7 +54,7 @@ class RelevantSymbolsNormalizeTests(unittest.TestCase):
                 "revenueProjections": [],
                 "catalystsToWatch": [],
                 "relevantSymbols": [
-                    {"symbol": "GOOG", "reason": "Ads leverage"},
+                    {"symbol": "GOOG", "reason": "Ads leverage", "sentiment": "bearish"},
                     {"symbol": "X", "reason": "unknown"},
                 ],
             },
@@ -63,8 +63,40 @@ class RelevantSymbolsNormalizeTests(unittest.TestCase):
         )
         self.assertEqual(
             result["relevantSymbols"],
-            [{"symbol": "GOOG", "reason": "Ads leverage"}],
+            [{"symbol": "GOOG", "reason": "Ads leverage", "sentiment": "bearish"}],
         )
+
+    def test_sentiment_for_symbol_uses_link_not_home(self):
+        synth = {
+            "summary": "X strong, Z weak",
+            "sentiment": "bullish",
+            "relevantSymbols": [
+                {"symbol": "Z", "reason": "Headwinds", "sentiment": "bearish"},
+            ],
+        }
+        self.assertEqual(LLMClient.sentiment_for_symbol(synth, "X", "X"), "bullish")
+        self.assertEqual(LLMClient.sentiment_for_symbol(synth, "Z", "X"), "bearish")
+        # Linked viewer without its own sentiment must not inherit home bullish.
+        self.assertEqual(LLMClient.sentiment_for_symbol(synth, "Y", "X"), "neutral")
+
+    def test_rules_synth_splits_multi_ticker_sentiment(self):
+        client = LLMClient()
+        note = {
+            "text": (
+                "AMZN accelerated with impressive cloud momentum. "
+                "GOOG faces a weak ads slowdown and decline in search."
+            ),
+            "date": "2026-01-01",
+        }
+        out = client._normalize_synthesis(
+            client._rule_based_note_synthesis("AMZN", note, ["AMZN", "GOOG"]),
+            provider="rules",
+            portfolio_symbols=["AMZN", "GOOG"],
+        )
+        self.assertEqual(out["sentiment"], "bullish")
+        by_sym = {item["symbol"]: item for item in out["relevantSymbols"]}
+        self.assertIn("GOOG", by_sym)
+        self.assertEqual(by_sym["GOOG"]["sentiment"], "bearish")
 
 
 def _db_available() -> bool:
