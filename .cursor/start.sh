@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Per-boot startup: bring up the local Postgres cluster and ensure the app
-# databases exist. Safe to run repeatedly.
+# Per-boot startup: bring up the local Postgres cluster, ensure the app
+# databases exist, then launch the Flask web server (stays attached).
+# Safe to run repeatedly.
 set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 # Start (or restart) the packaged Postgres 16 cluster.
 sudo pg_ctlcluster 16 main start 2>/dev/null \
@@ -23,3 +26,7 @@ for db in portfolio portfolio_test; do
 done
 
 echo "Postgres ready; databases ensured (portfolio, portfolio_test)."
+
+# Launch the web server in the foreground so it stays attached for the agent.
+# Serves the dashboard + REST API on http://0.0.0.0:5000/.
+exec ./.venv/bin/python3 main.py
