@@ -7,6 +7,7 @@ import {
   pctColor,
 } from "@/lib/format";
 import { tradeBandSideDist } from "@/lib/signalScores";
+import { compareTradeBandSort } from "@/lib/tradeBand";
 import type { Assessment, Holding, PortfolioRow, PortfolioSymbol, SaiAction } from "@/lib/types";
 
 export type PortfolioSortKey =
@@ -280,6 +281,12 @@ function compareRows(
   direction: SortDirection,
   tradeSide?: TradeSortSide | null,
 ): number {
+  if (key === "tradeBand") {
+    const side = tradeSide === "above" ? "above" : "below";
+    const cmp = compareTradeBandSort(a, b, side);
+    if (cmp === 0) return a.symbol.localeCompare(b.symbol);
+    return cmp;
+  }
   const av = sortValue(a, key, tradeSide);
   const bv = sortValue(b, key, tradeSide);
   const aNull = av == null || av === "";
@@ -316,13 +323,21 @@ export function sortPortfolioRows(
   return sorted;
 }
 
-export function sortHeaderLabel(label: string, key: PortfolioSortKey, sort: PortfolioSortState): string {
-  if (sort.key !== key || !sort.direction) return label;
+export function sortHeaderLabel(
+  label: string,
+  key: PortfolioSortKey,
+  sort: PortfolioSortState,
+  upperRefPt = false,
+): string {
+  let base = label;
+  if (key === "tradeBand" && upperRefPt) base = `${label} +PT`;
+  if (sort.key !== key || !sort.direction) return base;
   if (key === "tradeBand") {
     const side = sort.tradeSide === "above" ? "R" : "L";
-    return `${label} · ${side} ↑`;
+    // L: −…+ ascending; R: +…− (above-threshold first).
+    return `${base} · ${side}`;
   }
-  return sort.direction === "asc" ? `${label} ↑` : `${label} ↓`;
+  return sort.direction === "asc" ? `${base} ↑` : `${base} ↓`;
 }
 
 export type PortfolioTotalCell = {

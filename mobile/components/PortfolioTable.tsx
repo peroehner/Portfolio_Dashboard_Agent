@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Pressable,
@@ -9,6 +9,7 @@ import {
   type LayoutChangeEvent,
   type RefreshControlProps,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { SaiBadge } from "@/components/SaiBadge";
 import { TechBiasBadge } from "@/components/TechBiasBadge";
@@ -34,12 +35,14 @@ import {
 } from "@/lib/portfolioTable";
 import { openSymbol } from "@/lib/symbolBrowseSession";
 import { fitStickyScrollColumns } from "@/lib/tableLayout";
+import type { TradeUpperRef } from "@/lib/tradeBand";
 import { colors, spacing } from "@/lib/theme";
 import type { PortfolioRow } from "@/lib/types";
 
 const ROW_HEIGHT = 44;
 const HEADER_HEIGHT = 36;
 const TRADE_TIP_KEYS: PortfolioSortKey[] = ["dayChangePct", "tradeBand", "quantity"];
+const TRADE_UPPER_REF_KEY = "portfolio.tradeUpperRef";
 
 interface PortfolioTableProps {
   rows: PortfolioRow[];
@@ -79,12 +82,16 @@ function SortHeader({
   col,
   sort,
   onPress,
+  onLongPress,
   width,
+  upperRefPt,
 }: {
   col: PortfolioColumn;
   sort: PortfolioSortState;
   onPress: () => void;
+  onLongPress?: () => void;
   width: number;
+  upperRefPt?: boolean;
 }) {
   const active = sort.key === col.key;
   return (
@@ -96,14 +103,16 @@ function SortHeader({
         col.align === "right" && styles.headerCellRight,
       ]}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={380}
     >
       <Text
         style={[styles.headerText, col.align === "right" && styles.alignRight]}
         numberOfLines={1}
         adjustsFontSizeToFit
-        minimumFontScale={0.85}
+        minimumFontScale={0.75}
       >
-        {sortHeaderLabel(col.label, col.key, sort)}
+        {sortHeaderLabel(col.label, col.key, sort, Boolean(upperRefPt))}
       </Text>
     </Pressable>
   );
@@ -133,12 +142,32 @@ export function PortfolioTable({
   const scrollX = useRef(new Animated.Value(0)).current;
   const [tipSymbol, setTipSymbol] = useState<string | null>(null);
   const longPressedRef = useRef(false);
+  const [upperRef, setUpperRef] = useState<TradeUpperRef>("analyst");
   const totals = useMemo(() => computePortfolioTotals(rows), [rows]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void AsyncStorage.getItem(TRADE_UPPER_REF_KEY).then((raw) => {
+      if (cancelled) return;
+      if (raw === "pt" || raw === "analyst") setUpperRef(raw);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const browseSymbols = rows.map((row) => row.symbol);
 
   function handleHeaderSort(key: PortfolioSortKey) {
     onSortChange(cyclePortfolioSort(sort, key));
+  }
+
+  function toggleTradeUpperRef() {
+    setUpperRef((prev) => {
+      const next: TradeUpperRef = prev === "pt" ? "analyst" : "pt";
+      void AsyncStorage.setItem(TRADE_UPPER_REF_KEY, next);
+      return next;
+    });
   }
 
   function openDetails(symbol: string) {
@@ -180,6 +209,8 @@ export function PortfolioTable({
                 sort={sort}
                 width={col.width}
                 onPress={() => handleHeaderSort(col.key)}
+                onLongPress={col.key === "tradeBand" ? toggleTradeUpperRef : undefined}
+                upperRefPt={col.key === "tradeBand" && upperRef === "pt"}
               />
             ))}
           </Animated.View>
@@ -255,6 +286,7 @@ export function PortfolioTable({
                             row={row}
                             width={col.width - spacing.xs}
                             active={tipActive}
+                            upperRef={upperRef}
                           />
                         ) : (
                           <Text
