@@ -49,7 +49,7 @@ interface TradeBandBarProps {
   width?: number;
   /** When set, parent owns tooltip visibility (Portfolio long-press). */
   active?: boolean;
-  /** Upper-ref mark: analyst 1Y mean (default) or Pers Target. */
+  /** Upper-ref mark: analyst 1Y mean (solid, default) or Pers Target (dashed). */
   upperRef?: TradeUpperRef;
 }
 
@@ -161,14 +161,17 @@ export function TradeBandBar({
           />
         ) : null}
         {layout.pUpperRef != null ? (
+          // 1YT = solid, PT = dashed (matches web); thicker so it reads as
+          // clearly as the red/green threshold marks.
           <Line
             x1={px(layout.pUpperRef)}
             y1={trackY - 5}
             x2={px(layout.pUpperRef)}
             y2={trackY + TRACK_HEIGHT + 5}
             stroke={upperRef === "pt" ? "#a78bfa" : "#38bdf8"}
-            strokeWidth={1.5}
-            strokeDasharray="2 2"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeDasharray={upperRef === "pt" ? "2 2" : undefined}
           />
         ) : null}
         <Circle
