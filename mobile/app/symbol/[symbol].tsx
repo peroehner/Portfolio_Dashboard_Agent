@@ -570,7 +570,7 @@ export default function SymbolDetailScreen() {
       setNoteDate(todayIso());
       setComposingNote(false);
       await refreshAll();
-      setPendingNoteFocus({ text: payload.text.trim(), date: (payload.date || "").trim() });
+      setPendingNoteFocus({ text: (payload.text || "").trim(), date: (payload.date || "").trim() });
     } catch (err) {
       if (isTimeoutApiError(err)) {
         try {
@@ -593,7 +593,7 @@ export default function SymbolDetailScreen() {
             setNoteDate(todayIso());
             setComposingNote(false);
             await refreshAll();
-            setPendingNoteFocus({ text: payload.text.trim(), date: (payload.date || "").trim() });
+            setPendingNoteFocus({ text: (payload.text || "").trim(), date: (payload.date || "").trim() });
             return;
           }
         } catch {
