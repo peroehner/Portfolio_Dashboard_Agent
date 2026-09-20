@@ -434,6 +434,16 @@ class AlertsService:
         near = self.trade_near_pct / 100.0
         held_shares, cost_basis = self._holding_context(symbol)
 
+        # A Trade@Above defaults to a Sell (trim into strength). You can only sell
+        # what you already hold, so sell-side Above alerts are suppressed for
+        # watch-only symbols (nothing held) — first buy, then sell. A positive
+        # planned quantity is a buy/add on a breakout, which stays valid for a
+        # watch and is therefore exempt.
+        above_is_sell = not (
+            isinstance(trade_above_shares, (int, float)) and trade_above_shares > 0
+        )
+        suppress_above_sell = above_is_sell and held_shares <= 0
+
         # Trade@Below: a price floor. Default direction Buy (add on the dip), but
         # a negative quantity makes it a stop-loss (sell on the way down).
         if trade_below_price is not None:
@@ -485,8 +495,9 @@ class AlertsService:
                 )
 
         # Trade@Above: a price ceiling. Default direction Sell (trim into
-        # strength), but a positive quantity makes it a planned add.
-        if trade_above_price is not None:
+        # strength), but a positive quantity makes it a planned add. Sell-side
+        # alerts are skipped for watch-only symbols (nothing to sell yet).
+        if trade_above_price is not None and not suppress_above_sell:
             if price >= trade_above_price:
                 # REACHED — urgent.
                 clause = self._plan_clause(
