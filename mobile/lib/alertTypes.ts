@@ -13,6 +13,7 @@ export const ALERT_TYPE_LABELS: Record<string, string> = {
   tax_loss_candidate: "Tax Loss",
   winner_trim_candidate: "Winner Trim",
   harvest_imbalance: "Harvest Gap",
+  pt_progress_laggard: "PT Laggard",
 };
 
 /** Short chip label for fine-grained type keys (row badges / legacy). */
@@ -30,6 +31,7 @@ export const ALERT_TYPE_CHIP_LABELS: Record<string, string> = {
   tax_loss_candidate: "Tax$",
   winner_trim_candidate: "Trim",
   harvest_imbalance: "Gap",
+  pt_progress_laggard: "PT Lag",
 };
 
 /** Preferred chip order for fine-grained types (list sort). */
@@ -47,6 +49,7 @@ export const ALERT_TYPE_CHIP_ORDER = [
   "tax_loss_candidate",
   "winner_trim_candidate",
   "harvest_imbalance",
+  "pt_progress_laggard",
 ] as const;
 
 /**
@@ -58,6 +61,11 @@ export const ALERT_FILTER_GROUPS = [
     key: "harvest",
     label: "Harvest",
     types: ["tax_loss_candidate", "winner_trim_candidate", "harvest_imbalance"],
+  },
+  {
+    key: "pt_lag",
+    label: "PT Lag",
+    types: ["pt_progress_laggard"],
   },
   {
     key: "trade_below",

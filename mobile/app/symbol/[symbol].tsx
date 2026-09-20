@@ -33,7 +33,7 @@ import { Screen } from "@/components/Screen";
 import { api, isTimeoutApiError } from "@/lib/api";
 import { dedupeActiveAlerts } from "@/lib/alertDedup";
 import { headlineForAction } from "@/lib/inspectorHelpers";
-import { formatNoteDate, formatPrice, formatQty, formatShortDateTime } from "@/lib/format";
+import { formatHorizonLabel, formatNoteDate, formatPrice, formatQty, formatShortDateTime } from "@/lib/format";
 import { emphasizeDriverText } from "@/lib/driverHighlight";
 import { proposeThresholds } from "@/lib/thresholdProposals";
 import {
@@ -990,6 +990,13 @@ export default function SymbolDetailScreen() {
               placeholderTextColor={colors.textMuted}
               autoCapitalize="characters"
             />
+            <Text style={styles.suggestHint}>
+              End date for Pers Target — Q2-2027, 2030, or YYYY-MM-DD
+              {quote?.targetHorizonYearsRemaining != null &&
+              Number(quote.targetHorizonYearsRemaining) > 0
+                ? ` · ~${quote.targetHorizonYearsRemaining}Y left`
+                : ""}
+            </Text>
             {saveError ? <Text style={styles.modalError}>{saveError}</Text> : null}
             </ScrollView>
           </View>
@@ -1061,8 +1068,8 @@ export default function SymbolDetailScreen() {
                           <View style={styles.thresholdCell}>
                             <Text style={styles.statLabel}>Pers Target</Text>
                             <Text style={styles.statValue}>{formatPrice(quote?.targetPrice)}</Text>
-                            {quote?.targetHorizonLabel || quote?.targetHorizonAt ? (
-                              <Text style={styles.statHint}>{`by ${quote.targetHorizonLabel || quote.targetHorizonAt}`}</Text>
+                            {formatHorizonLabel(quote?.targetHorizonAt, quote?.targetHorizonLabel) ? (
+                              <Text style={styles.statHint}>{`by ${formatHorizonLabel(quote?.targetHorizonAt, quote?.targetHorizonLabel)}`}</Text>
                             ) : null}
                           </View>
                           <View style={styles.thresholdCell}>
@@ -1104,8 +1111,8 @@ export default function SymbolDetailScreen() {
                     <View style={styles.thresholdCell}>
                       <Text style={styles.statLabel}>Pers Target</Text>
                       <Text style={styles.statValue}>{formatPrice(quote?.targetPrice)}</Text>
-                      {quote?.targetHorizonLabel || quote?.targetHorizonAt ? (
-                        <Text style={styles.statHint}>{`by ${quote.targetHorizonLabel || quote.targetHorizonAt}`}</Text>
+                      {formatHorizonLabel(quote?.targetHorizonAt, quote?.targetHorizonLabel) ? (
+                        <Text style={styles.statHint}>{`by ${formatHorizonLabel(quote?.targetHorizonAt, quote?.targetHorizonLabel)}`}</Text>
                       ) : null}
                     </View>
                     <View style={styles.thresholdCell}>
