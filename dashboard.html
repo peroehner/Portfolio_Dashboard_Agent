@@ -13187,6 +13187,15 @@
       const totalDiv = sumOf(rows, "annualDividend");
       const totalAnalystVal = sumOf(rows, "analystTargetValue");
       const totalPtVal = sumOf(rows, "personalTargetValue");
+      const totalInvestment = rows.reduce((acc, r) => {
+        const qty = Number(r.quantity);
+        const price = Number(r.currentPrice);
+        if (Number.isFinite(qty) && qty > 0 && Number.isFinite(price) && price > 0) {
+          return acc + qty * price;
+        }
+        const mv = Number(r.marketValue);
+        return Number.isFinite(mv) && mv > 0 ? acc + mv : acc;
+      }, 0);
       const avgHorizon = averageHorizonYears(rows);
       const weightPct = portfolioValue ? (totalValue / portfolioValue) * 100 : null;
       const gainPct = portfolioValue ? (totalGain / portfolioValue) * 100 : null;
@@ -13207,9 +13216,13 @@
       const label = useSelection ? `TOTAL · ${rows.length} selected` : "TOTAL";
       const cellByKey = {
         symbol: `<strong>${label}</strong>`,
+        currentPrice: totalInvestment > 0
+          ? `<strong title="Total investment (Σ shares × price)">${formatSummaryMoney(totalInvestment)}</strong>`
+          : "—",
         dayChange: dayWeightBase
           ? `<strong>${renderHoldingsCompactMoneyCell(dayChangeAmt)}</strong>`
-          : "—",
+          : "—"
+        ,
         dayChangePct: dayPct == null
           ? "—"
           : `<strong>${renderColoredPercentCell(dayPct)}</strong>`,
