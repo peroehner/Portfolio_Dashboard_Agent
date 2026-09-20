@@ -228,7 +228,11 @@ class AssessmentOverlayService:
             },
             "personal": {
                 "targetPrice": context.get("targetPrice"),
-                "targetHorizonYears": context.get("targetHorizonYears"),
+                "targetHorizonAt": context.get("targetHorizonAt"),
+                "targetHorizonLabel": context.get("targetHorizonLabel"),
+                "targetHorizonYearsRemaining": context.get("targetHorizonYearsRemaining"),
+                "targetBasisAt": context.get("targetBasisAt"),
+                "targetBasisPrice": context.get("targetBasisPrice"),
                 "buyBelow": buy_below,
                 "sellAbove": sell_above,
                 "distanceToBuyBelowPct": self._distance_pct(price, buy_below),
@@ -424,12 +428,17 @@ class AssessmentOverlayService:
 
         if target and price and target > price:
             upside = (target - price) / price * 100
-            horizon = context.get("targetHorizonYears")
-            horizon_txt = (
-                f" over ~{horizon:g}Y"
-                if isinstance(horizon, (int, float)) and horizon > 0
-                else ""
-            )
+            horizon = context.get("targetHorizonYearsRemaining")
+            if horizon is None:
+                from services.target_horizon import years_remaining
+
+                horizon = years_remaining(context.get("targetHorizonAt"))
+            horizon_label = context.get("targetHorizonLabel")
+            horizon_txt = ""
+            if horizon_label:
+                horizon_txt = f" by {horizon_label}"
+            elif isinstance(horizon, (int, float)) and horizon > 0:
+                horizon_txt = f" over ~{horizon:g}Y"
             # Multi-year PT: require stronger absolute upside or solid annualized
             # pace before Hold→Watch — avoid treating a 5Y double like near-term.
             annualized = None

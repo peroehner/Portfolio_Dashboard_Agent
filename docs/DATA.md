@@ -92,7 +92,9 @@ Personal thresholds and targets only — **not** live market quotes.
 | Column | Persisted | Notes |
 |--------|-----------|-------|
 | `target_price` | Yes | Personal target |
-| `target_horizon_years` | Yes | PT Horizon — years bound to Pers Target thesis |
+| `target_horizon_at` | Yes | PT Horizon end date (bound to Pers Target thesis) |
+| `target_basis_at` | Yes | Thesis start date (auto when PT/horizon set) |
+| `target_basis_price` | Yes | Price at thesis start (for linear progress / laggard) |
 | `buy_below`, `sell_above` | Yes | Legacy zones; mirrored from trade thresholds |
 | `trade_below_*`, `trade_above_*` | Yes | Planned trade levels + share quantities |
 | `annual_dividend` | Yes | Often from import |

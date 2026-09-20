@@ -1,8 +1,10 @@
+from datetime import date
 from typing import Any
 
 from db.database import get_connection, get_current_user_id, list_distinct_symbols
 from services.market_data_service import MarketDataService
 from services.notes_service import NotesService
+from services.target_horizon import format_horizon_date, parse_horizon_date, years_remaining
 
 
 class PortfolioService:
@@ -57,6 +59,7 @@ class PortfolioService:
         user_id = get_current_user_id()
         payload = self._normalize_symbol_input(data)
         self._maybe_seed_market(symbol, payload)
+        market_price = self._lookup_market_price(symbol, payload)
 
         with get_connection() as conn:
             existing = conn.execute(
@@ -87,13 +90,26 @@ class PortfolioService:
                         "intent_override",
                         existing["intent_override"] if "intent_override" in existing_keys else None,
                     ),
-                    "target_horizon_years": payload.get(
-                        "target_horizon_years",
-                        existing["target_horizon_years"]
-                        if "target_horizon_years" in existing_keys
+                    "target_horizon_at": payload.get(
+                        "target_horizon_at",
+                        existing["target_horizon_at"]
+                        if "target_horizon_at" in existing_keys
                         else None,
                     ),
+                    "target_basis_at": existing["target_basis_at"]
+                    if "target_basis_at" in existing_keys
+                    else None,
+                    "target_basis_price": existing["target_basis_price"]
+                    if "target_basis_price" in existing_keys
+                    else None,
                 }
+                self._refresh_target_basis(
+                    merged,
+                    payload,
+                    existing,
+                    existing_keys,
+                    current_price=market_price,
+                )
                 if merged["trade_below_price"] is not None:
                     merged["buy_below"] = merged["trade_below_price"]
                 if merged["trade_above_price"] is not None:
@@ -105,7 +121,9 @@ class PortfolioService:
                         trade_below_price = %s, trade_below_shares = %s,
                         trade_above_price = %s, trade_above_shares = %s,
                         annual_dividend = %s, intent_override = %s,
-                        target_horizon_years = %s,
+                        target_horizon_at = %s,
+                        target_basis_at = %s,
+                        target_basis_price = %s,
                         updated_at = app_now_text()
                     WHERE user_id = %s AND symbol = %s
                     """,
@@ -119,7 +137,9 @@ class PortfolioService:
                         merged["trade_above_shares"],
                         merged["annual_dividend"],
                         merged["intent_override"],
-                        merged["target_horizon_years"],
+                        merged["target_horizon_at"],
+                        merged["target_basis_at"],
+                        merged["target_basis_price"],
                         user_id,
                         symbol,
                     ),
@@ -140,20 +160,34 @@ class PortfolioService:
                     if trade_above_price is not None
                     else payload.get("sell_above")
                 )
+                merged_new = {
+                    "target_price": payload.get("target_price"),
+                    "target_horizon_at": payload.get("target_horizon_at"),
+                    "target_basis_at": None,
+                    "target_basis_price": None,
+                }
+                self._refresh_target_basis(
+                    merged_new,
+                    payload,
+                    None,
+                    (),
+                    current_price=market_price,
+                )
                 conn.execute(
                     """
                     INSERT INTO symbols (
                         user_id, symbol, target_price, buy_below, sell_above,
                         trade_below_price, trade_below_shares,
                         trade_above_price, trade_above_shares,
-                        annual_dividend, intent_override, target_horizon_years
+                        annual_dividend, intent_override,
+                        target_horizon_at, target_basis_at, target_basis_price
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         user_id,
                         symbol,
-                        payload.get("target_price"),
+                        merged_new["target_price"],
                         buy_below,
                         sell_above,
                         trade_below_price,
@@ -162,7 +196,9 @@ class PortfolioService:
                         payload.get("trade_above_shares"),
                         payload.get("annual_dividend"),
                         payload.get("intent_override"),
-                        payload.get("target_horizon_years"),
+                        merged_new["target_horizon_at"],
+                        merged_new["target_basis_at"],
+                        merged_new["target_basis_price"],
                     ),
                 )
             conn.commit()
@@ -367,34 +403,100 @@ class PortfolioService:
 
                 normalized["intent_override"] = normalize_intent(raw_intent)
 
-        # PT Horizon (years) — bound to Pers Target thesis timeframe.
+        # PT Horizon (explicit end date) — bound to Pers Target thesis timeframe.
         if any(
             k in data
-            for k in ("target_horizon_years", "targetHorizonYears", "ptHorizonYears")
+            for k in (
+                "target_horizon_at",
+                "targetHorizonAt",
+                "ptHorizonAt",
+                "targetHorizon",
+                "ptHorizon",
+            )
         ):
             raw_h = next(
                 data[k]
-                for k in ("target_horizon_years", "targetHorizonYears", "ptHorizonYears")
+                for k in (
+                    "target_horizon_at",
+                    "targetHorizonAt",
+                    "ptHorizonAt",
+                    "targetHorizon",
+                    "ptHorizon",
+                )
                 if k in data
             )
-            normalized["target_horizon_years"] = self._normalize_horizon_years(raw_h)
+            normalized["target_horizon_at"] = parse_horizon_date(raw_h)
         return normalized
 
     @staticmethod
-    def _normalize_horizon_years(value: Any) -> float | None:
-        if value is None or value == "":
-            return None
+    def _lookup_market_price(symbol: str, payload: dict[str, Any]) -> float | None:
+        for key in ("currentPrice", "current_price", "market_current_price"):
+            if key in payload and payload[key] is not None:
+                try:
+                    price = float(payload[key])
+                except (TypeError, ValueError):
+                    continue
+                if price > 0:
+                    return price
         try:
-            years = float(value)
-        except (TypeError, ValueError):
+            with get_connection() as conn:
+                row = conn.execute(
+                    "SELECT current_price FROM symbol_market WHERE symbol = %s",
+                    (symbol.upper(),),
+                ).fetchone()
+            if row and row["current_price"] is not None:
+                price = float(row["current_price"])
+                if price > 0:
+                    return price
+        except Exception:  # noqa: BLE001
             return None
-        if not (years > 0):
-            return None
-        # Clamp to a practical investment-horizon band; one decimal for display.
-        return round(min(30.0, max(0.25, years)), 1)
+        return None
+
+    @staticmethod
+    def _refresh_target_basis(
+        merged: dict[str, Any],
+        payload: dict[str, Any],
+        existing: Any | None,
+        existing_keys: Any,
+        *,
+        current_price: float | None = None,
+    ) -> None:
+        """Capture / clear basis when Pers Target thesis window is (re)set."""
+        horizon = merged.get("target_horizon_at")
+        target = merged.get("target_price")
+        if horizon is None or target is None:
+            merged["target_basis_at"] = None
+            merged["target_basis_price"] = None
+            return
+
+        prev_horizon = None
+        prev_target = None
+        if existing is not None:
+            prev_horizon = (
+                existing["target_horizon_at"] if "target_horizon_at" in existing_keys else None
+            )
+            prev_target = existing["target_price"]
+
+        missing_basis = (
+            merged.get("target_basis_at") is None or merged.get("target_basis_price") is None
+        )
+        thesis_touched = (
+            "target_horizon_at" in payload or "target_price" in payload or missing_basis
+        )
+        changed = horizon != prev_horizon or target != prev_target
+        if not (thesis_touched and (changed or missing_basis)):
+            return
+
+        if current_price is None or not (current_price > 0):
+            return
+        merged["target_basis_at"] = date.today()
+        merged["target_basis_price"] = round(float(current_price), 4)
 
     def _row_to_symbol(self, row, include_notes: bool) -> dict[str, Any]:
         keys = row.keys()
+        horizon_at = row["target_horizon_at"] if "target_horizon_at" in keys else None
+        basis_at = row["target_basis_at"] if "target_basis_at" in keys else None
+        basis_price = row["target_basis_price"] if "target_basis_price" in keys else None
         symbol = {
             "symbol": row["symbol"],
             "currentPrice": row.get("market_current_price"),
@@ -402,9 +504,15 @@ class PortfolioService:
             "priceAsOf": row.get("market_price_as_of"),
             "companyName": row.get("market_company_name"),
             "targetPrice": row["target_price"],
-            "targetHorizonYears": (
-                row["target_horizon_years"] if "target_horizon_years" in keys else None
-            ),
+            "targetHorizonAt": horizon_at.isoformat()
+            if hasattr(horizon_at, "isoformat")
+            else horizon_at,
+            "targetHorizonLabel": format_horizon_date(horizon_at),
+            "targetHorizonYearsRemaining": years_remaining(horizon_at),
+            "targetBasisAt": basis_at.isoformat()
+            if hasattr(basis_at, "isoformat")
+            else basis_at,
+            "targetBasisPrice": basis_price,
             "analystTarget1y": row.get("market_analyst_target_1y"),
             "analystTargetLow": row.get("market_analyst_target_low"),
             "analystTargetHigh": row.get("market_analyst_target_high"),

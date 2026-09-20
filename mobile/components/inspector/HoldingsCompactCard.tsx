@@ -63,6 +63,12 @@ export function HoldingsCompactCard({ data, style }: HoldingsCompactCardProps) {
       : pos.personalUpsidePct != null
         ? formatPct(pos.personalUpsidePct, 0)
         : "—";
+  const tgtWithHorizon =
+    tgtTxt !== "—" && pos.targetHorizonLabel
+      ? `${tgtTxt} · ${pos.targetHorizonLabel}`
+      : pos.targetHorizonLabel && tgtTxt === "—"
+        ? pos.targetHorizonLabel
+        : tgtTxt;
 
   return (
     <View style={[styles.card, style]}>
@@ -87,7 +93,7 @@ export function HoldingsCompactCard({ data, style }: HoldingsCompactCardProps) {
               <ColCell label="Gain" value={gainTxt} valueColor={pctColor(pos.gainPct)} singleLine />
               <ColCell
                 label="Target"
-                value={tgtTxt}
+                value={tgtWithHorizon}
                 valueColor={pos.personalUpsidePct != null ? pctColor(pos.personalUpsidePct) : undefined}
                 singleLine
               />

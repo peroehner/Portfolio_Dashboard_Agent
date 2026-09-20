@@ -5777,6 +5777,7 @@
           <tr><td><code>Fib</code></td><td>Price near a Fibonacci support/resistance level.</td></tr>
           <tr><td><code>1YT ✓ / ~ / !! / plain</code></td><td>1-year Street target gap: Chance / Lean / Stretch / Watch.</td></tr>
           <tr><td>Harvest chips</td><td>Tax-loss, winner-trim, and harvest-imbalance candidates.</td></tr>
+          <tr><td>PT Lag</td><td>Pers Target progress laggard — ≥50% of PT Horizon elapsed and ≥30pp behind a linear path to Pers Target.</td></tr>
         </table>
 
         <h4>1YT chips</h4>
@@ -6227,8 +6228,8 @@
                   </div>
                 </div>
                 <div class="target-field">
-                  <label>PT Horizon <span class="field-hint">years</span></label>
-                  <input name="targetHorizonYears" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 3" title="Investment horizon for Pers Target (years)">
+                  <label>PT Horizon <span class="field-hint">date</span></label>
+                  <input name="targetHorizonAt" type="text" autocomplete="off" placeholder="e.g. Q2-2027 or 2030" title="Pers Target end date (Q2-2027, 2030, or YYYY-MM-DD)">
                 </div>
                 <div class="target-field">
                   <label>1YT Analyst</label>
@@ -8795,24 +8796,55 @@
       return Math.round(amount * 100) / 100;
     }
 
-    /** PT Horizon years (0.25–30); empty → null. */
-    function parseHorizonYears(value) {
+    /** PT Horizon end date: Q2-2027 / 2030 / YYYY-MM-DD → ISO date or null. */
+    function parseHorizonAt(value) {
       if (value == null || String(value).trim() === "") return null;
-      const amount = Number(String(value).replace(/[^\d.\-]/g, ""));
-      if (!Number.isFinite(amount) || !(amount > 0)) return null;
-      return Math.round(Math.min(30, Math.max(0.25, amount)) * 10) / 10;
+      const text = String(value).trim();
+      const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (iso) return text;
+      const yearOnly = text.match(/^(20\d{2}|19\d{2})$/);
+      if (yearOnly) return `${yearOnly[1]}-12-31`;
+      let m = text.match(/^Q\s*([1-4])[\s\-–/]*?(20\d{2}|19\d{2})$/i);
+      if (!m) m = text.match(/^(20\d{2}|19\d{2})[\s\-–/]*?Q\s*([1-4])$/i);
+      if (m) {
+        const quarter = Number(m[1].length === 1 ? m[1] : m[2]);
+        const year = Number(m[1].length === 4 ? m[1] : m[2]);
+        const ends = { 1: "03-31", 2: "06-30", 3: "09-30", 4: "12-31" };
+        return `${year}-${ends[quarter]}`;
+      }
+      return null;
     }
 
-    function formatHorizonYears(value) {
-      const num = Number(value);
-      if (!Number.isFinite(num) || !(num > 0)) return "—";
-      const rounded = Math.round(num * 10) / 10;
-      return `${rounded}Y`;
+    function formatHorizonAt(value, label) {
+      if (label) return String(label);
+      const iso = value ? String(value).slice(0, 10) : "";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "—";
+      const [y, mo, d] = iso.split("-").map(Number);
+      const qEnds = { "03-31": 1, "06-30": 2, "09-30": 3, "12-31": 4 };
+      const md = `${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      if (md === "12-31") return String(y);
+      if (qEnds[md]) return `Q${qEnds[md]}-${y}`;
+      return iso;
     }
 
-    function averageHorizonYears(rows) {
+    function yearsRemainingFromHorizon(value) {
+      const iso = value ? String(value).slice(0, 10) : "";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+      const end = new Date(`${iso}T00:00:00Z`);
+      const now = new Date();
+      const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+      const days = (end.getTime() - today) / 86400000;
+      if (!(days > 0)) return 0;
+      return Math.round((days / 365.25) * 10) / 10;
+    }
+
+    function averageHorizonYearsRemaining(rows) {
       const vals = (rows || [])
-        .map((r) => Number(r.targetHorizonYears))
+        .map((r) => {
+          const left = Number(r.targetHorizonYearsRemaining);
+          if (Number.isFinite(left) && left > 0) return left;
+          return yearsRemainingFromHorizon(r.targetHorizonAt);
+        })
         .filter((n) => Number.isFinite(n) && n > 0);
       if (!vals.length) return null;
       return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
@@ -9447,11 +9479,10 @@
       form.avgCost.value = formatPriceInput(holding?.costBasis);
       form.purchaseDate.value = (holding?.purchaseDate || "").slice(0, 10);
       form.targetPrice.value = formatPriceInput(item.targetPrice);
-      if (form.targetHorizonYears) {
-        form.targetHorizonYears.value =
-          item.targetHorizonYears != null && Number.isFinite(Number(item.targetHorizonYears))
-            ? String(item.targetHorizonYears)
-            : "";
+      if (form.targetHorizonAt) {
+        form.targetHorizonAt.value =
+          item.targetHorizonLabel ||
+          (item.targetHorizonAt ? formatHorizonAt(item.targetHorizonAt) : "");
       }
       form.tradeBelowPrice.value = formatPriceInput(item.tradeBelowPrice);
       form.tradeAbovePrice.value = formatPriceInput(item.tradeAbovePrice);
@@ -10248,7 +10279,7 @@
             tradeBelowShares: signedTradeShares("Below"),
             tradeAbovePrice: parsePrice(form.tradeAbovePrice.value),
             tradeAboveShares: signedTradeShares("Above"),
-            targetHorizonYears: parseHorizonYears(form.targetHorizonYears?.value),
+            targetHorizonAt: parseHorizonAt(form.targetHorizonAt?.value),
             intentOverride: form.intentOverride?.value || null,
           }),
         });
@@ -12597,6 +12628,7 @@
       "tax_loss_candidate",
       "winner_trim_candidate",
       "harvest_imbalance",
+      "pt_progress_laggard",
     ];
 
     function compareSummaryAlertChipOrder(a, b) {
@@ -12650,6 +12682,7 @@
       tax_loss_candidate: "Tax Loss",
       winner_trim_candidate: "Winner Trim",
       harvest_imbalance: "Harvest Gap",
+      pt_progress_laggard: "PT Laggard",
     };
 
     const SUMMARY_ALERT_CHIP_LABELS = {
@@ -12663,6 +12696,7 @@
       trade_above_near: "Above Near",
       trade_below: "Below",
       trade_below_near: "Below Near",
+      pt_progress_laggard: "PT Lag",
     };
 
     function summaryAlertTypeKey(alert) {
@@ -12879,7 +12913,9 @@
             analystTargetValue: null,
             personalTarget: sym.targetPrice,
             personalTargetValue: null,
-            targetHorizonYears: sym.targetHorizonYears ?? null,
+            targetHorizonAt: sym.targetHorizonAt ?? null,
+            targetHorizonLabel: sym.targetHorizonLabel ?? null,
+            targetHorizonYearsRemaining: sym.targetHorizonYearsRemaining ?? null,
             annualDividend: sym.annualDividend,
             watchOnly: true,
           };
@@ -13084,11 +13120,11 @@
       { key: "analystTargetValue", label: "1YT Val", sortValue: (row) => row.analystTargetValue, render: (row) => formatHoldingsCompactMoney(row.analystTargetValue) },
       { key: "personalTarget", label: "PT", sortValue: (row) => row.personalTarget, render: (row) => formatHoldingsCompactMoney(row.personalTarget) },
       {
-        key: "targetHorizonYears",
+        key: "targetHorizonAt",
         label: "PT Hor",
-        help: "Pers Target investment horizon in years (PT Horizon).\nTOTAL shows the average of set horizons.",
-        sortValue: (row) => row.targetHorizonYears,
-        render: (row) => formatHorizonYears(row.targetHorizonYears),
+        help: "Pers Target horizon end date (PT Horizon), e.g. Q2-2027 or 2030.\nTOTAL shows the average years remaining across set horizons.",
+        sortValue: (row) => row.targetHorizonAt || row.targetHorizonLabel || "",
+        render: (row) => formatHorizonAt(row.targetHorizonAt, row.targetHorizonLabel),
       },
       { key: "personalUpsidePct", label: "PT %", coloredPercent: true, sortValue: (row) => holdingsPtUpside(row), render: (row) => renderHoldingsPercentCell(holdingsPtUpside(row)) },
       { key: "personalTargetValue", label: "PT Val", sortValue: (row) => row.personalTargetValue, render: (row) => formatHoldingsCompactMoney(row.personalTargetValue) },
@@ -13196,7 +13232,7 @@
         const mv = Number(r.marketValue);
         return Number.isFinite(mv) && mv > 0 ? acc + mv : acc;
       }, 0);
-      const avgHorizon = averageHorizonYears(rows);
+      const avgHorizon = averageHorizonYearsRemaining(rows);
       const weightPct = portfolioValue ? (totalValue / portfolioValue) * 100 : null;
       const gainPct = portfolioValue ? (totalGain / portfolioValue) * 100 : null;
       // Value-weighted Day %: dollar move = Σ(value × dayPct), and the % is that
@@ -13232,9 +13268,9 @@
         gainPct: renderHoldingsPercentCell(gainPct),
         analystTargetValue: `<strong>${formatHoldingsCompactMoney(totalAnalystVal)}</strong>`,
         personalTargetValue: `<strong>${formatHoldingsCompactMoney(totalPtVal)}</strong>`,
-        targetHorizonYears: avgHorizon == null
+        targetHorizonAt: avgHorizon == null
           ? "—"
-          : `<strong title="Average PT Horizon">${formatHorizonYears(avgHorizon)}</strong>`,
+          : `<strong title="Average years remaining">${avgHorizon}Y left</strong>`,
         annualDividend: `<strong>${formatHoldingsDividendWithYield(totalDiv, totalValue)}</strong>`,
       };
       const cells = holdingsColumns.map((col) => {
@@ -13789,6 +13825,7 @@
       tax_loss_candidate: "Tax$",
       winner_trim_candidate: "Trim",
       harvest_imbalance: "Gap",
+      pt_progress_laggard: "PT Lag",
     };
     function alertKindAbbr(type) {
       if (ALERT_KIND_ABBR[type]) return ALERT_KIND_ABBR[type];
@@ -14168,7 +14205,7 @@
     const SAI_HELP = "SAI = Action · Conf · Score · Sentiment from the last Assess.\n• Action: Buy / Watch / Hold / Sell — the call from last Assess. Trailing ! = today’s Score would pick a different Action (hover Action for which). Re-run Assess to refresh.\n• Conf · Score: Conf = High / Med / Low conviction; Score = 0–100 setup quality beside it. Conf can soften without changing the Score number — hover Conf · Score for details.\n• Sentiment: news lean (else notes). Intent is its own column.\n• Score ladder (how Score bands map toward Actions): ≥75 Strong buy · 60–74 Buy · 45–59 Watch · 30–44 Hold/trim · <30 Sell/avoid";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
     const TRADE_RANGE_HELP = "Your planned-trade window on one bar:\n• Red mark — Trade Below · Green mark — Trade Above (window = 100%)\n• Blue knob — current price · Heat — distance to focus side\n• Within range: cool heat, unsigned % · Outside: orange/red heat with − (below lower) or + (above upper)\n• Dashed mark — analyst 1YT mean (default) or Pers Target\n• Ctrl+click header to toggle 1YT ↔ PT (header shows +PT)\n• Sort: L = signed % from Below (−…+) · R = signed % from Above (+…−) · 3rd = clear";
-    const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
+    const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• PT Lag — Pers Target progress laggard (≥50% of horizon elapsed and ≥30pp behind a linear path to PT)\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
     const SIM_SYMBOL_HELP = "Ticker with at least one priced planned-trade threshold. Click to open in Target.";
     const SIM_CLOSE_PCT_HELP = "Rule of thumb: LOWER Close % = closer to firing.\n• Distance to the sorted threshold side (Below / Above), respecting Buys / Sells / Both when filtering\n• Sort: 1st click = closest to Below (L) · 2nd = closest to Above (R) · 3rd = clear\n• ▼ price above threshold · ▲ below";
     const SCREEN_LOSS_SCORE_HELP = "Tax & Trim Loss Score (higher = stronger harvest candidate).\n• Residual loss after 1YT upside (0–50 curve)\n• — for non-losers / no cost basis";
@@ -14359,11 +14396,11 @@
         render: (row) => formatMoney(row.personalTarget ?? row.targetPrice),
       },
       {
-        key: "targetHorizonYears",
+        key: "targetHorizonAt",
         label: "PT Hor",
-        help: "Pers Target investment horizon in years (PT Horizon).\nTOTAL shows the average of set horizons.",
-        sortValue: (row) => row.targetHorizonYears,
-        render: (row) => formatHorizonYears(row.targetHorizonYears),
+        help: "Pers Target horizon end date (PT Horizon), e.g. Q2-2027 or 2030.\nTOTAL shows the average years remaining across set horizons.",
+        sortValue: (row) => row.targetHorizonAt || row.targetHorizonLabel || "",
+        render: (row) => formatHorizonAt(row.targetHorizonAt, row.targetHorizonLabel),
       },
       {
         key: "noteCount",
@@ -14420,14 +14457,14 @@
       const sel = getMultiSelection("screening");
       const useSelection = sel.size > 1;
       const rows = useSelection ? displayed.filter((r) => sel.has(r.symbol)) : displayed;
-      const avgHorizon = averageHorizonYears(rows);
+      const avgHorizon = averageHorizonYearsRemaining(rows);
       const label = useSelection ? `TOTAL · ${rows.length} selected` : "TOTAL";
       const cols = visibleScreeningColumns();
       const cellByKey = {
         symbol: `<strong>${label}</strong>`,
-        targetHorizonYears: avgHorizon == null
+        targetHorizonAt: avgHorizon == null
           ? "—"
-          : `<strong title="Average PT Horizon">${formatHorizonYears(avgHorizon)}</strong>`,
+          : `<strong title="Average years remaining">${avgHorizon}Y left</strong>`,
       };
       const cells = cols.map((col) => `<td>${cellByKey[col.key] ?? ""}</td>`).join("");
       return `<tfoot><tr class="total-row">${cells}</tr></tfoot>`;

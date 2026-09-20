@@ -33,7 +33,7 @@ import { Screen } from "@/components/Screen";
 import { api, isTimeoutApiError } from "@/lib/api";
 import { dedupeActiveAlerts } from "@/lib/alertDedup";
 import { headlineForAction } from "@/lib/inspectorHelpers";
-import { formatNoteDate, formatPrice, formatQty, formatShortDateTime } from "@/lib/format";
+import { formatHorizonLabel, formatNoteDate, formatPrice, formatQty, formatShortDateTime } from "@/lib/format";
 import { emphasizeDriverText } from "@/lib/driverHighlight";
 import { proposeThresholds } from "@/lib/thresholdProposals";
 import {
@@ -214,7 +214,7 @@ export default function SymbolDetailScreen() {
   const [sellAboveShares, setSellAboveShares] = useState("");
   const [sellAboveDir, setSellAboveDir] = useState<"buy" | "sell">("sell");
   const [targetPrice, setTargetPrice] = useState("");
-  const [targetHorizonYears, setTargetHorizonYears] = useState("");
+  const [targetHorizonAt, setTargetHorizonAt] = useState("");
   const [holdingShares, setHoldingShares] = useState("");
   const [holdingPurchaseDate, setHoldingPurchaseDate] = useState("");
   const [holdingAvgCost, setHoldingAvgCost] = useState("");
@@ -446,10 +446,9 @@ export default function SymbolDetailScreen() {
             setSellAboveShares(toShareInput(quote?.tradeAboveShares));
             setSellAboveDir(tradeDirFromShares(quote?.tradeAboveShares, "sell"));
             setTargetPrice(toInput(quote?.targetPrice));
-            setTargetHorizonYears(
-              quote?.targetHorizonYears != null && Number(quote.targetHorizonYears) > 0
-                ? String(quote.targetHorizonYears)
-                : "",
+            setTargetHorizonAt(
+              quote?.targetHorizonLabel ||
+                (quote?.targetHorizonAt ? String(quote.targetHorizonAt).slice(0, 10) : ""),
             );
             const holding = data?.holding;
             const posShares =
@@ -530,7 +529,7 @@ export default function SymbolDetailScreen() {
         tradeAbovePrice: sellAboveValue,
         tradeAboveShares: signedTradeShares(sellAboveShares, sellAboveDir),
         targetPrice: parseNullableNumber(targetPrice),
-        targetHorizonYears: parseNullableNumber(targetHorizonYears),
+        targetHorizonAt: targetHorizonAt.trim() ? targetHorizonAt.trim() : null,
       };
       await api.updateSymbol(sym, payload);
 
@@ -982,15 +981,22 @@ export default function SymbolDetailScreen() {
               placeholder="$"
               placeholderTextColor={colors.textMuted}
             />
-            <Text style={styles.inputLabel}>PT Horizon (years)</Text>
+            <Text style={styles.inputLabel}>PT Horizon (date)</Text>
             <TextInput
               style={styles.input}
-              value={targetHorizonYears}
-              onChangeText={setTargetHorizonYears}
-              keyboardType="decimal-pad"
-              placeholder="e.g. 3"
+              value={targetHorizonAt}
+              onChangeText={setTargetHorizonAt}
+              placeholder="e.g. Q2-2027 or 2030"
               placeholderTextColor={colors.textMuted}
+              autoCapitalize="characters"
             />
+            <Text style={styles.suggestHint}>
+              End date for Pers Target — Q2-2027, 2030, or YYYY-MM-DD
+              {quote?.targetHorizonYearsRemaining != null &&
+              Number(quote.targetHorizonYearsRemaining) > 0
+                ? ` · ~${quote.targetHorizonYearsRemaining}Y left`
+                : ""}
+            </Text>
             {saveError ? <Text style={styles.modalError}>{saveError}</Text> : null}
             </ScrollView>
           </View>
@@ -1062,8 +1068,8 @@ export default function SymbolDetailScreen() {
                           <View style={styles.thresholdCell}>
                             <Text style={styles.statLabel}>Pers Target</Text>
                             <Text style={styles.statValue}>{formatPrice(quote?.targetPrice)}</Text>
-                            {quote?.targetHorizonYears != null && Number(quote.targetHorizonYears) > 0 ? (
-                              <Text style={styles.statHint}>{`${quote.targetHorizonYears}Y horizon`}</Text>
+                            {formatHorizonLabel(quote?.targetHorizonAt, quote?.targetHorizonLabel) ? (
+                              <Text style={styles.statHint}>{`by ${formatHorizonLabel(quote?.targetHorizonAt, quote?.targetHorizonLabel)}`}</Text>
                             ) : null}
                           </View>
                           <View style={styles.thresholdCell}>
@@ -1105,8 +1111,8 @@ export default function SymbolDetailScreen() {
                     <View style={styles.thresholdCell}>
                       <Text style={styles.statLabel}>Pers Target</Text>
                       <Text style={styles.statValue}>{formatPrice(quote?.targetPrice)}</Text>
-                      {quote?.targetHorizonYears != null && Number(quote.targetHorizonYears) > 0 ? (
-                        <Text style={styles.statHint}>{`${quote.targetHorizonYears}Y horizon`}</Text>
+                      {formatHorizonLabel(quote?.targetHorizonAt, quote?.targetHorizonLabel) ? (
+                        <Text style={styles.statHint}>{`by ${formatHorizonLabel(quote?.targetHorizonAt, quote?.targetHorizonLabel)}`}</Text>
                       ) : null}
                     </View>
                     <View style={styles.thresholdCell}>

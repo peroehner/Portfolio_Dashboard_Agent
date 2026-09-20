@@ -50,6 +50,39 @@ export function formatPrice(value: number | null | undefined): string {
   return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** Pers Target horizon end date → `Q2-2027`, `2030`, or ISO. */
+export function formatHorizonLabel(
+  value?: string | null,
+  label?: string | null,
+): string | null {
+  if (label && String(label).trim()) return String(label).trim();
+  const iso = value ? String(value).slice(0, 10) : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const [y, mo, d] = iso.split("-").map(Number);
+  const md = `${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const qEnds: Record<string, number> = {
+    "03-31": 1,
+    "06-30": 2,
+    "09-30": 3,
+    "12-31": 4,
+  };
+  if (md === "12-31") return String(y);
+  if (qEnds[md]) return `Q${qEnds[md]}-${y}`;
+  return iso;
+}
+
+/** Years remaining until horizon end (1 decimal); null if unset/invalid. */
+export function yearsRemainingHorizon(value?: string | null): number | null {
+  const iso = value ? String(value).slice(0, 10) : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const end = new Date(`${iso}T00:00:00Z`);
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const days = (end.getTime() - today) / 86400000;
+  if (!(days > 0)) return 0;
+  return Math.round((days / 365.25) * 10) / 10;
+}
+
 export function formatQty(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return "—";
   const n = Number(value);

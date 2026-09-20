@@ -1,4 +1,5 @@
 import { colors } from "@/lib/theme";
+import { formatHorizonLabel } from "@/lib/format";
 import type { Holding, InspectorPayload, PortfolioSymbol } from "@/lib/types";
 
 export interface PositionDisplay {
@@ -11,6 +12,7 @@ export interface PositionDisplay {
   gainPct: number | null;
   personalTargetValue: number | null;
   personalUpsidePct: number | null;
+  targetHorizonLabel: string | null;
   estDividend: number | null;
 }
 
@@ -74,6 +76,11 @@ export function getPositionDisplay(
   const estDividend =
     valuation?.estDividend ?? holding?.annualDividend ?? quote?.annualDividend ?? null;
 
+  const horizonLabel = formatHorizonLabel(
+    holding?.targetHorizonAt ?? quote?.targetHorizonAt,
+    holding?.targetHorizonLabel ?? quote?.targetHorizonLabel,
+  );
+
   return {
     hasPosition,
     entryDate,
@@ -86,6 +93,7 @@ export function getPositionDisplay(
       personalTargetValueRaw != null ? Number(personalTargetValueRaw) : null,
     personalUpsidePct:
       personalUpsidePctRaw != null ? Number(personalUpsidePctRaw) : null,
+    targetHorizonLabel: horizonLabel,
     estDividend: estDividend != null ? Number(estDividend) : null,
   };
 }

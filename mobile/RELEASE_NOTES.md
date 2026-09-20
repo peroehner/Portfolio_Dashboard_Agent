@@ -18,6 +18,9 @@ Then install the new build in TestFlight on the phone (Apple processing can take
 Portfolio Dashboard mobile update
 
 • Portfolio: sticky TBias column next to SAI (Bull/LBull/Mix/LBear/Bear)
+• Portfolio: PT Hor column (Pers Target end date, e.g. Q2-2027) + avg years left in TOTAL
+• Target edit: PT Horizon date field; summary shows “by Q2-2027”
+• Alerts: PT Lag filter for progress-laggard alerts
 • Buy/Sell Plan: PROPOSED / QUALIFIED badges on candidates (like Tax & Trim)
 • Buy/Sell Plan: removed repeated Conviction/Readiness/Execution lines
 • Portfolio sorting: empty values stay at the bottom (asc/desc)

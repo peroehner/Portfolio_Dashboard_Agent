@@ -17,6 +17,7 @@ import { SymbolStarPressable } from "@/components/SymbolStarPressable";
 import { TradeBandBar, tradeBandTooltipText } from "@/components/TradeBandBar";
 import {
   formatDividendWithYield,
+  formatHorizonLabel,
   formatMoney,
   formatPct,
   formatPrice,
@@ -60,10 +61,8 @@ function renderCell(row: PortfolioRow, col: PortfolioColumn): string {
   if (col.key === "annualDividend") {
     return formatDividendWithYield(row.annualDividend, row.marketValue, true);
   }
-  if (col.key === "targetHorizonYears") {
-    const n = Number(value);
-    if (!Number.isFinite(n) || !(n > 0)) return "—";
-    return `${Math.round(n * 10) / 10}Y`;
+  if (col.key === "targetHorizonAt") {
+    return formatHorizonLabel(row.targetHorizonAt, row.targetHorizonLabel) || "—";
   }
   if (col.pct) return formatPct(value as number | null);
   if (col.money) return formatMoney(value as number | null, true);

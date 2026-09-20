@@ -40,6 +40,7 @@ _HARVEST_ALERT_TYPES = frozenset(
     {"tax_loss_candidate", "winner_trim_candidate", "harvest_imbalance"}
 )
 _FIB_ALERT_TYPE = "fib_proximity"
+_PT_LAGGARD_ALERT_TYPE = "pt_progress_laggard"
 
 
 class AlertsService:
@@ -122,6 +123,7 @@ class AlertsService:
         for symbol_data in self.portfolio_service.list_symbols():
             created.extend(self._check_thresholds(symbol_data, true_signatures))
             created.extend(self._check_fib_proximity(symbol_data, true_signatures))
+            created.extend(self._check_pt_progress_laggard(symbol_data, true_signatures))
         created.extend(self._check_screener(engine, true_signatures))
         try:
             created.extend(self._check_harvest(true_signatures))
@@ -532,6 +534,51 @@ class AlertsService:
                 )
 
         return [alert for alert in created if alert is not None]
+
+    def _check_pt_progress_laggard(
+        self,
+        symbol_data: dict[str, Any],
+        true_signatures: set | None = None,
+    ) -> list[dict[str, Any]]:
+        """Alert when Pers Target progress lags a linear path by ≥30pp after ≥50% elapsed."""
+        from services.target_horizon import format_horizon_date, progress_lag
+
+        symbol = symbol_data["symbol"]
+        price = symbol_data.get("currentPrice")
+        target = symbol_data.get("targetPrice")
+        detail = progress_lag(
+            basis_at=symbol_data.get("targetBasisAt"),
+            horizon_at=symbol_data.get("targetHorizonAt"),
+            basis_price=symbol_data.get("targetBasisPrice"),
+            target_price=target,
+            current_price=price,
+        )
+        if not detail or not detail["isLaggard"]:
+            return []
+
+        label = (
+            symbol_data.get("targetHorizonLabel")
+            or format_horizon_date(symbol_data.get("targetHorizonAt"))
+            or "horizon"
+        )
+        elapsed_pct = detail["elapsed"] * 100
+        expected_pct = detail["expected"] * 100
+        actual_pct = detail["actual"] * 100
+        lag_pp = detail["lag"] * 100
+        msg = (
+            f"{symbol} PT progress laggard · {elapsed_pct:.0f}% of window to {label} elapsed · "
+            f"price closed {actual_pct:.0f}% of PT gap vs ~{expected_pct:.0f}% linear "
+            f"(behind by {lag_pp:.0f}pp)"
+        )
+        alert = self._create_alert(
+            symbol=symbol,
+            alert_type=_PT_LAGGARD_ALERT_TYPE,
+            message=msg,
+            price=float(price) if isinstance(price, (int, float)) else None,
+            reference_value=round(lag_pp, 2),
+            true_signatures=true_signatures,
+        )
+        return [alert] if alert else []
 
     def _check_fib_proximity(
         self,
