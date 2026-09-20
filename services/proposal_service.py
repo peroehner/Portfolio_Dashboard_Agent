@@ -59,7 +59,8 @@ FIT_EXTENSION_KEYS = (
     "filterSetBias",
     "holdingPeriodBias",
     "intentOverride",
-    "targetHorizonYears",
+    "targetHorizonAt",
+    "targetHorizonYearsRemaining",
 )
 
 # volatilityPreference → soft beta ceiling (fundamentals.beta when present).
@@ -406,11 +407,20 @@ class ProposalService:
                 fit_extensions[key] = prefs[key]
         fit_extensions["holdingPeriodBias"] = intent["code"]
         fit_extensions["intentOverride"] = intent.get("override")
-        horizon = ctx.get("targetHorizonYears")
-        if horizon is None:
-            horizon = screening.get("targetHorizonYears")
-        if isinstance(horizon, (int, float)) and horizon > 0:
-            fit_extensions["targetHorizonYears"] = float(horizon)
+        horizon_at = ctx.get("targetHorizonAt")
+        if horizon_at is None:
+            horizon_at = screening.get("targetHorizonAt")
+        years_left = ctx.get("targetHorizonYearsRemaining")
+        if years_left is None:
+            years_left = screening.get("targetHorizonYearsRemaining")
+        if years_left is None and horizon_at:
+            from services.target_horizon import years_remaining
+
+            years_left = years_remaining(horizon_at)
+        if horizon_at:
+            fit_extensions["targetHorizonAt"] = horizon_at
+        if isinstance(years_left, (int, float)) and years_left >= 0:
+            fit_extensions["targetHorizonYearsRemaining"] = float(years_left)
 
         return {
             "schemaVersion": SCHEMA_VERSION,
@@ -872,25 +882,30 @@ class ProposalService:
         intent: dict[str, Any] | None,
         screening: dict[str, Any] | None,
     ) -> float:
-        """Soft Fit ±1 when PT Horizon aligns with Intent role (years, not $)."""
-        horizon = (screening or {}).get("targetHorizonYears")
+        """Soft Fit ±1 when remaining PT Horizon aligns with Intent role."""
+        horizon = (screening or {}).get("targetHorizonYearsRemaining")
+        if horizon is None:
+            from services.target_horizon import years_remaining
+
+            horizon = years_remaining((screening or {}).get("targetHorizonAt"))
         if not isinstance(horizon, (int, float)) or not (horizon > 0):
             return score
         code = (intent or {}).get("code")
         if not code:
             return score
+        label = (screening or {}).get("targetHorizonLabel") or f"~{horizon:g}Y left"
         if code in ("core", "core_accumulate") and horizon >= 3:
             score += 1
-            factors.append(f"PT Horizon ~{horizon:g}Y aligns with {code.replace('_', ' ')}")
+            factors.append(f"PT Horizon {label} aligns with {code.replace('_', ' ')}")
         elif code == "tactical" and horizon <= 1.5:
             score += 1
-            factors.append(f"PT Horizon ~{horizon:g}Y aligns with tactical stance")
+            factors.append(f"PT Horizon {label} aligns with tactical stance")
         elif code in ("core", "core_accumulate") and horizon <= 1:
             score -= 1
-            factors.append(f"Short PT Horizon ~{horizon:g}Y vs {code.replace('_', ' ')} role")
+            factors.append(f"Short PT Horizon {label} vs {code.replace('_', ' ')} role")
         elif code == "tactical" and horizon >= 5:
             score -= 1
-            factors.append(f"Long PT Horizon ~{horizon:g}Y vs tactical stance")
+            factors.append(f"Long PT Horizon {label} vs tactical stance")
         return score
 
     @staticmethod

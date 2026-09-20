@@ -402,12 +402,16 @@ class ImportService:
                 record["targetPrice"] = self._clean_number(personal_target_match.group(1))
 
             horizon_match = re.search(
-                r"(?:Personal Target Horizon|PT Horizon):\s*([\d.,]+)\s*(?:y(?:ears?)?)?",
+                r"(?:Personal Target Horizon|PT Horizon):\s*([^\n]+)",
                 body,
                 re.I,
             )
             if horizon_match:
-                record["targetHorizonYears"] = self._clean_number(horizon_match.group(1))
+                from services.target_horizon import parse_horizon_date
+
+                parsed = parse_horizon_date(horizon_match.group(1).strip())
+                if parsed is not None:
+                    record["targetHorizonAt"] = parsed.isoformat()
 
             target_match = re.search(r"1Y Mean Target estimate:\s*([\d.,]+)", body, re.I)
             if target_match:

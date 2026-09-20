@@ -1,6 +1,7 @@
 from typing import Any
 
 from db.database import get_connection, get_current_user_id
+from services.target_horizon import format_horizon_date, years_remaining
 
 
 class HoldingsService:
@@ -19,7 +20,7 @@ class HoldingsService:
                        h.created_at, h.updated_at,
                        m.current_price, m.day_change_pct, m.company_name,
                        s.annual_dividend, m.analyst_target_1y, s.target_price,
-                       s.target_horizon_years
+                       s.target_horizon_at, s.target_basis_at, s.target_basis_price
                 FROM holdings h
                 LEFT JOIN symbols s ON s.user_id = h.user_id AND s.symbol = h.symbol
                 LEFT JOIN symbol_market m ON m.symbol = h.symbol
@@ -40,7 +41,7 @@ class HoldingsService:
                        h.created_at, h.updated_at,
                        m.current_price, m.day_change_pct, m.company_name,
                        s.annual_dividend, m.analyst_target_1y, s.target_price,
-                       s.target_horizon_years
+                       s.target_horizon_at, s.target_basis_at, s.target_basis_price
                 FROM holdings h
                 LEFT JOIN symbols s ON s.user_id = h.user_id AND s.symbol = h.symbol
                 LEFT JOIN symbol_market m ON m.symbol = h.symbol
@@ -171,8 +172,28 @@ class HoldingsService:
             "personalTarget": personal_target,
             "personalTargetValue": personal_target_value,
             "personalUpsidePct": personal_upside_pct,
-            "targetHorizonYears": (
-                row["target_horizon_years"] if "target_horizon_years" in row.keys() else None
+            "targetHorizonAt": (
+                row["target_horizon_at"].isoformat()
+                if "target_horizon_at" in row.keys()
+                and row["target_horizon_at"] is not None
+                and hasattr(row["target_horizon_at"], "isoformat")
+                else (row["target_horizon_at"] if "target_horizon_at" in row.keys() else None)
+            ),
+            "targetHorizonLabel": format_horizon_date(
+                row["target_horizon_at"] if "target_horizon_at" in row.keys() else None
+            ),
+            "targetHorizonYearsRemaining": years_remaining(
+                row["target_horizon_at"] if "target_horizon_at" in row.keys() else None
+            ),
+            "targetBasisAt": (
+                row["target_basis_at"].isoformat()
+                if "target_basis_at" in row.keys()
+                and row["target_basis_at"] is not None
+                and hasattr(row["target_basis_at"], "isoformat")
+                else (row["target_basis_at"] if "target_basis_at" in row.keys() else None)
+            ),
+            "targetBasisPrice": (
+                row["target_basis_price"] if "target_basis_price" in row.keys() else None
             ),
             "weightPct": weight_pct,
             "createdAt": row["created_at"],
