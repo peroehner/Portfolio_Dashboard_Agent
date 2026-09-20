@@ -5259,11 +5259,21 @@
       border-radius: 999px;
       background: rgba(148,163,184,0.3);
     }
-    .trade-band-track.ghost,
-    .trade-band-half.ghost {
-      background: none;
-      border: 1px dashed var(--border);
-      opacity: 0.6;
+    .trade-band-track.oor {
+      background: linear-gradient(90deg, rgba(249,115,22,0.2), rgba(239,68,68,0.25), rgba(249,115,22,0.2));
+    }
+    .trade-band-upper-ref {
+      position: absolute; top: 10px; width: 0; height: 16px;
+      border-left: 1.5px dashed #38bdf8;
+      transform: translateX(-50%);
+      pointer-events: none;
+      z-index: 2;
+    }
+    .trade-band-upper-ref.pt {
+      border-left-color: #a78bfa;
+    }
+    .trade-band-knob.oor {
+      box-shadow: 0 0 0 2px rgba(239,68,68,0.35);
     }
     .trade-band-knob {
       position: absolute; top: 18px; width: 12px; height: 12px;
@@ -10445,8 +10455,8 @@
     function sortIndicator(tableId, columnKey) {
       const state = tableSortState[tableId];
       if (!state || state.key !== columnKey) return "";
-      if (state.tradeSide === "below") return " · L ▲";
-      if (state.tradeSide === "above") return " · R ▲";
+      if (state.tradeSide === "below") return " · L";
+      if (state.tradeSide === "above") return " · R";
       return state.dir === "desc" ? "▼" : "▲";
     }
 
@@ -13885,18 +13895,29 @@
       return renderTechStanceCell(row);
     }
 
-    // Percent distance from the current price to a planned-trade threshold side.
-    // Trade Range / Close % sort cycles Below (L) → Above (R), closest first.
-    function tradeBandBelowDist(row) {
+    // Percent distance helpers for Trade Range / Close % filters & sort.
+    // Signed: from Below = (price−below)/price·100 (− = left of lower / OOR).
+    //         from Above = (price−above)/price·100 (+ = right of upper / OOR).
+    function tradeBandSignedBelow(row) {
       const price = row.currentPrice;
-      if (price == null || price === 0 || row.tradeBelowPrice == null) return Infinity;
-      return Math.abs(price - row.tradeBelowPrice) / price * 100;
+      if (price == null || price === 0 || row.tradeBelowPrice == null) return null;
+      return (price - row.tradeBelowPrice) / price * 100;
+    }
+
+    function tradeBandSignedAbove(row) {
+      const price = row.currentPrice;
+      if (price == null || price === 0 || row.tradeAbovePrice == null) return null;
+      return (price - row.tradeAbovePrice) / price * 100;
+    }
+
+    function tradeBandBelowDist(row) {
+      const s = tradeBandSignedBelow(row);
+      return s == null ? Infinity : Math.abs(s);
     }
 
     function tradeBandAboveDist(row) {
-      const price = row.currentPrice;
-      if (price == null || price === 0 || row.tradeAbovePrice == null) return Infinity;
-      return Math.abs(row.tradeAbovePrice - price) / price * 100;
+      const s = tradeBandSignedAbove(row);
+      return s == null ? Infinity : Math.abs(s);
     }
 
     function tradeBandClosestDist(row) {
@@ -13904,9 +13925,182 @@
       return dists.length ? Math.min(...dists) : Infinity;
     }
 
+    // L: ascending signed-from-below (−7, 3, 12). R: descending signed-from-above (+7, −1, −11).
     function tradeBandSortDist(tableId, row) {
       const side = tableSortState[tableId]?.tradeSide === "above" ? "above" : "below";
-      return side === "above" ? tradeBandAboveDist(row) : tradeBandBelowDist(row);
+      if (side === "above") {
+        const s = tradeBandSignedAbove(row);
+        return s == null ? -Infinity : s;
+      }
+      const s = tradeBandSignedBelow(row);
+      return s == null ? Infinity : s;
+    }
+
+    function tradeBandSortCompare(tableId, left, right) {
+      const side = tableSortState[tableId]?.tradeSide === "above" ? "above" : "below";
+      const av = side === "above" ? tradeBandSignedAbove(left) : tradeBandSignedBelow(left);
+      const bv = side === "above" ? tradeBandSignedAbove(right) : tradeBandSignedBelow(right);
+      const aMissing = av == null || !Number.isFinite(av);
+      const bMissing = bv == null || !Number.isFinite(bv);
+      if (aMissing && bMissing) return 0;
+      if (aMissing) return 1;
+      if (bMissing) return -1;
+      return side === "above" ? bv - av : av - bv;
+    }
+
+    let tradeBandUpperRef = localStorage.getItem("tradeBandUpperRef") === "pt" ? "pt" : "analyst";
+
+    function setTradeBandUpperRef(mode) {
+      tradeBandUpperRef = mode === "pt" ? "pt" : "analyst";
+      try { localStorage.setItem("tradeBandUpperRef", tradeBandUpperRef); } catch (_) { /* ignore */ }
+    }
+
+    function toggleTradeBandUpperRef() {
+      setTradeBandUpperRef(tradeBandUpperRef === "pt" ? "analyst" : "pt");
+    }
+
+    // Planned-trade window map: Below→Above is 100%. Heat to focus side;
+    // OOR uses alarm colors; dashed mark = analyst 1YT mean or PT (header Ctrl+click).
+    function renderTradeBandCell(row) {
+      const FALLBACK_SPAN = 20;
+      const PAD = 4;
+      const price = row.currentPrice;
+      if (price == null) return `<span class="empty">—</span>`;
+
+      const below = row.tradeBelowPrice;
+      const above = row.tradeAbovePrice;
+      const hasBelow = below != null;
+      const hasAbove = above != null;
+
+      let low;
+      let high;
+      if (hasBelow && hasAbove) {
+        low = Math.min(below, above);
+        high = Math.max(below, above);
+      } else if (hasBelow) {
+        low = below;
+        high = Math.max(price, price * (1 + FALLBACK_SPAN / 100));
+      } else if (hasAbove) {
+        high = above;
+        low = Math.min(price, price * (1 - FALLBACK_SPAN / 100));
+      } else {
+        low = price * (1 - FALLBACK_SPAN / 100);
+        high = price * (1 + FALLBACK_SPAN / 100);
+      }
+      low = Math.min(low, price);
+      high = Math.max(high, price);
+
+      const pt = row.personalTarget ?? row.targetPrice;
+      const upperRefPrice = tradeBandUpperRef === "pt"
+        ? (pt != null && Number.isFinite(Number(pt)) ? Number(pt) : null)
+        : (row.analystTarget1y != null && Number.isFinite(Number(row.analystTarget1y))
+          ? Number(row.analystTarget1y) : null);
+      if (upperRefPrice != null) {
+        low = Math.min(low, upperRefPrice);
+        high = Math.max(high, upperRefPrice);
+      }
+
+      const span = high - low;
+      const clamp = (v) => Math.max(0, Math.min(100, v));
+      const rawPos = (v) => span > 0 ? ((v - low) / span) * 100 : 50;
+      const pos = (v) => PAD + clamp(rawPos(v)) * (100 - 2 * PAD) / 100;
+
+      const signedBelow = hasBelow ? (price - below) / price * 100 : null;
+      const signedAbove = hasAbove ? (price - above) / price * 100 : null;
+      const oorBelow = signedBelow != null && signedBelow < 0;
+      const oorAbove = signedAbove != null && signedAbove > 0;
+      const outOfRange = oorBelow || oorAbove;
+
+      let focusSide = null;
+      if (oorBelow) focusSide = "below";
+      else if (oorAbove) focusSide = "above";
+      else if (hasBelow || hasAbove) {
+        const dBelow = hasBelow ? Math.abs(price - below) : Infinity;
+        const dAbove = hasAbove ? Math.abs(above - price) : Infinity;
+        focusSide = dBelow <= dAbove ? "below" : "above";
+      }
+
+      const inRangeHeat = (absPct) => {
+        const t = Math.max(0, Math.min(1, absPct / 15));
+        return `hsl(${(t * 130).toFixed(0)}, 70%, 48%)`;
+      };
+      const heatColor = outOfRange
+        ? (focusSide === "above" ? "#ef4444" : "#f97316")
+        : inRangeHeat(focusSide === "below"
+          ? Math.abs(signedBelow || 0)
+          : Math.abs(signedAbove || 0));
+
+      const formatDistLabel = () => {
+        if (focusSide === "below" && signedBelow != null) {
+          const r = Math.round(Math.abs(signedBelow));
+          return signedBelow < 0 ? `−${r}%` : `${r}%`;
+        }
+        if (focusSide === "above" && signedAbove != null) {
+          const r = Math.round(Math.abs(signedAbove));
+          return signedAbove > 0 ? `+${r}%` : `${r}%`;
+        }
+        return null;
+      };
+
+      const deltaText = (threshold) => {
+        const pct = (threshold - price) / price * 100;
+        return `${pct < 0 ? "▼" : "▲"}${Math.abs(pct).toFixed(1)}%`;
+      };
+      const sharesText = (shares) => {
+        if (shares == null || Number(shares) === 0) return "";
+        return Math.round(Math.abs(Number(shares))).toLocaleString("en-US");
+      };
+
+      const pPrice = pos(price);
+      const pBelow = hasBelow ? pos(below) : null;
+      const pAbove = hasAbove ? pos(above) : null;
+      const pFocus = focusSide === "below" ? pBelow : focusSide === "above" ? pAbove : null;
+      const pUpperRef = upperRefPrice != null ? pos(upperRefPrice) : null;
+      const distLabel = formatDistLabel();
+
+      const pieces = [];
+      pieces.push(`<div class="trade-band-track${outOfRange ? " oor" : ""}"></div>`);
+
+      if (focusSide && pFocus != null) {
+        pieces.push(
+          `<div class="trade-band-heat" style="left:${Math.min(pPrice, pFocus).toFixed(2)}%; width:${Math.max(2, Math.abs(pFocus - pPrice)).toFixed(2)}%; background:${heatColor};"></div>`
+        );
+        if (distLabel) {
+          pieces.push(
+            `<span class="trade-band-pct" style="left:${((pPrice + pFocus) / 2).toFixed(2)}%; color:${heatColor};">${distLabel}</span>`
+          );
+        }
+      }
+
+      const titleLines = [];
+      if (hasBelow) {
+        pieces.push(`<span class="trade-band-mark" style="left:${pBelow.toFixed(2)}%; background:#ef4444;"></span>`);
+        const sh = sharesText(row.tradeBelowShares);
+        titleLines.push(`Below ${formatMoney(below)} (${deltaText(below)})${sh ? ` · Buy ${sh}` : ""}`);
+      }
+      if (hasAbove) {
+        pieces.push(`<span class="trade-band-mark" style="left:${pAbove.toFixed(2)}%; background:#22c55e;"></span>`);
+        const sh = sharesText(row.tradeAboveShares);
+        titleLines.push(`Above ${formatMoney(above)} (${deltaText(above)})${sh ? ` · Sell ${sh}` : ""}`);
+      }
+      if (pUpperRef != null) {
+        const refLabel = tradeBandUpperRef === "pt" ? "PT" : "1YT";
+        pieces.push(
+          `<span class="trade-band-upper-ref${tradeBandUpperRef === "pt" ? " pt" : ""}" style="left:${pUpperRef.toFixed(2)}%;" title="${refLabel} ${formatMoney(upperRefPrice)}"></span>`
+        );
+        titleLines.push(`${refLabel} ${formatMoney(upperRefPrice)}`);
+      }
+
+      const title = escapeHtml(titleLines.join("\n"));
+      const priceSitClass = focusSide === "below" ? "sit-right"
+        : focusSide === "above" ? "sit-left"
+        : "center";
+      const knobClass = outOfRange ? " trade-band-knob oor" : " trade-band-knob";
+      return `<div class="trade-band" title="${title}">`
+        + pieces.join("")
+        + `<div class="${knobClass.trim()}" style="left:${pPrice.toFixed(2)}%;${outOfRange ? ` background:${heatColor};` : ""}"></div>`
+        + `<span class="trade-band-label ${priceSitClass}" style="left:${pPrice.toFixed(2)}%;">${formatMoney(price)}</span>`
+        + `</div>`;
     }
 
     function screeningPlanSellRank(row) {
@@ -13956,123 +14150,11 @@
       return parts.trimScore;
     }
 
-    // Proximity gauge. The track spans a corridor sized to show every marker:
-    // the analyst Low→High (±MAX_SPAN% fallback, ghost track), widened to include
-    // the price, both thresholds and the personal target. The current price is the
-    // blue knob; Trade Below is a red bar and Trade Above a green bar. A "heat" bar
-    // bridges the price and its CLOSEST threshold — hotter (redder) the closer,
-    // cooler (greener) the farther — forced to a minimum visible width, with the
-    // true rounded % deviation written above it.
-    function renderTradeBandCell(row) {
-      const MAX_SPAN = 20;
-      const HEAT_MAX = 15;
-      const price = row.currentPrice;
-      if (price == null) return `<span class="empty">—</span>`;
-
-      const aLow = row.analystTargetLow;
-      const aHigh = row.analystTargetHigh;
-      const analystMode = aLow != null && aHigh != null && aHigh > aLow;
-      // Widen the corridor so every marker stays on-scale: start from the analyst
-      // Low→High (or ±MAX_SPAN% fallback), then extend to include the current
-      // price and both planned-trade thresholds.
-      let low = analystMode ? aLow : price * (1 - MAX_SPAN / 100);
-      let high = analystMode ? aHigh : price * (1 + MAX_SPAN / 100);
-      low = Math.min(low, price);
-      high = Math.max(high, price);
-      if (row.tradeBelowPrice != null) low = Math.min(low, row.tradeBelowPrice);
-      if (row.tradeAbovePrice != null) high = Math.max(high, row.tradeAbovePrice);
-      const span = high - low;
-
-      const PAD = 4; // keep markers sitting at the extremes fully visible
-      const clamp = (v) => Math.max(0, Math.min(100, v));
-      const rawPos = (v) => span > 0 ? ((v - low) / span) * 100 : 50;
-      const pos = (v) => PAD + clamp(rawPos(v)) * (100 - 2 * PAD) / 100;
-      const offScale = (v) => {
-        const r = rawPos(v);
-        if (r < -0.01) return "low";
-        if (r > 100.01) return "high";
-        return null;
-      };
-      // Heat: red (hot) when the gap is ~0, cooling toward green by HEAT_MAX%.
-      const heatColor = (distPct) => {
-        const t = Math.max(0, Math.min(1, distPct / HEAT_MAX));
-        return `hsl(${(t * 130).toFixed(0)}, 75%, 48%)`;
-      };
-      const deltaText = (threshold) => {
-        const pct = (threshold - price) / price * 100;
-        return `${pct < 0 ? "▼" : "▲"}${Math.abs(pct).toFixed(1)}%`;
-      };
-      const sharesText = (shares) => {
-        if (shares == null || Number(shares) === 0) return "";
-        return Math.round(Math.abs(Number(shares))).toLocaleString("en-US");
-      };
-
-      const below = row.tradeBelowPrice;
-      const above = row.tradeAbovePrice;
-      const hasBelow = below != null;
-      const hasAbove = above != null;
-      const belowDist = hasBelow ? Math.abs(price - below) / price * 100 : Infinity;
-      const aboveDist = hasAbove ? Math.abs(above - price) / price * 100 : Infinity;
-      // Closest present threshold gets the heat bar + % readout.
-      const closest = (hasBelow || hasAbove)
-        ? (belowDist <= aboveDist ? "below" : "above")
-        : null;
-
-      // Keep true positions; only widen the visual heat strip itself when tiny.
-      const pPrice = pos(price);
-      const pBelow = hasBelow ? pos(below) : null;
-      const pAbove = hasAbove ? pos(above) : null;
-      const pClose = closest ? (closest === "below" ? pBelow : pAbove) : null;
-
-      const pieces = [];
-      pieces.push(`<div class="trade-band-track${analystMode ? " analyst" : " ghost"}"></div>`);
-
-      // Heat bar bridging the price and its closest threshold, with the rounded
-      // % deviation written above it.
-      if (closest) {
-        const dist = closest === "below" ? belowDist : aboveDist;
-        pieces.push(
-          `<div class="trade-band-heat" style="left:${Math.min(pPrice, pClose).toFixed(2)}%; width:${Math.max(2, Math.abs(pClose - pPrice)).toFixed(2)}%; background:${heatColor(dist)};"></div>`
-        );
-        pieces.push(
-          `<span class="trade-band-pct" style="left:${((pPrice + pClose) / 2).toFixed(2)}%; color:${heatColor(dist)};">${Math.round(dist)}%</span>`
-        );
-      }
-
-      // Threshold bars: red = Below (lower bound), green = Above (upper bound).
-      const titleLines = [];
-      if (hasBelow) {
-        pieces.push(`<span class="trade-band-mark" style="left:${pBelow.toFixed(2)}%; background:#ef4444;"></span>`);
-        const sh = sharesText(row.tradeBelowShares);
-        titleLines.push(`Below ${formatMoney(below)} (${deltaText(below)})${sh ? ` · Buy ${sh}` : ""}`);
-      }
-
-      if (hasAbove) {
-        pieces.push(`<span class="trade-band-mark" style="left:${pAbove.toFixed(2)}%; background:#22c55e;"></span>`);
-        const sh = sharesText(row.tradeAboveShares);
-        titleLines.push(`Above ${formatMoney(above)} (${deltaText(above)})${sh ? ` · Sell ${sh}` : ""}`);
-      }
-
-      const title = escapeHtml(titleLines.join("\n"));
-      // Price label sits above the bar beside the knob (same size as distance %).
-      // Closer to lower threshold → sit right of knob; closer to higher → sit left.
-      const priceSitClass = closest === "below" ? "sit-right"
-        : closest === "above" ? "sit-left"
-        : "center";
-      return `<div class="trade-band" title="${title}">`
-        + pieces.join("")
-        + `<div class="trade-band-knob" style="left:${pPrice.toFixed(2)}%;"></div>`
-        + `<span class="trade-band-label ${priceSitClass}" style="left:${pPrice.toFixed(2)}%;">${formatMoney(price)}</span>`
-        + `<span class="trade-band-edge low">${formatMoney(low)}</span>`
-        + `<span class="trade-band-edge high">${formatMoney(high)}</span>`
-        + `</div>`;
-    }
-
     const TECH_STANCE_HELP = "Confluence Tech Stance (not SAI Action):\n• Bias — Bullish → Lean Bullish → Mixed → Lean Bearish → Bearish\n• Score bar — 0–100 (left = bearish, center = neutral, right = bullish)\n• Strength — agreement across five lenses: Trend, Structure, Momentum, Pattern, Volume (e.g. moderate · 3/5)\n• Signal Record: captured as Tech bias; scored on the fixed ~21-day horizon (not next-day)\n• Does not weight Bet-S-Hit; may add Trigger +5 when aligned with the published action";
     const INTENT_HELP = "Portfolio Intent — this name's role in the book (not SAI Action):\n• Auto from holdings + planned trades, or Target override\n• tactical / accumulate / core / core_accumulate / divest";
     const SAI_HELP = "SAI = Action · Conf · Score · Sentiment from the last Assess.\n• Action: Buy / Watch / Hold / Sell — the call from last Assess. Trailing ! = today’s Score would pick a different Action (hover Action for which). Re-run Assess to refresh.\n• Conf · Score: Conf = High / Med / Low conviction; Score = 0–100 setup quality beside it. Conf can soften without changing the Score number — hover Conf · Score for details.\n• Sentiment: news lean (else notes). Intent is its own column.\n• Score ladder (how Score bands map toward Actions): ≥75 Strong buy · 60–74 Buy · 45–59 Watch · 30–44 Hold/trim · <30 Sell/avoid";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
-    const TRADE_RANGE_HELP = "Your planned-trade thresholds on one bar:\n• Red mark — Trade Below (buy zone)\n• Green mark — Trade Above (sell zone)\n• Blue knob — current price\n• Heat bar — distance to the nearest threshold (red = close, green = far)\n• Sort: 1st click = closest to Below (L) · 2nd = closest to Above (R) · 3rd = clear";
+    const TRADE_RANGE_HELP = "Your planned-trade window on one bar:\n• Red mark — Trade Below · Green mark — Trade Above (window = 100%)\n• Blue knob — current price · Heat — distance to focus side\n• Within range: cool heat, unsigned % · Outside: orange/red heat with − (below lower) or + (above upper)\n• Dashed mark — analyst 1YT mean (default) or Pers Target\n• Ctrl+click header to toggle 1YT ↔ PT (header shows +PT)\n• Sort: L = signed % from Below (−…+) · R = signed % from Above (+…−) · 3rd = clear";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
     const SIM_SYMBOL_HELP = "Ticker with at least one priced planned-trade threshold. Click to open in Target.";
     const SIM_CLOSE_PCT_HELP = "Rule of thumb: LOWER Close % = closer to firing.\n• Distance to the sorted threshold side (Below / Above), respecting Buys / Sells / Both when filtering\n• Sort: 1st click = closest to Below (L) · 2nd = closest to Above (R) · 3rd = clear\n• ▼ price above threshold · ▲ below";
@@ -14248,10 +14330,11 @@
       },
       {
         key: "tradeBand",
-        label: "Trade Range",
+        label: tradeBandUpperRef === "pt" ? "Trade Range +PT" : "Trade Range",
         help: TRADE_RANGE_HELP,
         tradeSideCycle: true,
         sortValue: (row) => tradeBandSortDist("screening", row),
+        compare: (left, right) => tradeBandSortCompare("screening", left, right),
         render: (row) => screeningTargetLink(row.symbol, renderTradeBandCell(row), `Edit ${row.symbol} planned trades in Target`),
       },
       { key: "upsidePct", label: "Upside", sortValue: (row) => row.upsidePct, render: (row) => `${row.upsidePct ?? "—"}%` },
@@ -21284,6 +21367,17 @@
       const tableId = header.dataset.tableId;
       const sortKey = header.dataset.sortKey;
       if (!tableId || !sortKey) return;
+      // Ctrl/Cmd+click on Trade Range toggles analyst 1YT ↔ Pers Target upper-ref mark.
+      if (
+        header.dataset.tradeSideCycle === "1"
+        && sortKey === "tradeBand"
+        && (event.ctrlKey || event.metaKey)
+      ) {
+        event.preventDefault();
+        toggleTradeBandUpperRef();
+        rerenderTable(tableId);
+        return;
+      }
       cycleTableSort(
         tableId,
         sortKey,
