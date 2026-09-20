@@ -16,6 +16,7 @@ import {
   CHART_PAD,
   CHART_PAD_BOTTOM,
   CHART_PAD_LEFT,
+  CHART_PAD_LEFT_PRICE,
   InspectorChartSvg,
 } from "@/components/inspector/InspectorChartSvg";
 import {
@@ -23,7 +24,6 @@ import {
   buildInspectorChartModel,
   fullscreenChartWidth,
   nearestPricePoint,
-  shortFibAxisLabel,
   yTicks,
   type ChartPoint,
   type InspectorChartModel,
@@ -331,7 +331,7 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
       return;
     }
     lastTapRef.current = now;
-    hoverFromTouch(locationX, cardWidth, CHART_PAD_LEFT, setHoverPoint);
+    hoverFromTouch(locationX, cardWidth, CHART_PAD_LEFT_PRICE, setHoverPoint);
   }
 
   function onFsPress(locationX: number) {
@@ -376,7 +376,7 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
         <Pressable
           style={styles.chartWrap}
           onLongPress={(e) =>
-            hoverFromTouch(e.nativeEvent.locationX, cardWidth, CHART_PAD_LEFT, setHoverPoint)
+            hoverFromTouch(e.nativeEvent.locationX, cardWidth, CHART_PAD_LEFT_PRICE, setHoverPoint)
           }
           onPressOut={() => setHoverPoint(null)}
           delayLongPress={180}
@@ -387,6 +387,9 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
               model={model}
               width={cardWidth}
               height={CHART_HEIGHT}
+              padLeft={CHART_PAD_LEFT_PRICE}
+              showFibAxisLabels={false}
+              showFibLineLabels={false}
               hoverNormX={hoverPoint?.x ?? null}
               hoverPoint={hoverPoint}
             />
@@ -400,10 +403,10 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
                 {
                   left: Math.min(
                     Math.max(
-                      CHART_PAD_LEFT,
-                      hoverPoint.x * (cardWidth - CHART_PAD_LEFT - CHART_PAD) + CHART_PAD_LEFT - 20,
+                      CHART_PAD_LEFT_PRICE,
+                      hoverPoint.x * (cardWidth - CHART_PAD_LEFT_PRICE - CHART_PAD) + CHART_PAD_LEFT_PRICE - 20,
                     ),
-                    Math.max(CHART_PAD_LEFT, cardWidth - 220),
+                    Math.max(CHART_PAD_LEFT_PRICE, cardWidth - 220),
                   ),
                   top: Math.max(
                     8,
@@ -501,6 +504,8 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
                   height={fsChartH}
                   padLeft={CHART_PAD_LEFT}
                   showYLabels={false}
+                  showFibAxisLabels={false}
+                  showFibLineLabels={isLandscape}
                   showXLabels
                   hoverNormX={fsHoverPoint?.x ?? null}
                   hoverPoint={fsHoverPoint}
@@ -520,19 +525,6 @@ function StickyYAxis({ model, height }: { model: InspectorChartModel; height: nu
   const span = Math.max(model.maxPrice - model.minPrice, 1);
   return (
     <View style={styles.fsYaxis} pointerEvents="none">
-      {model.fibLines.slice(0, 8).map((fib) => {
-        const yNorm = 1 - (fib.price - model.minPrice) / span;
-        const top = CHART_PAD + yNorm * plotH - 5;
-        return (
-          <Text
-            key={`fs-fib-${fib.label}-${fib.price}`}
-            style={[styles.fsYTick, styles.fsYTickFib, { top, color: fib.color }]}
-            numberOfLines={1}
-          >
-            {`${shortFibAxisLabel(fib.label)} ${formatMoney(fib.price)}`}
-          </Text>
-        );
-      })}
       {ticks.map((price) => {
         const yNorm = 1 - (price - model.minPrice) / span;
         const top = CHART_PAD + yNorm * plotH - 6;
@@ -713,10 +705,6 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     fontSize: 9,
     fontWeight: "600",
-  },
-  fsYTickFib: {
-    fontSize: 8,
-    fontWeight: "700",
   },
   fsScroll: {
     flex: 1,
