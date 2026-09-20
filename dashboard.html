@@ -5262,14 +5262,18 @@
     .trade-band-track.oor {
       background: linear-gradient(90deg, rgba(249,115,22,0.2), rgba(239,68,68,0.25), rgba(249,115,22,0.2));
     }
+    /* Upper reference marker: 1YT = solid, PT = dashed. Sized to read as
+       clearly as the red/green threshold marks (3px wide, same height). */
     .trade-band-upper-ref {
-      position: absolute; top: 10px; width: 0; height: 16px;
-      border-left: 1.5px dashed #38bdf8;
-      transform: translateX(-50%);
+      position: absolute; top: 18px; width: 0; height: 15px;
+      border-left: 3px solid #38bdf8;
+      transform: translate(-50%, -50%);
       pointer-events: none;
-      z-index: 2;
+      z-index: 3;
+      filter: drop-shadow(0 0 1px var(--panel)) drop-shadow(0 0 1px var(--panel));
     }
     .trade-band-upper-ref.pt {
+      border-left-style: dashed;
       border-left-color: #a78bfa;
     }
     .trade-band-knob.oor {
@@ -14010,7 +14014,8 @@
     }
 
     // Planned-trade window map: Below→Above is 100%. Heat to focus side;
-    // OOR uses alarm colors; dashed mark = analyst 1YT mean or PT (header Ctrl+click).
+    // OOR uses alarm colors; upper-ref mark = 1YT mean (solid) or PT (dashed),
+    // toggled via ⌘/Ctrl+click on the header.
     function renderTradeBandCell(row) {
       const FALLBACK_SPAN = 20;
       const PAD = 4;
@@ -14204,7 +14209,7 @@
     const INTENT_HELP = "Portfolio Intent — this name's role in the book (not SAI Action):\n• Auto from holdings + planned trades, or Target override\n• tactical / accumulate / core / core_accumulate / divest";
     const SAI_HELP = "SAI = Action · Conf · Score · Sentiment from the last Assess.\n• Action: Buy / Watch / Hold / Sell — the call from last Assess. Trailing ! = today’s Score would pick a different Action (hover Action for which). Re-run Assess to refresh.\n• Conf · Score: Conf = High / Med / Low conviction; Score = 0–100 setup quality beside it. Conf can soften without changing the Score number — hover Conf · Score for details.\n• Sentiment: news lean (else notes). Intent is its own column.\n• Score ladder (how Score bands map toward Actions): ≥75 Strong buy · 60–74 Buy · 45–59 Watch · 30–44 Hold/trim · <30 Sell/avoid";
     const SYMBOL_HELP = "Ticker symbol. Click to open the symbol in Target.";
-    const TRADE_RANGE_HELP = "Your planned-trade window on one bar:\n• Red mark — Trade Below · Green mark — Trade Above (window = 100%)\n• Blue knob — current price · Heat — distance to focus side\n• Within range: cool heat, unsigned % · Outside: orange/red heat with − (below lower) or + (above upper)\n• Dashed mark — analyst 1YT mean (default) or Pers Target\n• Ctrl+click header to toggle 1YT ↔ PT (header shows +PT)\n• Sort: L = signed % from Below (−…+) · R = signed % from Above (+…−) · 3rd = clear";
+    const TRADE_RANGE_HELP = "Your planned-trade window on one bar:\n• Red mark — Trade Below · Green mark — Trade Above (window = 100%)\n• Blue knob — current price · Heat — distance to focus side\n• Within range: cool heat, unsigned % · Outside: orange/red heat with − (below lower) or + (above upper)\n• Upper-ref mark — 1YT mean (solid, default) or Pers Target (dashed)\n• ⌘/Ctrl-click header to toggle 1YT ↔ PT (header shows +PT)\n• Sort: L = signed % from Below (−…+) · R = signed % from Above (+…−) · 3rd = clear";
     const ALERTS_HELP = "Active alert badges (hover a badge for the full message):\n• T@B — Trade Below with % from threshold (click → Target)\n• T@A — Trade Above with % from threshold (click → Target)\n• Fib — Fibonacci proximity with level, e.g. Fib 38.2% (click → Inspector)\n• 1YT ✓ / ~ / !! / plain — Chance / Lean / Stretch / Watch (click → Inspector)\n• Stretch = risk stance + at least 2 of 3 extremes (≥2.5× median, ≥80% upside, ≥20× ATR)\n• ATR (Average True Range) = that symbol’s typical day’s move; gap ≈ N× ATR is how many normal days to close the Street gap\n• PT Lag — Pers Target progress laggard (≥50% of horizon elapsed and ≥30pp behind a linear path to PT)\n• (0) — no active alerts\n• Full guide: Alerts panel ? help";
     const SIM_SYMBOL_HELP = "Ticker with at least one priced planned-trade threshold. Click to open in Target.";
     const SIM_CLOSE_PCT_HELP = "Rule of thumb: LOWER Close % = closer to firing.\n• Distance to the sorted threshold side (Below / Above), respecting Buys / Sells / Both when filtering\n• Sort: 1st click = closest to Below (L) · 2nd = closest to Above (R) · 3rd = clear\n• ▼ price above threshold · ▲ below";
