@@ -6217,6 +6217,10 @@
                   </div>
                 </div>
                 <div class="target-field">
+                  <label>PT Horizon <span class="field-hint">years</span></label>
+                  <input name="targetHorizonYears" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 3" title="Investment horizon for Pers Target (years)">
+                </div>
+                <div class="target-field">
                   <label>1YT Analyst</label>
                   <div class="target-analyst-chip" id="analystTargetInline" aria-live="polite">
                     <span class="analyst-empty">—</span>
@@ -8781,6 +8785,29 @@
       return Math.round(amount * 100) / 100;
     }
 
+    /** PT Horizon years (0.25–30); empty → null. */
+    function parseHorizonYears(value) {
+      if (value == null || String(value).trim() === "") return null;
+      const amount = Number(String(value).replace(/[^\d.\-]/g, ""));
+      if (!Number.isFinite(amount) || !(amount > 0)) return null;
+      return Math.round(Math.min(30, Math.max(0.25, amount)) * 10) / 10;
+    }
+
+    function formatHorizonYears(value) {
+      const num = Number(value);
+      if (!Number.isFinite(num) || !(num > 0)) return "—";
+      const rounded = Math.round(num * 10) / 10;
+      return `${rounded}Y`;
+    }
+
+    function averageHorizonYears(rows) {
+      const vals = (rows || [])
+        .map((r) => Number(r.targetHorizonYears))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      if (!vals.length) return null;
+      return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
+    }
+
     function todayISO() {
       const date = new Date();
       const year = date.getFullYear();
@@ -9410,6 +9437,12 @@
       form.avgCost.value = formatPriceInput(holding?.costBasis);
       form.purchaseDate.value = (holding?.purchaseDate || "").slice(0, 10);
       form.targetPrice.value = formatPriceInput(item.targetPrice);
+      if (form.targetHorizonYears) {
+        form.targetHorizonYears.value =
+          item.targetHorizonYears != null && Number.isFinite(Number(item.targetHorizonYears))
+            ? String(item.targetHorizonYears)
+            : "";
+      }
       form.tradeBelowPrice.value = formatPriceInput(item.tradeBelowPrice);
       form.tradeAbovePrice.value = formatPriceInput(item.tradeAbovePrice);
       applyTradeShareToForm("Below", item.tradeBelowShares, "buy");
@@ -10205,6 +10238,7 @@
             tradeBelowShares: signedTradeShares("Below"),
             tradeAbovePrice: parsePrice(form.tradeAbovePrice.value),
             tradeAboveShares: signedTradeShares("Above"),
+            targetHorizonYears: parseHorizonYears(form.targetHorizonYears?.value),
             intentOverride: form.intentOverride?.value || null,
           }),
         });
@@ -12835,6 +12869,7 @@
             analystTargetValue: null,
             personalTarget: sym.targetPrice,
             personalTargetValue: null,
+            targetHorizonYears: sym.targetHorizonYears ?? null,
             annualDividend: sym.annualDividend,
             watchOnly: true,
           };
@@ -13038,6 +13073,13 @@
       { key: "analystUpsidePct", label: "1YT %", coloredPercent: true, sortValue: (row) => row.analystUpsidePct, render: (row) => renderHoldingsPercentCell(row.analystUpsidePct) },
       { key: "analystTargetValue", label: "1YT Val", sortValue: (row) => row.analystTargetValue, render: (row) => formatHoldingsCompactMoney(row.analystTargetValue) },
       { key: "personalTarget", label: "PT", sortValue: (row) => row.personalTarget, render: (row) => formatHoldingsCompactMoney(row.personalTarget) },
+      {
+        key: "targetHorizonYears",
+        label: "PT Hor",
+        help: "Pers Target investment horizon in years (PT Horizon).\nTOTAL shows the average of set horizons.",
+        sortValue: (row) => row.targetHorizonYears,
+        render: (row) => formatHorizonYears(row.targetHorizonYears),
+      },
       { key: "personalUpsidePct", label: "PT %", coloredPercent: true, sortValue: (row) => holdingsPtUpside(row), render: (row) => renderHoldingsPercentCell(holdingsPtUpside(row)) },
       { key: "personalTargetValue", label: "PT Val", sortValue: (row) => row.personalTargetValue, render: (row) => formatHoldingsCompactMoney(row.personalTargetValue) },
     ];
@@ -13135,6 +13177,7 @@
       const totalDiv = sumOf(rows, "annualDividend");
       const totalAnalystVal = sumOf(rows, "analystTargetValue");
       const totalPtVal = sumOf(rows, "personalTargetValue");
+      const avgHorizon = averageHorizonYears(rows);
       const weightPct = portfolioValue ? (totalValue / portfolioValue) * 100 : null;
       const gainPct = portfolioValue ? (totalGain / portfolioValue) * 100 : null;
       // Value-weighted Day %: dollar move = Σ(value × dayPct), and the % is that
@@ -13166,6 +13209,9 @@
         gainPct: renderHoldingsPercentCell(gainPct),
         analystTargetValue: `<strong>${formatHoldingsCompactMoney(totalAnalystVal)}</strong>`,
         personalTargetValue: `<strong>${formatHoldingsCompactMoney(totalPtVal)}</strong>`,
+        targetHorizonYears: avgHorizon == null
+          ? "—"
+          : `<strong title="Average PT Horizon">${formatHorizonYears(avgHorizon)}</strong>`,
         annualDividend: `<strong>${formatHoldingsDividendWithYield(totalDiv, totalValue)}</strong>`,
       };
       const cells = holdingsColumns.map((col) => {
@@ -14210,6 +14256,20 @@
       },
       { key: "upsidePct", label: "Upside", sortValue: (row) => row.upsidePct, render: (row) => `${row.upsidePct ?? "—"}%` },
       {
+        key: "personalTarget",
+        label: "PT",
+        help: "Personal target price (Pers Target).",
+        sortValue: (row) => row.personalTarget ?? row.targetPrice,
+        render: (row) => formatMoney(row.personalTarget ?? row.targetPrice),
+      },
+      {
+        key: "targetHorizonYears",
+        label: "PT Hor",
+        help: "Pers Target investment horizon in years (PT Horizon).\nTOTAL shows the average of set horizons.",
+        sortValue: (row) => row.targetHorizonYears,
+        render: (row) => formatHorizonYears(row.targetHorizonYears),
+      },
+      {
         key: "noteCount",
         label: "Notes",
         sortValue: (row) => row.noteCount || 0,
@@ -14252,8 +14312,29 @@
         visibleScreeningColumns(),
         rows,
         screeningEmptyMessage(rows),
-        { selectedKeys: getMultiSelection("screening") }
+        {
+          selectedKeys: getMultiSelection("screening"),
+          footerHtml: screeningTotalsFooterHtml(rows),
+        }
       );
+    }
+
+    function screeningTotalsFooterHtml(displayed = tableDataCache.screening || []) {
+      if (!displayed.length) return "";
+      const sel = getMultiSelection("screening");
+      const useSelection = sel.size > 1;
+      const rows = useSelection ? displayed.filter((r) => sel.has(r.symbol)) : displayed;
+      const avgHorizon = averageHorizonYears(rows);
+      const label = useSelection ? `TOTAL · ${rows.length} selected` : "TOTAL";
+      const cols = visibleScreeningColumns();
+      const cellByKey = {
+        symbol: `<strong>${label}</strong>`,
+        targetHorizonYears: avgHorizon == null
+          ? "—"
+          : `<strong title="Average PT Horizon">${formatHorizonYears(avgHorizon)}</strong>`,
+      };
+      const cells = cols.map((col) => `<td>${cellByKey[col.key] ?? ""}</td>`).join("");
+      return `<tfoot><tr class="total-row">${cells}</tr></tfoot>`;
     }
 
     function currentScreeningOrder() {

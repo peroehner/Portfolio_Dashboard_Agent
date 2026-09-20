@@ -92,6 +92,7 @@ Personal thresholds and targets only — **not** live market quotes.
 | Column | Persisted | Notes |
 |--------|-----------|-------|
 | `target_price` | Yes | Personal target |
+| `target_horizon_years` | Yes | PT Horizon — years bound to Pers Target thesis |
 | `buy_below`, `sell_above` | Yes | Legacy zones; mirrored from trade thresholds |
 | `trade_below_*`, `trade_above_*` | Yes | Planned trade levels + share quantities |
 | `annual_dividend` | Yes | Often from import |

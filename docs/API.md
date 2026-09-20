@@ -63,7 +63,7 @@ Public (no auth): `GET /health` and `GET /api/v1/health` also return the same fi
 | DELETE | `/symbols/{symbol}` | Remove symbol |
 | GET | `/portfolio` | Full portfolio with notes |
 
-**Symbol fields:** `currentPrice`, `targetPrice` (personal — from import `Personal Target:` line or UI), `analystTarget1y` (analyst mean from `1Y Mean Target estimate:` or sync), `buyBelow`, `sellAbove`, `annualDividend`
+**Symbol fields:** `currentPrice`, `targetPrice` (personal — from import `Personal Target:` line or UI), `targetHorizonYears` (PT Horizon — years bound to Pers Target), `analystTarget1y` (analyst mean from `1Y Mean Target estimate:` or sync), `buyBelow`, `sellAbove`, `annualDividend`
 
 ---
 

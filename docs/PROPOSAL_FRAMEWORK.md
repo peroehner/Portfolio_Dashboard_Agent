@@ -116,10 +116,10 @@ A symbol’s role in the book — used for Fit alignment and a capped Tax & Trim
 
 **Fields:** `proposal.intent` = `{ code, label, inferred, override, source }` where `source` is `inferred` or `override`.  
 **Override:** optional `symbols.intent_override` (Target “Portfolio Intent” select) or `intentOverride` on symbol PUT.  
-**Fit:** soft ±2 when SAI action aligns with Intent.  
+**Fit:** soft ±2 when SAI action aligns with Intent. Soft ±1 when **PT Horizon** (`symbols.target_horizon_years` / `fitExtensions.targetHorizonYears`) aligns with Intent (e.g. long horizon ↔ core, short ↔ tactical).  
 **Tax & Trim:** harvest lean capped ±5 (divest +5, tactical +4 … core_accumulate −2; light core trim +1). Separate from the existing plan-share “intentPts” (−10…+10) inside Trim Score.
 
-`fitExtensions.holdingPeriodBias` mirrors effective Intent `code`; `fitExtensions.intentOverride` mirrors the user override when set.
+`fitExtensions.holdingPeriodBias` mirrors effective Intent `code`; `fitExtensions.intentOverride` mirrors the user override when set; `fitExtensions.targetHorizonYears` echoes the Pers Target horizon when set.
 
 ### Attention (`!` on Action)
 
@@ -144,6 +144,7 @@ Prefer additive fields under `proposal.fitExtensions` / preferences API rather t
 | `liquidityFloor` | Skip illiquid names for size |
 | `holdingPeriodBias` | Effective Portfolio Intent code (implemented) |
 | `intentOverride` | User Intent override echo (implemented) |
+| `targetHorizonYears` | Pers Target investment horizon in years (PT Horizon; implemented) |
 
 Document new keys in this file when implemented; bump `schemaVersion` only on breaking changes.
 

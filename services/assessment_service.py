@@ -402,6 +402,7 @@ class AssessmentService:
             "companyName": symbol_data.get("companyName"),
             "currentPrice": symbol_data.get("currentPrice"),
             "targetPrice": symbol_data.get("targetPrice"),
+            "targetHorizonYears": symbol_data.get("targetHorizonYears"),
             "analystTarget1y": symbol_data.get("analystTarget1y"),
             "buyBelow": buy_below,
             "sellAbove": sell_above,

@@ -228,6 +228,7 @@ class AssessmentOverlayService:
             },
             "personal": {
                 "targetPrice": context.get("targetPrice"),
+                "targetHorizonYears": context.get("targetHorizonYears"),
                 "buyBelow": buy_below,
                 "sellAbove": sell_above,
                 "distanceToBuyBelowPct": self._distance_pct(price, buy_below),
@@ -423,12 +424,31 @@ class AssessmentOverlayService:
 
         if target and price and target > price:
             upside = (target - price) / price * 100
-            if upside > 30:
+            horizon = context.get("targetHorizonYears")
+            horizon_txt = (
+                f" over ~{horizon:g}Y"
+                if isinstance(horizon, (int, float)) and horizon > 0
+                else ""
+            )
+            # Multi-year PT: require stronger absolute upside or solid annualized
+            # pace before Hold→Watch — avoid treating a 5Y double like near-term.
+            annualized = None
+            if isinstance(horizon, (int, float)) and horizon >= 1:
+                annualized = ((1.0 + upside / 100.0) ** (1.0 / float(horizon)) - 1.0) * 100.0
+            near_term_hit = upside > 30 and (
+                not isinstance(horizon, (int, float))
+                or horizon < 3
+                or upside > 50
+                or (annualized is not None and annualized > 12)
+            )
+            if near_term_hit:
                 if action == "hold":
                     action = "watch"
-                line = f"Your personal target implies {upside:.1f}% upside."
-                if line not in factors:
-                    factors.append(line)
+            line = f"Your personal target implies {upside:.1f}% upside{horizon_txt}."
+            if annualized is not None and horizon_txt:
+                line = f"{line} (~{annualized:.1f}% annualized)."
+            if line not in factors:
+                factors.append(line)
 
         analyst_target = context.get("analystTarget1y")
         if (

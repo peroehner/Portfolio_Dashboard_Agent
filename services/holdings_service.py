@@ -18,7 +18,8 @@ class HoldingsService:
                 SELECT h.symbol, h.quantity, h.cost_basis, h.purchase_date, h.account_name,
                        h.created_at, h.updated_at,
                        m.current_price, m.day_change_pct, m.company_name,
-                       s.annual_dividend, m.analyst_target_1y, s.target_price
+                       s.annual_dividend, m.analyst_target_1y, s.target_price,
+                       s.target_horizon_years
                 FROM holdings h
                 LEFT JOIN symbols s ON s.user_id = h.user_id AND s.symbol = h.symbol
                 LEFT JOIN symbol_market m ON m.symbol = h.symbol
@@ -38,7 +39,8 @@ class HoldingsService:
                 SELECT h.symbol, h.quantity, h.cost_basis, h.purchase_date, h.account_name,
                        h.created_at, h.updated_at,
                        m.current_price, m.day_change_pct, m.company_name,
-                       s.annual_dividend, m.analyst_target_1y, s.target_price
+                       s.annual_dividend, m.analyst_target_1y, s.target_price,
+                       s.target_horizon_years
                 FROM holdings h
                 LEFT JOIN symbols s ON s.user_id = h.user_id AND s.symbol = h.symbol
                 LEFT JOIN symbol_market m ON m.symbol = h.symbol
@@ -169,6 +171,9 @@ class HoldingsService:
             "personalTarget": personal_target,
             "personalTargetValue": personal_target_value,
             "personalUpsidePct": personal_upside_pct,
+            "targetHorizonYears": (
+                row["target_horizon_years"] if "target_horizon_years" in row.keys() else None
+            ),
             "weightPct": weight_pct,
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],
