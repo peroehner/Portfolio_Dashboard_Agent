@@ -283,8 +283,8 @@ export function buildInspectorChartModel(
     );
 
     // Prefer the API's explicit Timeline & Trends window (parity with web).
-    const explicitStart = parseDate(windowTimeline?.startDate);
-    const explicitEnd = parseDate(windowTimeline?.endDate);
+    const explicitStart = parseDate(windowTimeline?.windowStart);
+    const explicitEnd = parseDate(windowTimeline?.windowEnd);
     if (explicitStart != null && explicitEnd != null && explicitEnd > explicitStart) {
       windowHighlight = {
         x1: (explicitStart - minX) / xSpan,

@@ -1,12 +1,11 @@
 import Slider from "@react-native-community/slider";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
   Pressable,
   RefreshControl,
-  type ReactNode,
   ScrollView,
   StyleSheet,
   Text,
