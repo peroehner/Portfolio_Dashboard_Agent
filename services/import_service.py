@@ -401,6 +401,14 @@ class ImportService:
             if personal_target_match:
                 record["targetPrice"] = self._clean_number(personal_target_match.group(1))
 
+            horizon_match = re.search(
+                r"(?:Personal Target Horizon|PT Horizon):\s*([\d.,]+)\s*(?:y(?:ears?)?)?",
+                body,
+                re.I,
+            )
+            if horizon_match:
+                record["targetHorizonYears"] = self._clean_number(horizon_match.group(1))
+
             target_match = re.search(r"1Y Mean Target estimate:\s*([\d.,]+)", body, re.I)
             if target_match:
                 record["analystTarget1y"] = self._clean_number(target_match.group(1))

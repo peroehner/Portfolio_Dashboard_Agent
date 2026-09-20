@@ -214,6 +214,7 @@ export default function SymbolDetailScreen() {
   const [sellAboveShares, setSellAboveShares] = useState("");
   const [sellAboveDir, setSellAboveDir] = useState<"buy" | "sell">("sell");
   const [targetPrice, setTargetPrice] = useState("");
+  const [targetHorizonYears, setTargetHorizonYears] = useState("");
   const [holdingShares, setHoldingShares] = useState("");
   const [holdingPurchaseDate, setHoldingPurchaseDate] = useState("");
   const [holdingAvgCost, setHoldingAvgCost] = useState("");
@@ -445,6 +446,11 @@ export default function SymbolDetailScreen() {
             setSellAboveShares(toShareInput(quote?.tradeAboveShares));
             setSellAboveDir(tradeDirFromShares(quote?.tradeAboveShares, "sell"));
             setTargetPrice(toInput(quote?.targetPrice));
+            setTargetHorizonYears(
+              quote?.targetHorizonYears != null && Number(quote.targetHorizonYears) > 0
+                ? String(quote.targetHorizonYears)
+                : "",
+            );
             const holding = data?.holding;
             const posShares =
               holding?.quantity ??
@@ -524,6 +530,7 @@ export default function SymbolDetailScreen() {
         tradeAbovePrice: sellAboveValue,
         tradeAboveShares: signedTradeShares(sellAboveShares, sellAboveDir),
         targetPrice: parseNullableNumber(targetPrice),
+        targetHorizonYears: parseNullableNumber(targetHorizonYears),
       };
       await api.updateSymbol(sym, payload);
 
@@ -975,6 +982,15 @@ export default function SymbolDetailScreen() {
               placeholder="$"
               placeholderTextColor={colors.textMuted}
             />
+            <Text style={styles.inputLabel}>PT Horizon (years)</Text>
+            <TextInput
+              style={styles.input}
+              value={targetHorizonYears}
+              onChangeText={setTargetHorizonYears}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 3"
+              placeholderTextColor={colors.textMuted}
+            />
             {saveError ? <Text style={styles.modalError}>{saveError}</Text> : null}
             </ScrollView>
           </View>
@@ -1046,6 +1062,9 @@ export default function SymbolDetailScreen() {
                           <View style={styles.thresholdCell}>
                             <Text style={styles.statLabel}>Pers Target</Text>
                             <Text style={styles.statValue}>{formatPrice(quote?.targetPrice)}</Text>
+                            {quote?.targetHorizonYears != null && Number(quote.targetHorizonYears) > 0 ? (
+                              <Text style={styles.statHint}>{`${quote.targetHorizonYears}Y horizon`}</Text>
+                            ) : null}
                           </View>
                           <View style={styles.thresholdCell}>
                             <Text style={styles.statLabel}>Analyst 1Y</Text>
@@ -1086,6 +1105,9 @@ export default function SymbolDetailScreen() {
                     <View style={styles.thresholdCell}>
                       <Text style={styles.statLabel}>Pers Target</Text>
                       <Text style={styles.statValue}>{formatPrice(quote?.targetPrice)}</Text>
+                      {quote?.targetHorizonYears != null && Number(quote.targetHorizonYears) > 0 ? (
+                        <Text style={styles.statHint}>{`${quote.targetHorizonYears}Y horizon`}</Text>
+                      ) : null}
                     </View>
                     <View style={styles.thresholdCell}>
                       <Text style={styles.statLabel}>Analyst 1Y</Text>
@@ -1696,6 +1718,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     fontWeight: "600",
+  },
+  statHint: {
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: 1,
   },
   thresholdGrid: {
     flexDirection: "row",

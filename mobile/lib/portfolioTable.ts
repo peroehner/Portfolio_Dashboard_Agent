@@ -26,6 +26,7 @@ export type PortfolioSortKey =
   | "analystUpsidePct"
   | "analystTargetValue"
   | "personalTarget"
+  | "targetHorizonYears"
   | "personalUpsidePct"
   | "personalTargetValue";
 
@@ -71,6 +72,7 @@ export const PORTFOLIO_SCROLL_COLUMNS: PortfolioColumn[] = [
   { key: "analystUpsidePct", label: "1YT %", width: 68, align: "right", pct: true },
   { key: "analystTargetValue", label: "1YT Val", width: 76, align: "right", money: true },
   { key: "personalTarget", label: "PT", width: 78, align: "right", price: true },
+  { key: "targetHorizonYears", label: "PT Hor", width: 64, align: "right" },
   { key: "personalUpsidePct", label: "PT %", width: 68, align: "right", pct: true },
   { key: "personalTargetValue", label: "PT Val", width: 76, align: "right", money: true },
 ];
@@ -85,6 +87,7 @@ const LANDSCAPE_MIN_WIDTHS: Partial<Record<PortfolioSortKey, number>> = {
   analystTarget1y: 60,
   analystUpsidePct: 60,
   personalTarget: 56,
+  targetHorizonYears: 54,
   personalUpsidePct: 58,
 };
 
@@ -208,6 +211,7 @@ function buildRow(
     personalTarget,
     personalUpsidePct: holding?.personalUpsidePct ?? upsidePct(personalTarget, currentPrice),
     personalTargetValue: holding?.personalTargetValue ?? null,
+    targetHorizonYears: holding?.targetHorizonYears ?? symbol.targetHorizonYears ?? null,
     tradeBelowPrice: symbol.tradeBelowPrice ?? symbol.buyBelow ?? null,
     tradeBelowShares: symbol.tradeBelowShares ?? null,
     tradeAbovePrice: symbol.tradeAbovePrice ?? symbol.sellAbove ?? null,
@@ -342,6 +346,12 @@ export function computePortfolioTotals(
   const totalAnalystVal = sum("analystTargetValue");
   const totalPtVal = sum("personalTargetValue");
   const totalWeight = sum("weightPct");
+  const horizonVals = rows
+    .map((row) => Number(row.targetHorizonYears))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const avgHorizon = horizonVals.length
+    ? Math.round((horizonVals.reduce((a, b) => a + b, 0) / horizonVals.length) * 10) / 10
+    : null;
 
   let dayChangeAmt = 0;
   let dayWeightBase = 0;
@@ -378,6 +388,9 @@ export function computePortfolioTotals(
     dayChangePct: pct(dayPct),
     analystTargetValue: money(totalAnalystVal),
     personalTargetValue: money(totalPtVal),
+    targetHorizonYears: {
+      text: avgHorizon == null ? "—" : `${avgHorizon}Y`,
+    },
   };
 }
 

@@ -59,6 +59,7 @@ FIT_EXTENSION_KEYS = (
     "filterSetBias",
     "holdingPeriodBias",
     "intentOverride",
+    "targetHorizonYears",
 )
 
 # volatilityPreference → soft beta ceiling (fundamentals.beta when present).
@@ -405,6 +406,11 @@ class ProposalService:
                 fit_extensions[key] = prefs[key]
         fit_extensions["holdingPeriodBias"] = intent["code"]
         fit_extensions["intentOverride"] = intent.get("override")
+        horizon = ctx.get("targetHorizonYears")
+        if horizon is None:
+            horizon = screening.get("targetHorizonYears")
+        if isinstance(horizon, (int, float)) and horizon > 0:
+            fit_extensions["targetHorizonYears"] = float(horizon)
 
         return {
             "schemaVersion": SCHEMA_VERSION,
@@ -759,6 +765,9 @@ class ProposalService:
                 fundamentals=fundamentals,
                 portfolio_annual_dividend=portfolio_annual_dividend,
             )
+            score = self._apply_horizon_intent_nudge(
+                score, factors, intent=intent, screening=screening
+            )
             capped = _round_score(_clamp(score, 0, FIT_MAX))
             return {"score": capped, "max": FIT_MAX, "factors": factors[:8]}
 
@@ -848,9 +857,41 @@ class ProposalService:
             fundamentals=fundamentals,
             portfolio_annual_dividend=portfolio_annual_dividend,
         )
+        score = self._apply_horizon_intent_nudge(
+            score, factors, intent=intent, screening=screening
+        )
 
         capped = _round_score(_clamp(score, 0, FIT_MAX))
         return {"score": capped, "max": FIT_MAX, "factors": factors[:8]}
+
+    @staticmethod
+    def _apply_horizon_intent_nudge(
+        score: float,
+        factors: list[str],
+        *,
+        intent: dict[str, Any] | None,
+        screening: dict[str, Any] | None,
+    ) -> float:
+        """Soft Fit ±1 when PT Horizon aligns with Intent role (years, not $)."""
+        horizon = (screening or {}).get("targetHorizonYears")
+        if not isinstance(horizon, (int, float)) or not (horizon > 0):
+            return score
+        code = (intent or {}).get("code")
+        if not code:
+            return score
+        if code in ("core", "core_accumulate") and horizon >= 3:
+            score += 1
+            factors.append(f"PT Horizon ~{horizon:g}Y aligns with {code.replace('_', ' ')}")
+        elif code == "tactical" and horizon <= 1.5:
+            score += 1
+            factors.append(f"PT Horizon ~{horizon:g}Y aligns with tactical stance")
+        elif code in ("core", "core_accumulate") and horizon <= 1:
+            score -= 1
+            factors.append(f"Short PT Horizon ~{horizon:g}Y vs {code.replace('_', ' ')} role")
+        elif code == "tactical" and horizon >= 5:
+            score -= 1
+            factors.append(f"Long PT Horizon ~{horizon:g}Y vs tactical stance")
+        return score
 
     @staticmethod
     def _leg_price_for_side(plan_row: dict[str, Any], *, buy: bool) -> float | None:

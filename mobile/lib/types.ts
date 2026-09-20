@@ -133,6 +133,8 @@ export interface PortfolioSymbol {
   dayChangePct?: number | null;
   companyName?: string | null;
   targetPrice?: number | null;
+  /** Pers Target investment horizon in years (PT Horizon). */
+  targetHorizonYears?: number | null;
   analystTarget1y?: number | null;
   analystTargetLow?: number | null;
   analystTargetHigh?: number | null;
@@ -167,6 +169,7 @@ export interface Holding {
   personalTarget?: number | null;
   personalTargetValue?: number | null;
   personalUpsidePct?: number | null;
+  targetHorizonYears?: number | null;
 }
 
 export interface PortfolioRow {
@@ -190,6 +193,7 @@ export interface PortfolioRow {
   personalTarget?: number | null;
   personalUpsidePct?: number | null;
   personalTargetValue?: number | null;
+  targetHorizonYears?: number | null;
   tradeBelowPrice?: number | null;
   tradeBelowShares?: number | null;
   tradeAbovePrice?: number | null;

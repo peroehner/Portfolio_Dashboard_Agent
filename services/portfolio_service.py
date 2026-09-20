@@ -87,6 +87,12 @@ class PortfolioService:
                         "intent_override",
                         existing["intent_override"] if "intent_override" in existing_keys else None,
                     ),
+                    "target_horizon_years": payload.get(
+                        "target_horizon_years",
+                        existing["target_horizon_years"]
+                        if "target_horizon_years" in existing_keys
+                        else None,
+                    ),
                 }
                 if merged["trade_below_price"] is not None:
                     merged["buy_below"] = merged["trade_below_price"]
@@ -99,6 +105,7 @@ class PortfolioService:
                         trade_below_price = %s, trade_below_shares = %s,
                         trade_above_price = %s, trade_above_shares = %s,
                         annual_dividend = %s, intent_override = %s,
+                        target_horizon_years = %s,
                         updated_at = app_now_text()
                     WHERE user_id = %s AND symbol = %s
                     """,
@@ -112,6 +119,7 @@ class PortfolioService:
                         merged["trade_above_shares"],
                         merged["annual_dividend"],
                         merged["intent_override"],
+                        merged["target_horizon_years"],
                         user_id,
                         symbol,
                     ),
@@ -138,9 +146,9 @@ class PortfolioService:
                         user_id, symbol, target_price, buy_below, sell_above,
                         trade_below_price, trade_below_shares,
                         trade_above_price, trade_above_shares,
-                        annual_dividend, intent_override
+                        annual_dividend, intent_override, target_horizon_years
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         user_id,
@@ -154,6 +162,7 @@ class PortfolioService:
                         payload.get("trade_above_shares"),
                         payload.get("annual_dividend"),
                         payload.get("intent_override"),
+                        payload.get("target_horizon_years"),
                     ),
                 )
             conn.commit()
@@ -302,8 +311,8 @@ class PortfolioService:
         if market_payload:
             MarketDataService().seed_from_import(symbol, market_payload)
 
-    def _normalize_symbol_input(self, data: dict[str, Any]) -> dict[str, float | None]:
-        normalized: dict[str, float | None] = {}
+    def _normalize_symbol_input(self, data: dict[str, Any]) -> dict[str, Any]:
+        normalized: dict[str, Any] = {}
         # Price-like fields: rounded to 2dp.
         mappings = {
             "current_price": ("current_price", "currentPrice", "price"),
@@ -357,7 +366,32 @@ class PortfolioService:
                 from services.portfolio_intent import normalize_intent
 
                 normalized["intent_override"] = normalize_intent(raw_intent)
+
+        # PT Horizon (years) — bound to Pers Target thesis timeframe.
+        if any(
+            k in data
+            for k in ("target_horizon_years", "targetHorizonYears", "ptHorizonYears")
+        ):
+            raw_h = next(
+                data[k]
+                for k in ("target_horizon_years", "targetHorizonYears", "ptHorizonYears")
+                if k in data
+            )
+            normalized["target_horizon_years"] = self._normalize_horizon_years(raw_h)
         return normalized
+
+    @staticmethod
+    def _normalize_horizon_years(value: Any) -> float | None:
+        if value is None or value == "":
+            return None
+        try:
+            years = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not (years > 0):
+            return None
+        # Clamp to a practical investment-horizon band; one decimal for display.
+        return round(min(30.0, max(0.25, years)), 1)
 
     def _row_to_symbol(self, row, include_notes: bool) -> dict[str, Any]:
         keys = row.keys()
@@ -368,6 +402,9 @@ class PortfolioService:
             "priceAsOf": row.get("market_price_as_of"),
             "companyName": row.get("market_company_name"),
             "targetPrice": row["target_price"],
+            "targetHorizonYears": (
+                row["target_horizon_years"] if "target_horizon_years" in keys else None
+            ),
             "analystTarget1y": row.get("market_analyst_target_1y"),
             "analystTargetLow": row.get("market_analyst_target_low"),
             "analystTargetHigh": row.get("market_analyst_target_high"),

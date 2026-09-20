@@ -444,6 +444,7 @@ class ScreeningService:
             "currentPrice": price,
             "targetPrice": target,
             "personalTarget": symbol_data.get("targetPrice"),
+            "targetHorizonYears": symbol_data.get("targetHorizonYears"),
             "analystTarget1y": symbol_data.get("analystTarget1y"),
             "analystTargetLow": symbol_data.get("analystTargetLow"),
             "analystTargetHigh": symbol_data.get("analystTargetHigh"),
