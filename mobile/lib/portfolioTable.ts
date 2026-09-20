@@ -346,6 +346,16 @@ export function computePortfolioTotals(
   const totalAnalystVal = sum("analystTargetValue");
   const totalPtVal = sum("personalTargetValue");
   const totalWeight = sum("weightPct");
+  // Σ (shares × price) — shown under Price; falls back to marketValue when needed.
+  const totalInvestment = rows.reduce((acc, row) => {
+    const qty = Number(row.quantity);
+    const price = Number(row.currentPrice);
+    if (Number.isFinite(qty) && qty > 0 && Number.isFinite(price) && price > 0) {
+      return acc + qty * price;
+    }
+    const mv = Number(row.marketValue);
+    return Number.isFinite(mv) && mv > 0 ? acc + mv : acc;
+  }, 0);
   const horizonVals = rows
     .map((row) => Number(row.targetHorizonYears))
     .filter((n) => Number.isFinite(n) && n > 0);
@@ -375,6 +385,9 @@ export function computePortfolioTotals(
   return {
     symbol: { text: "TOTAL" },
     quantity: { text: formatQty(totalQty || null) },
+    currentPrice: {
+      text: totalInvestment > 0 ? formatMoney(totalInvestment, true) : "—",
+    },
     marketValue: money(totalValue),
     weightPct: { text: formatWeight(totalWeight || null) },
     annualDividend: {
