@@ -28,8 +28,8 @@ export function FlashRow({
   flashKey,
   children,
   style,
-  color = "rgba(96, 165, 250, 0.5)",
-  duration = 1600,
+  color = "rgba(96, 165, 250, 0.16)",
+  duration = 1500,
 }: FlashRowProps) {
   const opacity = useRef(new Animated.Value(0)).current;
   const prevKey = useRef<string | null>(null);

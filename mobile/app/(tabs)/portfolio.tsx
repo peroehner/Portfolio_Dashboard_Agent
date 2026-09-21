@@ -1,6 +1,7 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AppState,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -8,6 +9,10 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+
+// Background price sync runs server-side ~every 300s; poll at the same cadence
+// so the focused Portfolio tab reflects fresh prices without hammering the API.
+const AUTO_REFRESH_MS = 300000;
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AddTickerModal } from "@/components/AddTickerModal";
@@ -69,10 +74,38 @@ export default function PortfolioScreen() {
     if (sym) setFilter(sym);
   }, [symbolParam, setFilter]);
 
-  // Returning from Symbol details should reflect freshly saved thresholds.
+  // Returning from Symbol details should reflect freshly saved thresholds, and
+  // while the tab is focused + the app is in the foreground, auto-refresh every
+  // 300s so background price updates flow in. Polling pauses when the app is
+  // backgrounded or the tab loses focus (battery / avoid stale bursts).
   useFocusEffect(
     useCallback(() => {
       void refresh();
+      let intervalId: ReturnType<typeof setInterval> | null = null;
+      const startPolling = () => {
+        if (intervalId == null) {
+          intervalId = setInterval(() => void refresh(), AUTO_REFRESH_MS);
+        }
+      };
+      const stopPolling = () => {
+        if (intervalId != null) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+      };
+      startPolling();
+      const sub = AppState.addEventListener("change", (state) => {
+        if (state === "active") {
+          void refresh();
+          startPolling();
+        } else {
+          stopPolling();
+        }
+      });
+      return () => {
+        stopPolling();
+        sub.remove();
+      };
     }, [refresh]),
   );
 
