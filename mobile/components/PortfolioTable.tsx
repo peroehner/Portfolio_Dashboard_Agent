@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { FlashRow } from "@/components/FlashRow";
 import { SaiBadge } from "@/components/SaiBadge";
 import { TechBiasBadge } from "@/components/TechBiasBadge";
 import { SymbolStarPressable } from "@/components/SymbolStarPressable";
@@ -44,6 +45,29 @@ const ROW_HEIGHT = 44;
 const HEADER_HEIGHT = 36;
 const TRADE_TIP_KEYS: PortfolioSortKey[] = ["dayChangePct", "tradeBand", "quantity"];
 const TRADE_UPPER_REF_KEY = "portfolio.tradeUpperRef";
+
+// Subtle directional flash tints: green when the price rose, red when it fell,
+// neutral blue for non-price updates (e.g. Tech Bias / SAI arriving).
+const FLASH_UP = "rgba(34, 197, 94, 0.22)";
+const FLASH_DOWN = "rgba(239, 68, 68, 0.22)";
+const FLASH_NEUTRAL = "rgba(96, 165, 250, 0.16)";
+
+/** Fingerprint of the displayed values that arrive via background/progressive
+ *  updates. When it changes, the row flashes (only changed rows flash). */
+function rowFlashKey(row: PortfolioRow): string {
+  return [
+    row.currentPrice ?? "",
+    row.dayChangePct ?? "",
+    row.marketValue ?? "",
+    row.gainPct ?? "",
+    JSON.stringify(row.techBias ?? null),
+    row.saiAction ?? "",
+  ].join("|");
+}
+
+function flashPrice(row: PortfolioRow): number | null {
+  return typeof row.currentPrice === "number" ? row.currentPrice : null;
+}
 
 interface PortfolioTableProps {
   rows: PortfolioRow[];
@@ -144,6 +168,29 @@ export function PortfolioTable({
   const [upperRef, setUpperRef] = useState<TradeUpperRef>("analyst");
   const totals = useMemo(() => computePortfolioTotals(rows), [rows]);
 
+  // Per-symbol flash key + directional tint. `flashKey` changes only when a
+  // displayed value changes (so only changed rows flash); the tint compares the
+  // new price to the last committed one (green up / red down / neutral).
+  const prevPriceRef = useRef<Map<string, number | null>>(new Map());
+  const flashBySymbol = useMemo(() => {
+    const map = new Map<string, { key: string; color: string }>();
+    for (const row of rows) {
+      const price = flashPrice(row);
+      const prev = prevPriceRef.current.get(row.symbol);
+      let color = FLASH_NEUTRAL;
+      if (prev != null && price != null && price !== prev) {
+        color = price > prev ? FLASH_UP : FLASH_DOWN;
+      }
+      map.set(row.symbol, { key: rowFlashKey(row), color });
+    }
+    return map;
+  }, [rows]);
+  useEffect(() => {
+    const next = new Map<string, number | null>();
+    for (const row of rows) next.set(row.symbol, flashPrice(row));
+    prevPriceRef.current = next;
+  }, [rows]);
+
   useEffect(() => {
     let cancelled = false;
     void AsyncStorage.getItem(TRADE_UPPER_REF_KEY).then((raw) => {
@@ -237,7 +284,12 @@ export function PortfolioTable({
         <View style={styles.bodyRow}>
           <View style={[styles.stickyBody, { width: stickyWidth }]}>
             {rows.map((row) => (
-              <View key={row.symbol} style={[styles.stickyDataRow, { width: stickyWidth }]}>
+              <FlashRow
+                key={row.symbol}
+                flashKey={flashBySymbol.get(row.symbol)?.key ?? ""}
+                color={flashBySymbol.get(row.symbol)?.color}
+                style={[styles.stickyDataRow, { width: stickyWidth }]}
+              >
                 <View style={[styles.symbolCell, { width: symbolWidth }]}>
                   <SymbolStarPressable
                     style={styles.symbolPress}
@@ -248,7 +300,7 @@ export function PortfolioTable({
                 <View style={[styles.saiCell, { width: saiWidth }]}>
                   <SaiBadge action={row.saiAction} proposal={row.saiProposal} mini />
                 </View>
-              </View>
+              </FlashRow>
             ))}
             {rows.length > 0 ? (
               <View style={[styles.stickyDataRow, styles.totalRow, { width: stickyWidth }]}>
@@ -274,7 +326,12 @@ export function PortfolioTable({
               {rows.map((row) => {
                 const tipActive = tipSymbol === row.symbol;
                 return (
-                  <View key={row.symbol} style={styles.scrollDataRow}>
+                  <FlashRow
+                    key={row.symbol}
+                    flashKey={flashBySymbol.get(row.symbol)?.key ?? ""}
+                    color={flashBySymbol.get(row.symbol)?.color}
+                    style={styles.scrollDataRow}
+                  >
                     {scrollColumns.map((col) => {
                       const supportsTradeTip = TRADE_TIP_KEYS.includes(col.key);
                       const content =
@@ -331,7 +388,7 @@ export function PortfolioTable({
                         </Pressable>
                       );
                     })}
-                  </View>
+                  </FlashRow>
                 );
               })}
               {rows.length > 0 ? (
