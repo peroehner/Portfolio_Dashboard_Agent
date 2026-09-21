@@ -703,17 +703,20 @@
     }
     .pulse-updated { animation: pulse-updated 0.85s ease-out forwards; border-radius: 8px; }
     @keyframes row-updated-flash {
-      0% { background-color: rgba(96, 165, 250, 0.42); }
-      55% { background-color: rgba(96, 165, 250, 0.14); }
+      0% { background-color: rgba(96, 165, 250, 0.45); }
+      15% { background-color: rgba(96, 165, 250, 0.45); }
+      70% { background-color: rgba(96, 165, 250, 0.16); }
       100% { background-color: transparent; }
     }
     @keyframes row-updated-flash-selected {
-      0% { background-color: rgba(96, 165, 250, 0.48); }
-      55% { background-color: rgba(96, 165, 250, 0.2); }
+      0% { background-color: rgba(96, 165, 250, 0.5); }
+      15% { background-color: rgba(96, 165, 250, 0.5); }
+      70% { background-color: rgba(96, 165, 250, 0.22); }
       100% { background-color: rgba(139, 92, 246, 0.16); }
     }
+    /* Longer, held flash so background/progressive updates are clearly noticed. */
     table.data tbody tr.row-updated > td {
-      animation: row-updated-flash 0.4s ease-out;
+      animation: row-updated-flash 1.6s ease-out;
     }
     table.data tbody tr.row-selected.row-updated > td {
       animation-name: row-updated-flash-selected;
@@ -8971,11 +8974,21 @@
         return;
       }
       try {
-        const data = await api("/patterns");
-        symbolPatterns = data.patterns || {};
+        // Cache-first: instant badges from warm symbols, then warm the rest.
+        const cached = await api("/patterns?cachedOnly=1");
+        symbolPatterns = cached.patterns || {};
         symbolPatternsFetched = true;
         symbolPatternsFetchedAt = Date.now();
         rerenderSymbolNavLists();
+        const meta = cached.meta || {};
+        if (meta.cachedOnly && (meta.pendingEnrichment || 0) > 0) {
+          try {
+            const full = await api("/patterns");
+            symbolPatterns = full.patterns || {};
+            symbolPatternsFetchedAt = Date.now();
+            rerenderSymbolNavLists();
+          } catch (_) { /* warm is best-effort */ }
+        }
       } catch (_) {
         /* badges are best-effort */
       }
@@ -17784,13 +17797,11 @@
         return;
       }
 
-      const path = isFilteredRefresh
-        ? `/fib-proximity?symbols=${scopedSymbols.map(encodeURIComponent).join(",")}`
-        : "/fib-proximity";
-      const data = await api(path);
-      const fresh = data.results || [];
-
       if (isFilteredRefresh) {
+        const data = await api(
+          `/fib-proximity?symbols=${scopedSymbols.map(encodeURIComponent).join(",")}`
+        );
+        const fresh = data.results || [];
         const merged = new Map((cache.data || fibMapData || []).map((row) => [row.symbol, row]));
         for (const row of fresh) {
           if (virtual.has(row.symbol)) merged.set(row.symbol, row);
@@ -17809,20 +17820,38 @@
           "success"
         );
         markRefreshed(`Patterns · ${total} filtered`);
-      } else {
-        fibMapData = fresh;
-        cache.data = fibMapData;
-        cache.fetchedAt = now;
-        if (force) {
-          setStatus(
-            `Refreshed all ${fresh.length} symbol${fresh.length === 1 ? "" : "s"}.`,
-            "success"
-          );
-          markRefreshed("Patterns · all symbols");
-        }
+        pruneVirtualSymbols("fib", fibMapData.map((row) => row.symbol));
+        renderFibMapView();
+        return;
       }
+
+      // Progressive cache-first (Tech tab): paint the instant cache-only view,
+      // then warm the cold symbols and re-render (changed rows flash).
+      const cached = await api("/fib-proximity?cachedOnly=1");
+      fibMapData = cached.results || [];
+      cache.data = fibMapData;
+      cache.fetchedAt = Date.now();
       pruneVirtualSymbols("fib", fibMapData.map((row) => row.symbol));
       renderFibMapView();
+
+      const fibMeta = cached.meta || {};
+      if (fibMeta.cachedOnly && (fibMeta.pendingEnrichment || 0) > 0) {
+        try {
+          const full = await api("/fib-proximity");
+          fibMapData = full.results || [];
+          cache.data = fibMapData;
+          cache.fetchedAt = Date.now();
+          pruneVirtualSymbols("fib", fibMapData.map((row) => row.symbol));
+          renderFibMapView();
+        } catch (_) { /* keep the cached view painted */ }
+      }
+      if (force) {
+        setStatus(
+          `Refreshed all ${fibMapData.length} symbol${fibMapData.length === 1 ? "" : "s"}.`,
+          "success"
+        );
+        markRefreshed("Patterns · all symbols");
+      }
     }
 
     function emphasizeMetricText(text) {
