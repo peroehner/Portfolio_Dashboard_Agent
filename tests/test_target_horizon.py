@@ -26,6 +26,13 @@ class TargetHorizonParseTests(unittest.TestCase):
         self.assertEqual(parse_horizon_date("2027-Q3"), date(2027, 9, 30))
         self.assertEqual(parse_horizon_date("2027-06-15"), date(2027, 6, 15))
 
+    def test_quarter_input_is_case_insensitive(self) -> None:
+        # Lower/upper/mixed-case quarter labels (and separators) all normalize to
+        # the same end date — editing "Q2-2027" must work as well as "q2-2027".
+        expected = date(2027, 6, 30)
+        for text in ("q2-2027", "Q2-2027", "Q2 2027", "q2 2027", "2027-q2", "2027-Q2"):
+            self.assertEqual(parse_horizon_date(text), expected, text)
+
     def test_format(self) -> None:
         self.assertEqual(format_horizon_date(date(2030, 12, 31)), "2030")
         self.assertEqual(format_horizon_date(date(2027, 6, 30)), "Q2-2027")

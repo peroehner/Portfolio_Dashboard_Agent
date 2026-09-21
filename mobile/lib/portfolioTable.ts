@@ -75,7 +75,7 @@ export const PORTFOLIO_SCROLL_COLUMNS: PortfolioColumn[] = [
   { key: "analystUpsidePct", label: "1YT %", width: 68, align: "right", pct: true },
   { key: "analystTargetValue", label: "1YT Val", width: 76, align: "right", money: true },
   { key: "personalTarget", label: "PT", width: 78, align: "right", price: true },
-  { key: "targetHorizonAt", label: "PT Hor", width: 72, align: "right" },
+  { key: "targetHorizonAt", label: "PT Hor", width: 86, align: "right" },
   { key: "personalUpsidePct", label: "PT %", width: 68, align: "right", pct: true },
   { key: "personalTargetValue", label: "PT Val", width: 76, align: "right", money: true },
 ];

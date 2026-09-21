@@ -5264,9 +5264,12 @@
     }
     /* Upper reference marker: 1YT = solid, PT = dashed. Sized to read as
        clearly as the red/green threshold marks (3px wide, same height). */
+    /* 1YT uses the same orange as the Fundamentals analyst-target mean marker
+       (.range-mean) so 1YT reads consistently and is distinct from the green
+       upper (Trade Above) threshold. */
     .trade-band-upper-ref {
       position: absolute; top: 18px; width: 0; height: 15px;
-      border-left: 3px solid #38bdf8;
+      border-left: 3px solid #f59e0b;
       transform: translate(-50%, -50%);
       pointer-events: none;
       z-index: 3;
@@ -13128,7 +13131,7 @@
         label: "PT Hor",
         help: "Pers Target horizon end date (PT Horizon), e.g. Q2-2027 or 2030.\nTOTAL shows the average years remaining across set horizons.",
         sortValue: (row) => row.targetHorizonAt || row.targetHorizonLabel || "",
-        render: (row) => formatHorizonAt(row.targetHorizonAt, row.targetHorizonLabel),
+        render: (row) => `<span style="white-space:nowrap">${formatHorizonAt(row.targetHorizonAt, row.targetHorizonLabel)}</span>`,
       },
       { key: "personalUpsidePct", label: "PT %", coloredPercent: true, sortValue: (row) => holdingsPtUpside(row), render: (row) => renderHoldingsPercentCell(holdingsPtUpside(row)) },
       { key: "personalTargetValue", label: "PT Val", sortValue: (row) => row.personalTargetValue, render: (row) => formatHoldingsCompactMoney(row.personalTargetValue) },
@@ -14405,7 +14408,7 @@
         label: "PT Hor",
         help: "Pers Target horizon end date (PT Horizon), e.g. Q2-2027 or 2030.\nTOTAL shows the average years remaining across set horizons.",
         sortValue: (row) => row.targetHorizonAt || row.targetHorizonLabel || "",
-        render: (row) => formatHorizonAt(row.targetHorizonAt, row.targetHorizonLabel),
+        render: (row) => `<span style="white-space:nowrap">${formatHorizonAt(row.targetHorizonAt, row.targetHorizonLabel)}</span>`,
       },
       {
         key: "noteCount",
