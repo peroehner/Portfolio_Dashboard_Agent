@@ -168,7 +168,7 @@ export function TradeBandBar({
             y1={trackY - 5}
             x2={px(layout.pUpperRef)}
             y2={trackY + TRACK_HEIGHT + 5}
-            stroke={upperRef === "pt" ? "#a78bfa" : "#38bdf8"}
+            stroke={upperRef === "pt" ? "#a78bfa" : "#f59e0b"}
             strokeWidth={2.5}
             strokeLinecap="round"
             strokeDasharray={upperRef === "pt" ? "2 2" : undefined}
