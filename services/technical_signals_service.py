@@ -143,8 +143,8 @@ class TechnicalSignalsService:
             return history
         return history.loc[:, keep].copy()
 
-    def get_signals(self, symbol: str) -> dict[str, Any] | None:
-        df = self._history(symbol)
+    def get_signals(self, symbol: str, *, cached_only: bool = False) -> dict[str, Any] | None:
+        df = self._history(symbol, cached_only=cached_only)
         if df is None:
             return None
         return self.compute_signals(df, symbol=symbol, period=self.period, **self._pivot_kwargs())

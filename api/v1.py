@@ -442,10 +442,13 @@ def list_patterns():
     if not symbols:
         return jsonify({"patterns": {}})
 
+    # Progressive loading: cachedOnly skips per-symbol history fetches so badges
+    # paint from cache instantly; the client warms in the background.
+    cached_only = request.args.get("cachedOnly", "").lower() in ("1", "true", "yes")
     svc = TechnicalSignalsService()
 
     def top_pattern(symbol):
-        signals = svc.get_signals(symbol)
+        signals = svc.get_signals(symbol, cached_only=cached_only)
         patterns = (signals or {}).get("patterns") or []
         if not patterns:
             return symbol, None
@@ -462,7 +465,10 @@ def list_patterns():
     for symbol, pattern in yf_pool.map(top_pattern, symbols):
         if pattern:
             out[symbol] = pattern
-    return jsonify({"patterns": out})
+    pending = sum(1 for s in symbols if not svc.history_cached(s)) if cached_only else 0
+    return jsonify(
+        {"patterns": out, "meta": {"cachedOnly": cached_only, "pendingEnrichment": pending}}
+    )
 
 
 @v1_bp.route("/symbols/<symbol>", methods=["GET"])
@@ -884,11 +890,23 @@ def run_screen():
 
 @v1_bp.route("/fib-proximity", methods=["GET"])
 def fib_proximity():
+    cached_only = request.args.get("cachedOnly", "").lower() in ("1", "true", "yes")
     raw = request.args.get("symbols", "").strip()
     if raw:
         symbols = [part.strip().upper() for part in raw.split(",") if part.strip()]
-        return jsonify({"results": screening_service.fib_proximity_map(symbols=symbols)})
-    return jsonify({"results": screening_service.fib_proximity_map()})
+        rows = screening_service.fib_proximity_map(symbols=symbols, cached_only=cached_only)
+    else:
+        rows = screening_service.fib_proximity_map(cached_only=cached_only)
+    # A row still needs warming if its Tech Stance (confluence) or its Fib levels
+    # were not cached (levels come from a separate 90d history fetch).
+    pending = (
+        sum(1 for r in rows if not r.get("confluence") or not r.get("levels"))
+        if cached_only
+        else 0
+    )
+    return jsonify(
+        {"results": rows, "meta": {"cachedOnly": cached_only, "pendingEnrichment": pending}}
+    )
 
 
 @v1_bp.route("/symbols/<symbol>/inspector", methods=["GET"])

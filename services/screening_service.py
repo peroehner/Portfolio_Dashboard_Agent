@@ -235,10 +235,15 @@ class ScreeningService:
         except Exception:  # noqa: BLE001 - sentiment is best-effort
             return {}
 
-    def fib_proximity_map(self, symbols: list[str] | None = None) -> list[dict[str, Any]]:
+    def fib_proximity_map(
+        self, symbols: list[str] | None = None, *, cached_only: bool = False
+    ) -> list[dict[str, Any]]:
         """Per-symbol Fibonacci proximity enriched with the detected chart pattern,
         trend-wave count, and the technical stance — the data behind the
-        "Patterns & Tech Signals" view."""
+        "Patterns & Tech Signals" view.
+
+        ``cached_only`` skips per-symbol history fetches (charts + Fib levels) so
+        the Tech tab paints instantly from cache and warms in the background."""
         from services.assessment_service import ASSESSMENT_TECHNICALS
         from services.inspector_service import build_technical_advisory
 
@@ -249,14 +254,14 @@ class ScreeningService:
             allowed = {symbol.upper() for symbol in symbols}
             symbols_data = [row for row in symbols_data if row.get("symbol") in allowed]
 
-        charts = self._charts_for(symbols_data) if ASSESSMENT_TECHNICALS else {}
+        charts = self._charts_for(symbols_data, cached_only=cached_only) if ASSESSMENT_TECHNICALS else {}
 
         rows = []
         for symbol_data in symbols_data:
             price = symbol_data["currentPrice"]
             symbol = symbol_data["symbol"]
-            closest = self.fib_service.closest_level(symbol, price)
-            fib = closest["fib"] if closest else self.fib_service.get_levels(symbol)
+            closest = self.fib_service.closest_level(symbol, price, cached_only=cached_only)
+            fib = closest["fib"] if closest else self.fib_service.get_levels(symbol, cached_only=cached_only)
             advisory = build_technical_advisory(price, fib, closest)
             confluence = self._confluence_summary(charts.get(symbol))
             # Confluence agent (Phase 3) drives the Tech Stance when available; the

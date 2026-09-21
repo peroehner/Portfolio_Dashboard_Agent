@@ -19,13 +19,19 @@ class FibService:
         self.period = period or os.environ.get("FIB_LOOKBACK_PERIOD", "90d")
         self.cache_ttl = float(os.environ.get("FIB_CACHE_TTL_SECONDS", "900"))
 
-    def get_levels(self, symbol: str, *, use_cache: bool = True) -> dict[str, Any] | None:
+    def get_levels(
+        self, symbol: str, *, use_cache: bool = True, cached_only: bool = False
+    ) -> dict[str, Any] | None:
         symbol = symbol.upper()
         cache_key = (symbol, self.period)
         if use_cache:
             cached = self._cache_get(cache_key)
             if cached is not None or self._cache_has_key(cache_key):
                 return cached
+        if cached_only:
+            # Progressive fast path: never fetch on a miss (the caller warms in
+            # the background and re-renders).
+            return None
 
         levels = self._fetch_levels(symbol)
         if use_cache:
@@ -42,11 +48,13 @@ class FibService:
         symbol: str,
         price: float,
         fib: dict[str, Any] | None = None,
+        *,
+        cached_only: bool = False,
     ) -> dict[str, Any] | None:
         if price is None:
             return None
         if fib is None:
-            fib = self.get_levels(symbol)
+            fib = self.get_levels(symbol, cached_only=cached_only)
         if not fib:
             return None
 
