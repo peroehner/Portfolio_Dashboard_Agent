@@ -15733,11 +15733,16 @@
       }
       const pending = (async () => {
         try {
-          const data = await api(`/screen${query}`);
+          // Progressive load: paint the instant cache-only view first (no
+          // per-symbol network fetches), then warm + upgrade in the background.
+          // For a large book the full render can block ~40s on throttled Yahoo
+          // history fetches; the cache-only view keeps the tab responsive.
+          const sep = query.includes("?") ? "&" : "?";
+          const cached = await api(`/screen${query}${sep}cachedOnly=1`);
           if (seq !== screeningLoadSeq) return;
           cache.query = query;
-          cache.data = data.results || [];
-          cache.meta = data.meta || null;
+          cache.data = cached.results || [];
+          cache.meta = cached.meta || null;
           cache.fetchedAt = Date.now();
           renderScreeningView(cache.data);
           if (currentView === "screening") markRefreshed("Screening table");
@@ -15746,6 +15751,22 @@
             if (seq !== screeningLoadSeq) return;
             if (currentView === "screening" && cache.data) renderScreeningView(cache.data);
           });
+          // Warm caches + upgrade Tech Stance / sentiment only when the cached
+          // view was missing enrichment (cold cache). A warm book skips this.
+          const cachedMeta = cached.meta || {};
+          if (cachedMeta.cachedOnly && (cachedMeta.pendingEnrichment || 0) > 0) {
+            try {
+              const full = await api(`/screen${query}`);
+              if (seq !== screeningLoadSeq) return;
+              cache.data = full.results || [];
+              cache.meta = full.meta || null;
+              cache.fetchedAt = Date.now();
+              renderScreeningView(cache.data);
+            } catch (warmError) {
+              // Keep the cached view painted; a warm failure is non-fatal.
+              console.warn("Screening full warm failed:", warmError);
+            }
+          }
         } catch (error) {
           if (seq !== screeningLoadSeq) return;
           const message = escapeHtml(error.message || "Failed to load screening.");

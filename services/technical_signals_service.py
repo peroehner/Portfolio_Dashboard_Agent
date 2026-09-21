@@ -93,11 +93,16 @@ class TechnicalSignalsService:
             "pattern_tol_pct": self.pattern_tol_pct if self.detect_patterns else 0.0,
         }
 
-    def _history(self, symbol: str) -> "pd.DataFrame | None":
+    def _history(self, symbol: str, *, cached_only: bool = False) -> "pd.DataFrame | None":
         key = (symbol.upper(), self.period)
         cached = _history_cache.peek(key)
         if cached is not CACHE_MISS:
             return cached
+        if cached_only:
+            # Fast, non-blocking path (progressive UI): never touch the network.
+            # A cache miss just means "not warmed yet"; the caller renders a
+            # fallback and a follow-up (warming) request fills it in.
+            return None
         if _history_fail_ttl > 0 and _history_fail_cache.peek(key) is not CACHE_MISS:
             return None  # recently failed; cool down before retrying
         with _history_fetch_semaphore:
@@ -144,10 +149,13 @@ class TechnicalSignalsService:
             return None
         return self.compute_signals(df, symbol=symbol, period=self.period, **self._pivot_kwargs())
 
-    def get_chart(self, symbol: str) -> dict[str, Any] | None:
+    def get_chart(self, symbol: str, *, cached_only: bool = False) -> dict[str, Any] | None:
         """Trend-wave legs + price timeline + adaptive Fibonacci for the Inspector,
-        derived from the same cached history the assessment signals use."""
-        df = self._history(symbol)
+        derived from the same cached history the assessment signals use.
+
+        ``cached_only`` returns None on a cache miss instead of fetching, so the
+        screening/tech views can paint instantly and warm in the background."""
+        df = self._history(symbol, cached_only=cached_only)
         if df is None:
             return None
         return self.compute_chart(
