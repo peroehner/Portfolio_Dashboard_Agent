@@ -22,7 +22,22 @@ class ScreeningService:
         # counts as "approaching" rather than just on the radar.
         self.trade_near_pct = float(os.environ.get("TRADE_NEAR_PCT", "5"))
 
-    def run_screen(self, filters: dict[str, Any] | None = None) -> dict[str, Any]:
+    def run_screen(
+        self,
+        filters: dict[str, Any] | None = None,
+        *,
+        cached_only: bool = False,
+    ) -> dict[str, Any]:
+        """Build the screening rows.
+
+        ``cached_only`` skips every blocking network fetch (price history for
+        Confluence/Tech Stance, and bulk news for sentiment) and uses only what
+        is already cached. This is the progressive-loading fast path: for a large
+        book the full render can spend ~40s fetching per-symbol history from
+        Yahoo (throttled + rate-limited), so the client asks for the cached view
+        first to paint instantly, then requests the full view to warm caches and
+        upgrade the rows in place.
+        """
         from services.assessment_service import ASSESSMENT_TECHNICALS, AssessmentService
         from services.inspector_service import build_symbol_recommendation
 
@@ -34,11 +49,15 @@ class ScreeningService:
         symbols_data = self.portfolio_service.list_symbols()
         # Confluence rides the same cached price history the Patterns & Tech Signals
         # tab uses, computed in parallel so both tabs show an identical Tech Stance.
-        charts = self._charts_for(symbols_data) if ASSESSMENT_TECHNICALS else {}
+        charts = (
+            self._charts_for(symbols_data, cached_only=cached_only)
+            if ASSESSMENT_TECHNICALS
+            else {}
+        )
         # Market-grounded sentiment from the news we already fetch + score. One
         # bulk fetch for all symbols; best-effort so screening still works if it
         # fails (recommendations then fall back to note-synthesis sentiment).
-        sentiment_by_symbol = self._news_sentiment_map(symbols_data)
+        sentiment_by_symbol = self._news_sentiment_map(symbols_data, cached_only=cached_only)
 
         for symbol_data in symbols_data:
             symbol = symbol_data["symbol"]
@@ -154,28 +173,47 @@ class ScreeningService:
             if last_agent_read_at is None or str(stamp) > str(last_agent_read_at):
                 last_agent_read_at = stamp
 
+        # In cached-only mode, rows whose price history was not warm fall back to
+        # the Fib-position Tech Stance (no Confluence). Report how many so the
+        # client only schedules the (slow) full warm when something is missing.
+        pending_enrichment = (
+            sum(1 for row in results if not row.get("confluence")) if cached_only else 0
+        )
+
         return {
             "results": results,
             "meta": {
                 "lastAgentReadAt": last_agent_read_at,
                 "assessedCount": assessed_count,
                 "symbolCount": len(results),
+                # When true, Tech Stance / sentiment were served from cache only
+                # (no network). The client uses this to schedule a full refresh
+                # that warms caches and upgrades the rows.
+                "cachedOnly": cached_only,
+                "pendingEnrichment": pending_enrichment,
             },
         }
 
     def _news_sentiment_map(
-        self, symbols_data: list[dict[str, Any]]
+        self, symbols_data: list[dict[str, Any]], *, cached_only: bool = False
     ) -> dict[str, dict[str, Any]]:
         """One bulk news fetch for all screened symbols, scored and aggregated into
         a per-symbol market-grounded sentiment. Best-effort: returns ``{}`` on any
-        failure so recommendations fall back to note-synthesis sentiment."""
+        failure so recommendations fall back to note-synthesis sentiment.
+
+        ``cached_only`` reads persisted enrichment only (no network), so the
+        progressive fast path never blocks on the bulk news fetch."""
         from services import news_relevance_service
 
         try:
             symbols = [s["symbol"] for s in symbols_data if s.get("symbol")]
             if not symbols:
                 return {}
-            enrichment = self.fundamentals_service.get_enrichment_bulk(symbols)
+            enrichment = (
+                self.fundamentals_service.get_enrichment_bulk_cached(symbols)
+                if cached_only
+                else self.fundamentals_service.get_enrichment_bulk(symbols)
+            )
             items = []
             for meta in symbols_data:
                 symbol = meta.get("symbol")
@@ -308,11 +346,17 @@ class ScreeningService:
         }
 
     @staticmethod
-    def _charts_for(symbols_data: list[dict[str, Any]]) -> dict[str, dict[str, Any] | None]:
+    def _charts_for(
+        symbols_data: list[dict[str, Any]], *, cached_only: bool = False
+    ) -> dict[str, dict[str, Any] | None]:
         """Fetch computed charts (patterns + volume + confluence) for each symbol in
         parallel on the shared, persistent yfinance worker pool. Chart data is
         derived from cached price history and is user-independent, so the same
-        results back both the Screening and Patterns & Tech Signals tabs."""
+        results back both the Screening and Patterns & Tech Signals tabs.
+
+        ``cached_only`` returns whatever history is already cached and never
+        fetches, so a cold cache yields ``None`` charts (rows fall back to the
+        Fib-position Tech Stance) instead of blocking on the network."""
         from services.market_cache import yf_pool
         from services.technical_signals_service import TechnicalSignalsService
 
@@ -321,7 +365,8 @@ class ScreeningService:
         if not symbols:
             return charts
         tsvc = TechnicalSignalsService()
-        for symbol, chart in zip(symbols, yf_pool.map(tsvc.get_chart, symbols)):
+        fetch = lambda s: tsvc.get_chart(s, cached_only=cached_only)  # noqa: E731
+        for symbol, chart in zip(symbols, yf_pool.map(fetch, symbols)):
             charts[symbol] = chart
         return charts
 

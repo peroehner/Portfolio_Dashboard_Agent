@@ -875,7 +875,11 @@ def run_screen():
         "sort": request.args.get("sort", "score"),
         "order": request.args.get("order", "desc"),
     }
-    return jsonify(screening_service.run_screen(filters))
+    # Progressive loading: cachedOnly serves the instant, cache-only view (no
+    # per-symbol network fetches) so the client can paint immediately, then it
+    # requests the full view to warm caches and upgrade Tech Stance / sentiment.
+    cached_only = request.args.get("cachedOnly", "").lower() in ("1", "true", "yes")
+    return jsonify(screening_service.run_screen(filters, cached_only=cached_only))
 
 
 @v1_bp.route("/fib-proximity", methods=["GET"])
