@@ -173,6 +173,11 @@ class TechnicalSignalsService:
             return None
         return self._timeline_from_close(df, close)
 
+    def history_cached(self, symbol: str) -> bool:
+        """True when this symbol's price history is already in the warm cache
+        (so get_chart/get_signals resolve without a network fetch)."""
+        return _history_cache.peek((symbol.upper(), self.period)) is not CACHE_MISS
+
     @staticmethod
     def clear_cache() -> None:
         _history_cache.clear()

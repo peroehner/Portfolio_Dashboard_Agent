@@ -15755,17 +15755,41 @@
           // view was missing enrichment (cold cache). A warm book skips this.
           const cachedMeta = cached.meta || {};
           if (cachedMeta.cachedOnly && (cachedMeta.pendingEnrichment || 0) > 0) {
-            try {
-              const full = await api(`/screen${query}`);
-              if (seq !== screeningLoadSeq) return;
-              cache.data = full.results || [];
-              cache.meta = full.meta || null;
-              cache.fetchedAt = Date.now();
-              renderScreeningView(cache.data);
-            } catch (warmError) {
-              // Keep the cached view painted; a warm failure is non-fatal.
-              console.warn("Screening full warm failed:", warmError);
-            }
+            // The full /screen fetches the missing per-symbol history (the slow
+            // part) and returns the fully-enriched rows. While it runs, re-poll
+            // the instant cache-only view so rows upgrade progressively as the
+            // shared history cache fills, instead of all at once at the end.
+            let warmDone = false;
+            const fullWarm = (async () => {
+              try {
+                const full = await api(`/screen${query}`);
+                if (seq !== screeningLoadSeq) return;
+                cache.data = full.results || [];
+                cache.meta = full.meta || null;
+                cache.fetchedAt = Date.now();
+                renderScreeningView(cache.data);
+              } catch (warmError) {
+                // Keep the cached view painted; a warm failure is non-fatal.
+                console.warn("Screening full warm failed:", warmError);
+              } finally {
+                warmDone = true;
+              }
+            })();
+            (async () => {
+              for (let i = 0; i < 20 && !warmDone; i++) {
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                if (warmDone || seq !== screeningLoadSeq) break;
+                try {
+                  const poll = await api(`/screen${query}${sep}cachedOnly=1`);
+                  if (warmDone || seq !== screeningLoadSeq) break;
+                  cache.data = poll.results || [];
+                  cache.meta = poll.meta || null;
+                  renderScreeningView(cache.data);
+                  if (((poll.meta || {}).pendingEnrichment || 0) === 0) break;
+                } catch (_) { /* transient poll error — keep trying */ }
+              }
+            })();
+            await fullWarm;
           }
         } catch (error) {
           if (seq !== screeningLoadSeq) return;
