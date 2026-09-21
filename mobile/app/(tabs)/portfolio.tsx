@@ -95,6 +95,8 @@ export default function PortfolioScreen() {
   const matchesSymbol = useSymbolFilterMatch(filter);
 
   // Tech Bias loads after the core portfolio payload so the list stays snappy.
+  // Progressive: paint the instant cache-only bias first, then warm the cold
+  // symbols and upgrade (updated rows flash). Mirrors the web Screen tab.
   useEffect(() => {
     const symbols = (data?.portfolio?.symbols ?? []).map((row) => row.symbol);
     if (!symbols.length) {
@@ -102,17 +104,22 @@ export default function PortfolioScreen() {
       return;
     }
     let cancelled = false;
-    void api
-      .fibProximity(symbols)
-      .then((payload) => {
+    void (async () => {
+      try {
+        const cached = await api.fibProximity(symbols, { cachedOnly: true });
         if (cancelled) return;
-        setTechBiasBySymbol(techBiasMapFromFibProximity(payload?.results));
-      })
-      .catch(() => {
+        setTechBiasBySymbol(techBiasMapFromFibProximity(cached?.results));
+        if ((cached?.meta?.pendingEnrichment ?? 0) > 0) {
+          const full = await api.fibProximity(symbols);
+          if (cancelled) return;
+          setTechBiasBySymbol(techBiasMapFromFibProximity(full?.results));
+        }
+      } catch {
         if (cancelled) return;
         // Keep prior bias map on transient failures; blank only when empty.
         setTechBiasBySymbol((prev) => (prev.size ? prev : new Map()));
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };

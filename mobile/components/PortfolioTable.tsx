@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { FlashRow } from "@/components/FlashRow";
 import { SaiBadge } from "@/components/SaiBadge";
 import { TechBiasBadge } from "@/components/TechBiasBadge";
 import { SymbolStarPressable } from "@/components/SymbolStarPressable";
@@ -44,6 +45,12 @@ const ROW_HEIGHT = 44;
 const HEADER_HEIGHT = 36;
 const TRADE_TIP_KEYS: PortfolioSortKey[] = ["dayChangePct", "tradeBand", "quantity"];
 const TRADE_UPPER_REF_KEY = "portfolio.tradeUpperRef";
+
+/** Fingerprint of the fields that arrive via background/progressive updates
+ *  (mainly Tech Bias, plus the SAI action). When it changes, the row flashes. */
+function rowFlashKey(row: PortfolioRow): string {
+  return `${JSON.stringify(row.techBias ?? null)}|${row.saiAction ?? ""}`;
+}
 
 interface PortfolioTableProps {
   rows: PortfolioRow[];
@@ -237,7 +244,11 @@ export function PortfolioTable({
         <View style={styles.bodyRow}>
           <View style={[styles.stickyBody, { width: stickyWidth }]}>
             {rows.map((row) => (
-              <View key={row.symbol} style={[styles.stickyDataRow, { width: stickyWidth }]}>
+              <FlashRow
+                key={row.symbol}
+                flashKey={rowFlashKey(row)}
+                style={[styles.stickyDataRow, { width: stickyWidth }]}
+              >
                 <View style={[styles.symbolCell, { width: symbolWidth }]}>
                   <SymbolStarPressable
                     style={styles.symbolPress}
@@ -248,7 +259,7 @@ export function PortfolioTable({
                 <View style={[styles.saiCell, { width: saiWidth }]}>
                   <SaiBadge action={row.saiAction} proposal={row.saiProposal} mini />
                 </View>
-              </View>
+              </FlashRow>
             ))}
             {rows.length > 0 ? (
               <View style={[styles.stickyDataRow, styles.totalRow, { width: stickyWidth }]}>
@@ -274,7 +285,7 @@ export function PortfolioTable({
               {rows.map((row) => {
                 const tipActive = tipSymbol === row.symbol;
                 return (
-                  <View key={row.symbol} style={styles.scrollDataRow}>
+                  <FlashRow key={row.symbol} flashKey={rowFlashKey(row)} style={styles.scrollDataRow}>
                     {scrollColumns.map((col) => {
                       const supportsTradeTip = TRADE_TIP_KEYS.includes(col.key);
                       const content =
@@ -331,7 +342,7 @@ export function PortfolioTable({
                         </Pressable>
                       );
                     })}
-                  </View>
+                  </FlashRow>
                 );
               })}
               {rows.length > 0 ? (

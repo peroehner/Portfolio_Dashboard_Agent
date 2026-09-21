@@ -390,13 +390,20 @@ export const api = {
     }>(`/symbols/${encodeURIComponent(symbol)}/news-sentiment`),
   assessmentsOverview: () =>
     apiFetch<{ assessments: import("./types").Assessment[] }>("/assessments/overview"),
-  /** Patterns & Tech Signals bulk map — includes fused techStance / confluence bias. */
-  fibProximity: (symbols?: string[]) => {
-    const q =
-      symbols && symbols.length
-        ? `?symbols=${symbols.map(encodeURIComponent).join(",")}`
-        : "";
-    return apiFetch<{ results: import("./types").FibProximityRow[] }>(`/fib-proximity${q}`, {
+  /** Patterns & Tech Signals bulk map — includes fused techStance / confluence bias.
+   *  ``cachedOnly`` returns the instant cache-only view (no per-symbol history
+   *  fetch); ``meta.pendingEnrichment`` reports how many rows still need warming. */
+  fibProximity: (symbols?: string[], opts?: { cachedOnly?: boolean }) => {
+    const params: string[] = [];
+    if (symbols && symbols.length) {
+      params.push(`symbols=${symbols.map(encodeURIComponent).join(",")}`);
+    }
+    if (opts?.cachedOnly) params.push("cachedOnly=1");
+    const q = params.length ? `?${params.join("&")}` : "";
+    return apiFetch<{
+      results: import("./types").FibProximityRow[];
+      meta?: { cachedOnly?: boolean; pendingEnrichment?: number };
+    }>(`/fib-proximity${q}`, {
       timeoutMs: OVERVIEW_TIMEOUT_MS,
     });
   },
