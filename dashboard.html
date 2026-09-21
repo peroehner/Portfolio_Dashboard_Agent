@@ -714,9 +714,28 @@
       70% { background-color: rgba(96, 165, 250, 0.22); }
       100% { background-color: rgba(139, 92, 246, 0.16); }
     }
+    /* Directional variants: green when a value rose, red when it fell. */
+    @keyframes row-updated-flash-up {
+      0% { background-color: rgba(34, 197, 94, 0.42); }
+      15% { background-color: rgba(34, 197, 94, 0.42); }
+      70% { background-color: rgba(34, 197, 94, 0.14); }
+      100% { background-color: transparent; }
+    }
+    @keyframes row-updated-flash-down {
+      0% { background-color: rgba(239, 68, 68, 0.42); }
+      15% { background-color: rgba(239, 68, 68, 0.42); }
+      70% { background-color: rgba(239, 68, 68, 0.14); }
+      100% { background-color: transparent; }
+    }
     /* Longer, held flash so background/progressive updates are clearly noticed. */
     table.data tbody tr.row-updated > td {
       animation: row-updated-flash 1.6s ease-out;
+    }
+    table.data tbody tr.row-updated-up > td {
+      animation: row-updated-flash-up 1.6s ease-out;
+    }
+    table.data tbody tr.row-updated-down > td {
+      animation: row-updated-flash-down 1.6s ease-out;
     }
     table.data tbody tr.row-selected.row-updated > td {
       animation-name: row-updated-flash-selected;
@@ -724,7 +743,9 @@
     @media (prefers-reduced-motion: reduce) {
       .btn-spinner { animation: none; }
       .pulse-updated { animation: none; }
-      table.data tbody tr.row-updated > td { animation: none; }
+      table.data tbody tr.row-updated > td,
+      table.data tbody tr.row-updated-up > td,
+      table.data tbody tr.row-updated-down > td { animation: none; }
     }
     .threshold-proposal {
       margin-top: 0.25rem;
@@ -6652,6 +6673,11 @@
       }
     }
 
+    function rowFlashPrice(row) {
+      const value = Number(row?.currentPrice);
+      return Number.isFinite(value) ? value : null;
+    }
+
     function pulseUpdatedTableRows(tableId, rows, keyColumn) {
       if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
       const table = document.querySelector(`table[data-table-id="${tableId}"]`);
@@ -6659,26 +6685,39 @@
 
       const prev = tableRowSnapshots.get(tableId) || new Map();
       const next = new Map();
-      const changedKeys = new Set();
+      // key -> "up" | "down" | "neutral": direction of the price move that
+      // triggered the flash (neutral for non-price changes, e.g. Tech Stance).
+      const directionByKey = new Map();
 
       rows.forEach((row) => {
         const key = String(keyColumn.sortValue(row) ?? "");
         if (!key) return;
         const fingerprint = rowDataFingerprint(row);
-        next.set(key, fingerprint);
-        if (prev.has(key) && prev.get(key) !== fingerprint) changedKeys.add(key);
+        const price = rowFlashPrice(row);
+        next.set(key, { fp: fingerprint, price });
+        const before = prev.get(key);
+        if (before && before.fp !== fingerprint) {
+          let dir = "neutral";
+          if (price != null && before.price != null && price !== before.price) {
+            dir = price > before.price ? "up" : "down";
+          }
+          directionByKey.set(key, dir);
+        }
       });
 
       tableRowSnapshots.set(tableId, next);
-      if (!changedKeys.size) return;
+      if (!directionByKey.size) return;
 
+      const FLASH_CLASSES = ["row-updated", "row-updated-up", "row-updated-down"];
       table.querySelectorAll("tbody tr[data-row-key]").forEach((tr) => {
-        const key = tr.dataset.rowKey;
-        if (!changedKeys.has(key)) return;
-        tr.classList.remove("row-updated");
+        const dir = directionByKey.get(tr.dataset.rowKey);
+        if (!dir) return;
+        const cls =
+          dir === "up" ? "row-updated-up" : dir === "down" ? "row-updated-down" : "row-updated";
+        FLASH_CLASSES.forEach((c) => tr.classList.remove(c));
         void tr.offsetWidth;
-        tr.classList.add("row-updated");
-        tr.addEventListener("animationend", () => tr.classList.remove("row-updated"), { once: true });
+        tr.classList.add(cls);
+        tr.addEventListener("animationend", () => tr.classList.remove(cls), { once: true });
       });
     }
 

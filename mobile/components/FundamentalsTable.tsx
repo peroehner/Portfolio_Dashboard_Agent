@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Pressable,
@@ -10,6 +10,7 @@ import {
   type RefreshControlProps,
 } from "react-native";
 
+import { FlashRow } from "@/components/FlashRow";
 import { RangeBar, TargetRangeBar } from "@/components/RangeBar";
 import { SymbolStarPressable } from "@/components/SymbolStarPressable";
 import {
@@ -32,6 +33,25 @@ import type { FundamentalsRow } from "@/lib/types";
 
 const ROW_HEIGHT = 44;
 const HEADER_HEIGHT = 40;
+
+// Subtle directional flash tints (green up / red down / neutral for non-price
+// updates), matching the Portfolio table.
+const FLASH_UP = "rgba(34, 197, 94, 0.22)";
+const FLASH_DOWN = "rgba(239, 68, 68, 0.22)";
+const FLASH_NEUTRAL = "rgba(96, 165, 250, 0.16)";
+
+function fundFlashPrice(row: FundamentalsRow): number | null {
+  return typeof row.currentPrice === "number" ? row.currentPrice : null;
+}
+
+/** Fingerprint of displayed fundamentals values; changes trigger a row flash. */
+function fundFlashKey(row: FundamentalsRow): string {
+  return [
+    row.currentPrice ?? "",
+    row.dayChangePct ?? "",
+    JSON.stringify(row.fundamentals ?? null),
+  ].join("|");
+}
 
 interface FundamentalsTableProps {
   rows: FundamentalsRow[];
@@ -158,22 +178,28 @@ function FundamentalsScrollRow({
   row,
   scrollColumns,
   browseSymbols,
+  flashKey,
+  flashColor,
 }: {
   row: FundamentalsRow;
   scrollColumns: FundamentalsColumn[];
   browseSymbols: string[];
+  flashKey: string;
+  flashColor: string;
 }) {
   const rowStar = useSymbolRowStar(row.symbol);
   return (
-    <Pressable
-      style={styles.scrollDataRow}
-      onPress={() => openSymbol(row.symbol, browseSymbols, "fundamentals")}
-      {...rowStar}
-    >
-      {scrollColumns.map((col) => (
-        <ScrollCell key={col.key} row={row} col={col} width={col.width} />
-      ))}
-    </Pressable>
+    <FlashRow flashKey={flashKey} color={flashColor}>
+      <Pressable
+        style={styles.scrollDataRow}
+        onPress={() => openSymbol(row.symbol, browseSymbols, "fundamentals")}
+        {...rowStar}
+      >
+        {scrollColumns.map((col) => (
+          <ScrollCell key={col.key} row={row} col={col} width={col.width} />
+        ))}
+      </Pressable>
+    </FlashRow>
   );
 }
 
@@ -193,6 +219,28 @@ export function FundamentalsTable({
   const sortedRows = useMemo(() => sortFundamentalsRows(rows, sort), [rows, sort]);
   const browseSymbols = useMemo(() => sortedRows.map((row) => row.symbol), [sortedRows]);
   const totals = useMemo(() => computeFundamentalsTotals(sortedRows), [sortedRows]);
+
+  // Per-symbol flash key + directional tint (green up / red down / neutral),
+  // compared against the last committed price so both row panes flash alike.
+  const prevPriceRef = useRef<Map<string, number | null>>(new Map());
+  const flashBySymbol = useMemo(() => {
+    const map = new Map<string, { key: string; color: string }>();
+    for (const row of sortedRows) {
+      const price = fundFlashPrice(row);
+      const prev = prevPriceRef.current.get(row.symbol);
+      let color = FLASH_NEUTRAL;
+      if (prev != null && price != null && price !== prev) {
+        color = price > prev ? FLASH_UP : FLASH_DOWN;
+      }
+      map.set(row.symbol, { key: fundFlashKey(row), color });
+    }
+    return map;
+  }, [sortedRows]);
+  useEffect(() => {
+    const next = new Map<string, number | null>();
+    for (const row of sortedRows) next.set(row.symbol, fundFlashPrice(row));
+    prevPriceRef.current = next;
+  }, [sortedRows]);
   const stickyWidth = stickyColumns.reduce((sum, col) => sum + col.width, 0);
   const tableWidth = scrollColumns.reduce((sum, col) => sum + col.width, 0);
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -249,7 +297,12 @@ export function FundamentalsTable({
         <View style={styles.bodyRow}>
           <View style={[styles.stickyBody, { width: stickyWidth }]}>
             {sortedRows.map((row) => (
-              <View key={row.symbol} style={[styles.stickyDataRow, { width: stickyWidth }]}>
+              <FlashRow
+                key={row.symbol}
+                flashKey={flashBySymbol.get(row.symbol)?.key ?? ""}
+                color={flashBySymbol.get(row.symbol)?.color}
+                style={[styles.stickyDataRow, { width: stickyWidth }]}
+              >
                 {stickyColumns.map((col) => (
                   <StickyCell
                     key={col.key}
@@ -259,7 +312,7 @@ export function FundamentalsTable({
                     browseSymbols={browseSymbols}
                   />
                 ))}
-              </View>
+              </FlashRow>
             ))}
             {sortedRows.length > 0 ? (
               <View style={[styles.stickyDataRow, styles.totalRow, { width: stickyWidth }]}>
@@ -301,6 +354,8 @@ export function FundamentalsTable({
                   row={row}
                   scrollColumns={scrollColumns}
                   browseSymbols={browseSymbols}
+                  flashKey={flashBySymbol.get(row.symbol)?.key ?? ""}
+                  flashColor={flashBySymbol.get(row.symbol)?.color ?? FLASH_NEUTRAL}
                 />
               ))}
               {sortedRows.length > 0 ? (
