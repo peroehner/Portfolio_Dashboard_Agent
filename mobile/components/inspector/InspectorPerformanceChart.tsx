@@ -289,15 +289,6 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
     if (Math.abs(next - zoom) >= 0.05) setZoom(next);
   }
 
-  if (!model.priceLine.length && !model.trendSegments.length) {
-    return (
-      <View style={styles.card}>
-        <Text style={styles.title}>Performance & Fibonacci</Text>
-        <Text style={styles.muted}>No chart timeline available for this symbol.</Text>
-      </View>
-    );
-  }
-
   const inlineHover = hoverPoint ? buildChartHoverLine(model, hoverPoint) : "";
   const fsHover = fsHoverPoint ? buildChartHoverLine(model, fsHoverPoint) : "";
 
@@ -306,6 +297,10 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
   fsChartWRef.current = fsChartW;
   const fsChartH = Math.max(windowHeight - 72, 200);
 
+  // NOTE: declared BEFORE the early return below. React requires the same hooks
+  // to run in the same order on every render — switching to a symbol with no
+  // chart data (early return) must not skip this effect, or React throws
+  // "Rendered fewer hooks than expected" and crashes (Technical tab next/prev).
   useEffect(() => {
     if (!fullscreen || fsViewport <= 0) return;
     const prevW = lastFsChartWRef.current || fsChartW;
@@ -322,6 +317,15 @@ export function InspectorPerformanceChart({ data }: InspectorPerformanceChartPro
     fsScrollXRef.current = nextX;
     lastFsChartWRef.current = fsChartW;
   }, [fsChartW, fsViewport, fullscreen]);
+
+  if (!model.priceLine.length && !model.trendSegments.length) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>Performance & Fibonacci</Text>
+        <Text style={styles.muted}>No chart timeline available for this symbol.</Text>
+      </View>
+    );
+  }
 
   function onInlinePress(locationX: number) {
     const now = Date.now();
