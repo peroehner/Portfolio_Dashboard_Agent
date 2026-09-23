@@ -268,7 +268,7 @@ export function PortfolioTable({
           <View style={styles.tipBanner} pointerEvents="none">
             <Text style={styles.tipBannerSymbol}>{tipSymbol}</Text>
             <Text style={styles.tipBannerText}>
-              {tradeBandTooltipText(rows.find((r) => r.symbol === tipSymbol) ?? { symbol: tipSymbol }) ??
+              {tradeBandTooltipText(rows.find((r) => r.symbol === tipSymbol) ?? { symbol: tipSymbol }, upperRef) ??
                 ""}
             </Text>
           </View>
@@ -372,7 +372,7 @@ export function PortfolioTable({
                             supportsTradeTip
                               ? () => {
                                   longPressedRef.current = true;
-                                  if (tradeBandTooltipText(row)) setTipSymbol(row.symbol);
+                                  if (tradeBandTooltipText(row, upperRef)) setTipSymbol(row.symbol);
                                 }
                               : undefined
                           }
