@@ -14198,7 +14198,9 @@
         pieces.push(
           `<span class="trade-band-upper-ref${tradeBandUpperRef === "pt" ? " pt" : ""}" style="left:${pUpperRef.toFixed(2)}%;" title="${refLabel} ${formatMoney(upperRefPrice)}"></span>`
         );
-        titleLines.push(`${refLabel} ${formatMoney(upperRefPrice)}`);
+        titleLines.push(
+          `${refLabel} ${formatMoney(upperRefPrice)} · Price ${formatMoney(price)} (${deltaText(upperRefPrice)})`
+        );
       }
 
       const title = escapeHtml(titleLines.join("\n"));

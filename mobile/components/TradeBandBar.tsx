@@ -24,11 +24,13 @@ function deltaText(price: number, threshold: number): string {
 }
 
 /** Tooltip text for Trade column (also used by Day % / Qty long-press). */
-export function tradeBandTooltipText(row: PortfolioRow): string | null {
+export function tradeBandTooltipText(
+  row: PortfolioRow,
+  upperRef: TradeUpperRef = "analyst",
+): string | null {
   const price = row.currentPrice;
   if (price == null) return null;
   const lines: string[] = [];
-  lines.push(`Price ${formatPrice(price)}`);
   if (row.tradeBelowPrice != null) {
     const sh = sharesText(row.tradeBelowShares);
     lines.push(
@@ -41,7 +43,16 @@ export function tradeBandTooltipText(row: PortfolioRow): string | null {
       `Above ${formatPrice(row.tradeAbovePrice)} (${deltaText(price, row.tradeAbovePrice)})${sh ? ` · Sell ${sh}` : ""}`,
     );
   }
-  return lines.length > 1 ? lines.join("\n") : null;
+  // Reference line: 1YT (or PT in PT mode) target + current price with the
+  // price's move to that target (same delta convention as the rows above).
+  const refPrice = upperRef === "pt" ? row.personalTarget : row.analystTarget1y;
+  const refLabel = upperRef === "pt" ? "PT" : "1YT";
+  if (refPrice != null && Number.isFinite(Number(refPrice))) {
+    lines.push(
+      `${refLabel} ${formatPrice(refPrice)} · Price ${formatPrice(price)} (${deltaText(price, Number(refPrice))})`,
+    );
+  }
+  return lines.length ? lines.join("\n") : null;
 }
 
 interface TradeBandBarProps {
@@ -96,7 +107,7 @@ export function TradeBandBar({
         ? { left: px(layout.pPrice) + 7 }
         : { left: px(layout.pPrice), transform: [{ translateX: -20 }] as const };
 
-  const title = tradeBandTooltipText(row) ?? "";
+  const title = tradeBandTooltipText(row, upperRef) ?? "";
 
   const body = (
     <>
