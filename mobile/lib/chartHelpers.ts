@@ -361,8 +361,13 @@ export function buildInspectorChartModel(
   if (pattern?.keyLevel?.price != null) prices.push(pattern.keyLevel.price);
   if (pattern?.target != null) prices.push(pattern.target);
 
-  const minPriceRaw = prices.length ? Math.min(...prices) : 0;
-  const maxPriceRaw = prices.length ? Math.max(...prices) : 1;
+  // Only finite prices define the scale. A single NaN/Infinity (e.g. a bad fib
+  // level or imported value for a symbol like RKLB) would otherwise make
+  // Math.min/max NaN, poisoning every Y coordinate and crashing react-native-svg
+  // natively when that symbol's chart renders on swipe/switch.
+  const finitePrices = prices.filter((p) => Number.isFinite(p));
+  const minPriceRaw = finitePrices.length ? Math.min(...finitePrices) : 0;
+  const maxPriceRaw = finitePrices.length ? Math.max(...finitePrices) : 1;
   const pricePad = (maxPriceRaw - minPriceRaw) * 0.06 || maxPriceRaw * 0.02 || 1;
   const yMin = minPriceRaw - pricePad;
   const yMax = maxPriceRaw + pricePad;
@@ -370,11 +375,13 @@ export function buildInspectorChartModel(
   const toX = (date?: string) => {
     const ts = parseDate(date);
     if (ts == null) return 0;
-    return (ts - minX) / xSpan;
+    const norm = (ts - minX) / xSpan;
+    return Number.isFinite(norm) ? norm : 0;
   };
   const toY = (price?: number | null) => {
-    if (price == null) return 0.5;
-    return 1 - (price - yMin) / Math.max(yMax - yMin, 1);
+    if (price == null || !Number.isFinite(price)) return 0.5;
+    const norm = 1 - (price - yMin) / Math.max(yMax - yMin, 1);
+    return Number.isFinite(norm) ? norm : 0.5;
   };
 
   const priceLine: ChartPoint[] = timeline
@@ -426,11 +433,15 @@ export function buildInspectorChartModel(
       priceEnd: wave.priceEnd ?? undefined,
     }));
 
-  const fibLines: ChartFibLine[] = fibSource.map((level, index) => ({
-    label: level.shortLabel ?? level.label ?? level.key ?? "Fib",
-    price: Number(level.price),
-    color: level.color ?? DEFAULT_FIB_COLORS[index % DEFAULT_FIB_COLORS.length],
-  }));
+  const fibLines: ChartFibLine[] = fibSource
+    .map((level, index) => ({
+      label: level.shortLabel ?? level.label ?? level.key ?? "Fib",
+      price: Number(level.price),
+      color: level.color ?? DEFAULT_FIB_COLORS[index % DEFAULT_FIB_COLORS.length],
+    }))
+    // Drop levels without a finite price — the SVG draws them at yForPrice(price),
+    // and a NaN there would crash react-native-svg natively.
+    .filter((line) => Number.isFinite(line.price));
 
   const tradeLevels: ChartTradeLevel[] = [];
   const pushTrade = (side: "below" | "above", price: unknown, label: string, color: string) => {

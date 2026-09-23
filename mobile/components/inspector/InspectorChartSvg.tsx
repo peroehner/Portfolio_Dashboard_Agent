@@ -74,12 +74,17 @@ export function InspectorChartSvg({
   const volBand = Math.min(plotH * 0.44, plotH * 0.5);
 
   const pricePoints = pointsToPolyline(model.priceLine, width, height, padLeft, pad, padBottom);
-  const yForNorm = (yNorm: number) => pad + yNorm * plotH;
+  // Guard every coordinate: a non-finite value passed to react-native-svg (Line,
+  // Rect, Circle, Polyline …) crashes the app natively. Fall back to the plot
+  // edge so a bad datum is simply not drawn on-scale rather than fatal.
+  const fin = (value: number, fallback: number) =>
+    Number.isFinite(value) ? value : fallback;
+  const yForNorm = (yNorm: number) => pad + fin(yNorm, 0) * plotH;
   const yForPrice = (price: number) => {
     const yNorm = 1 - (price - model.minPrice) / Math.max(model.maxPrice - model.minPrice, 1);
     return yForNorm(yNorm);
   };
-  const xForNorm = (xNorm: number) => padLeft + xNorm * plotW;
+  const xForNorm = (xNorm: number) => padLeft + fin(xNorm, 0) * plotW;
 
   const ticks = yTicks(model.minPrice, model.maxPrice, 5);
   const dateTicks = xDateTicks(model, Math.min(10, Math.max(4, Math.floor(plotW / 72))));
